@@ -8,6 +8,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
+
+    # ...
+    superadmin_email: str | None = None
+    superadmin_password: str | None = None
+    superadmin_tenant_name: str | None = None
+    superadmin_tenant_slug: str | None = None
+
+
     # ===========================================
     # CORE
     # ===========================================
