@@ -113,15 +113,26 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
-
 )
+
+# CORS - Permitir origens de desenvolvimento e produção
+allowed_origins = [
+    # Produção Railway
+    "https://vellarys-production.up.railway.app",
+    "https://hopeful-purpose-production.up.railway.app",
+    # Domínio customizado (futuro)
+    "https://vellarys.com",
+    "https://www.vellarys.com",
+    # Desenvolvimento local
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:8000",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
