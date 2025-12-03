@@ -55,33 +55,29 @@ async def create_superadmin():
 
         print("🔧 Criando superadmin...")
 
-        # Cria o tenant principal
+        # Criar tenant principal
         tenant = Tenant(
             name=settings.superadmin_tenant_name,
             slug=settings.superadmin_tenant_slug,
-            active=True   # ✔ CORRETO
+            active=True  # CAMPO CORRETO
         )
-
         session.add(tenant)
-        await session.flush()  # para gerar o ID
+        await session.flush()  # gerar ID
 
-        # Cria o superadmin
+        # Criar superadmin
         superadmin = User(
             name="Superadmin",
             email=settings.superadmin_email,
-            hashed_password=hash_password(settings.superadmin_password),
-            role="superadmin",
+            password_hash=hash_password(settings.superadmin_password),  # CAMPO CORRETO
+            role=UserRole.SUPERADMIN.value,  # para não dar erro
             tenant_id=tenant.id,
-            active=True,
+            active=True  # CAMPO CORRETO
         )
-
 
         session.add(superadmin)
         await session.commit()
 
         print("✅ Superadmin criado com sucesso!")
-        print(f"   Email: {settings.superadmin_email}")
-        print(f"   Tenant: {settings.superadmin_tenant_name}")
 
 
 # ============================================================
