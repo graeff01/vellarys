@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import get_settings
-from src.infrastructure.database import init_db
+from src.infrastructure.database import init_db, async_session
 from src.infrastructure.services.gupshup_init import init_gupshup_service, shutdown_gupshup_service
 from src.api.routes import (
     webhook_router,
@@ -30,26 +30,82 @@ from src.api.routes import (
     admin_plans_router,
 )
 
+from src.domain.entities import User, Tenant
+from src.infrastructure.services.auth_service import hash_password
+from sqlalchemy import select
+
 settings = get_settings()
 
 
+# ============================================================
+# 🚀 Função que cria o superadmin automaticamente
+# ============================================================
+async def create_superadmin():
+    async with async_session() as session:
+        # Verifica se já existe
+        result = await session.execute(
+            select(User).where(User.email == settings.superadmin_email)
+        )
+        user = result.scalars().first()
+
+        if user:
+            print("👑 Superadmin já existe. Pulando criação.")
+            return
+
+        print("🔧 Criando superadmin...")
+
+        # Cria o tenant principal
+        tenant = Tenant(
+            name=settings.superadmin_tenant_name,
+            slug=settings.superadmin_tenant_slug,
+            is_active=True
+        )
+        session.add(tenant)
+        await session.flush()  # para gerar o ID
+
+        # Cria o superadmin
+        superadmin = User(
+            name="Superadmin",
+            email=settings.superadmin_email,
+            password_hash=hash_password(settings.superadmin_password),
+            role="superadmin",
+            tenant_id=tenant.id,
+            is_active=True,
+        )
+
+        session.add(superadmin)
+        await session.commit()
+
+        print("✅ Superadmin criado com sucesso!")
+        print(f"   Email: {settings.superadmin_email}")
+        print(f"   Tenant: {settings.superadmin_tenant_name}")
+
+
+# ============================================================
+# LIFESPAN (Startup + Shutdown)
+# ============================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 Iniciando Velaris API...")
+
     await init_db()
     print("✅ Tabelas criadas!")
 
-    
+    # Criar superadmin (apenas se não existir)
+    await create_superadmin()
+
     # Inicializa Gupshup
     init_gupshup_service()
-    
+
     yield
-    
-    # Shutdown
+
     await shutdown_gupshup_service()
     print("👋 Encerrando...")
 
 
+# ============================================================
+# FASTAPI APP
+# ============================================================
 app = FastAPI(
     title="Velaris API",
     description="IA atendente B2B multi-tenant",
@@ -70,12 +126,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ============================================
-# ROTAS PÚBLICAS / TENANT
-# ============================================
+
+# ============================================================
+# ROTAS
+# ============================================================
+# Públicas / Tenant
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(webhook_router, prefix="/api/v1")
-app.include_router(gupshup_webhook_router, prefix="/api/v1")  # Webhook Gupshup
+app.include_router(gupshup_webhook_router, prefix="/api/v1")
 app.include_router(leads_router, prefix="/api/v1")
 app.include_router(metrics_router, prefix="/api/v1")
 app.include_router(tenants_router, prefix="/api/v1")
@@ -86,9 +144,7 @@ app.include_router(reengagement_router, prefix="/api/v1")
 app.include_router(export_router, prefix="/api/v1")
 app.include_router(usage_router, prefix="/api/v1")
 
-# ============================================
-# ROTAS ADMIN (Superadmin apenas)
-# ============================================
+# Admin
 app.include_router(admin_dashboard_router, prefix="/api/v1")
 app.include_router(admin_tenants_router, prefix="/api/v1")
 app.include_router(admin_niches_router, prefix="/api/v1")
