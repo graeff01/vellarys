@@ -1,0 +1,41 @@
+"""Schemas de validação da API."""
+
+from .schemas import (
+    WebhookMessage,
+    WebhookResponse,
+    SellerSummary,
+    LeadBase,
+    LeadCreate,
+    LeadUpdate,
+    LeadResponse,
+    LeadListResponse,
+    MessageResponse,
+    TenantSettings,
+    TenantCreate,
+    TenantResponse,
+    DashboardMetrics,
+    LeadsByPeriod,
+    NicheInfo,
+    LoginRequest,
+    TokenResponse,
+)
+
+__all__ = [
+    "WebhookMessage",
+    "WebhookResponse",
+    "SellerSummary",
+    "LeadBase",
+    "LeadCreate",
+    "LeadUpdate",
+    "LeadResponse",
+    "LeadListResponse",
+    "MessageResponse",
+    "TenantSettings",
+    "TenantCreate",
+    "TenantResponse",
+    "DashboardMetrics",
+    "LeadsByPeriod",
+    "NicheInfo",
+    "LoginRequest",
+    "TokenResponse",
+]

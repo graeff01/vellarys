@@ -1,0 +1,45 @@
+# VELARIS - Docker Compose
+# Subir: docker compose up -d
+# Logs: docker compose logs -f
+# Parar: docker compose down
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: velaris_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: velaris
+      POSTGRES_PASSWORD: velaris123
+      POSTGRES_DB: velaris_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - velaris_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U velaris -d velaris_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: velaris_backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://velaris:velaris123@db:5432/velaris_db
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SECRET_KEY=${SECRET_KEY:-chave-dev-123}
+      - ENVIRONMENT=development
+      - DEBUG=true
+    volumes:
+      - ./backend/src:/app/src:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  velaris_postgres_data:
