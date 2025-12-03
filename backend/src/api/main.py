@@ -119,7 +119,7 @@ app = FastAPI(
 allowed_origins = [
     # Produção Railway
     "https://vellarys-production.up.railway.app",
-    "https://hopeful-purpose-production.up.railway.app",
+    "https://hopeful-purpose-production-3a2b.up.railway.app",
     # Domínio customizado (futuro)
     "https://vellarys.com",
     "https://www.vellarys.com",
