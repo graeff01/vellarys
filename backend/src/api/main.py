@@ -111,8 +111,9 @@ app = FastAPI(
     description="IA atendente B2B multi-tenant",
     version="0.1.0",
     lifespan=lifespan,
-    docs_url="/docs" if settings.debug else None,
-    redoc_url="/redoc" if settings.debug else None,
+    docs_url="/docs",
+    redoc_url="/redoc",
+
 )
 
 app.add_middleware(
