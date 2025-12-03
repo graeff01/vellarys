@@ -36,9 +36,9 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("🚀 Iniciando Velaris API...")
-    if settings.is_development:
-        await init_db()
-        print("✅ Tabelas criadas!")
+    await init_db()
+    print("✅ Tabelas criadas!")
+
     
     # Inicializa Gupshup
     init_gupshup_service()
