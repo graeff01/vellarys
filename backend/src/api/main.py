@@ -22,7 +22,6 @@ from src.api.routes import (
     export_router,
     usage_router,
     gupshup_webhook_router,
-    simulator_router,
     # Admin
     admin_dashboard_router,
     admin_tenants_router,
@@ -63,8 +62,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-    "https://vellarys-production.up.railway.app",
-    "https://vellarys.com",
+        "http://localhost:3000",
+        "http://localhost:8000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -86,7 +85,6 @@ app.include_router(sellers_router, prefix="/api/v1")
 app.include_router(reengagement_router, prefix="/api/v1")
 app.include_router(export_router, prefix="/api/v1")
 app.include_router(usage_router, prefix="/api/v1")
-app.include_router(simulator_router, prefix="/api/v1")  # Simulador de Conversa
 
 # ============================================
 # ROTAS ADMIN (Superadmin apenas)
