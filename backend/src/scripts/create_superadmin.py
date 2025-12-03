@@ -30,10 +30,11 @@ async def main():
 
         if not tenant:
             tenant = Tenant(
-                name=TENANT_NAME,
-                slug=TENANT_SLUG,
-                is_active=True,
-            )
+            name=TENANT_NAME,
+            slug=TENANT_SLUG,
+            active=True,
+            )   
+
             session.add(tenant)
             await session.flush()  # garante ID
             print(f"✅ Tenant criado: {tenant.name} ({tenant.slug})")
@@ -52,7 +53,7 @@ async def main():
                 email=ADMIN_EMAIL,
                 hashed_password=hash_password(ADMIN_PASSWORD),
                 role=UserRole.SUPERADMIN,
-                is_active=True,
+                active=True,
                 tenant_id=tenant.id,
             )
             session.add(user)

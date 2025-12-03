@@ -5,6 +5,7 @@ VELARIS API - Ponto de Entrada
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from src.infrastructure.database import init_db, async_session
 
 from src.config import get_settings
 from src.infrastructure.database import init_db, async_session
