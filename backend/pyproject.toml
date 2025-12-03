@@ -33,3 +33,6 @@ target-version = "py311"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[project.scripts]
+create-superadmin = "src.scripts.create_superadmin:main"
