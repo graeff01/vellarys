@@ -59,8 +59,9 @@ async def create_superadmin():
         tenant = Tenant(
             name=settings.superadmin_tenant_name,
             slug=settings.superadmin_tenant_slug,
-            is_active=True
+            active=True   # ✔ CORRETO
         )
+
         session.add(tenant)
         await session.flush()  # para gerar o ID
 
@@ -68,11 +69,12 @@ async def create_superadmin():
         superadmin = User(
             name="Superadmin",
             email=settings.superadmin_email,
-            password_hash=hash_password(settings.superadmin_password),
+            hashed_password=hash_password(settings.superadmin_password),
             role="superadmin",
             tenant_id=tenant.id,
-            is_active=True,
+            active=True,
         )
+
 
         session.add(superadmin)
         await session.commit()
