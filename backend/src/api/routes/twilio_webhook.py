@@ -5,21 +5,28 @@ WEBHOOK TWILIO WHATSAPP
 Recebe mensagens do WhatsApp via Twilio e processa com a IA.
 """
 
-from fastapi import APIRouter, Request, Response, Depends, HTTPException
+from fastapi import APIRouter, Request, Response, Depends
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from twilio.twiml.messaging_response import MessagingResponse
 import logging
 
 from src.infrastructure.database import get_db
-from src.domain.entities import Lead, Message, Tenant, Channel
+from src.domain.entities import Lead, Message, Tenant
 from src.infrastructure.services import chat_completion
 from src.domain.prompts import get_niche_config
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhook", tags=["Webhook Twilio"])
+
+
+def create_twiml_response(message: str) -> str:
+    """Cria resposta TwiML manualmente sem depender do pacote twilio."""
+    return f'''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Message>{message}</Message>
+</Response>'''
 
 
 @router.post("/twilio")
@@ -46,6 +53,7 @@ async def twilio_webhook(
         to_number = to_number.replace("whatsapp:", "").replace("+", "")
         
         logger.info(f"📱 Mensagem Twilio: {from_number} -> {to_number}: {body}")
+        print(f"📱 Mensagem Twilio: {from_number} -> {to_number}: {body}")
         
         # Buscar tenant pelo canal (ou usar o primeiro tenant para teste)
         tenant_result = await db.execute(
@@ -55,7 +63,10 @@ async def twilio_webhook(
         
         if not tenant:
             logger.error("Nenhum tenant ativo encontrado")
-            return PlainTextResponse("OK", status_code=200)
+            return Response(
+                content=create_twiml_response("Sistema indisponível"),
+                media_type="application/xml"
+            )
         
         # Buscar ou criar lead
         lead_result = await db.execute(
@@ -78,6 +89,7 @@ async def twilio_webhook(
             db.add(lead)
             await db.flush()
             logger.info(f"✨ Novo lead criado: {lead.id}")
+            print(f"✨ Novo lead criado: {lead.id}")
         
         # Salvar mensagem recebida
         message_in = Message(
@@ -136,6 +148,7 @@ IMPORTANTE:
         
         ai_response = result["content"]
         logger.info(f"🤖 Resposta IA: {ai_response[:100]}...")
+        print(f"🤖 Resposta IA: {ai_response[:100]}...")
         
         # Salvar resposta da IA
         message_out = Message(
@@ -154,24 +167,25 @@ IMPORTANTE:
         await db.commit()
         
         # Responder para o Twilio (formato TwiML)
-        response = MessagingResponse()
-        response.message(ai_response)
-        
         return Response(
-            content=str(response),
+            content=create_twiml_response(ai_response),
             media_type="application/xml"
         )
         
     except Exception as e:
         logger.error(f"❌ Erro no webhook Twilio: {str(e)}")
+        print(f"❌ Erro no webhook Twilio: {str(e)}")
         import traceback
         traceback.print_exc()
         
-        # Retornar resposta vazia para não dar erro no Twilio
-        response = MessagingResponse()
-        response.message("Desculpe, ocorreu um erro. Tente novamente em instantes.")
-        
+        # Retornar resposta de erro
         return Response(
-            content=str(response),
+            content=create_twiml_response("Desculpe, ocorreu um erro. Tente novamente."),
             media_type="application/xml"
         )
+
+
+@router.get("/twilio/test")
+async def twilio_test():
+    """Endpoint de teste para verificar se a rota está funcionando."""
+    return {"status": "ok", "message": "Twilio webhook está ativo!"}
