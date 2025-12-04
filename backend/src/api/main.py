@@ -23,6 +23,7 @@ from src.api.routes import (
     export_router,
     usage_router,
     gupshup_webhook_router,
+    simulator_router,
     # Admin
     admin_dashboard_router,
     admin_tenants_router,
@@ -155,6 +156,7 @@ app.include_router(sellers_router, prefix="/api/v1")
 app.include_router(reengagement_router, prefix="/api/v1")
 app.include_router(export_router, prefix="/api/v1")
 app.include_router(usage_router, prefix="/api/v1")
+app.include_router(simulator_router, prefix="/api/v1")
 
 # Admin
 app.include_router(admin_dashboard_router, prefix="/api/v1")
