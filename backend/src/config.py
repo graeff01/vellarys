@@ -65,6 +65,8 @@ class Settings(BaseSettings):
             self.gupshup_source_phone
         )
 
+print("🔗 DATABASE_URL ATUAL:", settings.database_url)
+
 
 @lru_cache
 def get_settings() -> Settings:
