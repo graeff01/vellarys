@@ -1,5 +1,6 @@
 """Rotas da API."""
 
+from .twilio_webhook import router as twilio_webhook_router
 from .webhook import router as webhook_router
 from .gupshup_webhook import router as gupshup_webhook_router
 from .leads import router as leads_router
@@ -24,6 +25,7 @@ from .admin import (
 )
 
 __all__ = [
+    "twilio_webhook_router",
     "webhook_router",
     "gupshup_webhook_router",
     "leads_router",

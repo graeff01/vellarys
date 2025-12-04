@@ -36,3 +36,5 @@ asyncio_mode = "auto"
 
 [project.scripts]
 create-superadmin = "src.scripts.create_superadmin:main"
+
+type backend\pyproject.toml

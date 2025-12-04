@@ -11,6 +11,7 @@ from src.config import get_settings
 from src.infrastructure.database import init_db, async_session
 from src.infrastructure.services.gupshup_init import init_gupshup_service, shutdown_gupshup_service
 from src.api.routes import (
+    twilio_webhook_router,
     webhook_router,
     leads_router,
     metrics_router,
@@ -31,6 +32,7 @@ from src.api.routes import (
     admin_logs_router,
     admin_plans_router,
 )
+
 
 from src.domain.entities import User, Tenant
 from src.domain.entities.enums import UserRole
@@ -157,6 +159,7 @@ app.include_router(reengagement_router, prefix="/api/v1")
 app.include_router(export_router, prefix="/api/v1")
 app.include_router(usage_router, prefix="/api/v1")
 app.include_router(simulator_router, prefix="/api/v1")
+app.include_router(twilio_webhook_router, prefix="/api/v1")
 
 # Admin
 app.include_router(admin_dashboard_router, prefix="/api/v1")
