@@ -8,10 +8,12 @@ Converte o formato Gupshup para o formato interno do Velaris.
 FLUXO:
 1. Gupshup envia POST com mensagem
 2. Validamos assinatura (segurança)
-3. Parseamos para formato Velaris
-4. Chamamos process_message()
-5. Enviamos resposta da IA via Gupshup
-6. Retornamos ACK para Gupshup
+3. Identificamos o tenant correto
+4. Criamos GupshupService específico daquele tenant
+5. Parseamos para formato Velaris
+6. Chamamos process_message()
+7. Enviamos resposta da IA via Gupshup
+8. Retornamos ACK para o Gupshup
 
 CONFIGURAÇÃO NO GUPSHUP:
 - Webhook URL: https://seu-dominio.com/webhook/gupshup
@@ -26,12 +28,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.database import get_db
-from src.domain.entities import Tenant, Channel
+from src.domain.entities import Tenant
 from src.application.use_cases import process_message
 from src.infrastructure.services.gupshup_service import (
-    get_gupshup_service,
+    get_gupshup_service,              # ainda usado no /health
     GupshupService,
     ParsedIncomingMessage,
+    build_gupshup_service_from_settings,  # MULTI-TENANT
 )
 
 logger = logging.getLogger(__name__)
@@ -50,27 +53,23 @@ async def get_tenant_by_phone(
     """
     Busca tenant pelo número de WhatsApp configurado.
     
-    O número do WhatsApp Business é armazenado nas settings do tenant:
     settings.whatsapp_number = "5511999999999"
     """
-    # Busca todos os tenants ativos
     result = await db.execute(
         select(Tenant).where(Tenant.active == True)
     )
     tenants = result.scalars().all()
-    
-    # Procura o tenant com esse número configurado
+
     for tenant in tenants:
         settings = tenant.settings or {}
         tenant_whatsapp = settings.get("whatsapp_number", "")
-        
-        # Compara só os dígitos
+
         tenant_digits = "".join(filter(str.isdigit, tenant_whatsapp))
         phone_digits = "".join(filter(str.isdigit, phone_number))
-        
+
         if tenant_digits and tenant_digits == phone_digits:
             return tenant
-    
+
     return None
 
 
@@ -81,21 +80,20 @@ async def get_tenant_by_gupshup_app(
     """
     Busca tenant pelo nome do app no Gupshup.
     
-    O app_name é armazenado nas settings do tenant:
     settings.gupshup_app_name = "meu-app"
     """
     result = await db.execute(
         select(Tenant).where(Tenant.active == True)
     )
     tenants = result.scalars().all()
-    
+
     for tenant in tenants:
         settings = tenant.settings or {}
         tenant_app = settings.get("gupshup_app_name", "")
-        
+
         if tenant_app and tenant_app == app_name:
             return tenant
-    
+
     return None
 
 
@@ -114,7 +112,7 @@ async def send_response_async(
 
 
 # ==========================================
-# ENDPOINTS
+# MAIN WEBHOOK ENDPOINT
 # ==========================================
 
 @router.post("/gupshup")
@@ -125,119 +123,132 @@ async def gupshup_webhook(
     x_gupshup_signature: Optional[str] = Header(None, alias="x-gupshup-signature"),
 ):
     """
-    Recebe mensagens do Gupshup.
-    
-    Este endpoint:
-    1. Valida a assinatura do webhook (se configurado)
-    2. Identifica o tenant pelo app_name ou número
-    3. Processa a mensagem com a IA
-    4. Envia a resposta via Gupshup
-    5. Retorna ACK imediato para o Gupshup
-    
-    Headers esperados:
-    - Content-Type: application/json
-    - x-gupshup-signature: HMAC signature (opcional)
+    WEBHOOK PRINCIPAL - multi-tenant
+
+    1. Lê body e JSON
+    2. Identifica tenant
+    3. Cria GupshupService configurado para aquele tenant
+    4. Valida assinatura individual
+    5. Roteia evento (message/message-event/user-event)
     """
-    # 1. Lê o body
     try:
         body = await request.body()
         payload = await request.json()
     except Exception as e:
         logger.error(f"Erro ao ler payload: {str(e)}")
         raise HTTPException(status_code=400, detail="Payload inválido")
+
+    event_type = payload.get("type", "unknown")
+    app_name = payload.get("app", "")
+
     
-    # 2. Pega serviço Gupshup
-    gupshup = get_gupshup_service()
-    
-    # 3. Valida assinatura (se configurado)
+
+    # ==========================================
+    # 1) Identificar tenant
+    # ==========================================
+    tenant: Optional[Tenant] = None
+
+    if app_name:
+        tenant = await get_tenant_by_gupshup_app(db, app_name)
+
+    if not tenant:
+        dest_phone = (
+    payload.get("payload", {})
+    .get("destination", "")
+    .replace("+", "")
+    .strip()
+)
+
+        if dest_phone:
+            tenant = await get_tenant_by_phone(db, dest_phone)
+
+    if not tenant:
+        logger.error(f"Tenant não encontrado para webhook Gupshup. app={app_name}")
+        return {"success": True, "ignored": True}
+
+    # ==========================================
+    # 2) Criar serviço Gupshup exclusivo do tenant
+    # ==========================================
+    settings = tenant.settings or {}
+    gupshup = build_gupshup_service_from_settings(settings)
+
+    # ==========================================
+    # 3) Validar assinatura do webhook
+    # ==========================================
     if x_gupshup_signature and gupshup.config.webhook_secret:
         if not gupshup.validate_webhook_signature(body, x_gupshup_signature):
-            logger.warning("Assinatura inválida no webhook Gupshup")
+            logger.warning(
+                f"Assinatura inválida no webhook Gupshup (tenant={tenant.slug})"
+            )
             raise HTTPException(status_code=401, detail="Assinatura inválida")
-    
-    # 4. Log do evento
-    event_type = payload.get("type", "unknown")
-    logger.info(f"Webhook Gupshup recebido: {event_type}")
-    
-    # 5. Processa baseado no tipo de evento
+
+    logger.info(
+    f"[{tenant.slug.upper()}] Evento Gupshup: {event_type}"
+)
+
+
+    # ==========================================
+    # 4) Roteamento de eventos
+    # ==========================================
     if event_type == "message":
-        # Nova mensagem recebida
         await handle_incoming_message(
             payload=payload,
             gupshup=gupshup,
+            tenant=tenant,
             db=db,
             background_tasks=background_tasks,
         )
-        
+
     elif event_type == "message-event":
-        # Status de mensagem enviada (sent, delivered, read, failed)
         await handle_message_status(payload)
-        
+
     elif event_type == "user-event":
-        # Opt-in/opt-out do usuário
         await handle_user_event(payload)
-        
+
     else:
         logger.debug(f"Evento ignorado: {event_type}")
-    
-    # 6. Retorna ACK imediato
+
     return {"success": True}
 
+
+# ==========================================
+# PROCESSADORES DE EVENTOS
+# ==========================================
 
 async def handle_incoming_message(
     payload: dict,
     gupshup: GupshupService,
+    tenant: Tenant,
     db: AsyncSession,
     background_tasks: BackgroundTasks,
 ):
     """
-    Processa mensagem recebida.
+    Processa mensagem recebida para um tenant específico.
     """
-    # 1. Parseia a mensagem
     parsed = gupshup.parse_incoming_message(payload)
-    
+
     if not parsed:
         logger.warning("Mensagem não parseável")
         return
-    
-    logger.info(f"Mensagem de {parsed.sender_phone}: {parsed.content[:50]}...")
-    
-    # 2. Identifica o tenant
-    app_name = payload.get("app", "")
-    tenant = await get_tenant_by_gupshup_app(db, app_name)
-    
-    if not tenant:
-        # Tenta pelo número destino (se disponível no payload)
-        dest_phone = payload.get("payload", {}).get("destination", "")
-        if dest_phone:
-            tenant = await get_tenant_by_phone(db, dest_phone)
-    
-    if not tenant:
-        logger.error(f"Tenant não encontrado para app: {app_name}")
-        # Envia mensagem genérica
-        background_tasks.add_task(
-            send_response_async,
-            gupshup,
-            parsed.sender_phone,
-            "Desculpe, não foi possível processar sua mensagem. Tente novamente mais tarde.",
-        )
-        return
-    
-    # 3. Processa com a IA
+
+    logger.info(
+        f"Mensagem de {parsed.sender_phone} para tenant={tenant.slug}: "
+        f"{parsed.content[:80]}..."
+    )
+
     try:
         result = await process_message(
             db=db,
             tenant_slug=tenant.slug,
             channel_type="whatsapp",
-            external_id=parsed.sender_phone,
+            external_id="".join(filter(str.isdigit, parsed.sender_phone)),
             content=parsed.content,
             sender_name=parsed.sender_name,
             sender_phone=parsed.sender_phone,
             source="whatsapp",
             campaign=None,
         )
-        
-        # 4. Envia resposta (se houver)
+
         if result.get("success") and result.get("reply"):
             background_tasks.add_task(
                 send_response_async,
@@ -245,60 +256,51 @@ async def handle_incoming_message(
                 parsed.sender_phone,
                 result["reply"],
             )
-            logger.info(f"Resposta enviada para {parsed.sender_phone}")
-        
+            logger.info(
+                f"Resposta enviada para {parsed.sender_phone} "
+                f"(tenant={tenant.slug})"
+            )
+
         elif not result.get("success"):
             logger.error(f"Erro no process_message: {result.get('error')}")
-            
+
     except Exception as e:
         logger.error(f"Exceção ao processar mensagem: {str(e)}")
-        # Não envia mensagem de erro para não confundir o usuário
 
 
 async def handle_message_status(payload: dict):
     """
-    Processa atualização de status de mensagem enviada.
-    
-    Status possíveis:
-    - enqueued: Na fila para envio
-    - sent: Enviada para o WhatsApp
-    - delivered: Entregue ao destinatário
-    - read: Lida pelo destinatário
-    - failed: Falha no envio
+    Processa update de status de envio (sent/delivered/read/failed)
     """
     gupshup = get_gupshup_service()
     status_info = gupshup.parse_status_update(payload)
-    
+
     if status_info:
         logger.info(
             f"Status da mensagem {status_info.get('message_id')}: "
-            f"{status_info.get('status')} para {status_info.get('destination')}"
+            f"{status_info.get('status')} -> {status_info.get('destination')}"
         )
-        
-        # Se falhou, loga o erro
+
         if status_info.get("status") == "failed":
             logger.error(f"Mensagem falhou: {status_info.get('error')}")
-        
-        # TODO: Atualizar status no banco (Message.status)
-        # Isso permite mostrar no dashboard se mensagem foi entregue/lida
 
 
 async def handle_user_event(payload: dict):
     """
-    Processa eventos do usuário (opt-in/opt-out).
-    
-    Eventos:
-    - opted-in: Usuário aceitou receber mensagens
-    - opted-out: Usuário não quer mais receber mensagens
+    Processa opt-in/opt-out do usuário.
     """
     event_payload = payload.get("payload", {})
     event_type = event_payload.get("type")
     phone = event_payload.get("phone")
-    
-    logger.info(f"User event: {event_type} para {phone}")
-    
-    # TODO: Atualizar Lead.opted_out no banco se necessário
 
+    logger.info(f"User event: {event_type} para {phone}")
+
+    # Futuro: registrar opt-out no banco
+
+
+# ==========================================
+# VERIFICAÇÃO E HEALTHCHECK
+# ==========================================
 
 @router.get("/gupshup")
 async def gupshup_webhook_verify(
@@ -307,14 +309,11 @@ async def gupshup_webhook_verify(
     hub_verify_token: Optional[str] = None,
 ):
     """
-    Verificação do webhook (se Gupshup solicitar).
-    
-    Alguns providers fazem uma verificação GET antes de ativar o webhook.
+    Verificação do webhook (se necessário).
     """
-    # Retorna o challenge para verificação
     if hub_challenge:
         return int(hub_challenge)
-    
+
     return {"status": "ok", "service": "gupshup-webhook"}
 
 
@@ -322,13 +321,14 @@ async def gupshup_webhook_verify(
 async def gupshup_health():
     """
     Health check do webhook Gupshup.
-    Verifica se o serviço está configurado e funcionando.
     """
     gupshup = get_gupshup_service()
     health = await gupshup.check_health()
-    
+
     return {
         "status": "ok",
         "gupshup": health,
         "configured": gupshup.is_configured,
     }
+
+

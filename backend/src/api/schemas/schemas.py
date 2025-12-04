@@ -148,40 +148,38 @@ class MessageResponse(BaseModel):
 # ============================================
 # TENANT
 # ============================================
-
 class TenantSettings(BaseModel):
-    """Configurações do tenant."""
-    
+    """Configurações do tenant (empresa cliente)."""
+
+    # Identidade da empresa
     niche: str = "services"
     company_name: str
-    tone: str = "cordial"  # formal, informal, cordial
+    tone: str = "cordial"
     custom_questions: list[str] = Field(default_factory=list)
     custom_rules: list[str] = Field(default_factory=list)
-    custom_prompt: Optional[str] = None  # Só para Pro
+    custom_prompt: Optional[str] = None
 
+    # === Integração com WhatsApp/Gupshup ===
+    whatsapp_number: Optional[str] = Field(
+        default=None,
+        description="Número do WhatsApp Business usado por este tenant (somente dígitos)."
+    )
 
-class TenantCreate(BaseModel):
-    """Dados para criar tenant."""
-    
-    name: str
-    slug: str
-    plan: str = "starter"
-    settings: TenantSettings
+    gupshup_app_name: Optional[str] = Field(
+        default=None,
+        description="Nome do APP dentro do Gupshup que pertence a este tenant."
+    )
 
+    gupshup_api_key: Optional[str] = Field(
+        default=None,
+        description="API Key exclusiva do Gupshup para este tenant."
+    )
 
-class TenantResponse(BaseModel):
-    """Tenant na resposta."""
-    
-    id: int
-    name: str
-    slug: str
-    plan: str
-    settings: dict
-    active: bool
-    created_at: datetime
-    
-    class Config:
-        from_attributes = True
+    gupshup_webhook_secret: Optional[str] = Field(
+        default=None,
+        description="Segredo usado para validar assinatura HMAC do webhook."
+    )
+
 
 
 # ============================================
