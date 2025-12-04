@@ -5,9 +5,8 @@ from src.config import get_settings
 
 settings = get_settings()
 
-# Converte URL para formato async se necessário
-# Railway fornece postgresql:// mas asyncpg precisa de postgresql+asyncpg://
 database_url = settings.database_url
+
 if database_url.startswith("postgresql://"):
     database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 elif database_url.startswith("postgres://"):
@@ -25,7 +24,6 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency do FastAPI para injetar sessão do banco."""
     async with async_session() as session:
         try:
             yield session
@@ -38,7 +36,6 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Cria tabelas do banco (usar só em dev)."""
     from src.domain.entities import Base
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
