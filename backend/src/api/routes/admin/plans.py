@@ -5,7 +5,7 @@ ADMIN: Gerenciar Planos
 CRUD de planos de assinatura.
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,7 +49,7 @@ class PlanUpdate(BaseModel):
 
 
 # ============================================
-# LISTAR PLANOS
+# ROTAS
 # ============================================
 
 @router.get("")
@@ -61,39 +61,34 @@ async def list_plans(
     """Lista todos os planos."""
     
     query = select(Plan)
+    
     if active_only:
         query = query.where(Plan.active == True)
     
     query = query.order_by(Plan.sort_order, Plan.price_monthly)
-
+    
     result = await db.execute(query)
     plans = result.scalars().all()
+    
+    plans_data = []
+    for plan in plans:
+        plans_data.append({
+            "id": plan.id,
+            "slug": plan.slug,
+            "name": plan.name,
+            "description": plan.description,
+            "price_monthly": float(plan.price_monthly),
+            "price_yearly": float(plan.price_yearly),
+            "limits": plan.limits,
+            "features": plan.features,
+            "sort_order": plan.sort_order,
+            "is_featured": plan.is_featured,
+            "active": plan.active,
+            "created_at": plan.created_at.isoformat() if plan.created_at else None,
+        })
+    
+    return {"plans": plans_data, "total": len(plans_data)}
 
-    return {
-        "plans": [
-            {
-                "id": p.id,
-                "slug": p.slug,
-                "name": p.name,
-                "description": p.description,
-                "price_monthly": float(p.price_monthly or 0),
-                "price_yearly": float(p.price_yearly or 0),
-                "limits": p.limits,
-                "features": p.features,
-                "sort_order": p.sort_order,
-                "is_featured": p.is_featured,
-                "active": p.active,
-                "created_at": p.created_at.isoformat() if p.created_at else None,
-            }
-            for p in plans
-        ],
-        "total": len(plans),
-    }
-
-
-# ============================================
-# GET PLAN
-# ============================================
 
 @router.get("/{plan_id}")
 async def get_plan(
@@ -101,12 +96,16 @@ async def get_plan(
     current_user: User = Depends(get_current_superadmin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+    """Retorna detalhes de um plano."""
+    
+    result = await db.execute(
+        select(Plan).where(Plan.id == plan_id)
+    )
     plan = result.scalar_one_or_none()
-
+    
     if not plan:
         raise HTTPException(status_code=404, detail="Plano não encontrado")
-
+    
     return {
         "id": plan.id,
         "slug": plan.slug,
@@ -124,24 +123,37 @@ async def get_plan(
     }
 
 
-# ============================================
-# CRIAR PLANO
-# ============================================
-
 @router.post("")
 async def create_plan(
     data: PlanCreate,
     current_user: User = Depends(get_current_superadmin),
     db: AsyncSession = Depends(get_db),
 ):
-    existing = await db.execute(select(Plan).where(Plan.slug == data.slug))
+    """Cria um novo plano."""
+    
+    # Verificar se slug já existe
+    existing = await db.execute(
+        select(Plan).where(Plan.slug == data.slug)
+    )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Slug já existe")
-
-    plan = Plan(**data.dict())
+    
+    plan = Plan(
+        slug=data.slug,
+        name=data.name,
+        description=data.description,
+        price_monthly=data.price_monthly,
+        price_yearly=data.price_yearly,
+        limits=data.limits,
+        features=data.features,
+        sort_order=data.sort_order,
+        is_featured=data.is_featured,
+        active=data.active,
+    )
     db.add(plan)
     await db.flush()
-
+    
+    # Log
     log = AdminLog(
         admin_id=current_user.id,
         admin_email=current_user.email,
@@ -154,13 +166,16 @@ async def create_plan(
     db.add(log)
     
     await db.commit()
+    
+    return {
+        "success": True,
+        "plan": {
+            "id": plan.id,
+            "slug": plan.slug,
+            "name": plan.name,
+        }
+    }
 
-    return {"success": True, "plan": {"id": plan.id, "slug": plan.slug, "name": plan.name}}
-
-
-# ============================================
-# ATUALIZAR PLANO
-# ============================================
 
 @router.patch("/{plan_id}")
 async def update_plan(
@@ -169,19 +184,51 @@ async def update_plan(
     current_user: User = Depends(get_current_superadmin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+    """Atualiza um plano."""
+    
+    result = await db.execute(
+        select(Plan).where(Plan.id == plan_id)
+    )
     plan = result.scalar_one_or_none()
-
+    
     if not plan:
         raise HTTPException(status_code=404, detail="Plano não encontrado")
-
+    
     changes = {}
-
-    for key, value in data.dict(exclude_unset=True).items():
-        old = getattr(plan, key)
-        setattr(plan, key, value)
-        changes[key] = {"old": old, "new": value}
-
+    
+    if data.name is not None:
+        changes["name"] = {"old": plan.name, "new": data.name}
+        plan.name = data.name
+    
+    if data.description is not None:
+        plan.description = data.description
+    
+    if data.price_monthly is not None:
+        changes["price_monthly"] = {"old": float(plan.price_monthly), "new": data.price_monthly}
+        plan.price_monthly = data.price_monthly
+    
+    if data.price_yearly is not None:
+        plan.price_yearly = data.price_yearly
+    
+    if data.limits is not None:
+        changes["limits"] = "atualizado"
+        plan.limits = data.limits
+    
+    if data.features is not None:
+        changes["features"] = "atualizado"
+        plan.features = data.features
+    
+    if data.sort_order is not None:
+        plan.sort_order = data.sort_order
+    
+    if data.is_featured is not None:
+        plan.is_featured = data.is_featured
+    
+    if data.active is not None:
+        changes["active"] = {"old": plan.active, "new": data.active}
+        plan.active = data.active
+    
+    # Log
     log = AdminLog(
         admin_id=current_user.id,
         admin_email=current_user.email,
@@ -192,15 +239,11 @@ async def update_plan(
         details=changes,
     )
     db.add(log)
-
+    
     await db.commit()
-
+    
     return {"success": True, "changes": changes}
 
-
-# ============================================
-# DESATIVAR PLANO
-# ============================================
 
 @router.delete("/{plan_id}")
 async def delete_plan(
@@ -208,22 +251,30 @@ async def delete_plan(
     current_user: User = Depends(get_current_superadmin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Plan).where(Plan.id == plan_id))
+    """Desativa um plano (soft delete)."""
+    
+    result = await db.execute(
+        select(Plan).where(Plan.id == plan_id)
+    )
     plan = result.scalar_one_or_none()
-
+    
     if not plan:
         raise HTTPException(status_code=404, detail="Plano não encontrado")
-
+    
+    # Verificar se há tenants usando esse plano
     from src.domain.entities.tenant_subscription import TenantSubscription
-    subs = await db.execute(
+    subs_result = await db.execute(
         select(TenantSubscription).where(TenantSubscription.plan_id == plan_id)
     )
-
-    if subs.scalars().first():
-        raise HTTPException(400, "Não é possível deletar plano em uso.")
-
+    if subs_result.scalars().first():
+        raise HTTPException(
+            status_code=400, 
+            detail="Não é possível deletar plano em uso. Desative-o ou migre os clientes."
+        )
+    
     plan.active = False
-
+    
+    # Log
     log = AdminLog(
         admin_id=current_user.id,
         admin_email=current_user.email,
@@ -234,34 +285,32 @@ async def delete_plan(
         details={"soft_delete": True},
     )
     db.add(log)
-
+    
     await db.commit()
-
+    
     return {"success": True, "message": "Plano desativado"}
 
-
-# ============================================
-# SEED DEFAULT PLANS (ÚNICO E CORRETO)
-# ============================================
 
 @router.post("/seed-defaults")
 async def seed_default_plans(
     current_user: User = Depends(get_current_superadmin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Cria planos padrão caso não existam."""
-
+    """Cria os planos padrão do sistema."""
+    
     default_plans = [
         {
-            "slug": "basic",
-            "name": "Basic",
-            "description": "Plano básico para começar.",
-            "price_monthly": 97,
-            "price_yearly": 970,
+            "slug": "starter",
+            "name": "Starter",
+            "description": "Ideal para pequenos negócios começando com IA",
+            "price_monthly": 97.00,
+            "price_yearly": 970.00,
+            "sort_order": 1,
+            "is_featured": False,
             "limits": {
-                "leads_per_month": 200,
-                "messages_per_month": 2000,
-                "sellers": 1,
+                "leads_per_month": 100,
+                "messages_per_month": 1000,
+                "sellers": 2,
                 "niches": 1,
                 "ai_tokens_per_month": 100000,
             },
@@ -270,47 +319,43 @@ async def seed_default_plans(
                 "advanced_reports": False,
                 "api_access": False,
                 "priority_support": False,
-                "white_label": False,
-                "custom_integrations": False,
             },
-            "sort_order": 1,
-            "is_featured": False,
         },
         {
             "slug": "professional",
             "name": "Professional",
-            "description": "Plano ideal para pequenas equipes.",
-            "price_monthly": 297,
-            "price_yearly": 2970,
+            "description": "Para empresas em crescimento",
+            "price_monthly": 197.00,
+            "price_yearly": 1970.00,
+            "sort_order": 2,
+            "is_featured": True,
             "limits": {
-                "leads_per_month": 1000,
-                "messages_per_month": 10000,
-                "sellers": 5,
+                "leads_per_month": 500,
+                "messages_per_month": 5000,
+                "sellers": 10,
                 "niches": 3,
                 "ai_tokens_per_month": 500000,
             },
             "features": {
                 "reengagement": True,
                 "advanced_reports": True,
-                "api_access": True,
+                "api_access": False,
                 "priority_support": False,
-                "white_label": False,
-                "custom_integrations": False,
             },
-            "sort_order": 2,
-            "is_featured": True,
         },
         {
             "slug": "enterprise",
             "name": "Enterprise",
-            "description": "Plano completo para operação de alta escala.",
-            "price_monthly": 997,
-            "price_yearly": 9970,
+            "description": "Solução completa para grandes operações",
+            "price_monthly": 497.00,
+            "price_yearly": 4970.00,
+            "sort_order": 3,
+            "is_featured": False,
             "limits": {
                 "leads_per_month": -1,
                 "messages_per_month": -1,
                 "sellers": -1,
-                "niches": 10,
+                "niches": -1,
                 "ai_tokens_per_month": -1,
             },
             "features": {
@@ -318,22 +363,53 @@ async def seed_default_plans(
                 "advanced_reports": True,
                 "api_access": True,
                 "priority_support": True,
-                "white_label": True,
-                "custom_integrations": True,
             },
-            "sort_order": 3,
-            "is_featured": False,
         },
     ]
-
+    
     created = 0
-
-    for p in default_plans:
-        exists = await db.execute(select(Plan).where(Plan.slug == p["slug"]))
-        if not exists.scalars().first():
-            db.add(Plan(**p))
-            created += 1
-
+    skipped = 0
+    
+    for plan_data in default_plans:
+        existing = await db.execute(
+            select(Plan).where(Plan.slug == plan_data["slug"])
+        )
+        if existing.scalar_one_or_none():
+            skipped += 1
+            continue
+        
+        plan = Plan(
+            slug=plan_data["slug"],
+            name=plan_data["name"],
+            description=plan_data["description"],
+            price_monthly=plan_data["price_monthly"],
+            price_yearly=plan_data["price_yearly"],
+            limits=plan_data["limits"],
+            features=plan_data["features"],
+            sort_order=plan_data["sort_order"],
+            is_featured=plan_data["is_featured"],
+            active=True,
+        )
+        db.add(plan)
+        created += 1
+    
+    # Log
+    log = AdminLog(
+        admin_id=current_user.id,
+        admin_email=current_user.email,
+        action="seed_plans",
+        target_type="plan",
+        target_id=None,
+        target_name=None,
+        details={"created": created, "skipped": skipped},
+    )
+    db.add(log)
+    
     await db.commit()
-
-    return {"success": True, "created": created}
+    
+    return {
+        "success": True,
+        "created": created,
+        "skipped": skipped,
+        "message": f"{created} planos criados, {skipped} já existiam"
+    }
