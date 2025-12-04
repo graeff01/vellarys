@@ -13,7 +13,9 @@ import {
   Eye,
   Mail,
   Lock,
-  User
+  User,
+  Phone,
+  Key
 } from 'lucide-react';
 import { getToken, getUser } from '@/lib/auth';
 
@@ -38,6 +40,22 @@ interface Niche {
   icon?: string;
 }
 
+interface NewTenantState {
+  name: string;
+  slug: string;
+  plan: string;
+  niche: string;
+  admin_name: string;
+  admin_email: string;
+  admin_password: string;
+
+  // Integração WhatsApp / Gupshup
+  whatsapp_number: string;
+  gupshup_app_name: string;
+  gupshup_api_key: string;
+  gupshup_webhook_secret: string;
+}
+
 export default function ClientsPage() {
   const router = useRouter();
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -48,7 +66,7 @@ export default function ClientsPage() {
   const [creating, setCreating] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
-  const [newTenant, setNewTenant] = useState({
+  const [newTenant, setNewTenant] = useState<NewTenantState>({
     name: '',
     slug: '',
     plan: 'starter',
@@ -56,6 +74,11 @@ export default function ClientsPage() {
     admin_name: '',
     admin_email: '',
     admin_password: '',
+
+    whatsapp_number: '',
+    gupshup_app_name: '',
+    gupshup_api_key: '',
+    gupshup_webhook_secret: '',
   });
 
   useEffect(() => {
@@ -90,70 +113,162 @@ export default function ClientsPage() {
   }
 
   async function fetchNiches() {
-  try {
-    const token = getToken();
-    const response = await fetch(`${API_URL}/admin/niches?active_only=true`, {  // ✅ URL correta
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
+    try {
+      const token = getToken();
+      const response = await fetch(`${API_URL}/admin/niches?active_only=true`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
 
-    if (response.ok) {
-      const data = await response.json();
-      setNiches(data.niches);  // ✅ Extrair o array
+      if (response.ok) {
+        const data = await response.json();
+        setNiches(data.niches);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar nichos:', err);
     }
-  } catch (err) {
-    console.error('Erro ao carregar nichos:', err);
   }
-}
+
+  function hasIntegrationData(): boolean {
+    const {
+      whatsapp_number,
+      gupshup_app_name,
+      gupshup_api_key,
+      gupshup_webhook_secret,
+    } = newTenant;
+
+    return Boolean(
+      whatsapp_number ||
+      gupshup_app_name ||
+      gupshup_api_key ||
+      gupshup_webhook_secret
+    );
+  }
 
   async function createTenant() {
-    // Validações
+    // Validações básicas
     if (!newTenant.name || !newTenant.slug) {
-      alert('Preencha o nome e slug da empresa');
+      alert('Preencha o nome e o slug da empresa.');
       return;
     }
     if (!newTenant.niche) {
-      alert('Selecione um nicho');
+      alert('Selecione um nicho.');
       return;
     }
     if (!newTenant.admin_name || !newTenant.admin_email || !newTenant.admin_password) {
-      alert('Preencha os dados do administrador do cliente');
+      alert('Preencha os dados do administrador do cliente.');
       return;
     }
     if (newTenant.admin_password.length < 6) {
-      alert('A senha deve ter pelo menos 6 caracteres');
+      alert('A senha deve ter pelo menos 6 caracteres.');
       return;
+    }
+
+    // Se for preencher integração, exige tudo para evitar configuração meia-boca
+    if (hasIntegrationData()) {
+      const {
+        whatsapp_number,
+        gupshup_app_name,
+        gupshup_api_key,
+        gupshup_webhook_secret,
+      } = newTenant;
+
+      if (!whatsapp_number || !gupshup_app_name || !gupshup_api_key || !gupshup_webhook_secret) {
+        alert(
+          'Para ativar a integração com o WhatsApp/Gupshup, preencha: número, app name, API key e webhook secret.'
+        );
+        return;
+      }
     }
 
     setCreating(true);
     try {
       const token = getToken();
+
+      // Monta payload do tenant (parte que o backend já aceita)
+      const createPayload = {
+        name: newTenant.name,
+        slug: newTenant.slug,
+        plan: newTenant.plan,
+        niche: newTenant.niche,
+        admin_name: newTenant.admin_name,
+        admin_email: newTenant.admin_email,
+        admin_password: newTenant.admin_password,
+      };
+
+      // 1) Cria o tenant
       const response = await fetch(`${API_URL}/admin/tenants`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(newTenant),
+        body: JSON.stringify(createPayload),
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        alert(`Cliente criado com sucesso!\n\nEmail de acesso: ${result.user.email}`);
-        setShowModal(false);
-        setNewTenant({
-          name: '',
-          slug: '',
-          plan: 'starter',
-          niche: '',
-          admin_name: '',
-          admin_email: '',
-          admin_password: '',
-        });
-        fetchTenants();
-      } else {
-        const error = await response.json();
-        alert(error.detail || 'Erro ao criar cliente');
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        alert(error?.detail || 'Erro ao criar cliente');
+        setCreating(false);
+        return;
       }
+
+      const result = await response.json();
+      const tenantId = result.tenant?.id;
+
+      // 2) Se tiver integração preenchida, atualiza settings do tenant na sequência
+      if (tenantId && hasIntegrationData()) {
+        const settingsPayload: Record<string, string> = {};
+
+        if (newTenant.whatsapp_number) {
+          settingsPayload.whatsapp_number = newTenant.whatsapp_number;
+        }
+        if (newTenant.gupshup_app_name) {
+          settingsPayload.gupshup_app_name = newTenant.gupshup_app_name;
+        }
+        if (newTenant.gupshup_api_key) {
+          settingsPayload.gupshup_api_key = newTenant.gupshup_api_key;
+        }
+        if (newTenant.gupshup_webhook_secret) {
+          settingsPayload.gupshup_webhook_secret = newTenant.gupshup_webhook_secret;
+        }
+
+        const patchResponse = await fetch(`${API_URL}/admin/tenants/${tenantId}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ settings: settingsPayload }),
+        });
+
+        if (!patchResponse.ok) {
+          const patchError = await patchResponse.json().catch(() => null);
+          console.error('Erro ao atualizar settings do tenant:', patchError);
+          alert('Cliente criado, mas houve erro ao salvar a integração do WhatsApp/Gupshup.');
+        }
+      }
+
+      alert(`Cliente criado com sucesso!\n\nEmail de acesso: ${result.user.email}`);
+
+      // Reseta modal
+      setShowModal(false);
+      setNewTenant({
+        name: '',
+        slug: '',
+        plan: 'starter',
+        niche: '',
+        admin_name: '',
+        admin_email: '',
+        admin_password: '',
+        whatsapp_number: '',
+        gupshup_app_name: '',
+        gupshup_api_key: '',
+        gupshup_webhook_secret: '',
+      });
+      setShowPassword(false);
+
+      // Atualiza lista
+      fetchTenants();
     } catch (err) {
       console.error('Erro ao criar cliente:', err);
       alert('Erro ao criar cliente');
@@ -199,7 +314,7 @@ export default function ClientsPage() {
     for (let i = 0; i < 10; i++) {
       password += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    setNewTenant({ ...newTenant, admin_password: password });
+    setNewTenant((prev) => ({ ...prev, admin_password: password }));
     setShowPassword(true);
   }
 
@@ -221,7 +336,7 @@ export default function ClientsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
-          <p className="text-gray-600">Gerencie os clientes da plataforma</p>
+          <p className="text-gray-600">Gerencie os clientes da plataforma e a integração com a IA.</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
@@ -286,7 +401,11 @@ export default function ClientsPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${planColors[tenant.plan] || 'bg-gray-100 text-gray-700'}`}>
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        planColors[tenant.plan] || 'bg-gray-100 text-gray-700'
+                      }`}
+                    >
                       {planLabels[tenant.plan] || tenant.plan}
                     </span>
                   </td>
@@ -327,8 +446,8 @@ export default function ClientsPage() {
                       <button
                         onClick={() => toggleTenant(tenant)}
                         className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                          tenant.active 
-                            ? 'bg-red-50 text-red-600 hover:bg-red-100' 
+                          tenant.active
+                            ? 'bg-red-50 text-red-600 hover:bg-red-100'
                             : 'bg-green-50 text-green-600 hover:bg-green-100'
                         }`}
                       >
@@ -364,11 +483,12 @@ export default function ClientsPage() {
                     type="text"
                     value={newTenant.name}
                     onChange={(e) => {
-                      setNewTenant({
-                        ...newTenant,
-                        name: e.target.value,
-                        slug: generateSlug(e.target.value),
-                      });
+                      const name = e.target.value;
+                      setNewTenant((prev) => ({
+                        ...prev,
+                        name,
+                        slug: generateSlug(name),
+                      }));
                     }}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="Ex: Imobiliária Silva"
@@ -382,7 +502,9 @@ export default function ClientsPage() {
                   <input
                     type="text"
                     value={newTenant.slug}
-                    onChange={(e) => setNewTenant({ ...newTenant, slug: e.target.value })}
+                    onChange={(e) =>
+                      setNewTenant((prev) => ({ ...prev, slug: e.target.value }))
+                    }
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="imobiliaria-silva"
                   />
@@ -395,7 +517,9 @@ export default function ClientsPage() {
                     </label>
                     <select
                       value={newTenant.plan}
-                      onChange={(e) => setNewTenant({ ...newTenant, plan: e.target.value })}
+                      onChange={(e) =>
+                        setNewTenant((prev) => ({ ...prev, plan: e.target.value }))
+                      }
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                     >
                       <option value="starter">Starter</option>
@@ -409,7 +533,9 @@ export default function ClientsPage() {
                     </label>
                     <select
                       value={newTenant.niche}
-                      onChange={(e) => setNewTenant({ ...newTenant, niche: e.target.value })}
+                      onChange={(e) =>
+                        setNewTenant((prev) => ({ ...prev, niche: e.target.value }))
+                      }
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                     >
                       <option value="">Selecione um nicho</option>
@@ -438,7 +564,9 @@ export default function ClientsPage() {
                   <input
                     type="text"
                     value={newTenant.admin_name}
-                    onChange={(e) => setNewTenant({ ...newTenant, admin_name: e.target.value })}
+                    onChange={(e) =>
+                      setNewTenant((prev) => ({ ...prev, admin_name: e.target.value }))
+                    }
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="Ex: João Silva"
                   />
@@ -453,7 +581,9 @@ export default function ClientsPage() {
                     <input
                       type="email"
                       value={newTenant.admin_email}
-                      onChange={(e) => setNewTenant({ ...newTenant, admin_email: e.target.value })}
+                      onChange={(e) =>
+                        setNewTenant((prev) => ({ ...prev, admin_email: e.target.value }))
+                      }
                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="gestor@empresa.com"
                     />
@@ -470,7 +600,12 @@ export default function ClientsPage() {
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={newTenant.admin_password}
-                        onChange={(e) => setNewTenant({ ...newTenant, admin_password: e.target.value })}
+                        onChange={(e) =>
+                          setNewTenant((prev) => ({
+                            ...prev,
+                            admin_password: e.target.value,
+                          }))
+                        }
                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                         placeholder="Mínimo 6 caracteres"
                       />
@@ -484,7 +619,7 @@ export default function ClientsPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
+                      onClick={() => setShowPassword((prev) => !prev)}
                       className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
                     >
                       {showPassword ? 'Ocultar' : 'Ver'}
@@ -494,10 +629,99 @@ export default function ClientsPage() {
               </div>
             </div>
 
+            {/* Integração WhatsApp / Gupshup */}
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                <Phone className="w-4 h-4" />
+                Integração WhatsApp / Gupshup
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Número do WhatsApp (Business)
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={newTenant.whatsapp_number}
+                      onChange={(e) =>
+                        setNewTenant((prev) => ({
+                          ...prev,
+                          whatsapp_number: e.target.value,
+                        }))
+                      }
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Ex: 5511999998888 (somente dígitos)"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Gupshup App Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newTenant.gupshup_app_name}
+                    onChange={(e) =>
+                      setNewTenant((prev) => ({
+                        ...prev,
+                        gupshup_app_name: e.target.value,
+                      }))
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    placeholder="Nome do app no painel da Gupshup"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Gupshup API Key
+                  </label>
+                  <div className="relative">
+                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={newTenant.gupshup_api_key}
+                      onChange={(e) =>
+                        setNewTenant((prev) => ({
+                          ...prev,
+                          gupshup_api_key: e.target.value,
+                        }))
+                      }
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Chave de API exclusiva do cliente"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Webhook Secret
+                  </label>
+                  <input
+                    type="text"
+                    value={newTenant.gupshup_webhook_secret}
+                    onChange={(e) =>
+                      setNewTenant((prev) => ({
+                        ...prev,
+                        gupshup_webhook_secret: e.target.value,
+                      }))
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    placeholder="Segredo usado para validar o webhook"
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Info box */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
               <p className="text-sm text-blue-700">
-                <strong>Após criar:</strong> O cliente poderá acessar o sistema usando o email e senha definidos acima.
+                <strong>Após criar:</strong> o cliente poderá acessar o sistema com o email e
+                senha definidos acima. Se você preencher os dados de WhatsApp/Gupshup,
+                a IA já estará pronta para operar com o número configurado.
               </p>
             </div>
 

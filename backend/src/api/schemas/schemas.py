@@ -243,3 +243,30 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int
     user: dict
+
+    # ============================================
+# TENANT - Criação, resposta e atualização
+# ============================================
+
+class TenantCreate(BaseModel):
+    """Dados necessários para criar um novo tenant (cliente)."""
+
+    name: str
+    slug: str
+    plan: str = "starter"
+    settings: TenantSettings
+
+
+class TenantResponse(BaseModel):
+    """Resposta completa do tenant."""
+
+    id: int
+    name: str
+    slug: str
+    plan: str
+    settings: dict
+    active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

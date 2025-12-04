@@ -50,7 +50,11 @@ class TenantCreate(BaseModel):
     # Opções de assinatura
     billing_cycle: str = "monthly"  # monthly ou yearly
     trial_days: int = DEFAULT_TRIAL_DAYS  # 0 = sem trial
-    custom_limits: Optional[dict] = None  # Limites customizados (opcional)
+    whatsapp_number: Optional[str] = None
+    gupshup_app_name: Optional[str] = None
+    gupshup_api_key: Optional[str] = None
+    gupshup_webhook_secret: Optional[str] = None
+
 
 
 class TenantUpdate(BaseModel):
@@ -385,7 +389,6 @@ async def create_tenant(
             detail=f"Plano '{data.plan}' não encontrado ou inativo",
         )
     
-    # Cria tenant
     tenant = Tenant(
         name=data.name,
         slug=data.slug,
@@ -396,6 +399,10 @@ async def create_tenant(
             "tone": "cordial",
             "custom_questions": [],
             "custom_rules": [],
+            "whatsapp_number": data.whatsapp_number,
+            "gupshup_app_name": data.gupshup_app_name,
+            "gupshup_api_key": data.gupshup_api_key,
+            "gupshup_webhook_secret": data.gupshup_webhook_secret,
         },
         active=True,
     )
