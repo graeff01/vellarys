@@ -171,12 +171,59 @@ export default function SettingsPage() {
   const [scopeGuardStrictness, setScopeGuardStrictness] = useState<'low' | 'medium' | 'high'>('medium');
   
   // OPTIONS
-  const [niches, setNiches] = useState<NicheOption[]>([]);
-  const [toneOptions, setToneOptions] = useState<ToneOption[]>([]);
-  const [personalityOptions, setPersonalityOptions] = useState<PersonalityTrait[]>([]);
-  const [distributionMethods, setDistributionMethods] = useState<DistributionMethod[]>([]);
-  const [fallbackOptions, setFallbackOptions] = useState<FallbackOption[]>([]);
-  const [requiredInfoOptions, setRequiredInfoOptions] = useState<RequiredInfoOption[]>([]);
+  const [niches, setNiches] = useState<NicheOption[]>([
+    // Fallback padrão caso a API não retorne
+    { id: 'services', name: 'Serviços', description: 'Prestação de serviços em geral', icon: '🔧' },
+    { id: 'retail', name: 'Varejo', description: 'Lojas e comércio', icon: '🛒' },
+    { id: 'health', name: 'Saúde', description: 'Clínicas e consultórios', icon: '🏥' },
+    { id: 'beauty', name: 'Beleza', description: 'Salões, estética e bem-estar', icon: '💇' },
+    { id: 'food', name: 'Alimentação', description: 'Restaurantes e delivery', icon: '🍽️' },
+    { id: 'education', name: 'Educação', description: 'Escolas e cursos', icon: '📚' },
+    { id: 'realestate', name: 'Imobiliário', description: 'Imóveis e corretagem', icon: '🏠' },
+    { id: 'automotive', name: 'Automotivo', description: 'Veículos e oficinas', icon: '🚗' },
+    { id: 'fashion', name: 'Moda', description: 'Roupas e acessórios', icon: '👗' },
+    { id: 'events', name: 'Eventos', description: 'Festas e celebrações', icon: '🎉' },
+    { id: 'other', name: 'Outro', description: 'Outros segmentos', icon: '📦' },
+  ]);
+  const [toneOptions, setToneOptions] = useState<ToneOption[]>([
+    { id: 'formal', name: 'Formal', description: 'Profissional, direto e corporativo', icon: '👔', examples: ['Prezado(a)', 'Agradeço o contato', 'Fico à disposição'] },
+    { id: 'cordial', name: 'Cordial', description: 'Amigável, educado e acolhedor', icon: '😊', examples: ['Olá!', 'Fico feliz em ajudar', 'Conte comigo'] },
+    { id: 'informal', name: 'Informal', description: 'Descontraído, próximo e casual', icon: '🤙', examples: ['Oi!', 'Show!', 'Bora lá'] },
+    { id: 'tecnico', name: 'Técnico', description: 'Preciso, detalhado e especializado', icon: '🔬', examples: ['Tecnicamente', 'De acordo com', 'Especificamente'] },
+  ]);
+  const [personalityOptions, setPersonalityOptions] = useState<PersonalityTrait[]>([
+    { id: 'acolhedor', name: 'Acolhedor', description: 'Faz o cliente se sentir bem-vindo' },
+    { id: 'objetivo', name: 'Objetivo', description: 'Vai direto ao ponto' },
+    { id: 'consultivo', name: 'Consultivo', description: 'Orienta e aconselha' },
+    { id: 'entusiasmado', name: 'Entusiasmado', description: 'Demonstra empolgação' },
+    { id: 'paciente', name: 'Paciente', description: 'Explica com calma' },
+    { id: 'profissional', name: 'Profissional', description: 'Mantém formalidade' },
+    { id: 'empatico', name: 'Empático', description: 'Demonstra compreensão' },
+    { id: 'proativo', name: 'Proativo', description: 'Antecipa necessidades' },
+  ]);
+  const [distributionMethods, setDistributionMethods] = useState<DistributionMethod[]>([
+    { id: 'round_robin', name: 'Rodízio', description: 'Distribui igualmente entre todos', icon: '🔄' },
+    { id: 'by_city', name: 'Por Cidade', description: 'Vendedor que atende a cidade', icon: '📍' },
+    { id: 'by_specialty', name: 'Por Especialidade', description: 'Vendedor com a especialidade', icon: '🎯' },
+    { id: 'least_busy', name: 'Menos Ocupado', description: 'Vendedor com menos leads no dia', icon: '⚖️' },
+    { id: 'manual', name: 'Manual', description: 'Gestor decide manualmente', icon: '✋' },
+  ]);
+  const [fallbackOptions, setFallbackOptions] = useState<FallbackOption[]>([
+    { id: 'manager', name: 'Enviar para Gestor', description: 'Gestor decide o destino' },
+    { id: 'round_robin', name: 'Rodízio Geral', description: 'Distribui entre todos' },
+    { id: 'queue', name: 'Fila de Espera', description: 'Aguarda vendedor disponível' },
+  ]);
+  const [requiredInfoOptions, setRequiredInfoOptions] = useState<RequiredInfoOption[]>([
+    { id: 'nome', name: 'Nome', description: 'Nome do cliente' },
+    { id: 'telefone', name: 'Telefone', description: 'Telefone de contato' },
+    { id: 'email', name: 'E-mail', description: 'E-mail do cliente' },
+    { id: 'cidade', name: 'Cidade', description: 'Cidade do cliente' },
+    { id: 'bairro', name: 'Bairro', description: 'Bairro do cliente' },
+    { id: 'data_preferencia', name: 'Data', description: 'Data preferida' },
+    { id: 'horario_preferencia', name: 'Horário', description: 'Horário preferido' },
+    { id: 'orcamento', name: 'Orçamento', description: 'Faixa de orçamento' },
+    { id: 'como_conheceu', name: 'Como Conheceu', description: 'Origem do lead' },
+  ]);
 
   const dayNames: Record<string, string> = {
     monday: 'Segunda-feira', tuesday: 'Terça-feira', wednesday: 'Quarta-feira',
@@ -258,14 +305,14 @@ export default function SettingsPage() {
         setScopeGuardEnabled(guards.scope_guard?.enabled ?? true);
         setScopeGuardStrictness(guards.scope_guard?.strictness || 'medium');
         
-        // Options
+        // Options - sobrescreve com dados da API se existirem
         const opts = response.options || {};
-        setNiches(opts.niches || []);
-        setToneOptions(opts.tones || []);
-        setPersonalityOptions(opts.personality_traits || []);
-        setDistributionMethods(opts.distribution_methods || []);
-        setFallbackOptions(opts.fallback_options || []);
-        setRequiredInfoOptions(opts.required_info_options || []);
+        if (opts.niches && opts.niches.length > 0) setNiches(opts.niches);
+        if (opts.tones && opts.tones.length > 0) setToneOptions(opts.tones);
+        if (opts.personality_traits && opts.personality_traits.length > 0) setPersonalityOptions(opts.personality_traits);
+        if (opts.distribution_methods && opts.distribution_methods.length > 0) setDistributionMethods(opts.distribution_methods);
+        if (opts.fallback_options && opts.fallback_options.length > 0) setFallbackOptions(opts.fallback_options);
+        if (opts.required_info_options && opts.required_info_options.length > 0) setRequiredInfoOptions(opts.required_info_options);
       } catch (error) {
         console.error('Erro ao carregar:', error);
       } finally {
@@ -400,9 +447,25 @@ export default function SettingsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Nicho de Atuação *</label>
-                <select value={niche} onChange={(e) => setNiche(e.target.value)} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                  {niches.map((n) => <option key={n.id} value={n.id}>{n.icon} {n.name} - {n.description}</option>)}
+                <select 
+                  value={niche} 
+                  onChange={(e) => setNiche(e.target.value)} 
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white appearance-none cursor-pointer"
+                  style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '1.25rem', paddingRight: '2.5rem' }}
+                >
+                  {niches.length === 0 ? (
+                    <option value="">Carregando nichos...</option>
+                  ) : (
+                    niches.map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.icon ? `${n.icon} ` : ''}{n.name}{n.description ? ` - ${n.description}` : ''}
+                      </option>
+                    ))
+                  )}
                 </select>
+                {niches.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">Não foi possível carregar os nichos. Verifique sua conexão.</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Descrição da Empresa</label>
