@@ -49,11 +49,10 @@ interface NewTenantState {
   admin_email: string;
   admin_password: string;
 
-  // Integração WhatsApp / Gupshup
+  // Integração WhatsApp / 360dialog
   whatsapp_number: string;
-  gupshup_app_name: string;
-  gupshup_api_key: string;
-  gupshup_webhook_secret: string;
+  dialog360_api_key: string;
+  webhook_verify_token: string;
 }
 
 export default function ClientsPage() {
@@ -76,9 +75,8 @@ export default function ClientsPage() {
     admin_password: '',
 
     whatsapp_number: '',
-    gupshup_app_name: '',
-    gupshup_api_key: '',
-    gupshup_webhook_secret: '',
+    dialog360_api_key: '',
+    webhook_verify_token: '',
   });
 
   useEffect(() => {
@@ -129,19 +127,8 @@ export default function ClientsPage() {
   }
 
   function hasIntegrationData(): boolean {
-    const {
-      whatsapp_number,
-      gupshup_app_name,
-      gupshup_api_key,
-      gupshup_webhook_secret,
-    } = newTenant;
-
-    return Boolean(
-      whatsapp_number ||
-      gupshup_app_name ||
-      gupshup_api_key ||
-      gupshup_webhook_secret
-    );
+    const { whatsapp_number, dialog360_api_key } = newTenant;
+    return Boolean(whatsapp_number || dialog360_api_key);
   }
 
   async function createTenant() {
@@ -163,18 +150,13 @@ export default function ClientsPage() {
       return;
     }
 
-    // Se for preencher integração, exige tudo para evitar configuração meia-boca
+    // Se for preencher integração, exige número e API key
     if (hasIntegrationData()) {
-      const {
-        whatsapp_number,
-        gupshup_app_name,
-        gupshup_api_key,
-        gupshup_webhook_secret,
-      } = newTenant;
+      const { whatsapp_number, dialog360_api_key } = newTenant;
 
-      if (!whatsapp_number || !gupshup_app_name || !gupshup_api_key || !gupshup_webhook_secret) {
+      if (!whatsapp_number || !dialog360_api_key) {
         alert(
-          'Para ativar a integração com o WhatsApp/Gupshup, preencha: número, app name, API key e webhook secret.'
+          'Para ativar a integração com o WhatsApp/360dialog, preencha o número e a API Key.'
         );
         return;
       }
@@ -184,7 +166,7 @@ export default function ClientsPage() {
     try {
       const token = getToken();
 
-      // Monta payload do tenant (parte que o backend já aceita)
+      // Monta payload completo (backend já aceita tudo junto agora)
       const createPayload = {
         name: newTenant.name,
         slug: newTenant.slug,
@@ -193,9 +175,12 @@ export default function ClientsPage() {
         admin_name: newTenant.admin_name,
         admin_email: newTenant.admin_email,
         admin_password: newTenant.admin_password,
+        // 360dialog
+        whatsapp_number: newTenant.whatsapp_number || null,
+        dialog360_api_key: newTenant.dialog360_api_key || null,
+        webhook_verify_token: newTenant.webhook_verify_token || 'velaris_webhook_token',
       };
 
-      // 1) Cria o tenant
       const response = await fetch(`${API_URL}/admin/tenants`, {
         method: 'POST',
         headers: {
@@ -213,42 +198,15 @@ export default function ClientsPage() {
       }
 
       const result = await response.json();
-      const tenantId = result.tenant?.id;
 
-      // 2) Se tiver integração preenchida, atualiza settings do tenant na sequência
-      if (tenantId && hasIntegrationData()) {
-        const settingsPayload: Record<string, string> = {};
-
-        if (newTenant.whatsapp_number) {
-          settingsPayload.whatsapp_number = newTenant.whatsapp_number;
-        }
-        if (newTenant.gupshup_app_name) {
-          settingsPayload.gupshup_app_name = newTenant.gupshup_app_name;
-        }
-        if (newTenant.gupshup_api_key) {
-          settingsPayload.gupshup_api_key = newTenant.gupshup_api_key;
-        }
-        if (newTenant.gupshup_webhook_secret) {
-          settingsPayload.gupshup_webhook_secret = newTenant.gupshup_webhook_secret;
-        }
-
-        const patchResponse = await fetch(`${API_URL}/admin/tenants/${tenantId}`, {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ settings: settingsPayload }),
-        });
-
-        if (!patchResponse.ok) {
-          const patchError = await patchResponse.json().catch(() => null);
-          console.error('Erro ao atualizar settings do tenant:', patchError);
-          alert('Cliente criado, mas houve erro ao salvar a integração do WhatsApp/Gupshup.');
-        }
+      // Monta mensagem de sucesso
+      let successMessage = `Cliente criado com sucesso!\n\nEmail de acesso: ${result.user.email}`;
+      
+      if (result.whatsapp?.configured) {
+        successMessage += `\n\n📱 WhatsApp configurado!\nWebhook URL: ${result.whatsapp.webhook_url}`;
       }
 
-      alert(`Cliente criado com sucesso!\n\nEmail de acesso: ${result.user.email}`);
+      alert(successMessage);
 
       // Reseta modal
       setShowModal(false);
@@ -261,9 +219,8 @@ export default function ClientsPage() {
         admin_email: '',
         admin_password: '',
         whatsapp_number: '',
-        gupshup_app_name: '',
-        gupshup_api_key: '',
-        gupshup_webhook_secret: '',
+        dialog360_api_key: '',
+        webhook_verify_token: '',
       });
       setShowPassword(false);
 
@@ -629,11 +586,11 @@ export default function ClientsPage() {
               </div>
             </div>
 
-            {/* Integração WhatsApp / Gupshup */}
+            {/* Integração WhatsApp / 360dialog */}
             <div className="mb-6">
               <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
                 <Phone className="w-4 h-4" />
-                Integração WhatsApp / Gupshup
+                Integração WhatsApp / 360dialog
               </h3>
               <div className="space-y-4">
                 <div>
@@ -659,58 +616,40 @@ export default function ClientsPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Gupshup App Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newTenant.gupshup_app_name}
-                    onChange={(e) =>
-                      setNewTenant((prev) => ({
-                        ...prev,
-                        gupshup_app_name: e.target.value,
-                      }))
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Nome do app no painel da Gupshup"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Gupshup API Key
+                    360dialog API Key
                   </label>
                   <div className="relative">
                     <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
                       type="text"
-                      value={newTenant.gupshup_api_key}
+                      value={newTenant.dialog360_api_key}
                       onChange={(e) =>
                         setNewTenant((prev) => ({
                           ...prev,
-                          gupshup_api_key: e.target.value,
+                          dialog360_api_key: e.target.value,
                         }))
                       }
                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      placeholder="Chave de API exclusiva do cliente"
+                      placeholder="Chave de API do 360dialog"
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Webhook Secret
+                    Webhook Verify Token (opcional)
                   </label>
                   <input
                     type="text"
-                    value={newTenant.gupshup_webhook_secret}
+                    value={newTenant.webhook_verify_token}
                     onChange={(e) =>
                       setNewTenant((prev) => ({
                         ...prev,
-                        gupshup_webhook_secret: e.target.value,
+                        webhook_verify_token: e.target.value,
                       }))
                     }
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Segredo usado para validar o webhook"
+                    placeholder="velaris_webhook_token (padrão)"
                   />
                 </div>
               </div>
@@ -720,8 +659,15 @@ export default function ClientsPage() {
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
               <p className="text-sm text-blue-700">
                 <strong>Após criar:</strong> o cliente poderá acessar o sistema com o email e
-                senha definidos acima. Se você preencher os dados de WhatsApp/Gupshup,
+                senha definidos acima. Se você preencher os dados do 360dialog,
                 a IA já estará pronta para operar com o número configurado.
+              </p>
+              <p className="text-sm text-blue-700 mt-2">
+                <strong>Webhook URL:</strong> Configure no painel do 360dialog:
+                <br />
+                <code className="bg-blue-100 px-2 py-1 rounded text-xs">
+                  https://hopeful-purpose-production-3a2b.up.railway.app/api/v1/webhook/360dialog
+                </code>
               </p>
             </div>
 

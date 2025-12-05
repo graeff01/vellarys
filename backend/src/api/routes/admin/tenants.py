@@ -50,11 +50,11 @@ class TenantCreate(BaseModel):
     # Opções de assinatura
     billing_cycle: str = "monthly"  # monthly ou yearly
     trial_days: int = DEFAULT_TRIAL_DAYS  # 0 = sem trial
+    
+    # Integração WhatsApp / 360dialog
     whatsapp_number: Optional[str] = None
-    gupshup_app_name: Optional[str] = None
-    gupshup_api_key: Optional[str] = None
-    gupshup_webhook_secret: Optional[str] = None
-
+    dialog360_api_key: Optional[str] = None
+    webhook_verify_token: Optional[str] = None
 
 
 class TenantUpdate(BaseModel):
@@ -399,10 +399,10 @@ async def create_tenant(
             "tone": "cordial",
             "custom_questions": [],
             "custom_rules": [],
+            # 360dialog config
             "whatsapp_number": data.whatsapp_number,
-            "gupshup_app_name": data.gupshup_app_name,
-            "gupshup_api_key": data.gupshup_api_key,
-            "gupshup_webhook_secret": data.gupshup_webhook_secret,
+            "dialog360_api_key": data.dialog360_api_key,
+            "webhook_verify_token": data.webhook_verify_token or "velaris_webhook_token",
         },
         active=True,
     )
@@ -420,12 +420,16 @@ async def create_tenant(
     )
     db.add(user)
     
-    # Cria canal WhatsApp padrão
+    # Cria canal WhatsApp padrão com config do 360dialog
     channel = Channel(
         tenant_id=tenant.id,
         type="whatsapp",
         name="WhatsApp Principal",
-        config={},
+        phone_number=data.whatsapp_number,
+        credentials={
+            "api_key": data.dialog360_api_key,
+            "webhook_verify_token": data.webhook_verify_token or "velaris_webhook_token",
+        } if data.dialog360_api_key else {},
         active=True,
     )
     db.add(channel)
@@ -443,7 +447,6 @@ async def create_tenant(
         started_at=now,
         current_period_start=now,
         current_period_end=now + timedelta(days=30) if data.billing_cycle == "monthly" else now + timedelta(days=365),
-        custom_limits=data.custom_limits,
     )
     db.add(subscription)
     
@@ -468,6 +471,7 @@ async def create_tenant(
             "admin_email": data.admin_email,
             "billing_cycle": data.billing_cycle,
             "trial_days": data.trial_days,
+            "whatsapp_configured": bool(data.dialog360_api_key),
         },
     )
     db.add(log)
@@ -493,6 +497,11 @@ async def create_tenant(
             "status": subscription.status,
             "trial_days": data.trial_days,
             "trial_ends_at": subscription.trial_ends_at.isoformat() if subscription.trial_ends_at else None,
+        },
+        "whatsapp": {
+            "configured": bool(data.dialog360_api_key),
+            "number": data.whatsapp_number,
+            "webhook_url": f"https://hopeful-purpose-production-3a2b.up.railway.app/api/v1/webhook/360dialog",
         },
     }
 
@@ -637,7 +646,7 @@ async def update_tenant(
     
     if data.settings is not None:
         changes["settings"] = "updated"
-        tenant.settings = {**tenant.settings, **data.settings}
+        tenant.settings = {**(tenant.settings or {}), **data.settings}
     
     if data.active is not None:
         changes["active"] = {"from": tenant.active, "to": data.active}
