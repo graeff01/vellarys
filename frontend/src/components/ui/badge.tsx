@@ -1,6 +1,14 @@
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: 'default' | 'hot' | 'warm' | 'cold' | 'success' | 'warning';
+  variant?: 
+    | 'default'
+    | 'hot'
+    | 'warm'
+    | 'cold'
+    | 'success'
+    | 'warning'
+    | 'outline';
+  className?: string; // <- necessário
 }
 
 const variants = {
@@ -10,11 +18,17 @@ const variants = {
   cold: 'bg-blue-100 text-blue-800',
   success: 'bg-green-100 text-green-800',
   warning: 'bg-orange-100 text-orange-800',
+
+  // novo
+  outline: 'border border-gray-300 text-gray-700 bg-white',
 };
 
-export function Badge({ children, variant = 'default' }: BadgeProps) {
+export function Badge({ children, variant = 'default', className = '' }: BadgeProps) {
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${variants[variant]}`}>
+    <span
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+        ${variants[variant]} ${className}`}
+    >
       {children}
     </span>
   );
