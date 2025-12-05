@@ -2,8 +2,8 @@
 ROTAS: LEADS
 =============
 Endpoints para gerenciar leads.
-Usado pelo dashboard para listar, ver detalhes, atualizar e atribuir manualmente.
 """
+
 from datetime import datetime
 from typing import Optional
 
@@ -23,28 +23,25 @@ from src.api.schemas import (
 )
 from src.api.dependencies import get_current_user, get_current_tenant
 
-# IMPORT CORRETO DA FUNÇÃO QUE JÁ EXISTE
+# Import correto
 from src.infrastructure.services import assign_lead_to_seller
 
-# Caso precise de outras funções do mesmo módulo no futuro, é só acrescentar aqui
-# from src.infrastructure.services import distribute_lead, get_available_sellers, assign_lead_to_seller
 
 router = APIRouter(prefix="/leads", tags=["Leads"])
 
 
-# ==========================================
+# ===============================
 # SCHEMAS
-# ==========================================
+# ===============================
 class AssignSellerRequest(BaseModel):
     seller_id: int
     reason: Optional[str] = None
 
 
-# ==========================================
+# ===============================
 # HELPERS
-# ==========================================
+# ===============================
 def lead_to_response(lead: Lead) -> dict:
-    """Converte Lead para dict de resposta com vendedor."""
     data = {
         "id": lead.id,
         "tenant_id": lead.tenant_id,
@@ -80,9 +77,9 @@ def lead_to_response(lead: Lead) -> dict:
     return data
 
 
-# ==========================================
-# ENDPOINTS
-# ==========================================
+# ===============================
+# LISTAGEM DE LEADS
+# ===============================
 @router.get("")
 async def list_leads(
     tenant_slug: str,
@@ -98,11 +95,10 @@ async def list_leads(
     unassigned: Optional[bool] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    # (código da listagem mantido exatamente como estava – funciona perfeitamente)
     result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
     tenant = result.scalar_one_or_none()
     if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant não encontrado")
+        raise HTTPException(404, "Tenant não encontrado")
 
     query = (
         select(Lead)
@@ -111,16 +107,18 @@ async def list_leads(
     )
     count_query = select(func.count(Lead.id)).where(Lead.tenant_id == tenant.id)
 
-    # filtros (mantidos)
     if status:
         query = query.where(Lead.status == status)
         count_query = count_query.where(Lead.status == status)
+
     if qualification:
         query = query.where(Lead.qualification == qualification)
         count_query = count_query.where(Lead.qualification == qualification)
+
     if channel_id:
         query = query.where(Lead.channel_id == channel_id)
         count_query = count_query.where(Lead.channel_id == channel_id)
+
     if search:
         s = f"%{search}%"
         query = query.where(
@@ -129,21 +127,26 @@ async def list_leads(
         count_query = count_query.where(
             (Lead.name.ilike(s)) | (Lead.phone.ilike(s)) | (Lead.email.ilike(s))
         )
+
     if date_from:
         query = query.where(Lead.created_at >= date_from)
         count_query = count_query.where(Lead.created_at >= date_from)
+
     if date_to:
         query = query.where(Lead.created_at <= date_to)
         count_query = count_query.where(Lead.created_at <= date_to)
+
     if assigned_seller_id:
         query = query.where(Lead.assigned_seller_id == assigned_seller_id)
         count_query = count_query.where(Lead.assigned_seller_id == assigned_seller_id)
+
     if unassigned:
         query = query.where(Lead.assigned_seller_id.is_(None))
         count_query = count_query.where(Lead.assigned_seller_id.is_(None))
 
     total = (await db.execute(count_query)).scalar()
     offset = (page - 1) * per_page
+
     result = await db.execute(
         query.order_by(Lead.created_at.desc()).offset(offset).limit(per_page)
     )
@@ -158,6 +161,9 @@ async def list_leads(
     }
 
 
+# ===============================
+# DETALHE DO LEAD
+# ===============================
 @router.get("/{lead_id}")
 async def get_lead(lead_id: int, tenant_slug: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
@@ -173,9 +179,13 @@ async def get_lead(lead_id: int, tenant_slug: str, db: AsyncSession = Depends(ge
     lead = result.scalar_one_or_none()
     if not lead:
         raise HTTPException(404, "Lead não encontrado")
+
     return lead_to_response(lead)
 
 
+# ===============================
+# ATUALIZAR LEAD
+# ===============================
 @router.patch("/{lead_id}")
 async def update_lead(
     lead_id: int,
@@ -207,6 +217,9 @@ async def update_lead(
     return lead_to_response(lead)
 
 
+# ===============================
+# MENSAGENS DO LEAD
+# ===============================
 @router.get("/{lead_id}/messages", response_model=list[MessageResponse])
 async def get_lead_messages(lead_id: int, tenant_slug: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
@@ -224,11 +237,14 @@ async def get_lead_messages(lead_id: int, tenant_slug: str, db: AsyncSession = D
     return [MessageResponse.model_validate(m) for m in result.scalars().all()]
 
 
+# ===============================
+# HANDOFF
+# ===============================
 @router.post("/{lead_id}/handoff")
 async def handoff_lead(
     lead_id: int,
     tenant_slug: str,
-    user_id: int = Query(..., description="ID do usuário que vai assumir"),
+    user_id: int = Query(...),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
@@ -256,30 +272,31 @@ async def handoff_lead(
             created_by=user_id,
         )
     )
+
     await db.commit()
     return {"success": True, "message": "Lead transferido com sucesso"}
 
 
-# ENDPOINT CORRIGIDO E FUNCIONAL
-@router.post("/{lead_id}/assign")
-async def assign_lead_to_seller_endpoint(
+# =====================================================
+# NOVO ENDPOINT COMPATÍVEL COM O FRONT
+# (POST /assign-seller)
+# =====================================================
+@router.post("/{lead_id}/assign-seller")
+async def assign_seller_compat(
     lead_id: int,
-    seller_id: int,
+    payload: AssignSellerRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # Verificação de permissão (caso tenha a função require_role no dependencies)
-    # require_role(current_user, ["admin", "manager", "supervisor"])
-
     lead = await db.get(Lead, lead_id)
-    seller = await db.get(Seller, seller_id)
+    seller = await db.get(Seller, payload.seller_id)
     tenant = await db.get(Tenant, current_user.tenant_id)
 
-    if not lead or not seller or not tenant:
-        raise HTTPException(404, "Lead, vendedor ou tenant não encontrado")
+    if not lead or not seller:
+        raise HTTPException(404, "Lead ou vendedor não encontrado")
 
     if lead.assigned_seller_id:
-        raise HTTPException(400, "Este lead já está atribuído a um vendedor")
+        raise HTTPException(400, "Lead já possui vendedor atribuído")
 
     await assign_lead_to_seller(
         db=db,
@@ -287,13 +304,17 @@ async def assign_lead_to_seller_endpoint(
         seller=seller,
         tenant=tenant,
         method="manual",
-        reason="Atribuição manual pelo gestor",
+        reason=payload.reason or "Atribuição manual via dashboard",
     )
 
     await db.commit()
-    return {"message": f"Lead atribuído com sucesso para {seller.name}"}
+
+    return {"success": True, "message": "Lead atribuído com sucesso"}
 
 
+# ===============================
+# REMOVER ATRIBUIÇÃO
+# ===============================
 @router.delete("/{lead_id}/assign-seller")
 async def unassign_lead_from_seller(
     lead_id: int,
@@ -302,11 +323,13 @@ async def unassign_lead_from_seller(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Lead,Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
+        select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
     )
     lead = result.scalar_one_or_none()
+
     if not lead:
         raise HTTPException(404, "Lead não encontrado")
+
     if not lead.assigned_seller_id:
         raise HTTPException(400, "Lead não tem vendedor atribuído")
 
@@ -325,5 +348,6 @@ async def unassign_lead_from_seller(
             created_by=user.id,
         )
     )
+
     await db.commit()
     return {"success": True, "message": "Atribuição removida com sucesso"}
