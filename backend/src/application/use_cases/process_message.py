@@ -481,14 +481,44 @@ async def process_message(
         }
     
     # ============================================================
-    # 🔒 8.1 — TRATAMENTO UNIVERSAL DOS GUARDS (NOVIDADE!)
+    # 🔒 8.1 — TRATAMENTO UNIVERSAL DOS GUARDS (VERSÃO ROBUSTA)
     # ============================================================
 
     guard_reason = guards_result.get("reason")
     guard_response = guards_result.get("response")
 
-    if guard_reason in ["price_block", "insistence_block", "faq", "out_of_scope"]:
-        
+    # Mensagem padrão caso tenant não tenha configurado nada
+    default_out_of_scope = (
+        f"Eu posso te ajudar com assuntos ligados à {settings.get('company_name', tenant.name)}! "
+        "Esse tema específico não faz parte do nosso atendimento, "
+        "mas me conta o que você precisa dentro do que oferecemos 😊"
+    )
+
+    # Ajusta resposta baseada no tipo de guard
+    if guard_reason == "out_of_scope":
+        final_guard_response = guard_response or default_out_of_scope
+
+    elif guard_reason == "price_block":
+        final_guard_response = guard_response or (
+            "Para garantir informações corretas, os valores são sempre passados pelo especialista. "
+            "Me diz qual peça você está buscando e para qual data que eu agilizo tudo! 😊"
+        )
+
+    elif guard_reason == "insistence_block":
+        final_guard_response = guard_response or (
+            "Eu entendo sua dúvida! Só quem confirma valores é o especialista, "
+            "para evitar qualquer informação incorreta. "
+            "Me diga qual peça você quer e a data do evento que eu acelero para você 😉"
+        )
+
+    elif guard_reason == "faq":
+        final_guard_response = guard_response
+
+    else:
+        final_guard_response = None
+
+
+    if final_guard_response:
         # Registrar mensagem do usuário
         user_message = Message(
             lead_id=lead.id,
@@ -498,11 +528,11 @@ async def process_message(
         )
         db.add(user_message)
 
-        # Registrar resposta do assistente
+        # Registrar retorno da IA
         assistant_message = Message(
             lead_id=lead.id,
             role="assistant",
-            content=guard_response,
+            content=final_guard_response,
             tokens_used=0
         )
         db.add(assistant_message)
@@ -511,12 +541,13 @@ async def process_message(
 
         return {
             "success": True,
-            "reply": guard_response,
+            "reply": final_guard_response,
             "lead_id": lead.id,
             "is_new_lead": is_new,
             "qualification": lead.qualification,
             "guard": guard_reason,
         }
+
 
     
     # ==========================================================================
