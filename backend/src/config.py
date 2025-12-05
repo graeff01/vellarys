@@ -12,13 +12,13 @@ class Settings(BaseSettings):
         case_sensitive=False
     )
 
-
-    # ...
+    # ===========================================
+    # SUPERADMIN
+    # ===========================================
     superadmin_email: str | None = None
     superadmin_password: str | None = None
     superadmin_tenant_name: str | None = None
     superadmin_tenant_slug: str | None = None
-
 
     # ===========================================
     # CORE
@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     gupshup_webhook_secret: Optional[str] = None  # Para validar assinaturas
 
     # ===========================================
+    # 360DIALOG (WhatsApp)
+    # ===========================================
+    dialog360_api_key: Optional[str] = None
+    webhook_verify_token: str = "velaris_webhook_token"
+    # ===========================================
     # PROPRIEDADES
     # ===========================================
     @property
@@ -64,7 +69,16 @@ class Settings(BaseSettings):
             self.gupshup_app_name and 
             self.gupshup_source_phone
         )
-
+    
+    @property
+    def dialog360_configured(self) -> bool:
+        """Verifica se 360dialog está configurado."""
+        return bool(self.dialog360_api_key)
+    
+    @property
+    def dialog360_configured(self) -> bool:
+        """Verifica se 360dialog está configurado."""
+        return bool(self.dialog360_api_key)
 
 
 @lru_cache

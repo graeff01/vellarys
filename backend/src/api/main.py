@@ -11,6 +11,7 @@ from src.config import get_settings
 from src.infrastructure.database import init_db, async_session
 from src.infrastructure.services.gupshup_init import init_gupshup_service, shutdown_gupshup_service
 from src.api.routes import (
+    dialog360_webhook_router,  # ADICIONAR AQUI
     twilio_webhook_router,
     webhook_router,
     leads_router,

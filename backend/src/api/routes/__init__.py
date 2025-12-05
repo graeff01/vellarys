@@ -14,6 +14,7 @@ from .reengagement import router as reengagement_router
 from .export import router as export_router
 from .usage import router as usage_router
 from .simulator import router as simulator_router
+from .dialog360_webhook import router as dialog360_webhook_router
 
 # Admin routes
 from .admin import (
@@ -25,6 +26,7 @@ from .admin import (
 )
 
 __all__ = [
+    "dialog360_webhook_router",
     "twilio_webhook_router",
     "webhook_router",
     "gupshup_webhook_router",
