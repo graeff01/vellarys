@@ -659,7 +659,7 @@ export default function ClientsPage() {
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
               <p className="text-sm text-blue-700">
                 <strong>Após criar:</strong> o cliente poderá acessar o sistema com o email e
-                senha definidos acima. Se você preencher os dados do 360dialog,
+                senha definidos acima pelo admin. Se você preencher os dados do 360dialog,
                 a IA já estará pronta para operar com o número configurado.
               </p>
               <p className="text-sm text-blue-700 mt-2">
