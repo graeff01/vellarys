@@ -10,6 +10,8 @@ import { LeadsKanban } from '@/components/dashboard/leads-kanban';
 import { LeadsQuickview } from '@/components/dashboard/leads-quickview';
 import { AssignSellerModal } from '@/components/dashboard/assign-seller-modal';
 
+
+
 import { getLeads } from '@/lib/api';
 import {
   getSellers,
@@ -215,11 +217,12 @@ export default function LeadsPage() {
           <>
             {view === 'table' && (
               <LeadsTable
-                leads={currentLeads}
-                sellers={sellers}
-                onAssignSeller={handleAssignSeller}
-                onUnassignSeller={handleUnassignSeller}
-              />
+              leads={currentLeads}
+              sellers={sellers}
+              onAssignSeller={handleAssignSeller}
+              onUnassignSeller={handleUnassignSeller}
+              onUpdateLead={loadData}
+            />
             )}
 
             {view === 'kanban' && (
