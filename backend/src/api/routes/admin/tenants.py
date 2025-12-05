@@ -420,13 +420,13 @@ async def create_tenant(
     )
     db.add(user)
     
-    # Cria canal WhatsApp padrão com config do 360dialog
+# Cria canal WhatsApp padrão com config do 360dialog
     channel = Channel(
         tenant_id=tenant.id,
         type="whatsapp",
         name="WhatsApp Principal",
-        phone_number=data.whatsapp_number,
-        credentials={
+        config={
+            "phone_number": data.whatsapp_number,
             "api_key": data.dialog360_api_key,
             "webhook_verify_token": data.webhook_verify_token or "velaris_webhook_token",
         } if data.dialog360_api_key else {},
