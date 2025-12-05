@@ -11,15 +11,15 @@ function getTenantSlug(): string {
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const token = typeof window !== 'undefined' ? getToken() : null;
   const url = `${API_URL}${endpoint}`;
-  
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  
+
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  
+
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -34,33 +34,39 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
         window.location.href = '/login';
       }
     }
-    throw new Error(`API Error: ${response.status}`);
+    const error = new Error(`API Error: ${response.status}`);
+    (error as any).status = response.status;
+    throw error;
   }
 
   return response.json();
 }
 
-// Métricas
+// === MÉTRICAS ===
 export async function getMetrics() {
   const slug = getTenantSlug();
   return request(`/metrics?tenant_slug=${slug}`);
 }
 
-// Leads
+// === LEADS ===
 export async function getLeads(params?: {
   page?: number;
   status?: string;
   qualification?: string;
   search?: string;
+  assigned_seller_id?: number;
+  unassigned?: boolean;
 }) {
   const slug = getTenantSlug();
   const searchParams = new URLSearchParams({ tenant_slug: slug });
-  
+
   if (params?.page) searchParams.set('page', params.page.toString());
   if (params?.status) searchParams.set('status', params.status);
   if (params?.qualification) searchParams.set('qualification', params.qualification);
   if (params?.search) searchParams.set('search', params.search);
-  
+  if (params?.assigned_seller_id) searchParams.set('assigned_seller_id', params.assigned_seller_id.toString());
+  if (params?.unassigned) searchParams.set('unassigned', 'true');
+
   return request(`/leads?${searchParams}`);
 }
 
@@ -82,7 +88,22 @@ export async function updateLead(id: number, data: Record<string, unknown>) {
   });
 }
 
-// Tenants
+// NOVA FUNÇÃO — ATRIBUIÇÃO MANUAL DE VENDEDOR
+export async function assignLeadToSeller(leadId: number, sellerId: number) {
+  return request(`/${leadId}/assign`, {
+    method: 'POST',
+    body: JSON.stringify({ seller_id: sellerId }),
+  });
+}
+
+// Função para remover atribuição (caso precise no futuro)
+export async function unassignLeadFromSeller(leadId: number) {
+  return request(`/${leadId}/assign-seller`, {
+    method: 'DELETE',
+  });
+}
+
+// === TENANTS ===
 export async function getTenant() {
   const slug = getTenantSlug();
   return request(`/tenants/${slug}`);
