@@ -480,6 +480,45 @@ async def process_message(
             "reason": "out_of_hours",
         }
     
+    # ============================================================
+    # 🔒 8.1 — TRATAMENTO UNIVERSAL DOS GUARDS (NOVIDADE!)
+    # ============================================================
+
+    guard_reason = guards_result.get("reason")
+    guard_response = guards_result.get("response")
+
+    if guard_reason in ["price_block", "insistence_block", "faq", "out_of_scope"]:
+        
+        # Registrar mensagem do usuário
+        user_message = Message(
+            lead_id=lead.id,
+            role="user",
+            content=content,
+            tokens_used=0
+        )
+        db.add(user_message)
+
+        # Registrar resposta do assistente
+        assistant_message = Message(
+            lead_id=lead.id,
+            role="assistant",
+            content=guard_response,
+            tokens_used=0
+        )
+        db.add(assistant_message)
+
+        await db.commit()
+
+        return {
+            "success": True,
+            "reply": guard_response,
+            "lead_id": lead.id,
+            "is_new_lead": is_new,
+            "qualification": lead.qualification,
+            "guard": guard_reason,
+        }
+
+    
     # ==========================================================================
     # 9. VERIFICA HANDOFF POR TRIGGER
     # ==========================================================================
