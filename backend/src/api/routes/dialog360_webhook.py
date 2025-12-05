@@ -171,13 +171,14 @@ async def handle_webhook(
                     # SALVAR MENSAGEM RECEBIDA
                     # ===============================
                     message_in = Message(
+                        tenant_id=tenant.id,
                         lead_id=lead.id,
-                        direction="inbound",
                         content=message_text,
                         channel="whatsapp",
                         external_id=message_id,
                     )
                     db.add(message_in)
+
 
                     # ===============================
                     # HISTÓRICO PARA A IA
@@ -192,7 +193,7 @@ async def handle_webhook(
 
                     messages_for_ai = []
                     for hist_msg in reversed(history):
-                        role = "user" if hist_msg.direction == "inbound" else "assistant"
+                        role = "user" if hist_msg.external_id else "assistant"
                         messages_for_ai.append({"role": role, "content": hist_msg.content})
 
                     messages_for_ai.append({"role": "user", "content": message_text})
@@ -236,8 +237,8 @@ IMPORTANTE:
                     # SALVAR RESPOSTA
                     # ===============================
                     message_out = Message(
+                        tenant_id=tenant.id,
                         lead_id=lead.id,
-                        direction="outbound",
                         content=ai_response,
                         channel="whatsapp",
                     )
