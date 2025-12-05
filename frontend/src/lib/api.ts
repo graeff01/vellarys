@@ -80,6 +80,7 @@ export async function getLeadMessages(id: number) {
   return request(`/leads/${id}/messages?tenant_slug=${slug}`);
 }
 
+
 export async function updateLead(id: number, data: Record<string, unknown>) {
   const slug = getTenantSlug();
   return request(`/leads/${id}?tenant_slug=${slug}`, {
@@ -112,3 +113,4 @@ export async function getTenant() {
 export async function getNiches() {
   return request('/tenants/niches');
 }
+
