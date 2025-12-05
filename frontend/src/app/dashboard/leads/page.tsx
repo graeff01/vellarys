@@ -209,7 +209,7 @@ export default function LeadsPage() {
       </Card>
 
       {/* Conteúdo principal, dependente da view */}
-      <Card overflow>
+      <Card>
         <CardHeader title={`${data?.total || 0} leads encontrados`} />
         {loading ? (
           <div className="text-center py-8 text-gray-500">Carregando...</div>

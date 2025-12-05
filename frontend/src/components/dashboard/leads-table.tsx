@@ -216,7 +216,7 @@ export function LeadsTable({
                             onClick={() => setStatusDropdownId(null)}
                           />
                           
-                          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[160px]">
+                          <div className="fixed bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[160px]" style={{ marginTop: '4px' }}>
                             {statusOptions.map((option) => (
                               <button
                                 key={option.value}
