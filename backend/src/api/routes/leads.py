@@ -342,79 +342,37 @@ async def handoff_lead(
     return {"success": True, "message": "Lead transferido com sucesso"}
 
 
-@router.post("/{lead_id}/assign-seller")
+@router.post("/leads/{lead_id}/assign")
 async def assign_lead_to_seller_endpoint(
     lead_id: int,
-    payload: AssignSellerRequest,
-    user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
+    seller_id: int,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """
-    Atribui um lead manualmente a um vendedor.
-    """
-    from src.infrastructure.services import manual_assign_lead
-    
-    # Busca o lead
-    result = await db.execute(
-        select(Lead)
-        .where(Lead.id == lead_id)
-        .where(Lead.tenant_id == tenant.id)
-    )
-    lead = result.scalar_one_or_none()
-    
-    if not lead:
-        raise HTTPException(status_code=404, detail="Lead não encontrado")
-    
-    # Busca o vendedor
-    result = await db.execute(
-        select(Seller)
-        .where(Seller.id == payload.seller_id)
-        .where(Seller.tenant_id == tenant.id)
-    )
-    seller = result.scalar_one_or_none()
-    
-    if not seller:
-        raise HTTPException(status_code=404, detail="Vendedor não encontrado")
-    
-    if not seller.active:
-        raise HTTPException(status_code=400, detail="Vendedor está inativo")
-    
-    # Guarda vendedor anterior (se houver)
-    previous_seller_id = lead.assigned_seller_id
-    
-    # Executa a atribuição
-    result = await manual_assign_lead(
+    require_role(current_user, ["admin", "manager", "supervisor"])
+
+    lead = await db.get(Lead, lead_id)
+    seller = await db.get(Seller, seller_id)
+    tenant = await db.get(Tenant, current_user.tenant_id)
+
+    if not lead or not seller or not tenant:
+        raise HTTPException(404, "Lead, vendedor ou tenant não encontrado")
+
+    if lead.assigned_seller_id:
+        raise HTTPException(400, "Este lead já está atribuído")
+
+    await assign_lead_to_seller(
         db=db,
         lead=lead,
         seller=seller,
         tenant=tenant,
-        assigned_by=user.name,
+        method="manual",
+        reason="Atribuição manual pelo gestor",
     )
-    
-    # Registra evento
-    event = LeadEvent(
-        lead_id=lead.id,
-        event_type="seller_assigned",
-        old_value=str(previous_seller_id) if previous_seller_id else None,
-        new_value=str(seller.id),
-        description=f"Lead atribuído para {seller.name} por {user.name}",
-        created_by=user.id,
-    )
-    db.add(event)
-    await db.commit()
-    
-    return {
-        "success": True,
-        "message": f"Lead atribuído para {seller.name}",
-        "seller": {
-            "id": seller.id,
-            "name": seller.name,
-            "whatsapp": seller.whatsapp,
-        },
-        "notifications_sent": result.get("notifications_sent", []),
-    }
 
+    await db.commit()
+
+    return {"message": f"Lead atribuído com sucesso para {seller.name}"}
 
 @router.delete("/{lead_id}/assign-seller")
 async def unassign_lead_from_seller(
