@@ -146,32 +146,24 @@ async def handle_webhook(
                     logger.info(f"📱 Mensagem: {from_number} -> {business_phone}: {message_text}")
                     print(f"📱 Mensagem: {from_number} -> {business_phone}: {message_text}")
                     
-                    # Buscar canal pelo número do business
-                    channel_result = await db.execute(
-                        select(Channel).where(
-                            Channel.phone_number == business_phone,
-                            Channel.active == True
+                    # Buscar tenant pelo número nas settings
+                    tenant_result = await db.execute(
+                        select(Tenant).where(
+                            Tenant.settings["whatsapp_number"].astext == business_phone,
+                            Tenant.active == True
                         )
                     )
-                    channel = channel_result.scalar_one_or_none()
+                    tenant = tenant_result.scalar_one_or_none()
                     
-                    if not channel:
-                        # Tentar buscar primeiro tenant ativo para teste
-                        logger.warning(f"Canal não encontrado para {business_phone}, usando primeiro tenant")
+                    if tenant:
+                        api_key = tenant.settings.get("dialog360_api_key")
+                    else:
+                        logger.warning(f"Tenant não encontrado para {business_phone}")
                         tenant_result = await db.execute(
                             select(Tenant).where(Tenant.active == True).limit(1)
                         )
                         tenant = tenant_result.scalar_one_or_none()
                         api_key = settings.dialog360_api_key
-                    else:
-                        # Buscar tenant do canal
-                        tenant_result = await db.execute(
-                            select(Tenant).where(Tenant.id == channel.tenant_id)
-                        )
-                        tenant = tenant_result.scalar_one_or_none()
-                        # API key pode estar nas credenciais do canal ou nas settings
-                        credentials = channel.credentials or {}
-                        api_key = credentials.get("api_key") or settings.dialog360_api_key
                     
                     if not tenant:
                         logger.error("Nenhum tenant encontrado")
@@ -180,7 +172,7 @@ async def handle_webhook(
                     if not api_key:
                         logger.error("API key do 360dialog não configurada")
                         continue
-                    
+
                     # Buscar ou criar lead
                     lead_result = await db.execute(
                         select(Lead).where(
