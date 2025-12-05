@@ -6,7 +6,7 @@ Recebe mensagens do WhatsApp via 360dialog e processa com a IA.
 Documentação: https://docs.360dialog.com/whatsapp-api/whatsapp-api/webhook
 """
 
-from fastapi import APIRouter, Request, Response, Depends, HTTPException, Header
+from fastapi import APIRouter, Request, Response, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import logging
@@ -15,7 +15,7 @@ import json
 from typing import Optional
 
 from src.infrastructure.database import get_db
-from src.domain.entities import Lead, Message, Tenant, Channel
+from src.domain.entities import Lead, Message, Tenant
 from src.infrastructure.services import chat_completion
 from src.domain.prompts import get_niche_config
 from src.config import get_settings
@@ -26,8 +26,10 @@ settings = get_settings()
 router = APIRouter(prefix="/webhook", tags=["Webhook 360dialog"])
 
 
+# ======================================================
+# ENVIO DE MENSAGEM VIA 360DIALOG
+# ======================================================
 async def send_360dialog_message(api_key: str, to: str, message: str):
-    """Envia mensagem via 360dialog API."""
     url = "https://waba.360dialog.io/v1/messages"
     
     headers = {
@@ -52,22 +54,20 @@ async def send_360dialog_message(api_key: str, to: str, message: str):
         if response.status_code == 200:
             logger.info(f"✅ Mensagem enviada para {to}")
             return True
-        else:
-            logger.error(f"❌ Erro ao enviar mensagem: {response.text}")
-            return False
+        
+        logger.error(f"❌ Erro ao enviar mensagem: {response.text}")
+        return False
 
 
+# ======================================================
+# VERIFICAÇÃO DO WEBHOOK
+# ======================================================
 @router.get("/360dialog")
 async def verify_webhook(
     hub_mode: Optional[str] = None,
     hub_challenge: Optional[str] = None,
     hub_verify_token: Optional[str] = None,
 ):
-    """
-    Verificação do webhook pelo 360dialog/Meta.
-    Chamado uma vez durante a configuração do webhook.
-    """
-    # O 360dialog usa o padrão do Meta para verificação
     verify_token = settings.webhook_verify_token or "velaris_webhook_token"
     
     if hub_mode == "subscribe" and hub_verify_token == verify_token:
@@ -78,75 +78,46 @@ async def verify_webhook(
     raise HTTPException(status_code=403, detail="Verificação falhou")
 
 
+# ======================================================
+# RECEBIMENTO DO WEBHOOK DE MENSAGENS
+# ======================================================
 @router.post("/360dialog")
 async def handle_webhook(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Recebe mensagens do WhatsApp via 360dialog.
-    
-    Formato do payload:
-    {
-        "object": "whatsapp_business_account",
-        "entry": [{
-            "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
-            "changes": [{
-                "value": {
-                    "messaging_product": "whatsapp",
-                    "metadata": {
-                        "display_phone_number": "PHONE_NUMBER",
-                        "phone_number_id": "PHONE_NUMBER_ID"
-                    },
-                    "messages": [{
-                        "from": "SENDER_PHONE",
-                        "id": "MESSAGE_ID",
-                        "timestamp": "TIMESTAMP",
-                        "type": "text",
-                        "text": {"body": "MESSAGE_BODY"}
-                    }]
-                },
-                "field": "messages"
-            }]
-        }]
-    }
-    """
     try:
         payload = await request.json()
         logger.info(f"📨 Webhook 360dialog recebido: {json.dumps(payload)[:500]}")
-        print(f"📨 Webhook 360dialog recebido")
-        
-        # Extrair mensagens do payload
+
         if payload.get("object") != "whatsapp_business_account":
             return {"status": "ignored"}
-        
+
         for entry in payload.get("entry", []):
             for change in entry.get("changes", []):
-                value = change.get("value", {})
                 
-                # Ignorar se não for mensagem
                 if change.get("field") != "messages":
                     continue
-                
-                # Pegar metadados do número que recebeu
+
+                value = change.get("value", {})
                 metadata = value.get("metadata", {})
                 business_phone = metadata.get("display_phone_number", "").replace("+", "")
-                
-                # Processar cada mensagem
+
                 for msg in value.get("messages", []):
-                    # Ignorar mensagens que não são de texto
+                    
                     if msg.get("type") != "text":
                         logger.info(f"Ignorando mensagem tipo: {msg.get('type')}")
                         continue
                     
-                    from_number = msg.get("from", "")
+                    from_number = msg.get("from")
                     message_text = msg.get("text", {}).get("body", "")
-                    message_id = msg.get("id", "")
-                    
-                    logger.info(f"📱 Mensagem: {from_number} -> {business_phone}: {message_text}")
-                    print(f"📱 Mensagem: {from_number} -> {business_phone}: {message_text}")
-                    
-                    # Buscar tenant pelo número nas settings
+                    message_id = msg.get("id")
+
+                    logger.info(f"📱 {from_number} -> {business_phone}: {message_text}")
+
+                    # ===============================
+                    # BUSCAR TENANT PELO NÚMERO
+                    # ===============================
                     tenant_result = await db.execute(
                         select(Tenant).where(
                             Tenant.settings["whatsapp_number"].astext == business_phone,
@@ -154,7 +125,7 @@ async def handle_webhook(
                         )
                     )
                     tenant = tenant_result.scalar_one_or_none()
-                    
+
                     if tenant:
                         api_key = tenant.settings.get("dialog360_api_key")
                     else:
@@ -164,16 +135,18 @@ async def handle_webhook(
                         )
                         tenant = tenant_result.scalar_one_or_none()
                         api_key = settings.dialog360_api_key
-                    
+
                     if not tenant:
                         logger.error("Nenhum tenant encontrado")
                         continue
-                    
+
                     if not api_key:
                         logger.error("API key do 360dialog não configurada")
                         continue
 
-                    # Buscar ou criar lead
+                    # ===============================
+                    # LEAD
+                    # ===============================
                     lead_result = await db.execute(
                         select(Lead).where(
                             Lead.tenant_id == tenant.id,
@@ -181,7 +154,7 @@ async def handle_webhook(
                         )
                     )
                     lead = lead_result.scalar_one_or_none()
-                    
+
                     if not lead:
                         lead = Lead(
                             tenant_id=tenant.id,
@@ -193,10 +166,11 @@ async def handle_webhook(
                         db.add(lead)
                         await db.flush()
                         logger.info(f"✨ Novo lead criado: {lead.id}")
-                    
-                    # Salvar mensagem recebida
+
+                    # ===============================
+                    # SALVAR MENSAGEM RECEBIDA
+                    # ===============================
                     message_in = Message(
-                        tenant_id=tenant.id,
                         lead_id=lead.id,
                         direction="inbound",
                         content=message_text,
@@ -204,8 +178,10 @@ async def handle_webhook(
                         external_id=message_id,
                     )
                     db.add(message_in)
-                    
-                    # Buscar histórico
+
+                    # ===============================
+                    # HISTÓRICO PARA A IA
+                    # ===============================
                     messages_result = await db.execute(
                         select(Message)
                         .where(Message.lead_id == lead.id)
@@ -213,23 +189,25 @@ async def handle_webhook(
                         .limit(10)
                     )
                     history = messages_result.scalars().all()
-                    
-                    # Montar histórico para IA
+
                     messages_for_ai = []
-                    for hist_msg in reversed(list(history)):
+                    for hist_msg in reversed(history):
                         role = "user" if hist_msg.direction == "inbound" else "assistant"
                         messages_for_ai.append({"role": role, "content": hist_msg.content})
-                    
+
                     messages_for_ai.append({"role": "user", "content": message_text})
-                    
-                    # Configurar prompt
+
+                    # ===============================
+                    # CONFIGURAR PROMPT
+                    # ===============================
                     tenant_settings = tenant.settings or {}
                     niche = tenant_settings.get("niche", "services")
                     tone = tenant_settings.get("tone", "cordial")
                     company_name = tenant_settings.get("company_name", tenant.name)
                     niche_config = get_niche_config(niche)
-                    
-                    system_prompt = f"""Você é um assistente de atendimento da empresa {company_name}.
+
+                    system_prompt = f"""
+Você é um assistente de atendimento da empresa {company_name}.
 
 {niche_config.prompt_template if niche_config else "Atenda o cliente de forma profissional."}
 
@@ -240,52 +218,57 @@ IMPORTANTE:
 - Faça perguntas para qualificar o lead
 - Use emojis moderadamente se o tom for cordial
 """
-                    
-                    # Gerar resposta da IA
+
+                    # ===============================
+                    # GERAR RESPOSTA DA IA
+                    # ===============================
                     ai_messages = [{"role": "system", "content": system_prompt}] + messages_for_ai
-                    
+
                     result = await chat_completion(
                         messages=ai_messages,
                         max_tokens=500,
                     )
-                    
+
                     ai_response = result["content"]
-                    logger.info(f"🤖 Resposta IA: {ai_response[:100]}...")
-                    
-                    # Salvar resposta
+                    logger.info(f"🤖 IA: {ai_response[:120]}")
+
+                    # ===============================
+                    # SALVAR RESPOSTA
+                    # ===============================
                     message_out = Message(
-                        tenant_id=tenant.id,
                         lead_id=lead.id,
                         direction="outbound",
                         content=ai_response,
                         channel="whatsapp",
                     )
                     db.add(message_out)
-                    
-                    # Atualizar status do lead
+
                     if lead.status == "new":
                         lead.status = "contacted"
-                    
+
                     await db.commit()
-                    
-                    # Enviar resposta via 360dialog
+
+                    # ===============================
+                    # ENVIAR VIA 360DIALOG
+                    # ===============================
                     await send_360dialog_message(api_key, from_number, ai_response)
-        
+
         return {"status": "ok"}
-        
+
     except Exception as e:
         logger.error(f"❌ Erro no webhook 360dialog: {str(e)}")
-        print(f"❌ Erro no webhook 360dialog: {str(e)}")
         import traceback
         traceback.print_exc()
         return {"status": "error", "message": str(e)}
 
 
+# ======================================================
+# TESTE DO WEBHOOK
+# ======================================================
 @router.get("/360dialog/test")
 async def test_webhook():
-    """Endpoint de teste para verificar se a rota está funcionando."""
     return {
-        "status": "ok", 
+        "status": "ok",
         "message": "360dialog webhook está ativo!",
         "webhook_url": "/api/v1/webhook/360dialog"
     }
