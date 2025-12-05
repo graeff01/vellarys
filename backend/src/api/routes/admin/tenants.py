@@ -205,10 +205,10 @@ async def get_tenant(
             "id": seller.id,
             "name": seller.name,
             "email": seller.email,
-            "phone": seller.phone,
             "active": seller.active,
             "leads_count": seller_leads_count,
         })
+
     
     # Conta leads total
     leads_result = await db.execute(

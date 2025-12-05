@@ -127,13 +127,26 @@ default_origins = [
     "https://vellarys-production.up.railway.app",
     "https://hopeful-purpose-production-3a2b.up.railway.app",
     "http://localhost:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3000",
     "http://localhost:8000",
+    "*"
 ]
 
+
 # Pega do config (que vem do .env) ou usa default
-allowed_origins = settings.cors_origins_list if hasattr(settings, 'cors_origins_list') else default_origins
+allowed_origins = (
+    settings.cors_origins_list 
+    if getattr(settings, "cors_origins_list", None) 
+    else default_origins
+)
+
+# Garantir que lista do settings existe e tem itens válidos
+if getattr(settings, "cors_origins_list", None):
+    allowed_origins = [orig for orig in settings.cors_origins_list if orig.strip()]
+else:
+    allowed_origins = default_origins
+
+
+
 
 print(f"🔒 CORS configurado para: {allowed_origins}")
 
