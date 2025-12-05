@@ -1,6 +1,6 @@
 """
-CASO DE USO: PROCESSAR MENSAGEM (VERSÃO INTELIGENTE)
-=====================================================
+CASO DE USO: PROCESSAR MENSAGEM (VERSÃO INTELIGENTE COM ANTI-ALUCINAÇÃO)
+==========================================================================
 
 Fluxo principal quando um lead envia uma mensagem.
 Inclui:
@@ -8,8 +8,10 @@ Inclui:
 - Detecção de sentimento
 - Respostas personalizadas
 - Segurança completa
+- 🔒 PROTEÇÃO ANTI-ALUCINAÇÃO (NOVO!)
 """
 
+import logging  # ⭐ ADICIONE ESTA LINHA
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from sqlalchemy import select, func
@@ -36,6 +38,13 @@ from src.infrastructure.services.openai_service import (
     calculate_typing_delay,
 )
 
+# ⭐ ADICIONE ESTE IMPORT (ANTI-ALUCINAÇÃO)
+from src.infrastructure.services.ai_security import (
+    build_security_instructions,
+    sanitize_response,
+    should_handoff as check_ai_handoff,
+)
+
 # Serviços de segurança
 from src.infrastructure.services.security_service import (
     run_security_check,
@@ -59,6 +68,8 @@ from src.infrastructure.services.lgpd_service import (
     export_lead_data,
     delete_lead_data,
 )
+
+logger = logging.getLogger(__name__)  # ⭐ ADICIONE ESTA LINHA
 
 
 async def get_or_create_lead(
@@ -169,7 +180,7 @@ async def process_message(
     4. Detecção de Sentimento - Ajusta tom
     5. Memória de Contexto - Verifica se lead está retornando
     6. AI Guards - Horário, escopo, FAQ, limite
-    7. Processamento com IA inteligente
+    7. 🔒 Processamento com IA + Anti-Alucinação
     8. Audit Log - Registra tudo
     """
     
@@ -377,27 +388,22 @@ async def process_message(
     if not is_new:
         last_message_time = await get_last_message_time(db, lead.id)
         if last_message_time:
-            # Usa timezone-aware datetime para comparação
             from datetime import timezone
             now = datetime.now(timezone.utc)
             
-            # Se last_message_time não tem timezone, assume UTC
             if last_message_time.tzinfo is None:
                 last_message_time = last_message_time.replace(tzinfo=timezone.utc)
             
             time_diff = now - last_message_time
             hours_since_last = time_diff.total_seconds() / 3600
             
-            # Se passou mais de 6 horas, considera como lead retornando
             if hours_since_last > 6:
                 is_returning_lead = True
                 
-                # Se passou mais de 24h, gera resumo da conversa anterior
                 if hours_since_last > 24:
                     history = await get_conversation_history(db, lead.id)
                     if len(history) >= 4:
                         previous_summary = await generate_conversation_summary(history)
-                        # Salva resumo no lead se não tiver
                         if not lead.summary and previous_summary:
                             lead.summary = previous_summary
     
@@ -413,7 +419,6 @@ async def process_message(
         lead_qualification=lead.qualification or "frio",
     )
     
-    # Force handoff por limite de mensagens
     if guards_result.get("force_handoff"):
         user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
         db.add(user_message)
@@ -455,7 +460,6 @@ async def process_message(
             }
         }
     
-    # Fora do horário
     if not guards_result.get("can_respond") and guards_result.get("reason") == "out_of_hours":
         user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
         db.add(user_message)
@@ -617,12 +621,25 @@ async def process_message(
     )
     
     # ==========================================================================
-    # 16. CHAMA IA COM CONTEXTO INTELIGENTE
+    # 16. CHAMA IA COM CONTEXTO INTELIGENTE + 🔒 ANTI-ALUCINAÇÃO
     # ==========================================================================
     messages = [
         {"role": "system", "content": system_prompt},
         *history,
     ]
+    
+    # ⭐ ADICIONA INSTRUÇÕES DE SEGURANÇA
+    ai_scope = settings.get("ai_scope_description", "")
+    ai_fallback = settings.get("ai_out_of_scope_message", 
+        "Desculpe, não tenho essa informação. Posso conectar você com nossa equipe?")
+    
+    if ai_scope:
+        security_instructions = build_security_instructions(
+            company_name=settings.get("company_name", tenant.name),
+            scope_description=ai_scope,
+            out_of_scope_message=ai_fallback
+        )
+        messages[0]["content"] += security_instructions
     
     if faq_response:
         messages.append({
@@ -641,8 +658,35 @@ async def process_message(
         previous_summary=previous_summary or lead.summary,
     )
     
-    # Calcula delay humanizado (opcional - pode ser usado pelo frontend/webhook)
-    typing_delay = calculate_typing_delay(len(ai_response["content"]))
+    # ⭐ VALIDA RESPOSTA DA IA (ANTI-ALUCINAÇÃO)
+    final_response, was_blocked = sanitize_response(
+        ai_response["content"],
+        ai_fallback
+    )
+    
+    # ⭐ LOG SE BLOQUEOU
+    if was_blocked:
+        logger.warning(f"⚠️ Resposta bloqueada - Tenant: {tenant.slug}, Lead: {lead.id}")
+        await log_ai_action(
+            db=db,
+            tenant_id=tenant.id,
+            lead_id=lead.id,
+            action_type="blocked_response",
+            details={
+                "original_response": ai_response["content"][:200],
+                "reason": "hallucination_detected"
+            },
+        )
+    
+    # ⭐ VERIFICA HANDOFF SUGERIDO PELA IA
+    handoff_check = check_ai_handoff(content, final_response)
+    should_transfer_by_ai = handoff_check["should_handoff"]
+    
+    # Atualiza resposta para usar a versão validada
+    ai_response["content"] = final_response
+    
+    # Calcula delay humanizado
+    typing_delay = calculate_typing_delay(len(final_response))
     
     # Loga resposta da IA com contexto usado
     await log_ai_action(
@@ -655,6 +699,7 @@ async def process_message(
             "context_used": ai_response.get("context_used"),
             "sentiment": sentiment.get("sentiment"),
             "is_returning": is_returning_lead,
+            "was_blocked": was_blocked,
         },
     )
     
@@ -664,7 +709,7 @@ async def process_message(
     assistant_message = Message(
         lead_id=lead.id,
         role="assistant",
-        content=ai_response["content"],
+        content=final_response,  # ⭐ USA A RESPOSTA VALIDADA
         tokens_used=ai_response["tokens_used"],
     )
     db.add(assistant_message)
@@ -677,26 +722,32 @@ async def process_message(
     if total_messages % 2 == 0 or total_messages >= 4:
         await update_lead_data(db, lead, tenant, history + [
             {"role": "user", "content": content},
-            {"role": "assistant", "content": ai_response["content"]},
+            {"role": "assistant", "content": final_response},  # ⭐ USA A RESPOSTA VALIDADA
         ])
     
     # ==========================================================================
-    # 19. VERIFICA HANDOFF POR LEAD HOT
+    # 19. VERIFICA HANDOFF (LEAD HOT OU ⭐ IA SUGERIU)
     # ==========================================================================
-    should_transfer_after = lead.qualification in ["quente", "hot"]
+    should_transfer_after = (
+        lead.qualification in ["quente", "hot"] or 
+        should_transfer_by_ai  # ⭐ NOVO: IA pode sugerir handoff
+    )
+    
+    # Define motivo do handoff
+    handoff_reason = "lead_hot" if lead.qualification in ["quente", "hot"] else "ai_suggested"
     
     if should_transfer_after:
         if not lead.summary:
             lead.summary = await generate_lead_summary(
                 conversation=history + [
                     {"role": "user", "content": content},
-                    {"role": "assistant", "content": ai_response["content"]},
+                    {"role": "assistant", "content": final_response},
                 ],
                 extracted_data=lead.custom_data or {},
                 qualification={"qualification": lead.qualification},
             )
         
-        handoff_result = await execute_handoff(lead, tenant, "lead_hot", db)
+        handoff_result = await execute_handoff(lead, tenant, handoff_reason, db)
         
         transfer_message = Message(
             lead_id=lead.id,
@@ -711,20 +762,24 @@ async def process_message(
             tenant_id=tenant.id,
             lead_id=lead.id,
             action_type="handoff",
-            details={"reason": "lead_hot", "qualification": lead.qualification},
+            details={
+                "reason": handoff_reason,  # ⭐ USA VARIÁVEL
+                "qualification": lead.qualification,
+                "ai_suggestion": handoff_check.get("reason") if should_transfer_by_ai else None  # ⭐ NOVO
+            },
         )
         
         await db.commit()
         
         return {
             "success": True,
-            "reply": ai_response["content"] + "\n\n" + handoff_result["message_for_lead"],
+            "reply": final_response + "\n\n" + handoff_result["message_for_lead"],
             "lead_id": lead.id,
             "is_new_lead": is_new,
             "qualification": lead.qualification,
             "status": "transferido",
             "handoff": {
-                "reason": "lead_hot",
+                "reason": handoff_reason,
                 "manager_whatsapp": handoff_result["manager_whatsapp"],
             },
             "typing_delay": typing_delay,
@@ -735,13 +790,14 @@ async def process_message(
     
     return {
         "success": True,
-        "reply": ai_response["content"],
+        "reply": final_response,  # ⭐ USA A RESPOSTA VALIDADA
         "lead_id": lead.id,
         "is_new_lead": is_new,
         "qualification": lead.qualification,
         "typing_delay": typing_delay,
         "sentiment": sentiment.get("sentiment"),
         "is_returning_lead": is_returning_lead,
+        "was_blocked": was_blocked,  # ⭐ NOVO: indica se resposta foi bloqueada
     }
 
 
