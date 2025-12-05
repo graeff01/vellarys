@@ -69,23 +69,20 @@ export function LeadsQuickview({
     }
 
     async function load() {
-      setLoadingMessages(true);
-      try {
-        const data = await getLeadMessages(leadId as number);
-        if (Array.isArray(data)) {
-          setMessages(data);
-        } else if (data?.messages) {
-          setMessages(data.messages);
-        } else {
-          setMessages([]);
+        setLoadingMessages(true);
+        try {
+            const response = await getLeadMessages(leadId as number);
+            // Força o tipo para evitar erro do TypeScript
+            const data = response as any;
+            const msgs = Array.isArray(data) ? data : (data?.messages || []);
+            setMessages(msgs);
+        } catch (err) {
+            console.error('Erro ao carregar mensagens:', err);
+            setMessages([]);
+        } finally {
+            setLoadingMessages(false);
         }
-      } catch (err) {
-        console.error('Erro ao carregar mensagens:', err);
-        setMessages([]);
-      } finally {
-        setLoadingMessages(false);
-      }
-    }
+        }
 
     load();
   }, [leadId]);
