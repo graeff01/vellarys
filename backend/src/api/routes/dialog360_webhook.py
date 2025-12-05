@@ -2,8 +2,7 @@
 WEBHOOK 360DIALOG WHATSAPP
 ==========================
 
-Recebe mensagens do WhatsApp via 360dialog e processa com a IA.
-Documentação: https://docs.360dialog.com/whatsapp-api/whatsapp-api/webhook
+Recebe mensagens via 360dialog e integra com o Velaris.
 """
 
 from fastapi import APIRouter, Request, Response, Depends, HTTPException
@@ -26,250 +25,202 @@ settings = get_settings()
 router = APIRouter(prefix="/webhook", tags=["Webhook 360dialog"])
 
 
-# ======================================================
+# ============================================================
 # ENVIO DE MENSAGEM VIA 360DIALOG
-# ======================================================
-async def send_360dialog_message(api_key: str, to: str, message: str):
+# ============================================================
+async def send_360dialog_message(api_key: str, to: str, text: str):
     url = "https://waba.360dialog.io/v1/messages"
-    
+
     headers = {
         "D360-API-KEY": api_key,
         "Content-Type": "application/json",
     }
-    
+
     payload = {
         "messaging_product": "whatsapp",
         "recipient_type": "individual",
         "to": to,
         "type": "text",
-        "text": {
-            "preview_url": False,
-            "body": message
-        }
+        "text": {"body": text},
     }
-    
+
     async with httpx.AsyncClient() as client:
-        response = await client.post(url, headers=headers, json=payload)
-        
-        if response.status_code == 200:
-            logger.info(f"✅ Mensagem enviada para {to}")
+        resp = await client.post(url, json=payload, headers=headers)
+
+        if resp.status_code == 200:
+            logger.info(f"Mensagem enviada para {to}")
             return True
         
-        logger.error(f"❌ Erro ao enviar mensagem: {response.text}")
+        logger.error(f"Erro ao enviar: {resp.text}")
         return False
 
 
-# ======================================================
-# VERIFICAÇÃO DO WEBHOOK
-# ======================================================
+# ============================================================
+# VERIFICAÇÃO DO WEBHOOK (META/360DIALOG)
+# ============================================================
 @router.get("/360dialog")
 async def verify_webhook(
     hub_mode: Optional[str] = None,
     hub_challenge: Optional[str] = None,
     hub_verify_token: Optional[str] = None,
 ):
-    verify_token = settings.webhook_verify_token or "velaris_webhook_token"
-    
+    verify_token = settings.webhook_verify_token or "velaris_webhook"
+
     if hub_mode == "subscribe" and hub_verify_token == verify_token:
-        logger.info("✅ Webhook verificado com sucesso!")
         return Response(content=hub_challenge, media_type="text/plain")
-    
-    logger.warning(f"⚠️ Verificação falhou: mode={hub_mode}, token={hub_verify_token}")
+
     raise HTTPException(status_code=403, detail="Verificação falhou")
 
 
-# ======================================================
-# RECEBIMENTO DO WEBHOOK DE MENSAGENS
-# ======================================================
+# ============================================================
+# RECEBIMENTO DE MENSAGENS
+# ============================================================
 @router.post("/360dialog")
-async def handle_webhook(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
+async def webhook_360dialog(request: Request, db: AsyncSession = Depends(get_db)):
     try:
-        payload = await request.json()
-        logger.info(f"📨 Webhook 360dialog recebido: {json.dumps(payload)[:500]}")
+        data = await request.json()
+        logger.info(f"Webhook recebido: {json.dumps(data)[:500]}")
 
-        if payload.get("object") != "whatsapp_business_account":
+        if data.get("object") != "whatsapp_business_account":
             return {"status": "ignored"}
 
-        for entry in payload.get("entry", []):
+        # Percorrer estrutura do payload
+        for entry in data.get("entry", []):
             for change in entry.get("changes", []):
-                
                 if change.get("field") != "messages":
                     continue
 
                 value = change.get("value", {})
                 metadata = value.get("metadata", {})
-                business_phone = metadata.get("display_phone_number", "").replace("+", "")
 
-                for msg in value.get("messages", []):
-                    
-                    if msg.get("type") != "text":
-                        logger.info(f"Ignorando mensagem tipo: {msg.get('type')}")
-                        continue
-                    
-                    from_number = msg.get("from")
-                    message_text = msg.get("text", {}).get("body", "")
-                    message_id = msg.get("id")
+                business_number = metadata.get("display_phone_number", "").replace("+", "")
 
-                    logger.info(f"📱 {from_number} -> {business_phone}: {message_text}")
-
-                    # ===============================
-                    # BUSCAR TENANT PELO NÚMERO
-                    # ===============================
-                    tenant_result = await db.execute(
-                        select(Tenant).where(
-                            Tenant.settings["whatsapp_number"].astext == business_phone,
-                            Tenant.active == True
-                        )
+                # ================================
+                # Encontrar tenant pelo número
+                # ================================
+                q = await db.execute(
+                    select(Tenant).where(
+                        Tenant.settings["whatsapp_number"].astext == business_number,
+                        Tenant.active == True
                     )
-                    tenant = tenant_result.scalar_one_or_none()
+                )
+                tenant = q.scalar_one_or_none()
 
-                    if tenant:
-                        api_key = tenant.settings.get("dialog360_api_key")
-                    else:
-                        logger.warning(f"Tenant não encontrado para {business_phone}")
-                        tenant_result = await db.execute(
-                            select(Tenant).where(Tenant.active == True).limit(1)
-                        )
-                        tenant = tenant_result.scalar_one_or_none()
-                        api_key = settings.dialog360_api_key
+                if not tenant:
+                    logger.error(f"Nenhum tenant usa o número {business_number}")
+                    continue
 
-                    if not tenant:
-                        logger.error("Nenhum tenant encontrado")
+                api_key = tenant.settings.get("dialog360_api_key")
+                if not api_key:
+                    logger.error(f"Tenant {tenant.slug} sem API KEY do 360dialog configurada.")
+                    continue
+
+                # ================================
+                # Processar mensagens
+                # ================================
+                for msg in value.get("messages", []):
+                    if msg.get("type") != "text":
                         continue
 
-                    if not api_key:
-                        logger.error("API key do 360dialog não configurada")
-                        continue
+                    from_number = msg.get("from")
+                    text = msg.get("text", {}).get("body")
 
-                    # ===============================
-                    # LEAD
-                    # ===============================
-                    lead_result = await db.execute(
+                    # ================================
+                    # Buscar ou criar lead
+                    # ================================
+                    q = await db.execute(
                         select(Lead).where(
                             Lead.tenant_id == tenant.id,
-                            Lead.phone == from_number
+                            Lead.phone == from_number,
                         )
                     )
-                    lead = lead_result.scalar_one_or_none()
+                    lead = q.scalar_one_or_none()
 
                     if not lead:
                         lead = Lead(
                             tenant_id=tenant.id,
                             phone=from_number,
-                            name=f"WhatsApp {from_number[-4:]}",
-                            source="whatsapp_360dialog",
-                            status="new",
+                            name=f"WhatsApp {from_number[-4:]}"
                         )
                         db.add(lead)
                         await db.flush()
-                        logger.info(f"✨ Novo lead criado: {lead.id}")
 
-                    # ===============================
-                    # SALVAR MENSAGEM RECEBIDA
-                    # ===============================
-                    message_in = Message(
-                        tenant_id=tenant.id,
+                    # ================================
+                    # Salvar mensagem recebida
+                    # ================================
+                    msg_in = Message(
                         lead_id=lead.id,
-                        content=message_text,
-                        channel="whatsapp",
-                        external_id=message_id,
+                        role="user",
+                        content=text,
                     )
-                    db.add(message_in)
+                    db.add(msg_in)
 
-
-                    # ===============================
-                    # HISTÓRICO PARA A IA
-                    # ===============================
-                    messages_result = await db.execute(
+                    # ================================
+                    # Construir histórico para IA
+                    # ================================
+                    hist_q = await db.execute(
                         select(Message)
                         .where(Message.lead_id == lead.id)
-                        .order_by(Message.created_at.desc())
-                        .limit(10)
+                        .order_by(Message.created_at.asc())
                     )
-                    history = messages_result.scalars().all()
+                    history = hist_q.scalars().all()
 
-                    messages_for_ai = []
-                    for hist_msg in reversed(history):
-                        role = "user" if hist_msg.external_id else "assistant"
-                        messages_for_ai.append({"role": role, "content": hist_msg.content})
+                    messages_ai = []
+                    for m in history:
+                        role = "user" if m.role == "user" else "assistant"
+                        messages_ai.append({"role": role, "content": m.content})
 
-                    messages_for_ai.append({"role": "user", "content": message_text})
+                    # ================================
+                    # Prompt da empresa
+                    # ================================
+                    cfg = tenant.settings or {}
+                    company = cfg.get("company_name", tenant.name)
+                    niche = cfg.get("niche", "services")
+                    tone = cfg.get("tone", "cordial")
 
-                    # ===============================
-                    # CONFIGURAR PROMPT
-                    # ===============================
-                    tenant_settings = tenant.settings or {}
-                    niche = tenant_settings.get("niche", "services")
-                    tone = tenant_settings.get("tone", "cordial")
-                    company_name = tenant_settings.get("company_name", tenant.name)
-                    niche_config = get_niche_config(niche)
+                    niche_prompt = get_niche_config(niche).prompt_template if get_niche_config(niche) else ""
 
                     system_prompt = f"""
-Você é um assistente de atendimento da empresa {company_name}.
+Você é o assistente oficial da empresa {company}.
+Atenda como humano, natural e profissional.
 
-{niche_config.prompt_template if niche_config else "Atenda o cliente de forma profissional."}
+{niche_prompt}
 
 Tom de voz: {tone}
-
-IMPORTANTE:
-- Seja natural e humano na conversa
-- Faça perguntas para qualificar o lead
-- Use emojis moderadamente se o tom for cordial
 """
 
-                    # ===============================
-                    # GERAR RESPOSTA DA IA
-                    # ===============================
-                    ai_messages = [{"role": "system", "content": system_prompt}] + messages_for_ai
+                    ai_messages = [{"role": "system", "content": system_prompt}] + messages_ai
 
-                    result = await chat_completion(
-                        messages=ai_messages,
-                        max_tokens=500,
-                    )
+                    # ================================
+                    # Chamar IA
+                    # ================================
+                    result = await chat_completion(messages=ai_messages)
+                    ai_text = result["content"]
 
-                    ai_response = result["content"]
-                    logger.info(f"🤖 IA: {ai_response[:120]}")
-
-                    # ===============================
-                    # SALVAR RESPOSTA
-                    # ===============================
-                    message_out = Message(
-                        tenant_id=tenant.id,
+                    # ================================
+                    # Salvar resposta
+                    # ================================
+                    msg_out = Message(
                         lead_id=lead.id,
-                        content=ai_response,
-                        channel="whatsapp",
+                        role="assistant",
+                        content=ai_text,
                     )
-                    db.add(message_out)
-
-                    if lead.status == "new":
-                        lead.status = "contacted"
+                    db.add(msg_out)
 
                     await db.commit()
 
-                    # ===============================
-                    # ENVIAR VIA 360DIALOG
-                    # ===============================
-                    await send_360dialog_message(api_key, from_number, ai_response)
+                    # ================================
+                    # Enviar via WhatsApp
+                    # ================================
+                    await send_360dialog_message(api_key, from_number, ai_text)
 
         return {"status": "ok"}
 
     except Exception as e:
-        logger.error(f"❌ Erro no webhook 360dialog: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Erro no webhook 360dialog: {e}")
         return {"status": "error", "message": str(e)}
 
 
-# ======================================================
-# TESTE DO WEBHOOK
-# ======================================================
 @router.get("/360dialog/test")
-async def test_webhook():
-    return {
-        "status": "ok",
-        "message": "360dialog webhook está ativo!",
-        "webhook_url": "/api/v1/webhook/360dialog"
-    }
+async def test():
+    return {"status": "ok", "message": "Webhook 360dialog rodando!"}
