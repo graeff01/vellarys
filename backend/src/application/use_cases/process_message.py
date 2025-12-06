@@ -1,6 +1,6 @@
 """
-CASO DE USO: PROCESSAR MENSAGEM (VERSÃO INTELIGENTE COM ANTI-ALUCINAÇÃO)
-==========================================================================
+CASO DE USO: PROCESSAR MENSAGEM (VERSÃO COM IDENTIDADE EMPRESARIAL)
+=====================================================================
 
 Fluxo principal quando um lead envia uma mensagem.
 Inclui:
@@ -8,10 +8,11 @@ Inclui:
 - Detecção de sentimento
 - Respostas personalizadas
 - Segurança completa
-- 🔒 PROTEÇÃO ANTI-ALUCINAÇÃO (NOVO!)
+- 🔒 PROTEÇÃO ANTI-ALUCINAÇÃO
+- 🏢 IDENTIDADE EMPRESARIAL (NOVO!)
 """
 
-import logging  # ⭐ ADICIONE ESTA LINHA
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from sqlalchemy import select, func
@@ -30,7 +31,6 @@ from src.infrastructure.services import (
     mark_lead_activity,
 )
 
-# Novas funções inteligentes
 from src.infrastructure.services.openai_service import (
     detect_sentiment,
     generate_context_aware_response,
@@ -38,14 +38,12 @@ from src.infrastructure.services.openai_service import (
     calculate_typing_delay,
 )
 
-# ⭐ ADICIONE ESTE IMPORT (ANTI-ALUCINAÇÃO)
 from src.infrastructure.services.ai_security import (
     build_security_instructions,
     sanitize_response,
     should_handoff as check_ai_handoff,
 )
 
-# Serviços de segurança
 from src.infrastructure.services.security_service import (
     run_security_check,
     get_safe_response_for_threat,
@@ -69,8 +67,133 @@ from src.infrastructure.services.lgpd_service import (
     delete_lead_data,
 )
 
-logger = logging.getLogger(__name__)  # ⭐ ADICIONE ESTA LINHA
+logger = logging.getLogger(__name__)
 
+
+# =============================================================================
+# HELPER: MIGRAR SETTINGS LEGADO PARA NOVO FORMATO
+# =============================================================================
+
+def migrate_settings_if_needed(settings: dict) -> dict:
+    """
+    Migra settings do formato antigo para o novo (com identity).
+    Mantém compatibilidade com tenants existentes.
+    """
+    if not settings:
+        return {}
+    
+    # Se já tem "identity", está no novo formato
+    if "identity" in settings:
+        return settings
+    
+    # Migração do formato antigo
+    migrated = dict(settings)  # Copia para não modificar original
+    
+    # Cria estrutura de identity baseada nos campos antigos
+    migrated["identity"] = {
+        "description": settings.get("scope_description", ""),
+        "products_services": [],
+        "not_offered": [],
+        "tone_style": {
+            "tone": settings.get("tone", "cordial"),
+            "personality_traits": [],
+            "communication_style": "",
+            "avoid_phrases": [],
+            "use_phrases": [],
+        },
+        "target_audience": {
+            "description": "",
+            "segments": [],
+            "pain_points": [],
+        },
+        "business_rules": settings.get("custom_rules", []),
+        "differentials": [],
+        "keywords": [],
+        "required_questions": settings.get("custom_questions", []),
+        "required_info": [],
+        "additional_context": "",
+    }
+    
+    # Cria estrutura de basic
+    migrated["basic"] = {
+        "niche": settings.get("niche", "services"),
+        "company_name": settings.get("company_name", ""),
+    }
+    
+    # Cria estrutura de scope
+    migrated["scope"] = {
+        "enabled": settings.get("scope_enabled", True),
+        "description": settings.get("scope_description", ""),
+        "allowed_topics": [],
+        "blocked_topics": [],
+        "out_of_scope_message": settings.get("out_of_scope_message", 
+            "Desculpe, não tenho informações sobre isso. Posso ajudar com nossos produtos e serviços!"),
+    }
+    
+    # Cria estrutura de faq
+    migrated["faq"] = {
+        "enabled": settings.get("faq_enabled", True),
+        "items": settings.get("faq_items", []),
+    }
+    
+    return migrated
+
+
+# =============================================================================
+# HELPER: EXTRAIR CONTEXTO DE IA DO TENANT
+# =============================================================================
+
+def extract_ai_context(tenant: Tenant) -> dict:
+    """
+    Extrai e organiza todo o contexto necessário para a IA.
+    Retorna dicionário com todos os parâmetros para build_system_prompt.
+    """
+    settings = migrate_settings_if_needed(tenant.settings or {})
+    
+    # Extrai seções
+    identity = settings.get("identity", {})
+    basic = settings.get("basic", {})
+    scope = settings.get("scope", {})
+    faq = settings.get("faq", {})
+    
+    # Determina valores com fallback
+    company_name = basic.get("company_name") or settings.get("company_name") or tenant.name
+    niche_id = basic.get("niche") or settings.get("niche") or "services"
+    tone = identity.get("tone_style", {}).get("tone") or settings.get("tone") or "cordial"
+    
+    # FAQ items
+    faq_items = []
+    if faq.get("enabled", True):
+        faq_items = faq.get("items", []) or settings.get("faq_items", [])
+    
+    # Custom questions e rules (do identity ou legado)
+    custom_questions = identity.get("required_questions", []) or settings.get("custom_questions", [])
+    custom_rules = identity.get("business_rules", []) or settings.get("custom_rules", [])
+    
+    # Scope description (do scope ou legado)
+    scope_description = scope.get("description") or settings.get("scope_description", "")
+    
+    return {
+        "company_name": company_name,
+        "niche_id": niche_id,
+        "tone": tone,
+        "identity": identity if identity else None,
+        "scope_config": scope if scope else None,
+        "faq_items": faq_items,
+        "custom_questions": custom_questions,
+        "custom_rules": custom_rules,
+        "scope_description": scope_description,
+        "custom_prompt": settings.get("custom_prompt"),
+        # Campos para segurança
+        "ai_scope_description": scope.get("description") or settings.get("ai_scope_description", ""),
+        "ai_out_of_scope_message": scope.get("out_of_scope_message") or settings.get("ai_out_of_scope_message",
+            "Desculpe, não tenho essa informação. Posso conectar você com nossa equipe?"),
+    }
+
+
+# =============================================================================
+# FUNÇÕES AUXILIARES
+# =============================================================================
 
 async def get_or_create_lead(
     db: AsyncSession,
@@ -159,6 +282,10 @@ async def count_lead_messages(db: AsyncSession, lead_id: int) -> int:
     return result.scalar() or 0
 
 
+# =============================================================================
+# FUNÇÃO PRINCIPAL: PROCESSAR MENSAGEM
+# =============================================================================
+
 async def process_message(
     db: AsyncSession,
     tenant_slug: str,
@@ -181,7 +308,8 @@ async def process_message(
     5. Memória de Contexto - Verifica se lead está retornando
     6. AI Guards - Horário, escopo, FAQ, limite
     7. 🔒 Processamento com IA + Anti-Alucinação
-    8. Audit Log - Registra tudo
+    8. 🏢 IDENTIDADE EMPRESARIAL - Contexto completo (NOVO!)
+    9. Audit Log - Registra tudo
     """
     
     # ==========================================================================
@@ -195,7 +323,9 @@ async def process_message(
     if not tenant:
         return {"success": False, "error": "Tenant não encontrado ou inativo"}
     
-    settings = tenant.settings or {}
+    # 🏢 EXTRAI CONTEXTO COMPLETO (NOVO!)
+    ai_context = extract_ai_context(tenant)
+    settings = migrate_settings_if_needed(tenant.settings or {})
     
     # ==========================================================================
     # 1. RATE LIMITING
@@ -338,7 +468,7 @@ async def process_message(
         else:
             lgpd_reply = get_lgpd_response(
                 lgpd_request, 
-                tenant_name=settings.get("company_name", tenant.name)
+                tenant_name=ai_context["company_name"]
             )
         
         assistant_message = Message(
@@ -374,7 +504,7 @@ async def process_message(
         }
     
     # ==========================================================================
-    # 6. DETECÇÃO DE SENTIMENTO (NOVO!)
+    # 6. DETECÇÃO DE SENTIMENTO
     # ==========================================================================
     sentiment = await detect_sentiment(content)
     
@@ -481,62 +611,44 @@ async def process_message(
         }
     
     # ============================================================
-    # 🔒 8.1 — TRATAMENTO UNIVERSAL DOS GUARDS (VERSÃO ROBUSTA)
+    # 8.1 — TRATAMENTO UNIVERSAL DOS GUARDS
     # ============================================================
-
     guard_reason = guards_result.get("reason")
     guard_response = guards_result.get("response")
 
-    # Mensagem padrão caso tenant não tenha configurado nada
+    # Mensagem padrão usando o contexto correto
     default_out_of_scope = (
-        f"Eu posso te ajudar com assuntos ligados à {settings.get('company_name', tenant.name)}! "
+        f"Eu posso te ajudar com assuntos ligados à {ai_context['company_name']}! "
         "Esse tema específico não faz parte do nosso atendimento, "
         "mas me conta o que você precisa dentro do que oferecemos 😊"
     )
 
-    # Ajusta resposta baseada no tipo de guard
     if guard_reason == "out_of_scope":
         final_guard_response = guard_response or default_out_of_scope
-
     elif guard_reason == "price_block":
         final_guard_response = guard_response or (
             "Para garantir informações corretas, os valores são sempre passados pelo especialista. "
             "Me diz qual peça você está buscando e para qual data que eu agilizo tudo! 😊"
         )
-
     elif guard_reason == "insistence_block":
         final_guard_response = guard_response or (
             "Eu entendo sua dúvida! Só quem confirma valores é o especialista, "
             "para evitar qualquer informação incorreta. "
             "Me diga qual peça você quer e a data do evento que eu acelero para você 😉"
         )
-
     elif guard_reason == "faq":
         final_guard_response = guard_response
-
     else:
         final_guard_response = None
 
-
     if final_guard_response:
-        # Registrar mensagem do usuário
-        user_message = Message(
-            lead_id=lead.id,
-            role="user",
-            content=content,
-            tokens_used=0
-        )
+        user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
         db.add(user_message)
-
-        # Registrar retorno da IA
+        
         assistant_message = Message(
-            lead_id=lead.id,
-            role="assistant",
-            content=final_guard_response,
-            tokens_used=0
+            lead_id=lead.id, role="assistant", content=final_guard_response, tokens_used=0
         )
         db.add(assistant_message)
-
         await db.commit()
 
         return {
@@ -548,15 +660,15 @@ async def process_message(
             "guard": guard_reason,
         }
 
-
-    
     # ==========================================================================
     # 9. VERIFICA HANDOFF POR TRIGGER
     # ==========================================================================
     from src.infrastructure.services import check_handoff_triggers
+    
+    handoff_triggers = settings.get("handoff", {}).get("triggers", []) or settings.get("handoff_triggers", [])
     trigger_found, trigger_matched = check_handoff_triggers(
         message=content,
-        custom_triggers=settings.get("handoff_triggers", []),
+        custom_triggers=handoff_triggers,
     )
     
     if trigger_found:
@@ -676,36 +788,38 @@ async def process_message(
             lead_context = None
     
     # ==========================================================================
-    # 15. MONTA PROMPT DO SISTEMA
+    # 15. MONTA PROMPT DO SISTEMA 🏢 COM IDENTIDADE!
     # ==========================================================================
     system_prompt = build_system_prompt(
-        niche_id=settings.get("niche", "services"),
-        company_name=settings.get("company_name", tenant.name),
-        tone=settings.get("tone", "cordial"),
-        custom_questions=settings.get("custom_questions", []),
-        custom_rules=settings.get("custom_rules", []),
-        custom_prompt=settings.get("custom_prompt"),
-        faq_items=settings.get("faq_items", []),
-        scope_description=settings.get("scope_description", ""),
+        niche_id=ai_context["niche_id"],
+        company_name=ai_context["company_name"],
+        tone=ai_context["tone"],
+        custom_questions=ai_context["custom_questions"],
+        custom_rules=ai_context["custom_rules"],
+        custom_prompt=ai_context["custom_prompt"],
+        faq_items=ai_context["faq_items"],
+        scope_description=ai_context["scope_description"],
         lead_context=lead_context,
+        # 🏢 NOVOS PARÂMETROS - IDENTIDADE EMPRESARIAL!
+        identity=ai_context["identity"],
+        scope_config=ai_context["scope_config"],
     )
     
     # ==========================================================================
-    # 16. CHAMA IA COM CONTEXTO INTELIGENTE + 🔒 ANTI-ALUCINAÇÃO
+    # 16. CHAMA IA COM CONTEXTO INTELIGENTE + ANTI-ALUCINAÇÃO
     # ==========================================================================
     messages = [
         {"role": "system", "content": system_prompt},
         *history,
     ]
     
-    # ⭐ ADICIONA INSTRUÇÕES DE SEGURANÇA
-    ai_scope = settings.get("ai_scope_description", "")
-    ai_fallback = settings.get("ai_out_of_scope_message", 
-        "Desculpe, não tenho essa informação. Posso conectar você com nossa equipe?")
+    # Adiciona instruções de segurança
+    ai_scope = ai_context["ai_scope_description"]
+    ai_fallback = ai_context["ai_out_of_scope_message"]
     
     if ai_scope:
         security_instructions = build_security_instructions(
-            company_name=settings.get("company_name", tenant.name),
+            company_name=ai_context["company_name"],
             scope_description=ai_scope,
             out_of_scope_message=ai_fallback
         )
@@ -722,19 +836,19 @@ async def process_message(
         messages=messages,
         lead_data=lead_context or {},
         sentiment=sentiment,
-        tone=settings.get("tone", "cordial"),
+        tone=ai_context["tone"],
         is_returning_lead=is_returning_lead,
         hours_since_last_message=hours_since_last,
         previous_summary=previous_summary or lead.summary,
     )
     
-    # ⭐ VALIDA RESPOSTA DA IA (ANTI-ALUCINAÇÃO)
+    # Valida resposta da IA (Anti-Alucinação)
     final_response, was_blocked = sanitize_response(
         ai_response["content"],
         ai_fallback
     )
     
-    # ⭐ LOG SE BLOQUEOU
+    # Log se bloqueou
     if was_blocked:
         logger.warning(f"⚠️ Resposta bloqueada - Tenant: {tenant.slug}, Lead: {lead.id}")
         await log_ai_action(
@@ -748,7 +862,7 @@ async def process_message(
             },
         )
     
-    # ⭐ VERIFICA HANDOFF SUGERIDO PELA IA
+    # Verifica handoff sugerido pela IA
     handoff_check = check_ai_handoff(content, final_response)
     should_transfer_by_ai = handoff_check["should_handoff"]
     
@@ -770,6 +884,7 @@ async def process_message(
             "sentiment": sentiment.get("sentiment"),
             "is_returning": is_returning_lead,
             "was_blocked": was_blocked,
+            "identity_loaded": bool(ai_context.get("identity")),  # 🏢 NOVO
         },
     )
     
@@ -779,7 +894,7 @@ async def process_message(
     assistant_message = Message(
         lead_id=lead.id,
         role="assistant",
-        content=final_response,  # ⭐ USA A RESPOSTA VALIDADA
+        content=final_response,
         tokens_used=ai_response["tokens_used"],
     )
     db.add(assistant_message)
@@ -792,18 +907,17 @@ async def process_message(
     if total_messages % 2 == 0 or total_messages >= 4:
         await update_lead_data(db, lead, tenant, history + [
             {"role": "user", "content": content},
-            {"role": "assistant", "content": final_response},  # ⭐ USA A RESPOSTA VALIDADA
+            {"role": "assistant", "content": final_response},
         ])
     
     # ==========================================================================
-    # 19. VERIFICA HANDOFF (LEAD HOT OU ⭐ IA SUGERIU)
+    # 19. VERIFICA HANDOFF (LEAD HOT OU IA SUGERIU)
     # ==========================================================================
     should_transfer_after = (
         lead.qualification in ["quente", "hot"] or 
-        should_transfer_by_ai  # ⭐ NOVO: IA pode sugerir handoff
+        should_transfer_by_ai
     )
     
-    # Define motivo do handoff
     handoff_reason = "lead_hot" if lead.qualification in ["quente", "hot"] else "ai_suggested"
     
     if should_transfer_after:
@@ -833,9 +947,9 @@ async def process_message(
             lead_id=lead.id,
             action_type="handoff",
             details={
-                "reason": handoff_reason,  # ⭐ USA VARIÁVEL
+                "reason": handoff_reason,
                 "qualification": lead.qualification,
-                "ai_suggestion": handoff_check.get("reason") if should_transfer_by_ai else None  # ⭐ NOVO
+                "ai_suggestion": handoff_check.get("reason") if should_transfer_by_ai else None
             },
         )
         
@@ -860,14 +974,15 @@ async def process_message(
     
     return {
         "success": True,
-        "reply": final_response,  # ⭐ USA A RESPOSTA VALIDADA
+        "reply": final_response,
         "lead_id": lead.id,
         "is_new_lead": is_new,
         "qualification": lead.qualification,
         "typing_delay": typing_delay,
         "sentiment": sentiment.get("sentiment"),
         "is_returning_lead": is_returning_lead,
-        "was_blocked": was_blocked,  # ⭐ NOVO: indica se resposta foi bloqueada
+        "was_blocked": was_blocked,
+        "identity_loaded": bool(ai_context.get("identity")),  # 🏢 NOVO
     }
 
 
@@ -878,8 +993,8 @@ async def update_lead_data(
     conversation: list[dict],
 ) -> None:
     """Extrai dados da conversa e atualiza o lead."""
-    settings = tenant.settings or {}
-    niche_id = settings.get("niche", "services")
+    ai_context = extract_ai_context(tenant)
+    niche_id = ai_context["niche_id"]
     niche_config = get_niche_config(niche_id)
     
     if not niche_config:
