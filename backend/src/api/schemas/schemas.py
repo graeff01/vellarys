@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 # ============================================
 
 class WebhookMessage(BaseModel):
+    model_config = ConfigDict(extra="allow")
     """Mensagem recebida via webhook."""
     
     tenant_slug: str = Field(..., description="Identificador do tenant")
