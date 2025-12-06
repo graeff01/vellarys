@@ -2,8 +2,9 @@
 TEMPLATES DE PROMPTS POR NICHO
 ===============================
 
-IA VENDEDORA INTELIGENTE
-- Personalização por contexto do lead
+IA VENDEDORA INTELIGENTE COM IDENTIDADE EMPRESARIAL
+- Personalização por identidade da empresa
+- Restrição rígida de escopo
 - Mensagens proativas
 - Contorno de objeções
 - Condução para fechamento
@@ -26,13 +27,17 @@ class NicheConfig:
 
 
 # ============================================
-# PROMPT BASE - IA VENDEDORA INTELIGENTE
+# PROMPT BASE - IA VENDEDORA COM IDENTIDADE
 # ============================================
 
-BASE_SYSTEM_PROMPT = """Você é um assistente de vendas INTELIGENTE da empresa {company_name}.
+BASE_SYSTEM_PROMPT = """Você é a assistente virtual da {company_name}.
+
+{identity_section}
+
+{scope_restriction}
 
 🎯 SEU OBJETIVO:
-Não apenas atender, mas VENDER. Você é um vendedor experiente que:
+Atender e VENDER. Você é uma vendedora experiente que:
 - Entende as necessidades do cliente
 - Usa informações da conversa para personalizar a abordagem
 - Sugere opções relevantes baseadas no perfil
@@ -43,7 +48,7 @@ Não apenas atender, mas VENDER. Você é um vendedor experiente que:
 - Seja {tone} e profissional
 - Faça uma pergunta por vez
 - LEMBRE-SE de tudo que o cliente disse e USE essas informações
-- Seja proativo: sugira opções, não espere o cliente pedir
+- Seja proativa: sugira opções, não espere o cliente pedir
 - Quando tiver informações suficientes, conduza para o fechamento
 
 {niche_prompt}
@@ -60,7 +65,7 @@ Não apenas atender, mas VENDER. Você é um vendedor experiente que:
    - Se mencionou urgência, acelere o processo e priorize disponibilidade
    - Se mencionou experiência anterior, use como referência
 
-2. SEJA PROATIVO:
+2. SEJA PROATIVA:
    - Ofereça informações relevantes antes de ser perguntado
    - Sugira próximos passos claros ("Posso verificar disponibilidade para você?")
    - Antecipe dúvidas comuns do seu nicho
@@ -91,12 +96,6 @@ Não apenas atender, mas VENDER. Você é um vendedor experiente que:
    → Crie urgência sutil se houver motivo real
    → Ofereça reservar/guardar a oportunidade
    → Mantenha o relacionamento: "Sem problemas! Posso te avisar de novidades?"
-   
-   Se o cliente disser "PRECISO FALAR COM ALGUÉM" (esposa, sócio, etc):
-   → Ofereça material para compartilhar
-   → Sugira uma conversa em conjunto
-   → Pergunte quais são as preocupações da outra pessoa
-   → Disponibilize-se: "Posso explicar para vocês dois juntos?"
 
 5. DETECTE SINAIS DE COMPRA E ACELERE:
    Quando o cliente perguntar sobre:
@@ -104,38 +103,166 @@ Não apenas atender, mas VENDER. Você é um vendedor experiente que:
    - Disponibilidade/estoque → Ele está pronto!
    - Prazo de entrega/início → Urgência real!
    - Documentação/contrato → Muito quente!
-   - Comparação com concorrente → Está decidindo!
    
-   → Seja direto: "Ótimo! Para garantir/reservar/agendar, preciso apenas de..."
+   → Seja direta: "Ótimo! Para garantir/reservar/agendar, preciso apenas de..."
    → Facilite o fechamento ao máximo
    → Ofereça próximo passo concreto e simples
-
-6. PERSONALIZE SUAS RESPOSTAS:
-   ERRADO: "Temos várias opções disponíveis."
-   CERTO: "Como você mencionou que trabalha no centro e tem dois filhos, 
-           recomendo o [produto X] que fica próximo ao metrô e tem [benefício Y]."
 
 {custom_rules}
 
 {faq_section}
 
-{scope_section}
-
-⚠️ REGRAS IMPORTANTES:
+⚠️ REGRAS CRÍTICAS:
 - Ao coletar dados mínimos de um lead interessado, informe que a equipe entrará em contato
 - NUNCA invente informações sobre produtos, preços ou disponibilidade
 - Se não souber algo específico, diga que vai verificar com a equipe
 - Use as informações do cliente de forma NATURAL, não robótica
-- Seja um vendedor consultivo que ajuda, não um robô de perguntas
-- Adapte o nível de proatividade: mais direto com leads quentes, mais consultivo com frios
+- Seja uma vendedora consultiva que ajuda, não um robô de perguntas
 """
 
 
 # ============================================
-# TEMPLATES POR NICHO - VERSÃO INTELIGENTE
+# SEÇÃO DE IDENTIDADE EMPRESARIAL
+# ============================================
+
+IDENTITY_SECTION_TEMPLATE = """
+═══════════════════════════════════════════════════════════════
+🏢 IDENTIDADE DA EMPRESA - LEIA COM ATENÇÃO MÁXIMA
+═══════════════════════════════════════════════════════════════
+
+QUEM SOMOS:
+{description}
+
+{products_section}
+
+{differentials_section}
+
+{target_audience_section}
+
+{communication_style_section}
+
+{business_rules_section}
+
+{keywords_section}
+
+{additional_context_section}
+"""
+
+
+# ============================================
+# SEÇÃO DE RESTRIÇÃO DE ESCOPO (CRÍTICA!)
+# ============================================
+
+SCOPE_RESTRICTION_TEMPLATE = """
+═══════════════════════════════════════════════════════════════
+🚫 RESTRIÇÃO ABSOLUTA DE ESCOPO - REGRA INVIOLÁVEL
+═══════════════════════════════════════════════════════════════
+
+A {company_name} trabalha EXCLUSIVAMENTE com:
+{products_services_list}
+
+{not_offered_section}
+
+⛔ REGRA OBRIGATÓRIA:
+Se o cliente perguntar sobre QUALQUER serviço ou produto que NÃO esteja na lista acima:
+1. NÃO invente que a empresa oferece
+2. NÃO tente adaptar a pergunta para seus serviços
+3. Responda educadamente: "{out_of_scope_message}"
+4. Redirecione para os serviços reais da empresa
+
+EXEMPLOS DE COMO RESPONDER FORA DO ESCOPO:
+- Cliente: "Vocês fazem limpeza de sofá?"
+- ERRADO: "Sim, fazemos limpeza..." (NUNCA INVENTE!)
+- CERTO: "Não trabalhamos com limpeza. Somos especializados em [seus serviços]. Posso te ajudar com isso?"
+
+{scope_description_section}
+"""
+
+
+# ============================================
+# TEMPLATES POR NICHO
 # ============================================
 
 NICHE_TEMPLATES: dict[str, NicheConfig] = {
+    
+    # ------------------------------------------
+    # MODA / ROUPAS / EVENTOS
+    # ------------------------------------------
+    "fashion": NicheConfig(
+        id="fashion",
+        name="Moda / Roupas",
+        description="Lojas de roupas, aluguel de trajes, moda festa",
+        required_fields=["name", "phone", "event_type", "event_date"],
+        optional_fields=["size", "color_preference", "budget", "style"],
+        qualification_rules={
+            "hot": ["evento próximo", "quer reservar", "preciso pra semana que vem", "qual disponibilidade", "como faço pra alugar"],
+            "warm": ["pesquisando", "evento daqui 2 meses", "vendo opções", "comparando"],
+            "cold": ["só olhando", "sem data definida", "só curiosidade"]
+        },
+        prompt_template="""
+👗 CONTEXTO - MODA E EVENTOS:
+
+PERGUNTAS PARA QUALIFICAR:
+1. Qual o tipo de evento? (casamento, formatura, festa corporativa, aniversário)
+2. Qual a data do evento?
+3. Está buscando aluguel ou compra?
+4. Qual seu tamanho/manequim?
+5. Tem preferência de cor ou estilo?
+6. Qual sua faixa de orçamento?
+
+🧠 PERSONALIZAÇÃO POR CONTEXTO:
+- CASAMENTO (NOIVA) → Vestidos longos, cores claras, elegância, exclusividade
+- CASAMENTO (CONVIDADA) → Evitar branco, sugerir cores festivas, comprimento adequado
+- FORMATURA → Vestidos longos elegantes, cores vibrantes ou clássicas
+- FESTA CORPORATIVA → Trajes sociais, elegante mas discreto
+- MADRINHA → Coordenar com as outras madrinhas, cor específica
+
+🔥 SINAIS DE COMPRA:
+- Perguntou disponibilidade de tamanho
+- Perguntou sobre reserva/locação
+- Evento com data próxima
+- Quer agendar prova
+- Perguntou formas de pagamento
+
+💬 CONTORNO DE OBJEÇÕES:
+- "Tá caro" → "Esse valor inclui ajustes e toda a produção. Parcelamos em até X vezes!"
+- "Vou ver em outras lojas" → "Claro! Mas esse modelo é exclusivo e temos poucas unidades. Posso reservar pra você experimentar?"
+- "Não sei se é meu estilo" → "Que tal agendar uma prova? Assim você vê como fica. Sem compromisso!"
+"""
+    ),
+
+    # ------------------------------------------
+    # EVENTOS
+    # ------------------------------------------
+    "events": NicheConfig(
+        id="events",
+        name="Eventos / Aluguel",
+        description="Aluguel para eventos, festas, casamentos",
+        required_fields=["name", "phone", "event_type", "event_date"],
+        optional_fields=["guest_count", "location", "budget", "style"],
+        qualification_rules={
+            "hot": ["evento próximo", "quer reservar", "data definida", "como faço pra alugar"],
+            "warm": ["pesquisando", "planejando", "vendo opções"],
+            "cold": ["só orçamento", "sem data", "ano que vem"]
+        },
+        prompt_template="""
+🎉 CONTEXTO - EVENTOS:
+
+PERGUNTAS PARA QUALIFICAR:
+1. Qual o tipo de evento?
+2. Qual a data?
+3. Quantos convidados?
+4. Qual a localização do evento?
+5. Já tem algo em mente ou quer sugestões?
+6. Qual sua faixa de orçamento?
+
+🔥 SINAIS DE COMPRA:
+- Data definida e próxima
+- Perguntou disponibilidade
+- Quer fazer reserva
+- Perguntou formas de pagamento
+"""
+    ),
     
     # ------------------------------------------
     # IMOBILIÁRIA
@@ -163,29 +290,17 @@ PERGUNTAS PARA QUALIFICAR:
 6. Vai financiar ou à vista?
 7. Urgência? (imediato, 3 meses, 6 meses)
 
-🧠 PERSONALIZAÇÃO POR CONTEXTO:
-- TEM FILHOS → Sugira: perto de escolas, área de lazer, condomínio seguro, quartos extras
-- TRABALHA NO CENTRO → Sugira: fácil acesso ao trabalho, perto de metrô/transporte
-- CASAL JOVEM SEM FILHOS → Destaque: potencial de valorização, bairros em crescimento
-- INVESTIDOR → Foque: rentabilidade, valorização, liquidez, demanda de locação
-- VAI FINANCIAR → Pergunte pré-aprovação, destaque parcerias com bancos
-- TEM PET → Mencione: aceita pets, áreas verdes, condomínios pet-friendly
-- IDOSO/APOSENTADO → Sugira: térreo/elevador, perto de farmácias e hospitais
-- HOME OFFICE → Destaque: espaço para escritório, internet fibra no prédio
+🧠 PERSONALIZAÇÃO:
+- TEM FILHOS → perto de escolas, área de lazer, condomínio seguro
+- TRABALHA NO CENTRO → fácil acesso, perto de metrô
+- INVESTIDOR → rentabilidade, valorização, demanda locação
+- TEM PET → aceita pets, áreas verdes
 
-🔥 SINAIS DE COMPRA (aja rápido!):
-- Perguntou sobre documentação ou processo de compra
-- Quer agendar visita presencial
-- Perguntou sobre entrada/financiamento/parcelas
-- Mencionou prazo específico ("preciso me mudar até...")
-- Comparou com outros imóveis que viu
-- Perguntou sobre negociação de valor
-
-💬 CONTORNO DE OBJEÇÕES:
-- "Tá caro" → "Entendo! Esse valor reflete a localização privilegiada e [benefícios]. Temos opções a partir de R$ X. Qual faixa seria ideal?"
-- "Vou pensar" → "Claro! Esse imóvel tem bastante procura. Posso te enviar fotos e a ficha completa para analisar? Ou prefere agendar uma visita sem compromisso?"
-- "Só pesquisando" → "Perfeito! Está no início da busca? Posso te ajudar a filtrar opções. Me conta: o que é essencial para você?"
-- "Preciso ver com meu esposo/a" → "Com certeza! Posso agendar uma visita para vocês dois? Assim mostro os detalhes para os dois juntos."
+🔥 SINAIS DE COMPRA:
+- Quer agendar visita
+- Perguntou sobre financiamento/entrada
+- Mencionou prazo específico
+- Perguntou documentação
 """
     ),
     
@@ -213,85 +328,46 @@ PERGUNTAS PARA QUALIFICAR:
 4. Urgência? Está com algum sintoma?
 5. Preferência de data/horário?
 
-🧠 PERSONALIZAÇÃO POR CONTEXTO:
-- TEM DOR/SINTOMAS → Demonstre empatia, priorize urgência, ofereça encaixe
-- TEM CONVÊNIO → Confirme cobertura, facilite o processo
-- SEM CONVÊNIO → Informe valores particulares, opções de pagamento
-- PROCEDIMENTO ESTÉTICO → Entenda expectativas, seja consultivo
-- RETORNO → Pergunte como foi tratamento anterior
-- IDOSO → Ofereça horários mais calmos, acompanhamento especial
-- CRIANÇA → Mencione atendimento pediátrico especializado se houver
-
 ⚠️ IMPORTANTE - NUNCA:
 - Dê diagnósticos ou sugira o que pode ser
 - Recomende medicamentos
 - Minimize sintomas graves
-- Se parecer emergência, oriente ir ao pronto-socorro IMEDIATAMENTE
+- Se parecer emergência, oriente ir ao pronto-socorro
 
 🔥 SINAIS DE COMPRA:
 - Perguntou horários disponíveis
 - Perguntou valor da consulta
 - Mencionou sintoma específico
-- Quer saber se o convênio cobre
-
-💬 CONTORNO DE OBJEÇÕES:
-- "Tá caro" → "Entendo! A consulta inclui [benefícios]. Trabalhamos com parcelamento no cartão. Sua saúde é o melhor investimento!"
-- "Vou ver minha agenda" → "Claro! Posso reservar um horário para você confirmar até amanhã? Assim garantimos a data."
-- "Só queria saber o preço" → "Sem problemas! O valor é R$ X. Posso aproveitar e verificar a disponibilidade para você?"
 """
     ),
     
     # ------------------------------------------
-    # ACADEMIA / FITNESS
+    # BELEZA / ESTÉTICA
     # ------------------------------------------
-    "fitness": NicheConfig(
-        id="fitness",
-        name="Academia / Fitness",
-        description="Academias, personal trainers, estúdios",
-        required_fields=["name", "phone", "goal"],
-        optional_fields=["experience", "preferred_time", "health_issues"],
+    "beauty": NicheConfig(
+        id="beauty",
+        name="Beleza / Estética",
+        description="Salões, clínicas de estética, spas",
+        required_fields=["name", "phone", "service_interest"],
+        optional_fields=["preferred_date", "professional_preference"],
         qualification_rules={
-            "hot": ["quero começar agora", "essa semana", "já decidi", "qual o valor"],
-            "warm": ["pesquisando academias", "pensando em começar", "comparando"],
-            "cold": ["só preço", "talvez no futuro", "muito caro"]
+            "hot": ["quer agendar", "essa semana", "disponibilidade"],
+            "warm": ["pesquisando", "vendo preços"],
+            "cold": ["só informação", "sem previsão"]
         },
         prompt_template="""
-💪 CONTEXTO - ACADEMIA/FITNESS:
+💇 CONTEXTO - BELEZA/ESTÉTICA:
 
 PERGUNTAS PARA QUALIFICAR:
-1. Qual seu objetivo? (emagrecer, ganhar massa, saúde, condicionamento)
-2. Já treinou antes? Tem experiência?
-3. Qual horário prefere treinar?
-4. Tem alguma restrição de saúde?
-5. Prefere treinar sozinho ou com acompanhamento?
-
-🧠 PERSONALIZAÇÃO POR CONTEXTO:
-- QUER EMAGRECER → Destaque: aulas coletivas, cardio, acompanhamento nutricional
-- QUER GANHAR MASSA → Destaque: musculação, personal trainer, suplementação
-- SEDENTÁRIO/INICIANTE → Seja acolhedor, destaque avaliação física, treino adaptado
-- JÁ TREINA → Pergunte o que faltava na academia anterior, destaque diferenciais
-- TEM RESTRIÇÃO → Mencione profissionais qualificados, treino adaptado
-- TRABALHA MUITO → Destaque: horários flexíveis, app de treino, aulas rápidas
-- TEM FILHOS → Mencione: espaço kids se houver, horários matinais
+1. Qual serviço você procura?
+2. Tem preferência de profissional?
+3. Qual data/horário seria ideal?
+4. Primeira vez aqui ou já é cliente?
 
 🔥 SINAIS DE COMPRA:
-- Perguntou valores/planos
-- Perguntou sobre matrícula/adesão
-- Quer conhecer a estrutura
-- Perguntou horário de funcionamento
-- Comparou com outra academia
-
-💬 CONTORNO DE OBJEÇÕES:
-- "Tá caro" → "Entendo! Dividido fica R$ X por dia. Pensa no investimento na sua saúde e qualidade de vida! Temos planos a partir de R$ Y."
-- "Não tenho tempo" → "Muitos alunos nossos são super ocupados! Temos treinos de 30-45min que funcionam. Qual horário seria possível pra você?"
-- "Vou pensar" → "Claro! Que tal fazer uma aula experimental gratuita pra sentir o ambiente? Sem compromisso!"
-- "Já tentei e desisti" → "Acontece! Dessa vez vai ser diferente. A gente te acompanha de perto. O que te fez desistir antes?"
-
-🎯 TOM DE VOZ:
-- Seja MOTIVADOR e POSITIVO
-- Nunca julgue o condicionamento físico
-- Mostre que a academia é para TODOS os níveis
-- Use linguagem inspiradora
+- Perguntou disponibilidade de horário
+- Quer agendar
+- Perguntou sobre pacotes/promoções
 """
     ),
     
@@ -318,25 +394,11 @@ PERGUNTAS PARA QUALIFICAR:
 3. Qual a localização? (cidade/bairro)
 4. Qual a urgência?
 5. Tem orçamento em mente?
-6. É residencial ou comercial?
-
-🧠 PERSONALIZAÇÃO POR CONTEXTO:
-- URGENTE → Priorize disponibilidade, ofereça atendimento rápido
-- COMERCIAL → Destaque experiência com empresas, horários flexíveis
-- RESIDENCIAL → Seja acolhedor, destaque garantia e confiança
-- ORÇAMENTO LIMITADO → Ofereça opções, sugira alternativas mais econômicas
-- JÁ TEVE PROBLEMA ANTES → Destaque qualidade e garantia do serviço
 
 🔥 SINAIS DE COMPRA:
 - Perguntou disponibilidade de data
 - Perguntou forma de pagamento
 - Descreveu o problema em detalhes
-- Perguntou sobre garantia
-
-💬 CONTORNO DE OBJEÇÕES:
-- "Tá caro" → "Entendo! Nosso preço inclui [garantia/qualidade/material]. Posso detalhar o que está incluso?"
-- "Vou pegar outros orçamentos" → "Claro! Fico à disposição para tirar dúvidas. Nosso diferencial é [qualidade/garantia/prazo]."
-- "Preciso ver com meu chefe" → "Sem problemas! Posso enviar um orçamento formal por e-mail para facilitar?"
 """
     ),
     
@@ -350,42 +412,54 @@ PERGUNTAS PARA QUALIFICAR:
         required_fields=["name", "phone", "course_interest"],
         optional_fields=["current_level", "availability", "payment_preference"],
         qualification_rules={
-            "hot": ["quero me matricular", "começar agora", "já decidi", "como faço pra matricular"],
+            "hot": ["quero me matricular", "começar agora", "como faço pra matricular"],
             "warm": ["comparando escolas", "esse semestre", "pesquisando"],
-            "cold": ["só informação", "ano que vem", "só preço", "muito caro"]
+            "cold": ["só informação", "ano que vem", "só preço"]
         },
         prompt_template="""
 📚 CONTEXTO - EDUCAÇÃO:
 
 PERGUNTAS PARA QUALIFICAR:
 1. Qual curso ou área de interesse?
-2. É para você ou outra pessoa? (filho, funcionário)
+2. É para você ou outra pessoa?
 3. Qual seu nível atual de conhecimento?
-4. Preferência de horário? (manhã, tarde, noite, online)
+4. Preferência de horário?
 5. Pretende iniciar quando?
-6. Qual seu objetivo com o curso?
-
-🧠 PERSONALIZAÇÃO POR CONTEXTO:
-- PARA O FILHO → Destaque: metodologia pedagógica, ambiente seguro, resultados
-- PARA SI MESMO → Foque: carreira, empregabilidade, certificação
-- PARA FUNCIONÁRIO → Destaque: treinamento corporativo, turmas fechadas
-- INICIANTE → Seja acolhedor, destaque que é para todos os níveis
-- JÁ TEM EXPERIÊNCIA → Foque em nível avançado, especialização
-- TRABALHA → Destaque: horários flexíveis, aulas online, material gravado
-- ORÇAMENTO APERTADO → Mencione: bolsas, parcelamento, desconto à vista
 
 🔥 SINAIS DE COMPRA:
 - Perguntou sobre matrícula
 - Perguntou início das turmas
 - Perguntou formas de pagamento
-- Quer conhecer a escola/estrutura
-- Perguntou sobre certificação
+"""
+    ),
+    
+    # ------------------------------------------
+    # ALIMENTAÇÃO
+    # ------------------------------------------
+    "food": NicheConfig(
+        id="food",
+        name="Alimentação",
+        description="Restaurantes, delivery, buffet",
+        required_fields=["name", "phone"],
+        optional_fields=["order_type", "delivery_address", "event_date"],
+        qualification_rules={
+            "hot": ["quero pedir", "fazer pedido", "encomenda pra hoje"],
+            "warm": ["ver cardápio", "preços", "opções"],
+            "cold": ["só olhando", "depois"]
+        },
+        prompt_template="""
+🍽️ CONTEXTO - ALIMENTAÇÃO:
 
-💬 CONTORNO DE OBJEÇÕES:
-- "Tá caro" → "Entendo! É um investimento na sua carreira. Parcelamos em até X vezes. E o retorno profissional vale muito!"
-- "Não tenho tempo" → "Muitos alunos nossos trabalham! Temos turmas noturnas e online. Qual formato funcionaria melhor?"
-- "Vou pensar" → "Claro! As turmas costumam lotar rápido. Posso reservar uma vaga para você confirmar até [data]?"
-- "Ano que vem" → "Entendi! Mas começar agora te dá vantagem no mercado. Temos turma iniciando [data]. Posso te passar mais detalhes?"
+PERGUNTAS PARA QUALIFICAR:
+1. Gostaria de fazer um pedido?
+2. É para entrega ou retirada?
+3. Qual o endereço de entrega?
+4. Alguma restrição alimentar?
+
+🔥 SINAIS DE COMPRA:
+- Perguntou cardápio
+- Perguntou tempo de entrega
+- Quer fazer pedido
 """
     ),
 }
@@ -404,6 +478,149 @@ def get_available_niches() -> list[dict]:
     ]
 
 
+def build_identity_section(identity: dict, company_name: str) -> str:
+    """
+    Constrói a seção de identidade empresarial para o prompt.
+    
+    Args:
+        identity: Dicionário com dados de identidade da empresa
+        company_name: Nome da empresa
+    
+    Returns:
+        String formatada com a seção de identidade
+    """
+    if not identity:
+        return ""
+    
+    sections = []
+    
+    # Descrição
+    description = identity.get("description", "")
+    if not description:
+        description = f"Empresa {company_name}"
+    
+    # Produtos/Serviços
+    products_section = ""
+    products = identity.get("products_services", [])
+    if products:
+        products_section = "O QUE OFERECEMOS:\n" + "\n".join(f"  • {p}" for p in products)
+    
+    # Diferenciais
+    differentials_section = ""
+    differentials = identity.get("differentials", [])
+    if differentials:
+        differentials_section = "NOSSOS DIFERENCIAIS:\n" + "\n".join(f"  ✓ {d}" for d in differentials)
+    
+    # Público-alvo
+    target_audience_section = ""
+    target = identity.get("target_audience", {})
+    if target:
+        parts = []
+        if target.get("description"):
+            parts.append(f"Público: {target['description']}")
+        if target.get("segments"):
+            parts.append(f"Segmentos: {', '.join(target['segments'])}")
+        if target.get("pain_points"):
+            parts.append(f"Dores que resolvemos: {', '.join(target['pain_points'])}")
+        if parts:
+            target_audience_section = "NOSSO PÚBLICO:\n" + "\n".join(f"  • {p}" for p in parts)
+    
+    # Estilo de comunicação
+    communication_style_section = ""
+    tone_style = identity.get("tone_style", {})
+    if tone_style:
+        parts = []
+        if tone_style.get("personality_traits"):
+            parts.append(f"Personalidade: {', '.join(tone_style['personality_traits'])}")
+        if tone_style.get("communication_style"):
+            parts.append(f"Estilo: {tone_style['communication_style']}")
+        if tone_style.get("use_phrases"):
+            parts.append(f"Use expressões como: {', '.join(tone_style['use_phrases'][:5])}")
+        if tone_style.get("avoid_phrases"):
+            parts.append(f"EVITE expressões como: {', '.join(tone_style['avoid_phrases'][:5])}")
+        if parts:
+            communication_style_section = "COMO COMUNICAR:\n" + "\n".join(f"  • {p}" for p in parts)
+    
+    # Regras de negócio
+    business_rules_section = ""
+    rules = identity.get("business_rules", [])
+    if rules:
+        business_rules_section = "⚠️ REGRAS OBRIGATÓRIAS:\n" + "\n".join(f"  ❗ {r}" for r in rules)
+    
+    # Palavras-chave
+    keywords_section = ""
+    keywords = identity.get("keywords", [])
+    if keywords:
+        keywords_section = f"TERMOS DO NOSSO NEGÓCIO: {', '.join(keywords)}"
+    
+    # Contexto adicional
+    additional_context_section = ""
+    additional = identity.get("additional_context", "")
+    if additional:
+        additional_context_section = f"INFORMAÇÕES ADICIONAIS:\n{additional}"
+    
+    return IDENTITY_SECTION_TEMPLATE.format(
+        description=description,
+        products_section=products_section,
+        differentials_section=differentials_section,
+        target_audience_section=target_audience_section,
+        communication_style_section=communication_style_section,
+        business_rules_section=business_rules_section,
+        keywords_section=keywords_section,
+        additional_context_section=additional_context_section,
+    )
+
+
+def build_scope_restriction(
+    identity: dict,
+    company_name: str,
+    scope_config: dict = None,
+) -> str:
+    """
+    Constrói a seção de restrição de escopo (CRÍTICA para evitar IA maluca).
+    
+    Args:
+        identity: Dicionário com dados de identidade
+        company_name: Nome da empresa
+        scope_config: Configuração de escopo do tenant
+    
+    Returns:
+        String formatada com restrição de escopo
+    """
+    
+    # Lista de produtos/serviços
+    products = identity.get("products_services", [])
+    if products:
+        products_list = "\n".join(f"  ✅ {p}" for p in products)
+    else:
+        products_list = "  (Nenhum produto/serviço cadastrado - configure a identidade da empresa)"
+    
+    # O que NÃO oferecemos
+    not_offered = identity.get("not_offered", [])
+    not_offered_section = ""
+    if not_offered:
+        not_offered_section = "❌ NÃO TRABALHAMOS COM:\n" + "\n".join(f"  ✖ {n}" for n in not_offered)
+        not_offered_section += "\n\nSe perguntarem sobre esses itens, diga que não oferecemos."
+    
+    # Mensagem padrão fora do escopo
+    out_of_scope_message = "Não trabalhamos com isso. Somos especializados em [nossos serviços]. Posso te ajudar com algo nessa área?"
+    if scope_config and scope_config.get("out_of_scope_message"):
+        out_of_scope_message = scope_config["out_of_scope_message"]
+    
+    # Descrição do escopo
+    scope_description_section = ""
+    if scope_config and scope_config.get("description"):
+        scope_description_section = f"ESCOPO DETALHADO:\n{scope_config['description']}"
+    
+    return SCOPE_RESTRICTION_TEMPLATE.format(
+        company_name=company_name,
+        products_services_list=products_list,
+        not_offered_section=not_offered_section,
+        out_of_scope_message=out_of_scope_message,
+        scope_description_section=scope_description_section,
+    )
+
+
 def build_system_prompt(
     niche_id: str,
     company_name: str,
@@ -414,9 +631,12 @@ def build_system_prompt(
     faq_items: list[dict] = None,
     scope_description: str = None,
     lead_context: dict = None,
+    # NOVOS PARÂMETROS - IDENTIDADE EMPRESARIAL
+    identity: dict = None,
+    scope_config: dict = None,
 ) -> str:
     """
-    Monta o prompt completo para um tenant.
+    Monta o prompt completo para um tenant COM IDENTIDADE EMPRESARIAL.
     
     Args:
         niche_id: ID do nicho (real_estate, healthcare, etc)
@@ -426,8 +646,10 @@ def build_system_prompt(
         custom_rules: Regras extras do tenant
         custom_prompt: Prompt livre (só Pro) - substitui tudo
         faq_items: Lista de FAQs [{"question": "...", "answer": "..."}]
-        scope_description: Descrição do escopo da IA
+        scope_description: Descrição do escopo da IA (legado)
         lead_context: Contexto extraído do lead para personalização
+        identity: Dicionário de identidade empresarial (NOVO!)
+        scope_config: Configuração de escopo (NOVO!)
     
     Returns:
         Prompt completo formatado
@@ -440,77 +662,132 @@ def build_system_prompt(
     # Busca template do nicho
     niche = get_niche_config(niche_id)
     if not niche:
-        niche = NICHE_TEMPLATES["services"]
+        niche = NICHE_TEMPLATES.get("services", NICHE_TEMPLATES["services"])
+    
+    # ==========================================
+    # SEÇÃO DE IDENTIDADE (NOVO!)
+    # ==========================================
+    identity_section = ""
+    if identity:
+        identity_section = build_identity_section(identity, company_name)
+    
+    # ==========================================
+    # SEÇÃO DE RESTRIÇÃO DE ESCOPO (NOVO!)
+    # ==========================================
+    scope_restriction = ""
+    if identity:
+        scope_restriction = build_scope_restriction(identity, company_name, scope_config)
+    elif scope_description:
+        # Fallback para formato legado
+        scope_restriction = f"""
+ESCOPO DO ATENDIMENTO:
+Você só deve responder sobre os seguintes assuntos:
+{scope_description}
+
+Se o cliente perguntar sobre algo fora deste escopo, responda educadamente que você não tem informações sobre isso.
+"""
     
     # Monta lista de campos a coletar
     fields = []
-    for field in niche.required_fields:
-        fields.append(f"- {field} (obrigatório)")
-    for field in niche.optional_fields:
-        fields.append(f"- {field} (se possível)")
     
-    # Adiciona perguntas customizadas
+    # Campos obrigatórios da identidade
+    if identity and identity.get("required_info"):
+        fields.append("INFORMAÇÕES OBRIGATÓRIAS:")
+        for field in identity["required_info"]:
+            fields.append(f"  • {field} (OBRIGATÓRIO)")
+    
+    # Perguntas obrigatórias da identidade
+    if identity and identity.get("required_questions"):
+        fields.append("\nPERGUNTAS OBRIGATÓRIAS:")
+        for q in identity["required_questions"]:
+            fields.append(f"  • {q}")
+    
+    # Campos do nicho
+    fields.append("\nCAMPOS DO NICHO:")
+    for field in niche.required_fields:
+        fields.append(f"  • {field} (obrigatório)")
+    for field in niche.optional_fields:
+        fields.append(f"  • {field} (se possível)")
+    
+    # Perguntas customizadas (legado)
     if custom_questions:
-        fields.append("\nPERGUNTAS EXTRAS DA EMPRESA:")
+        fields.append("\nPERGUNTAS EXTRAS:")
         for q in custom_questions:
-            fields.append(f"- {q}")
+            fields.append(f"  • {q}")
     
     # Monta regras customizadas
     rules_text = ""
-    if custom_rules:
-        rules_text = "\nREGRAS ESPECÍFICAS DA EMPRESA:\n"
-        for rule in custom_rules:
-            rules_text += f"- {rule}\n"
     
-    # Adiciona contexto do lead se disponível
+    # Regras da identidade (já estão na identity_section, mas reforça)
+    if identity and identity.get("business_rules"):
+        rules_text += "\n⚠️ REGRAS DE NEGÓCIO (SIGA RIGOROSAMENTE):\n"
+        for rule in identity["business_rules"]:
+            rules_text += f"  ❗ {rule}\n"
+    
+    # Regras customizadas (legado)
+    if custom_rules:
+        rules_text += "\nREGRAS ADICIONAIS:\n"
+        for rule in custom_rules:
+            rules_text += f"  • {rule}\n"
+    
+    # Contexto do lead
     if lead_context:
         rules_text += "\n📋 CONTEXTO ATUAL DO CLIENTE (use para personalizar):\n"
         
+        if lead_context.get("name"):
+            rules_text += f"  • Nome: {lead_context['name']}\n"
         if lead_context.get("family_situation"):
-            rules_text += f"- Situação familiar: {lead_context['family_situation']}\n"
+            rules_text += f"  • Situação familiar: {lead_context['family_situation']}\n"
         if lead_context.get("work_info"):
-            rules_text += f"- Trabalho: {lead_context['work_info']}\n"
+            rules_text += f"  • Trabalho: {lead_context['work_info']}\n"
         if lead_context.get("budget_range"):
-            rules_text += f"- Orçamento: {lead_context['budget_range']}\n"
+            rules_text += f"  • Orçamento: {lead_context['budget_range']}\n"
         if lead_context.get("urgency_level"):
-            rules_text += f"- Urgência: {lead_context['urgency_level']}\n"
+            rules_text += f"  • Urgência: {lead_context['urgency_level']}\n"
         if lead_context.get("preferences"):
-            rules_text += f"- Preferências: {', '.join(lead_context['preferences'])}\n"
+            prefs = lead_context['preferences']
+            if isinstance(prefs, list):
+                prefs = ', '.join(prefs)
+            rules_text += f"  • Preferências: {prefs}\n"
         if lead_context.get("pain_points"):
-            rules_text += f"- Dores/Problemas: {', '.join(lead_context['pain_points'])}\n"
+            pains = lead_context['pain_points']
+            if isinstance(pains, list):
+                pains = ', '.join(pains)
+            rules_text += f"  • Dores/Problemas: {pains}\n"
         if lead_context.get("objections"):
-            rules_text += f"- Objeções levantadas: {', '.join(lead_context['objections'])} (CONTORNE!)\n"
+            objs = lead_context['objections']
+            if isinstance(objs, list):
+                objs = ', '.join(objs)
+            rules_text += f"  • ⚠️ OBJEÇÕES: {objs} (CONTORNE!)\n"
         if lead_context.get("buying_signals"):
-            rules_text += f"- ⚡ SINAIS DE COMPRA: {', '.join(lead_context['buying_signals'])} (ACELERE!)\n"
+            signals = lead_context['buying_signals']
+            if isinstance(signals, list):
+                signals = ', '.join(signals)
+            rules_text += f"  • 🔥 SINAIS DE COMPRA: {signals} (ACELERE!)\n"
     
     # Monta seção de FAQ
     faq_section = ""
     if faq_items:
-        faq_section = "\nPERGUNTAS FREQUENTES (FAQ):\nUse estas respostas quando o cliente perguntar sobre estes assuntos:\n"
+        faq_section = "\n📚 PERGUNTAS FREQUENTES (FAQ):\nUse estas respostas quando o cliente perguntar sobre estes assuntos:\n"
         for item in faq_items:
             question = item.get("question", "")
             answer = item.get("answer", "")
             if question and answer:
                 faq_section += f"\nP: {question}\nR: {answer}\n"
     
-    # Monta seção de escopo
-    scope_section = ""
-    if scope_description:
-        scope_section = f"""
-ESCOPO DO ATENDIMENTO:
-Você só deve responder sobre os seguintes assuntos:
-{scope_description}
-
-Se o cliente perguntar sobre algo fora deste escopo, responda educadamente que você não tem informações sobre isso e direcione a conversa de volta para os serviços da empresa.
-"""
+    # Determina tom de voz
+    tone_display = tone
+    if identity and identity.get("tone_style", {}).get("tone"):
+        tone_display = identity["tone_style"]["tone"]
     
     # Monta prompt final
     return BASE_SYSTEM_PROMPT.format(
         company_name=company_name,
-        tone=tone,
+        identity_section=identity_section,
+        scope_restriction=scope_restriction,
+        tone=tone_display,
         niche_prompt=niche.prompt_template,
         fields_to_collect="\n".join(fields),
         custom_rules=rules_text,
         faq_section=faq_section,
-        scope_section=scope_section,
     )
