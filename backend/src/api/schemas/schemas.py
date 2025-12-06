@@ -31,6 +31,9 @@ class WebhookMessage(BaseModel):
     campaign: Optional[str] = Field(None, description="Campanha de origem")
     source: Optional[str] = Field(None, description="Fonte: organic, paid, referral")
 
+    class Config:
+        extra = "ignore"   # <--- ESSA LINHA RESOLVE O ERRO 400
+
 
 class WebhookResponse(BaseModel):
     """Resposta do webhook."""
