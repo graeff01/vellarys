@@ -33,8 +33,6 @@ class WebhookMessage(BaseModel):
     campaign: Optional[str] = Field(None, description="Campanha de origem")
     source: Optional[str] = Field(None, description="Fonte: organic, paid, referral")
 
-    class Config(BaseModel.Config):
-
 
 
 class WebhookResponse(BaseModel):
@@ -57,9 +55,6 @@ class SellerSummary(BaseModel):
     id: int
     name: str
     whatsapp: str
-    
-    class Config:
-        from_attributes = True
 
 
 # ============================================
@@ -118,8 +113,6 @@ class LeadResponse(LeadBase):
     assignment_method: Optional[str] = None
     assigned_seller: Optional[SellerSummary] = None
     
-    class Config:
-        from_attributes = True
 
 
 class LeadListResponse(BaseModel):
@@ -146,8 +139,6 @@ class MessageResponse(BaseModel):
     tokens_used: int
     created_at: datetime
     
-    class Config:
-        from_attributes = True
 
 
 # ============================================
@@ -273,5 +264,3 @@ class TenantResponse(BaseModel):
     active: bool
     created_at: datetime
 
-    class Config:
-        from_attributes = True
