@@ -55,11 +55,12 @@ from src.infrastructure.services.message_rate_limiter import (
     check_message_rate_limit,
     get_rate_limit_response,
 )
+# ✅ IMPORTAÇÃO CORRETA E ÚNICA
 from src.infrastructure.services.audit_service import (
     log_message_received,
     log_security_threat,
     log_ai_action,
-    log_system_error,
+    log_audit,  # ✅ CERTIFIQUE-SE QUE ESTÁ AQUI
     AuditAction,
     AuditSeverity,
 )
@@ -84,9 +85,7 @@ FALLBACK_RESPONSES = {
     "error": "Desculpe, estou com uma instabilidade momentânea. Tente novamente em alguns segundos.",
     "out_of_scope": "Desculpe, não posso ajudá-lo com isso. Meu foco é exclusivo em [NEGÓCIO DO CLIENTE].",
     "rate_limit": "Estou recebendo muitas mensagens simultâneas. Tente novamente em alguns minutos.",
-    "security": "Por segurança, não posso responder a essa mensagem. Entre em contato com nosso suporte.",
-}
-
+    "security": "Por segurança, não posso responder a essa mensagem. Entre em contato com nosso suporte.",}
 
 # =============================================================================
 # HELPER: MIGRAR SETTINGS LEGADO PARA NOVO FORMATO
@@ -513,7 +512,9 @@ async def process_message(
         await log_system_error(
             db=db,
             error_type="tenant_lookup",
-            details={"tenant_slug": tenant_slug, "error": str(e)}
+            details={"tenant_slug": tenant_slug, "error": str(e)},
+            tenant_id=tenant.id if 'tenant' in locals() else None,
+            lead_id=lead.id if 'lead' in locals() else None,
         )
         return {
             "success": False,
