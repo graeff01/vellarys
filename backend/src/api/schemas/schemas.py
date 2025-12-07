@@ -1,15 +1,18 @@
 """
-SCHEMAS DE VALIDAÇÃO
-=====================
+SCHEMAS DE VALIDAÇÃO (VERSÃO CORRIGIDA)
+========================================
 
 Define a estrutura de dados de entrada e saída da API.
 Pydantic valida automaticamente os dados.
+
+CORREÇÕES:
+- MessageResponse com campos Optional
+- Adicionado from_attributes para compatibilidade ORM
 """
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field, ConfigDict   # <-- IMPORT CORRETO
-
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # ============================================
@@ -17,8 +20,8 @@ from pydantic import BaseModel, Field, ConfigDict   # <-- IMPORT CORRETO
 # ============================================
 
 class WebhookMessage(BaseModel):
-    model_config = ConfigDict(extra="allow")
     """Mensagem recebida via webhook."""
+    model_config = ConfigDict(extra="allow")
     
     tenant_slug: str = Field(..., description="Identificador do tenant")
     channel_type: str = Field(..., description="Tipo do canal: whatsapp, web")
@@ -34,14 +37,13 @@ class WebhookMessage(BaseModel):
     source: Optional[str] = Field(None, description="Fonte: organic, paid, referral")
 
 
-
 class WebhookResponse(BaseModel):
     """Resposta do webhook."""
     
     success: bool
-    reply: str = Field(..., description="Resposta da IA para enviar ao lead")
-    lead_id: int
-    is_new_lead: bool
+    reply: Optional[str] = Field(None, description="Resposta da IA para enviar ao lead")
+    lead_id: Optional[int] = None
+    is_new_lead: bool = False
     qualification: Optional[str] = None
 
 
@@ -51,10 +53,11 @@ class WebhookResponse(BaseModel):
 
 class SellerSummary(BaseModel):
     """Resumo do vendedor para exibir em listas."""
+    model_config = ConfigDict(from_attributes=True)
     
     id: int
     name: str
-    whatsapp: str
+    whatsapp: Optional[str] = None
 
 
 # ============================================
@@ -94,25 +97,25 @@ class LeadUpdate(BaseModel):
 
 class LeadResponse(LeadBase):
     """Lead completo na resposta."""
+    model_config = ConfigDict(from_attributes=True)
     
     id: int
     tenant_id: int
-    channel_id: Optional[int]
-    external_id: Optional[str]
-    qualification: str
-    status: str
-    summary: Optional[str]
-    assigned_to: Optional[int]
-    handed_off_at: Optional[datetime]
-    created_at: datetime
-    updated_at: datetime
+    channel_id: Optional[int] = None
+    external_id: Optional[str] = None
+    qualification: Optional[str] = None  # ✅ CORRIGIDO: Pode ser None
+    status: Optional[str] = None  # ✅ CORRIGIDO: Pode ser None
+    summary: Optional[str] = None
+    assigned_to: Optional[int] = None
+    handed_off_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None  # ✅ CORRIGIDO: Pode ser None
+    updated_at: Optional[datetime] = None  # ✅ CORRIGIDO: Pode ser None
     
     # Vendedor atribuído
     assigned_seller_id: Optional[int] = None
     assigned_at: Optional[datetime] = None
     assignment_method: Optional[str] = None
     assigned_seller: Optional[SellerSummary] = None
-    
 
 
 class LeadListResponse(BaseModel):
@@ -126,30 +129,41 @@ class LeadListResponse(BaseModel):
 
 
 # ============================================
-# MENSAGEM
+# MENSAGEM (CORRIGIDO!)
 # ============================================
 
 class MessageResponse(BaseModel):
     """Mensagem na resposta."""
+    model_config = ConfigDict(from_attributes=True)  # ✅ Permite criar de ORM
     
     id: int
     lead_id: int
     role: str
     content: str
-    tokens_used: int
-    created_at: datetime
+    tokens_used: Optional[int] = 0  # ✅ CORRIGIDO: Pode ser None, default 0
+    created_at: Optional[datetime] = None  # ✅ CORRIGIDO: Pode ser None
+
+
+class MessageCreate(BaseModel):
+    """Dados para criar mensagem."""
     
+    lead_id: int
+    role: str  # "user" ou "assistant"
+    content: str
+    tokens_used: Optional[int] = 0
 
 
 # ============================================
 # TENANT
 # ============================================
+
 class TenantSettings(BaseModel):
     """Configurações do tenant (empresa cliente)."""
+    model_config = ConfigDict(extra="allow")  # Permite campos extras
 
     # Identidade da empresa
     niche: str = "services"
-    company_name: str
+    company_name: Optional[str] = None
     tone: str = "cordial"
     custom_questions: list[str] = Field(default_factory=list)
     custom_rules: list[str] = Field(default_factory=list)
@@ -158,24 +172,51 @@ class TenantSettings(BaseModel):
     # === Integração com WhatsApp/Gupshup ===
     whatsapp_number: Optional[str] = Field(
         default=None,
-        description="Número do WhatsApp Business usado por este tenant (somente dígitos)."
+        description="Número do WhatsApp Business usado por este tenant."
     )
-
     gupshup_app_name: Optional[str] = Field(
         default=None,
-        description="Nome do APP dentro do Gupshup que pertence a este tenant."
+        description="Nome do APP dentro do Gupshup."
     )
-
     gupshup_api_key: Optional[str] = Field(
         default=None,
-        description="API Key exclusiva do Gupshup para este tenant."
+        description="API Key exclusiva do Gupshup."
     )
-
     gupshup_webhook_secret: Optional[str] = Field(
         default=None,
-        description="Segredo usado para validar assinatura HMAC do webhook."
+        description="Segredo usado para validar assinatura HMAC."
     )
 
+
+class TenantCreate(BaseModel):
+    """Dados necessários para criar um novo tenant."""
+
+    name: str
+    slug: str
+    plan: str = "starter"
+    settings: Optional[TenantSettings] = None
+
+
+class TenantResponse(BaseModel):
+    """Resposta completa do tenant."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    slug: str
+    plan: str
+    settings: Optional[dict] = None
+    active: bool = True
+    created_at: Optional[datetime] = None
+
+
+class TenantUpdate(BaseModel):
+    """Dados para atualizar tenant."""
+    
+    name: Optional[str] = None
+    plan: Optional[str] = None
+    settings: Optional[dict] = None
+    active: Optional[bool] = None
 
 
 # ============================================
@@ -185,28 +226,28 @@ class TenantSettings(BaseModel):
 class DashboardMetrics(BaseModel):
     """Métricas do dashboard."""
     
-    total_leads: int
-    leads_today: int
-    leads_this_week: int
-    leads_this_month: int
+    total_leads: int = 0
+    leads_today: int = 0
+    leads_this_week: int = 0
+    leads_this_month: int = 0
     
-    by_qualification: dict[str, int]  # {"hot": 10, "warm": 25, "cold": 50}
-    by_status: dict[str, int]         # {"new": 5, "qualified": 20, ...}
-    by_channel: dict[str, int]        # {"whatsapp": 60, "web": 25}
-    by_source: dict[str, int]         # {"organic": 40, "paid": 45}
+    by_qualification: dict[str, int] = Field(default_factory=dict)
+    by_status: dict[str, int] = Field(default_factory=dict)
+    by_channel: dict[str, int] = Field(default_factory=dict)
+    by_source: dict[str, int] = Field(default_factory=dict)
     
-    conversion_rate: float            # % de leads que viraram qualified
-    avg_qualification_time_hours: float  # Tempo médio até qualificar
+    conversion_rate: float = 0.0
+    avg_qualification_time_hours: float = 0.0
 
 
 class LeadsByPeriod(BaseModel):
     """Leads agrupados por período."""
     
-    period: str  # "2024-01-15" ou "2024-01" ou "2024-W03"
-    count: int
-    hot: int
-    warm: int
-    cold: int
+    period: str
+    count: int = 0
+    hot: int = 0
+    warm: int = 0
+    cold: int = 0
 
 
 # ============================================
@@ -237,30 +278,115 @@ class TokenResponse(BaseModel):
     
     access_token: str
     token_type: str = "bearer"
-    expires_in: int
+    expires_in: int = 86400  # 24 horas
     user: dict
 
-    # ============================================
-# TENANT - Criação, resposta e atualização
+
+# ============================================
+# CHANNEL (Canal de comunicação)
 # ============================================
 
-class TenantCreate(BaseModel):
-    """Dados necessários para criar um novo tenant (cliente)."""
-
-    name: str
-    slug: str
-    plan: str = "starter"
-    settings: TenantSettings
+class ChannelCreate(BaseModel):
+    """Dados para criar canal."""
+    
+    type: str  # whatsapp, web, etc
+    config: dict = Field(default_factory=dict)
 
 
-class TenantResponse(BaseModel):
-    """Resposta completa do tenant."""
-
+class ChannelResponse(BaseModel):
+    """Resposta do canal."""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
-    name: str
-    slug: str
-    plan: str
-    settings: dict
-    active: bool
-    created_at: datetime
+    tenant_id: int
+    type: str
+    active: bool = True
+    config: dict = Field(default_factory=dict)
+    created_at: Optional[datetime] = None
 
+
+# ============================================
+# SELLER (Vendedor completo)
+# ============================================
+
+class SellerCreate(BaseModel):
+    """Dados para criar vendedor."""
+    
+    name: str
+    email: Optional[str] = None
+    whatsapp: str
+    cities: list[str] = Field(default_factory=list)
+    specialties: list[str] = Field(default_factory=list)
+    daily_limit: int = 10
+    priority: int = 1
+    active: bool = True
+
+
+class SellerResponse(BaseModel):
+    """Resposta do vendedor."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    tenant_id: int
+    name: str
+    email: Optional[str] = None
+    whatsapp: str
+    cities: list[str] = Field(default_factory=list)
+    specialties: list[str] = Field(default_factory=list)
+    daily_limit: int = 10
+    leads_today: int = 0
+    priority: int = 1
+    available: bool = True
+    active: bool = True
+    created_at: Optional[datetime] = None
+
+
+class SellerUpdate(BaseModel):
+    """Dados para atualizar vendedor."""
+    
+    name: Optional[str] = None
+    email: Optional[str] = None
+    whatsapp: Optional[str] = None
+    cities: Optional[list[str]] = None
+    specialties: Optional[list[str]] = None
+    daily_limit: Optional[int] = None
+    priority: Optional[int] = None
+    available: Optional[bool] = None
+    active: Optional[bool] = None
+
+
+# ============================================
+# NOTIFICATION
+# ============================================
+
+class NotificationResponse(BaseModel):
+    """Resposta de notificação."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    tenant_id: int
+    type: str
+    title: str
+    message: str
+    reference_type: Optional[str] = None
+    reference_id: Optional[int] = None
+    read: bool = False
+    created_at: Optional[datetime] = None
+
+
+# ============================================
+# LEAD EVENT (Histórico)
+# ============================================
+
+class LeadEventResponse(BaseModel):
+    """Resposta de evento do lead."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    lead_id: int
+    event_type: str
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+    description: Optional[str] = None
+    created_by: Optional[int] = None
+    created_at: Optional[datetime] = None

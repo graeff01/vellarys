@@ -1,11 +1,17 @@
 """
-ROTAS: LEADS
-=============
+ROTAS: LEADS (VERSÃO CORRIGIDA)
+================================
 Endpoints para gerenciar leads.
+
+CORREÇÕES:
+- Endpoint /messages com tratamento de erro robusto
+- Não depende de schema para serialização
+- Melhor logging para debug
 """
 
 from datetime import datetime
 from typing import Optional
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -19,13 +25,13 @@ from src.api.schemas import (
     LeadResponse,
     LeadListResponse,
     LeadUpdate,
-    MessageResponse,
 )
 from src.api.dependencies import get_current_user, get_current_tenant
 
 # Import correto
 from src.infrastructure.services import assign_lead_to_seller
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/leads", tags=["Leads"])
 
@@ -42,6 +48,7 @@ class AssignSellerRequest(BaseModel):
 # HELPERS
 # ===============================
 def lead_to_response(lead: Lead) -> dict:
+    """Converte Lead para dict de resposta."""
     data = {
         "id": lead.id,
         "tenant_id": lead.tenant_id,
@@ -58,16 +65,16 @@ def lead_to_response(lead: Lead) -> dict:
         "status": lead.status,
         "summary": lead.summary,
         "assigned_to": lead.assigned_to,
-        "handed_off_at": lead.handed_off_at,
-        "created_at": lead.created_at,
-        "updated_at": lead.updated_at,
+        "handed_off_at": lead.handed_off_at.isoformat() if lead.handed_off_at else None,
+        "created_at": lead.created_at.isoformat() if lead.created_at else None,
+        "updated_at": lead.updated_at.isoformat() if lead.updated_at else None,
         "assigned_seller_id": lead.assigned_seller_id,
-        "assigned_at": lead.assigned_at,
+        "assigned_at": lead.assigned_at.isoformat() if lead.assigned_at else None,
         "assignment_method": lead.assignment_method,
         "assigned_seller": None,
     }
 
-    if lead.assigned_seller:
+    if hasattr(lead, 'assigned_seller') and lead.assigned_seller:
         data["assigned_seller"] = {
             "id": lead.assigned_seller.id,
             "name": lead.assigned_seller.name,
@@ -75,6 +82,18 @@ def lead_to_response(lead: Lead) -> dict:
         }
 
     return data
+
+
+def message_to_response(message: Message) -> dict:
+    """Converte Message para dict de resposta (sem depender de schema)."""
+    return {
+        "id": message.id,
+        "lead_id": message.lead_id,
+        "role": message.role,
+        "content": message.content,
+        "tokens_used": message.tokens_used or 0,
+        "created_at": message.created_at.isoformat() if message.created_at else None,
+    }
 
 
 # ===============================
@@ -95,92 +114,110 @@ async def list_leads(
     unassigned: Optional[bool] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
-    tenant = result.scalar_one_or_none()
-    if not tenant:
-        raise HTTPException(404, "Tenant não encontrado")
+    """Lista leads do tenant com filtros e paginação."""
+    try:
+        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
+        tenant = result.scalar_one_or_none()
+        if not tenant:
+            raise HTTPException(404, "Tenant não encontrado")
 
-    query = (
-        select(Lead)
-        .where(Lead.tenant_id == tenant.id)
-        .options(selectinload(Lead.assigned_seller))
-    )
-    count_query = select(func.count(Lead.id)).where(Lead.tenant_id == tenant.id)
-
-    if status:
-        query = query.where(Lead.status == status)
-        count_query = count_query.where(Lead.status == status)
-
-    if qualification:
-        query = query.where(Lead.qualification == qualification)
-        count_query = count_query.where(Lead.qualification == qualification)
-
-    if channel_id:
-        query = query.where(Lead.channel_id == channel_id)
-        count_query = count_query.where(Lead.channel_id == channel_id)
-
-    if search:
-        s = f"%{search}%"
-        query = query.where(
-            (Lead.name.ilike(s)) | (Lead.phone.ilike(s)) | (Lead.email.ilike(s))
+        query = (
+            select(Lead)
+            .where(Lead.tenant_id == tenant.id)
+            .options(selectinload(Lead.assigned_seller))
         )
-        count_query = count_query.where(
-            (Lead.name.ilike(s)) | (Lead.phone.ilike(s)) | (Lead.email.ilike(s))
+        count_query = select(func.count(Lead.id)).where(Lead.tenant_id == tenant.id)
+
+        if status:
+            query = query.where(Lead.status == status)
+            count_query = count_query.where(Lead.status == status)
+
+        if qualification:
+            query = query.where(Lead.qualification == qualification)
+            count_query = count_query.where(Lead.qualification == qualification)
+
+        if channel_id:
+            query = query.where(Lead.channel_id == channel_id)
+            count_query = count_query.where(Lead.channel_id == channel_id)
+
+        if search:
+            s = f"%{search}%"
+            query = query.where(
+                (Lead.name.ilike(s)) | (Lead.phone.ilike(s)) | (Lead.email.ilike(s))
+            )
+            count_query = count_query.where(
+                (Lead.name.ilike(s)) | (Lead.phone.ilike(s)) | (Lead.email.ilike(s))
+            )
+
+        if date_from:
+            query = query.where(Lead.created_at >= date_from)
+            count_query = count_query.where(Lead.created_at >= date_from)
+
+        if date_to:
+            query = query.where(Lead.created_at <= date_to)
+            count_query = count_query.where(Lead.created_at <= date_to)
+
+        if assigned_seller_id:
+            query = query.where(Lead.assigned_seller_id == assigned_seller_id)
+            count_query = count_query.where(Lead.assigned_seller_id == assigned_seller_id)
+
+        if unassigned:
+            query = query.where(Lead.assigned_seller_id.is_(None))
+            count_query = count_query.where(Lead.assigned_seller_id.is_(None))
+
+        total = (await db.execute(count_query)).scalar() or 0
+        offset = (page - 1) * per_page
+
+        result = await db.execute(
+            query.order_by(Lead.created_at.desc()).offset(offset).limit(per_page)
         )
+        leads = result.scalars().all()
 
-    if date_from:
-        query = query.where(Lead.created_at >= date_from)
-        count_query = count_query.where(Lead.created_at >= date_from)
-
-    if date_to:
-        query = query.where(Lead.created_at <= date_to)
-        count_query = count_query.where(Lead.created_at <= date_to)
-
-    if assigned_seller_id:
-        query = query.where(Lead.assigned_seller_id == assigned_seller_id)
-        count_query = count_query.where(Lead.assigned_seller_id == assigned_seller_id)
-
-    if unassigned:
-        query = query.where(Lead.assigned_seller_id.is_(None))
-        count_query = count_query.where(Lead.assigned_seller_id.is_(None))
-
-    total = (await db.execute(count_query)).scalar()
-    offset = (page - 1) * per_page
-
-    result = await db.execute(
-        query.order_by(Lead.created_at.desc()).offset(offset).limit(per_page)
-    )
-    leads = result.scalars().all()
-
-    return {
-        "items": [lead_to_response(lead) for lead in leads],
-        "total": total,
-        "page": page,
-        "per_page": per_page,
-        "pages": (total + per_page - 1) // per_page if total > 0 else 0,
-    }
+        return {
+            "items": [lead_to_response(lead) for lead in leads],
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": (total + per_page - 1) // per_page if total > 0 else 0,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao listar leads: {e}")
+        raise HTTPException(500, f"Erro interno: {str(e)}")
 
 
 # ===============================
 # DETALHE DO LEAD
 # ===============================
 @router.get("/{lead_id}")
-async def get_lead(lead_id: int, tenant_slug: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
-    tenant = result.scalar_one_or_none()
-    if not tenant:
-        raise HTTPException(404, "Tenant não encontrado")
+async def get_lead(
+    lead_id: int,
+    tenant_slug: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retorna detalhes de um lead específico."""
+    try:
+        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
+        tenant = result.scalar_one_or_none()
+        if not tenant:
+            raise HTTPException(404, "Tenant não encontrado")
 
-    result = await db.execute(
-        select(Lead)
-        .where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
-        .options(selectinload(Lead.assigned_seller))
-    )
-    lead = result.scalar_one_or_none()
-    if not lead:
-        raise HTTPException(404, "Lead não encontrado")
+        result = await db.execute(
+            select(Lead)
+            .where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
+            .options(selectinload(Lead.assigned_seller))
+        )
+        lead = result.scalar_one_or_none()
+        if not lead:
+            raise HTTPException(404, "Lead não encontrado")
 
-    return lead_to_response(lead)
+        return lead_to_response(lead)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao buscar lead {lead_id}: {e}")
+        raise HTTPException(500, f"Erro interno: {str(e)}")
 
 
 # ===============================
@@ -193,48 +230,138 @@ async def update_lead(
     payload: LeadUpdate,
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
-    tenant = result.scalar_one_or_none()
-    if not tenant:
-        raise HTTPException(404, "Tenant não encontrado")
+    """Atualiza dados de um lead."""
+    try:
+        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
+        tenant = result.scalar_one_or_none()
+        if not tenant:
+            raise HTTPException(404, "Tenant não encontrado")
 
-    result = await db.execute(
-        select(Lead)
-        .where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
-        .options(selectinload(Lead.assigned_seller))
-    )
-    lead = result.scalar_one_or_none()
-    if not lead:
-        raise HTTPException(404, "Lead não encontrado")
+        result = await db.execute(
+            select(Lead)
+            .where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
+            .options(selectinload(Lead.assigned_seller))
+        )
+        lead = result.scalar_one_or_none()
+        if not lead:
+            raise HTTPException(404, "Lead não encontrado")
 
-    update_data = payload.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        if hasattr(lead, field):
-            setattr(lead, field, value)
+        update_data = payload.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            if hasattr(lead, field):
+                setattr(lead, field, value)
 
-    await db.commit()
-    await db.refresh(lead)
-    return lead_to_response(lead)
+        await db.commit()
+        await db.refresh(lead)
+        return lead_to_response(lead)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao atualizar lead {lead_id}: {e}")
+        raise HTTPException(500, f"Erro interno: {str(e)}")
 
 
 # ===============================
-# MENSAGENS DO LEAD
+# MENSAGENS DO LEAD (CORRIGIDO!)
 # ===============================
-@router.get("/{lead_id}/messages", response_model=list[MessageResponse])
-async def get_lead_messages(lead_id: int, tenant_slug: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
-    tenant = result.scalar_one_or_none()
-    if not tenant:
-        raise HTTPException(404, "Tenant não encontrado")
+@router.get("/{lead_id}/messages")
+async def get_lead_messages(
+    lead_id: int,
+    tenant_slug: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Retorna mensagens de um lead.
+    
+    CORREÇÃO: Não usa mais MessageResponse.model_validate()
+    que estava causando erro 500.
+    """
+    try:
+        logger.info(f"Buscando mensagens do lead {lead_id} - tenant: {tenant_slug}")
+        
+        # Busca tenant
+        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
+        tenant = result.scalar_one_or_none()
+        if not tenant:
+            logger.warning(f"Tenant não encontrado: {tenant_slug}")
+            raise HTTPException(404, "Tenant não encontrado")
 
-    result = await db.execute(select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant.id))
-    if not result.scalar_one_or_none():
-        raise HTTPException(404, "Lead não encontrado")
+        # Verifica se lead existe e pertence ao tenant
+        result = await db.execute(
+            select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
+        )
+        lead = result.scalar_one_or_none()
+        if not lead:
+            logger.warning(f"Lead não encontrado: {lead_id} para tenant {tenant.id}")
+            raise HTTPException(404, "Lead não encontrado")
 
-    result = await db.execute(
-        select(Message).where(Message.lead_id == lead_id).order_by(Message.created_at.asc())
-    )
-    return [MessageResponse.model_validate(m) for m in result.scalars().all()]
+        # Busca mensagens
+        result = await db.execute(
+            select(Message)
+            .where(Message.lead_id == lead_id)
+            .order_by(Message.created_at.asc())
+        )
+        messages = result.scalars().all()
+        
+        logger.info(f"Encontradas {len(messages)} mensagens para lead {lead_id}")
+        
+        # Converte para dict (sem usar schema que pode quebrar)
+        return [message_to_response(m) for m in messages]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao buscar mensagens do lead {lead_id}: {e}", exc_info=True)
+        raise HTTPException(500, f"Erro ao carregar mensagens: {str(e)}")
+
+
+# ===============================
+# HISTÓRICO/EVENTOS DO LEAD
+# ===============================
+@router.get("/{lead_id}/events")
+async def get_lead_events(
+    lead_id: int,
+    tenant_slug: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retorna histórico de eventos do lead."""
+    try:
+        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
+        tenant = result.scalar_one_or_none()
+        if not tenant:
+            raise HTTPException(404, "Tenant não encontrado")
+
+        result = await db.execute(
+            select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
+        )
+        if not result.scalar_one_or_none():
+            raise HTTPException(404, "Lead não encontrado")
+
+        result = await db.execute(
+            select(LeadEvent)
+            .where(LeadEvent.lead_id == lead_id)
+            .order_by(LeadEvent.created_at.desc())
+        )
+        events = result.scalars().all()
+        
+        return [
+            {
+                "id": e.id,
+                "lead_id": e.lead_id,
+                "event_type": e.event_type,
+                "old_value": e.old_value,
+                "new_value": e.new_value,
+                "description": e.description,
+                "created_by": e.created_by,
+                "created_at": e.created_at.isoformat() if e.created_at else None,
+            }
+            for e in events
+        ]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao buscar eventos do lead {lead_id}: {e}")
+        raise HTTPException(500, f"Erro interno: {str(e)}")
 
 
 # ===============================
@@ -247,40 +374,48 @@ async def handoff_lead(
     user_id: int = Query(...),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
-    tenant = result.scalar_one_or_none()
-    if not tenant:
-        raise HTTPException(404, "Tenant não encontrado")
+    """Transfere lead para atendimento humano."""
+    try:
+        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
+        tenant = result.scalar_one_or_none()
+        if not tenant:
+            raise HTTPException(404, "Tenant não encontrado")
 
-    result = await db.execute(select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant.id))
-    lead = result.scalar_one_or_none()
-    if not lead:
-        raise HTTPException(404, "Lead não encontrado")
-
-    old_status = lead.status
-    lead.status = "handed_off"
-    lead.assigned_to = user_id
-    lead.handed_off_at = datetime.utcnow()
-
-    db.add(
-        LeadEvent(
-            lead_id=lead.id,
-            event_type="status_change",
-            old_value=old_status,
-            new_value="handed_off",
-            description="Lead transferido para atendimento humano",
-            created_by=user_id,
+        result = await db.execute(
+            select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
         )
-    )
+        lead = result.scalar_one_or_none()
+        if not lead:
+            raise HTTPException(404, "Lead não encontrado")
 
-    await db.commit()
-    return {"success": True, "message": "Lead transferido com sucesso"}
+        old_status = lead.status
+        lead.status = "handed_off"
+        lead.assigned_to = user_id
+        lead.handed_off_at = datetime.utcnow()
+
+        db.add(
+            LeadEvent(
+                lead_id=lead.id,
+                event_type="status_change",
+                old_value=old_status,
+                new_value="handed_off",
+                description="Lead transferido para atendimento humano",
+                created_by=user_id,
+            )
+        )
+
+        await db.commit()
+        return {"success": True, "message": "Lead transferido com sucesso"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro no handoff do lead {lead_id}: {e}")
+        raise HTTPException(500, f"Erro interno: {str(e)}")
 
 
-# =====================================================
-# NOVO ENDPOINT COMPATÍVEL COM O FRONT
-# (POST /assign-seller)
-# =====================================================
+# ===============================
+# ATRIBUIR VENDEDOR
+# ===============================
 @router.post("/{lead_id}/assign-seller")
 async def assign_seller_compat(
     lead_id: int,
@@ -288,28 +423,34 @@ async def assign_seller_compat(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    lead = await db.get(Lead, lead_id)
-    seller = await db.get(Seller, payload.seller_id)
-    tenant = await db.get(Tenant, current_user.tenant_id)
+    """Atribui um vendedor ao lead."""
+    try:
+        lead = await db.get(Lead, lead_id)
+        seller = await db.get(Seller, payload.seller_id)
+        tenant = await db.get(Tenant, current_user.tenant_id)
 
-    if not lead or not seller:
-        raise HTTPException(404, "Lead ou vendedor não encontrado")
+        if not lead or not seller:
+            raise HTTPException(404, "Lead ou vendedor não encontrado")
 
-    if lead.assigned_seller_id:
-        raise HTTPException(400, "Lead já possui vendedor atribuído")
+        if lead.assigned_seller_id:
+            raise HTTPException(400, "Lead já possui vendedor atribuído")
 
-    await assign_lead_to_seller(
-        db=db,
-        lead=lead,
-        seller=seller,
-        tenant=tenant,
-        method="manual",
-        reason=payload.reason or "Atribuição manual via dashboard",
-    )
+        await assign_lead_to_seller(
+            db=db,
+            lead=lead,
+            seller=seller,
+            tenant=tenant,
+            method="manual",
+            reason=payload.reason or "Atribuição manual via dashboard",
+        )
 
-    await db.commit()
-
-    return {"success": True, "message": "Lead atribuído com sucesso"}
+        await db.commit()
+        return {"success": True, "message": "Lead atribuído com sucesso"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao atribuir vendedor ao lead {lead_id}: {e}")
+        raise HTTPException(500, f"Erro interno: {str(e)}")
 
 
 # ===============================
@@ -322,32 +463,99 @@ async def unassign_lead_from_seller(
     tenant: Tenant = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
-    )
-    lead = result.scalar_one_or_none()
-
-    if not lead:
-        raise HTTPException(404, "Lead não encontrado")
-
-    if not lead.assigned_seller_id:
-        raise HTTPException(400, "Lead não tem vendedor atribuído")
-
-    previous_seller_id = lead.assigned_seller_id
-    lead.assigned_seller_id = None
-    lead.assigned_at = None
-    lead.assignment_method = None
-
-    db.add(
-        LeadEvent(
-            lead_id=lead.id,
-            event_type="seller_unassigned",
-            old_value=str(previous_seller_id),
-            new_value=None,
-            description=f"Atribuição removida por {user.name}",
-            created_by=user.id,
+    """Remove atribuição de vendedor do lead."""
+    try:
+        result = await db.execute(
+            select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
         )
-    )
+        lead = result.scalar_one_or_none()
 
-    await db.commit()
-    return {"success": True, "message": "Atribuição removida com sucesso"}
+        if not lead:
+            raise HTTPException(404, "Lead não encontrado")
+
+        if not lead.assigned_seller_id:
+            raise HTTPException(400, "Lead não tem vendedor atribuído")
+
+        previous_seller_id = lead.assigned_seller_id
+        lead.assigned_seller_id = None
+        lead.assigned_at = None
+        lead.assignment_method = None
+
+        db.add(
+            LeadEvent(
+                lead_id=lead.id,
+                event_type="seller_unassigned",
+                old_value=str(previous_seller_id),
+                new_value=None,
+                description=f"Atribuição removida por {user.name}",
+                created_by=user.id,
+            )
+        )
+
+        await db.commit()
+        return {"success": True, "message": "Atribuição removida com sucesso"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao remover atribuição do lead {lead_id}: {e}")
+        raise HTTPException(500, f"Erro interno: {str(e)}")
+
+
+# ===============================
+# ESTATÍSTICAS RÁPIDAS
+# ===============================
+@router.get("/stats/summary")
+async def get_leads_summary(
+    tenant_slug: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retorna resumo de leads do tenant."""
+    try:
+        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
+        tenant = result.scalar_one_or_none()
+        if not tenant:
+            raise HTTPException(404, "Tenant não encontrado")
+
+        # Total de leads
+        total = (await db.execute(
+            select(func.count(Lead.id)).where(Lead.tenant_id == tenant.id)
+        )).scalar() or 0
+
+        # Por qualificação
+        quente = (await db.execute(
+            select(func.count(Lead.id))
+            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.qualification.in_(["quente", "hot"]))
+        )).scalar() or 0
+
+        morno = (await db.execute(
+            select(func.count(Lead.id))
+            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.qualification.in_(["morno", "warm"]))
+        )).scalar() or 0
+
+        frio = (await db.execute(
+            select(func.count(Lead.id))
+            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.qualification.in_(["frio", "cold", None]))
+        )).scalar() or 0
+
+        # Sem atribuição
+        unassigned = (await db.execute(
+            select(func.count(Lead.id))
+            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.assigned_seller_id.is_(None))
+        )).scalar() or 0
+
+        return {
+            "total": total,
+            "quente": quente,
+            "morno": morno,
+            "frio": frio,
+            "unassigned": unassigned,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao buscar stats de leads: {e}")
+        raise HTTPException(500, f"Erro interno: {str(e)}")
