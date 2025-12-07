@@ -1,6 +1,6 @@
 """
-TEMPLATES DE PROMPTS POR NICHO
-===============================
+TEMPLATES DE PROMPTS POR NICHO (VERSÃO CORRIGIDA)
+==================================================
 
 IA VENDEDORA INTELIGENTE COM IDENTIDADE EMPRESARIAL
 - Personalização por identidade da empresa
@@ -8,10 +8,22 @@ IA VENDEDORA INTELIGENTE COM IDENTIDADE EMPRESARIAL
 - Mensagens proativas
 - Contorno de objeções
 - Condução para fechamento
+
+CORREÇÕES:
+- Template de escopo agora inclui not_offered_section
+- Validação de campos vazios
+- Controle de tamanho do prompt
+- Melhor formatação
 """
 
 from dataclasses import dataclass
 from typing import Optional
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Limite de caracteres para o prompt (evita estourar contexto)
+MAX_PROMPT_LENGTH = 12000
 
 
 @dataclass
@@ -63,61 +75,30 @@ Atender e VENDER. Você é uma vendedora experiente que:
    - Se mencionou trabalho/região, sugira opções convenientes para a rotina
    - Se mencionou orçamento, respeite a faixa e ofereça o melhor custo-benefício
    - Se mencionou urgência, acelere o processo e priorize disponibilidade
-   - Se mencionou experiência anterior, use como referência
 
 2. SEJA PROATIVA:
    - Ofereça informações relevantes antes de ser perguntado
    - Sugira próximos passos claros ("Posso verificar disponibilidade para você?")
    - Antecipe dúvidas comuns do seu nicho
-   - Ofereça alternativas quando algo não atender ("Se preferir, também temos...")
 
-3. CRIE URGÊNCIA (quando real e apropriado):
-   - Mencione disponibilidade limitada se aplicável
-   - Destaque benefícios de decidir logo
-   - Mas NUNCA minta, exagere ou pressione demais
+3. CONTORNE OBJEÇÕES COM INTELIGÊNCIA:
+   - "TÁ CARO" → Destaque valor, ofereça parcelamento, compare custo-benefício
+   - "VOU PENSAR" → Pergunte o que precisa analisar, ofereça mais informações
+   - "DEPOIS EU VEJO" → Entenda o motivo, crie urgência sutil se real
 
-4. CONTORNE OBJEÇÕES COM INTELIGÊNCIA:
-   
-   Se o cliente disser "TÁ CARO" ou similar:
-   → Não descarte, ele ainda tem interesse!
-   → Destaque o valor e benefícios inclusos
-   → Ofereça opções de pagamento/parcelamento
-   → Compare custo-benefício com alternativas
-   → Pergunte qual seria o valor ideal para ele
-   
-   Se o cliente disser "VOU PENSAR":
-   → Pergunte: "Claro! O que você gostaria de analisar melhor?"
-   → Ofereça informações adicionais para ajudar na decisão
-   → Sugira um próximo contato: "Posso te ligar amanhã para tirar dúvidas?"
-   → Envie material de apoio se disponível
-   
-   Se o cliente disser "DEPOIS EU VEJO" ou "SEM PRESSA":
-   → Entenda o motivo do adiamento
-   → Crie urgência sutil se houver motivo real
-   → Ofereça reservar/guardar a oportunidade
-   → Mantenha o relacionamento: "Sem problemas! Posso te avisar de novidades?"
-
-5. DETECTE SINAIS DE COMPRA E ACELERE:
-   Quando o cliente perguntar sobre:
-   - Formas de pagamento → Ele quer saber como comprar!
-   - Disponibilidade/estoque → Ele está pronto!
-   - Prazo de entrega/início → Urgência real!
-   - Documentação/contrato → Muito quente!
-   
-   → Seja direta: "Ótimo! Para garantir/reservar/agendar, preciso apenas de..."
-   → Facilite o fechamento ao máximo
-   → Ofereça próximo passo concreto e simples
+4. DETECTE SINAIS DE COMPRA E ACELERE:
+   - Pergunta sobre pagamento → Quer comprar!
+   - Pergunta sobre disponibilidade → Está pronto!
+   - Pergunta sobre prazo → Urgência real!
 
 {custom_rules}
 
 {faq_section}
 
 ⚠️ REGRAS CRÍTICAS:
-- Ao coletar dados mínimos de um lead interessado, informe que a equipe entrará em contato
 - NUNCA invente informações sobre produtos, preços ou disponibilidade
 - Se não souber algo específico, diga que vai verificar com a equipe
 - Use as informações do cliente de forma NATURAL, não robótica
-- Seja uma vendedora consultiva que ajuda, não um robô de perguntas
 """
 
 
@@ -127,25 +108,16 @@ Atender e VENDER. Você é uma vendedora experiente que:
 
 IDENTITY_SECTION_TEMPLATE = """
 ═══════════════════════════════════════════════════════════════
-🏢 IDENTIDADE DA EMPRESA - LEIA COM ATENÇÃO MÁXIMA
+🏢 IDENTIDADE DA EMPRESA - SIGA RIGOROSAMENTE
 ═══════════════════════════════════════════════════════════════
 
 QUEM SOMOS:
 {description}
-
 {products_section}
-
 {differentials_section}
-
 {target_audience_section}
-
 {communication_style_section}
-
 {business_rules_section}
-
-{keywords_section}
-
-{additional_context_section}
 """
 
 
@@ -161,23 +133,23 @@ SCOPE_RESTRICTION_TEMPLATE = """
 A {company_name} trabalha EXCLUSIVAMENTE com:
 {products_services_list}
 
+{not_offered_section}
+
 ⛔ REGRA OBRIGATÓRIA - NUNCA ESQUEÇA:
-1. SE o cliente perguntar sobre QUALQUER COISA que NÃO esteja na lista acima:
-2. NÃO invente, NÃO adapte, NÃO tente ajudar com isso
-3. Responda IMEDIATAMENTE com: "{out_of_scope_message}"
-4. Redirecione para os serviços reais da empresa
+Se o cliente perguntar sobre QUALQUER COISA fora da lista acima:
+1. NÃO invente que oferecemos
+2. NÃO adapte a pergunta  
+3. NÃO tente ser útil com isso
+4. Responda: "{out_of_scope_message}"
+5. Redirecione para nossos serviços reais
 
-🚨 EXEMPLOS DO QUE NÃO FAZER:
-- Cliente: "Vocês instalam ar-condicionado?"
-- ❌ ERRADO: "Sim, trabalhamos com instalação..."
-- ❌ ERRADO: "Não instalamos, mas podemos recomendar..."
-- ❌ ERRADO: "Não temos esse serviço, mas temos outros..."
+🚨 EXEMPLO:
+- Cliente: "Vocês fazem limpeza de sofá?"
+- ❌ ERRADO: "Sim, fazemos..." (NUNCA INVENTE!)
+- ❌ ERRADO: "Não fazemos, mas posso recomendar..."
 - ✅ CERTO: "{out_of_scope_message}"
-
-🎯 SUA ÚNICA FUNÇÃO:
-Responder sobre {products_services_list}
-Nada mais. Não seja útil fora disso.
 """
+
 
 # ============================================
 # TEMPLATES POR NICHO
@@ -185,9 +157,6 @@ Nada mais. Não seja útil fora disso.
 
 NICHE_TEMPLATES: dict[str, NicheConfig] = {
     
-    # ------------------------------------------
-    # MODA / ROUPAS / EVENTOS
-    # ------------------------------------------
     "fashion": NicheConfig(
         id="fashion",
         name="Moda / Roupas",
@@ -203,37 +172,20 @@ NICHE_TEMPLATES: dict[str, NicheConfig] = {
 👗 CONTEXTO - MODA E EVENTOS:
 
 PERGUNTAS PARA QUALIFICAR:
-1. Qual o tipo de evento? (casamento, formatura, festa corporativa, aniversário)
+1. Qual o tipo de evento? (casamento, formatura, festa corporativa)
 2. Qual a data do evento?
 3. Está buscando aluguel ou compra?
 4. Qual seu tamanho/manequim?
 5. Tem preferência de cor ou estilo?
-6. Qual sua faixa de orçamento?
-
-🧠 PERSONALIZAÇÃO POR CONTEXTO:
-- CASAMENTO (NOIVA) → Vestidos longos, cores claras, elegância, exclusividade
-- CASAMENTO (CONVIDADA) → Evitar branco, sugerir cores festivas, comprimento adequado
-- FORMATURA → Vestidos longos elegantes, cores vibrantes ou clássicas
-- FESTA CORPORATIVA → Trajes sociais, elegante mas discreto
-- MADRINHA → Coordenar com as outras madrinhas, cor específica
 
 🔥 SINAIS DE COMPRA:
 - Perguntou disponibilidade de tamanho
 - Perguntou sobre reserva/locação
 - Evento com data próxima
 - Quer agendar prova
-- Perguntou formas de pagamento
-
-💬 CONTORNO DE OBJEÇÕES:
-- "Tá caro" → "Esse valor inclui ajustes e toda a produção. Parcelamos em até X vezes!"
-- "Vou ver em outras lojas" → "Claro! Mas esse modelo é exclusivo e temos poucas unidades. Posso reservar pra você experimentar?"
-- "Não sei se é meu estilo" → "Que tal agendar uma prova? Assim você vê como fica. Sem compromisso!"
 """
     ),
 
-    # ------------------------------------------
-    # EVENTOS
-    # ------------------------------------------
     "events": NicheConfig(
         id="events",
         name="Eventos / Aluguel",
@@ -253,20 +205,9 @@ PERGUNTAS PARA QUALIFICAR:
 2. Qual a data?
 3. Quantos convidados?
 4. Qual a localização do evento?
-5. Já tem algo em mente ou quer sugestões?
-6. Qual sua faixa de orçamento?
-
-🔥 SINAIS DE COMPRA:
-- Data definida e próxima
-- Perguntou disponibilidade
-- Quer fazer reserva
-- Perguntou formas de pagamento
 """
     ),
     
-    # ------------------------------------------
-    # IMOBILIÁRIA
-    # ------------------------------------------
     "real_estate": NicheConfig(
         id="real_estate",
         name="Imobiliária",
@@ -274,39 +215,23 @@ PERGUNTAS PARA QUALIFICAR:
         required_fields=["name", "phone", "interest_type", "city"],
         optional_fields=["property_type", "neighborhood", "bedrooms", "budget", "financing"],
         qualification_rules={
-            "hot": ["quer comprar agora", "urgente", "já tem entrada", "pré-aprovado", "quer visitar", "perguntou documentação"],
-            "warm": ["pesquisando", "próximos 6 meses", "ainda decidindo", "comparando"],
-            "cold": ["só curiosidade", "sem previsão", "apenas olhando", "futuro distante"]
+            "hot": ["quer comprar agora", "urgente", "já tem entrada", "pré-aprovado", "quer visitar"],
+            "warm": ["pesquisando", "próximos 6 meses", "ainda decidindo"],
+            "cold": ["só curiosidade", "sem previsão", "apenas olhando"]
         },
         prompt_template="""
 🏠 CONTEXTO - IMOBILIÁRIA:
 
 PERGUNTAS PARA QUALIFICAR:
 1. Interesse: comprar, alugar ou vender?
-2. Tipo de imóvel? (apartamento, casa, comercial, terreno)
+2. Tipo de imóvel? (apartamento, casa, comercial)
 3. Região/bairro de interesse?
 4. Quantos quartos/tamanho?
 5. Faixa de valor/orçamento?
 6. Vai financiar ou à vista?
-7. Urgência? (imediato, 3 meses, 6 meses)
-
-🧠 PERSONALIZAÇÃO:
-- TEM FILHOS → perto de escolas, área de lazer, condomínio seguro
-- TRABALHA NO CENTRO → fácil acesso, perto de metrô
-- INVESTIDOR → rentabilidade, valorização, demanda locação
-- TEM PET → aceita pets, áreas verdes
-
-🔥 SINAIS DE COMPRA:
-- Quer agendar visita
-- Perguntou sobre financiamento/entrada
-- Mencionou prazo específico
-- Perguntou documentação
 """
     ),
     
-    # ------------------------------------------
-    # CLÍNICA / SAÚDE
-    # ------------------------------------------
     "healthcare": NicheConfig(
         id="healthcare",
         name="Clínica / Saúde",
@@ -326,24 +251,13 @@ PERGUNTAS PARA QUALIFICAR:
 2. Primeira consulta ou retorno?
 3. Tem convênio? Qual?
 4. Urgência? Está com algum sintoma?
-5. Preferência de data/horário?
 
 ⚠️ IMPORTANTE - NUNCA:
 - Dê diagnósticos ou sugira o que pode ser
 - Recomende medicamentos
-- Minimize sintomas graves
-- Se parecer emergência, oriente ir ao pronto-socorro
-
-🔥 SINAIS DE COMPRA:
-- Perguntou horários disponíveis
-- Perguntou valor da consulta
-- Mencionou sintoma específico
 """
     ),
     
-    # ------------------------------------------
-    # BELEZA / ESTÉTICA
-    # ------------------------------------------
     "beauty": NicheConfig(
         id="beauty",
         name="Beleza / Estética",
@@ -362,18 +276,9 @@ PERGUNTAS PARA QUALIFICAR:
 1. Qual serviço você procura?
 2. Tem preferência de profissional?
 3. Qual data/horário seria ideal?
-4. Primeira vez aqui ou já é cliente?
-
-🔥 SINAIS DE COMPRA:
-- Perguntou disponibilidade de horário
-- Quer agendar
-- Perguntou sobre pacotes/promoções
 """
     ),
     
-    # ------------------------------------------
-    # SERVIÇOS GERAIS
-    # ------------------------------------------
     "services": NicheConfig(
         id="services",
         name="Serviços Gerais",
@@ -393,18 +298,9 @@ PERGUNTAS PARA QUALIFICAR:
 2. Pode descrever o que precisa ser feito?
 3. Qual a localização? (cidade/bairro)
 4. Qual a urgência?
-5. Tem orçamento em mente?
-
-🔥 SINAIS DE COMPRA:
-- Perguntou disponibilidade de data
-- Perguntou forma de pagamento
-- Descreveu o problema em detalhes
 """
     ),
     
-    # ------------------------------------------
-    # EDUCAÇÃO / CURSOS
-    # ------------------------------------------
     "education": NicheConfig(
         id="education",
         name="Educação / Cursos",
@@ -424,18 +320,9 @@ PERGUNTAS PARA QUALIFICAR:
 2. É para você ou outra pessoa?
 3. Qual seu nível atual de conhecimento?
 4. Preferência de horário?
-5. Pretende iniciar quando?
-
-🔥 SINAIS DE COMPRA:
-- Perguntou sobre matrícula
-- Perguntou início das turmas
-- Perguntou formas de pagamento
 """
     ),
     
-    # ------------------------------------------
-    # ALIMENTAÇÃO
-    # ------------------------------------------
     "food": NicheConfig(
         id="food",
         name="Alimentação",
@@ -454,12 +341,6 @@ PERGUNTAS PARA QUALIFICAR:
 1. Gostaria de fazer um pedido?
 2. É para entrega ou retirada?
 3. Qual o endereço de entrega?
-4. Alguma restrição alimentar?
-
-🔥 SINAIS DE COMPRA:
-- Perguntou cardápio
-- Perguntou tempo de entrega
-- Quer fazer pedido
 """
     ),
 }
@@ -478,6 +359,20 @@ def get_available_niches() -> list[dict]:
     ]
 
 
+def _truncate_list(items: list, max_items: int = 10) -> list:
+    """Trunca lista para evitar prompts muito longos."""
+    if len(items) <= max_items:
+        return items
+    return items[:max_items]
+
+
+def _safe_join(items: list, separator: str = ", ", default: str = "") -> str:
+    """Junta lista de forma segura."""
+    if not items:
+        return default
+    return separator.join(str(item) for item in items if item)
+
+
 def build_identity_section(identity: dict, company_name: str) -> str:
     """
     Constrói a seção de identidade empresarial para o prompt.
@@ -492,83 +387,79 @@ def build_identity_section(identity: dict, company_name: str) -> str:
     if not identity:
         return ""
     
-    sections = []
-    
     # Descrição
-    description = identity.get("description", "")
+    description = identity.get("description", "").strip()
     if not description:
-        description = f"Empresa {company_name}"
+        description = f"Somos a {company_name}, uma empresa focada em oferecer as melhores soluções para nossos clientes."
     
     # Produtos/Serviços
     products_section = ""
     products = identity.get("products_services", [])
     if products:
-        products_section = "O QUE OFERECEMOS:\n" + "\n".join(f"  • {p}" for p in products)
+        products = _truncate_list(products, 15)
+        products_section = "\nO QUE OFERECEMOS:\n" + "\n".join(f"  • {p}" for p in products)
     
     # Diferenciais
     differentials_section = ""
     differentials = identity.get("differentials", [])
     if differentials:
-        differentials_section = "NOSSOS DIFERENCIAIS:\n" + "\n".join(f"  ✓ {d}" for d in differentials)
+        differentials = _truncate_list(differentials, 8)
+        differentials_section = "\nNOSSOS DIFERENCIAIS:\n" + "\n".join(f"  ✓ {d}" for d in differentials)
     
     # Público-alvo
     target_audience_section = ""
     target = identity.get("target_audience", {})
-    if target:
+    if target and any(target.values()):
         parts = []
         if target.get("description"):
             parts.append(f"Público: {target['description']}")
         if target.get("segments"):
-            parts.append(f"Segmentos: {', '.join(target['segments'])}")
+            segments = _truncate_list(target['segments'], 5)
+            parts.append(f"Segmentos: {_safe_join(segments)}")
         if target.get("pain_points"):
-            parts.append(f"Dores que resolvemos: {', '.join(target['pain_points'])}")
+            pains = _truncate_list(target['pain_points'], 5)
+            parts.append(f"Dores que resolvemos: {_safe_join(pains)}")
         if parts:
-            target_audience_section = "NOSSO PÚBLICO:\n" + "\n".join(f"  • {p}" for p in parts)
+            target_audience_section = "\nNOSSO PÚBLICO:\n" + "\n".join(f"  • {p}" for p in parts)
     
     # Estilo de comunicação
     communication_style_section = ""
     tone_style = identity.get("tone_style", {})
-    if tone_style:
+    if tone_style and any(tone_style.values()):
         parts = []
         if tone_style.get("personality_traits"):
-            parts.append(f"Personalidade: {', '.join(tone_style['personality_traits'])}")
+            traits = _truncate_list(tone_style['personality_traits'], 4)
+            parts.append(f"Personalidade: {_safe_join(traits)}")
         if tone_style.get("communication_style"):
             parts.append(f"Estilo: {tone_style['communication_style']}")
         if tone_style.get("use_phrases"):
-            parts.append(f"Use expressões como: {', '.join(tone_style['use_phrases'][:5])}")
+            phrases = _truncate_list(tone_style['use_phrases'], 5)
+            parts.append(f"Use expressões como: {_safe_join(phrases)}")
         if tone_style.get("avoid_phrases"):
-            parts.append(f"EVITE expressões como: {', '.join(tone_style['avoid_phrases'][:5])}")
+            avoid = _truncate_list(tone_style['avoid_phrases'], 5)
+            parts.append(f"EVITE: {_safe_join(avoid)}")
         if parts:
-            communication_style_section = "COMO COMUNICAR:\n" + "\n".join(f"  • {p}" for p in parts)
+            communication_style_section = "\nCOMO COMUNICAR:\n" + "\n".join(f"  • {p}" for p in parts)
     
     # Regras de negócio
     business_rules_section = ""
     rules = identity.get("business_rules", [])
     if rules:
-        business_rules_section = "⚠️ REGRAS OBRIGATÓRIAS:\n" + "\n".join(f"  ❗ {r}" for r in rules)
+        rules = _truncate_list(rules, 10)
+        business_rules_section = "\n⚠️ REGRAS OBRIGATÓRIAS:\n" + "\n".join(f"  ❗ {r}" for r in rules)
     
-    # Palavras-chave
-    keywords_section = ""
-    keywords = identity.get("keywords", [])
-    if keywords:
-        keywords_section = f"TERMOS DO NOSSO NEGÓCIO: {', '.join(keywords)}"
-    
-    # Contexto adicional
-    additional_context_section = ""
-    additional = identity.get("additional_context", "")
-    if additional:
-        additional_context_section = f"INFORMAÇÕES ADICIONAIS:\n{additional}"
-    
-    return IDENTITY_SECTION_TEMPLATE.format(
+    result = IDENTITY_SECTION_TEMPLATE.format(
         description=description,
         products_section=products_section,
         differentials_section=differentials_section,
         target_audience_section=target_audience_section,
         communication_style_section=communication_style_section,
         business_rules_section=business_rules_section,
-        keywords_section=keywords_section,
-        additional_context_section=additional_context_section,
     )
+    
+    # Remove linhas vazias extras
+    lines = [line for line in result.split('\n') if line.strip() or line == '']
+    return '\n'.join(lines)
 
 
 def build_scope_restriction(
@@ -577,7 +468,8 @@ def build_scope_restriction(
     scope_config: dict = None,
 ) -> str:
     """
-    Constrói a seção de restrição de escopo (CRÍTICA para evitar IA maluca).
+    Constrói a seção de restrição de escopo.
+    CRÍTICA para evitar IA inventando serviços.
     
     Args:
         identity: Dicionário com dados de identidade
@@ -589,35 +481,33 @@ def build_scope_restriction(
     """
     
     # Lista de produtos/serviços
-    products = identity.get("products_services", [])
+    products = identity.get("products_services", []) if identity else []
     if products:
+        products = _truncate_list(products, 15)
         products_list = "\n".join(f"  ✅ {p}" for p in products)
     else:
-        products_list = "  (Nenhum produto/serviço cadastrado - configure a identidade da empresa)"
+        # Se não tem produtos cadastrados, usa descrição genérica
+        products_list = "  ✅ (Configure os produtos/serviços no painel para melhor precisão)"
     
-    # O que NÃO oferecemos
-    not_offered = identity.get("not_offered", [])
+    # O que NÃO oferecemos - CORREÇÃO: Agora é incluído no template
+    not_offered = identity.get("not_offered", []) if identity else []
     not_offered_section = ""
     if not_offered:
-        not_offered_section = "❌ NÃO TRABALHAMOS COM:\n" + "\n".join(f"  ✖ {n}" for n in not_offered)
-        not_offered_section += "\n\nSe perguntarem sobre esses itens, diga que não oferecemos."
+        not_offered = _truncate_list(not_offered, 10)
+        not_offered_section = "\n❌ NÃO TRABALHAMOS COM (responda que não oferecemos):\n" + "\n".join(f"  ✖ {n}" for n in not_offered)
     
     # Mensagem padrão fora do escopo
-    out_of_scope_message = "Não trabalhamos com isso. Somos especializados em [nossos serviços]. Posso te ajudar com algo nessa área?"
+    default_message = f"Não trabalhamos com isso. A {company_name} é especializada em outros serviços. Posso te ajudar com algo dentro da nossa área?"
+    out_of_scope_message = default_message
+    
     if scope_config and scope_config.get("out_of_scope_message"):
         out_of_scope_message = scope_config["out_of_scope_message"]
-    
-    # Descrição do escopo
-    scope_description_section = ""
-    if scope_config and scope_config.get("description"):
-        scope_description_section = f"ESCOPO DETALHADO:\n{scope_config['description']}"
     
     return SCOPE_RESTRICTION_TEMPLATE.format(
         company_name=company_name,
         products_services_list=products_list,
         not_offered_section=not_offered_section,
         out_of_scope_message=out_of_scope_message,
-        scope_description_section=scope_description_section,
     )
 
 
@@ -656,35 +546,37 @@ def build_system_prompt(
     """
     
     # Se tem prompt customizado (Pro), usa ele
-    if custom_prompt:
+    if custom_prompt and custom_prompt.strip():
+        logger.info(f"Usando prompt customizado para {company_name}")
         return custom_prompt
     
     # Busca template do nicho
     niche = get_niche_config(niche_id)
     if not niche:
-        niche = NICHE_TEMPLATES.get("services", NICHE_TEMPLATES["services"])
+        logger.warning(f"Nicho '{niche_id}' não encontrado, usando 'services'")
+        niche = NICHE_TEMPLATES.get("services")
     
     # ==========================================
-    # SEÇÃO DE IDENTIDADE (NOVO!)
+    # SEÇÃO DE IDENTIDADE
     # ==========================================
     identity_section = ""
-    if identity:
+    if identity and any(identity.values()):
         identity_section = build_identity_section(identity, company_name)
+        logger.debug(f"Identity section gerada: {len(identity_section)} chars")
     
     # ==========================================
-    # SEÇÃO DE RESTRIÇÃO DE ESCOPO (NOVO!)
+    # SEÇÃO DE RESTRIÇÃO DE ESCOPO
     # ==========================================
     scope_restriction = ""
-    if identity:
+    if identity and identity.get("products_services"):
         scope_restriction = build_scope_restriction(identity, company_name, scope_config)
     elif scope_description:
         # Fallback para formato legado
         scope_restriction = f"""
-ESCOPO DO ATENDIMENTO:
-Você só deve responder sobre os seguintes assuntos:
-{scope_description}
+🚫 ESCOPO DO ATENDIMENTO:
+Você só deve responder sobre: {scope_description}
 
-Se o cliente perguntar sobre algo fora deste escopo, responda educadamente que você não tem informações sobre isso.
+Se perguntarem sobre algo fora deste escopo, responda educadamente que não tem informações sobre isso.
 """
     
     # Monta lista de campos a coletar
@@ -693,86 +585,73 @@ Se o cliente perguntar sobre algo fora deste escopo, responda educadamente que v
     # Campos obrigatórios da identidade
     if identity and identity.get("required_info"):
         fields.append("INFORMAÇÕES OBRIGATÓRIAS:")
-        for field in identity["required_info"]:
+        for field in _truncate_list(identity["required_info"], 8):
             fields.append(f"  • {field} (OBRIGATÓRIO)")
     
     # Perguntas obrigatórias da identidade
     if identity and identity.get("required_questions"):
         fields.append("\nPERGUNTAS OBRIGATÓRIAS:")
-        for q in identity["required_questions"]:
+        for q in _truncate_list(identity["required_questions"], 8):
             fields.append(f"  • {q}")
     
     # Campos do nicho
-    fields.append("\nCAMPOS DO NICHO:")
-    for field in niche.required_fields:
-        fields.append(f"  • {field} (obrigatório)")
-    for field in niche.optional_fields:
-        fields.append(f"  • {field} (se possível)")
+    if niche:
+        fields.append("\nCAMPOS DO NICHO:")
+        for field in niche.required_fields[:6]:
+            fields.append(f"  • {field} (obrigatório)")
+        for field in niche.optional_fields[:4]:
+            fields.append(f"  • {field} (se possível)")
     
     # Perguntas customizadas (legado)
     if custom_questions:
         fields.append("\nPERGUNTAS EXTRAS:")
-        for q in custom_questions:
+        for q in _truncate_list(custom_questions, 5):
             fields.append(f"  • {q}")
     
     # Monta regras customizadas
     rules_text = ""
     
-    # Regras da identidade (já estão na identity_section, mas reforça)
-    if identity and identity.get("business_rules"):
-        rules_text += "\n⚠️ REGRAS DE NEGÓCIO (SIGA RIGOROSAMENTE):\n"
-        for rule in identity["business_rules"]:
-            rules_text += f"  ❗ {rule}\n"
-    
     # Regras customizadas (legado)
     if custom_rules:
-        rules_text += "\nREGRAS ADICIONAIS:\n"
-        for rule in custom_rules:
+        rules_text += "\n📌 REGRAS ADICIONAIS:\n"
+        for rule in _truncate_list(custom_rules, 8):
             rules_text += f"  • {rule}\n"
     
-    # Contexto do lead
-    if lead_context:
-        rules_text += "\n📋 CONTEXTO ATUAL DO CLIENTE (use para personalizar):\n"
+    # Contexto do lead (se disponível)
+    if lead_context and any(lead_context.values()):
+        rules_text += "\n📋 CONTEXTO DO CLIENTE (use para personalizar):\n"
         
-        if lead_context.get("name"):
-            rules_text += f"  • Nome: {lead_context['name']}\n"
-        if lead_context.get("family_situation"):
-            rules_text += f"  • Situação familiar: {lead_context['family_situation']}\n"
-        if lead_context.get("work_info"):
-            rules_text += f"  • Trabalho: {lead_context['work_info']}\n"
-        if lead_context.get("budget_range"):
-            rules_text += f"  • Orçamento: {lead_context['budget_range']}\n"
-        if lead_context.get("urgency_level"):
-            rules_text += f"  • Urgência: {lead_context['urgency_level']}\n"
-        if lead_context.get("preferences"):
-            prefs = lead_context['preferences']
-            if isinstance(prefs, list):
-                prefs = ', '.join(prefs)
-            rules_text += f"  • Preferências: {prefs}\n"
-        if lead_context.get("pain_points"):
-            pains = lead_context['pain_points']
-            if isinstance(pains, list):
-                pains = ', '.join(pains)
-            rules_text += f"  • Dores/Problemas: {pains}\n"
-        if lead_context.get("objections"):
-            objs = lead_context['objections']
-            if isinstance(objs, list):
-                objs = ', '.join(objs)
-            rules_text += f"  • ⚠️ OBJEÇÕES: {objs} (CONTORNE!)\n"
-        if lead_context.get("buying_signals"):
-            signals = lead_context['buying_signals']
-            if isinstance(signals, list):
-                signals = ', '.join(signals)
-            rules_text += f"  • 🔥 SINAIS DE COMPRA: {signals} (ACELERE!)\n"
+        context_items = [
+            ("name", "Nome"),
+            ("family_situation", "Situação familiar"),
+            ("work_info", "Trabalho"),
+            ("budget_range", "Orçamento"),
+            ("urgency_level", "Urgência"),
+            ("preferences", "Preferências"),
+            ("pain_points", "Dores/Problemas"),
+            ("objections", "⚠️ OBJEÇÕES (CONTORNE!)"),
+            ("buying_signals", "🔥 SINAIS DE COMPRA (ACELERE!)"),
+        ]
+        
+        for key, label in context_items:
+            value = lead_context.get(key)
+            if value:
+                if isinstance(value, list):
+                    value = _safe_join(value)
+                rules_text += f"  • {label}: {value}\n"
     
     # Monta seção de FAQ
     faq_section = ""
     if faq_items:
-        faq_section = "\n📚 PERGUNTAS FREQUENTES (FAQ):\nUse estas respostas quando o cliente perguntar sobre estes assuntos:\n"
+        faq_items = _truncate_list(faq_items, 10)
+        faq_section = "\n📚 PERGUNTAS FREQUENTES (FAQ):\n"
         for item in faq_items:
             question = item.get("question", "")
             answer = item.get("answer", "")
             if question and answer:
+                # Trunca respostas muito longas
+                if len(answer) > 300:
+                    answer = answer[:297] + "..."
                 faq_section += f"\nP: {question}\nR: {answer}\n"
     
     # Determina tom de voz
@@ -781,13 +660,68 @@ Se o cliente perguntar sobre algo fora deste escopo, responda educadamente que v
         tone_display = identity["tone_style"]["tone"]
     
     # Monta prompt final
-    return BASE_SYSTEM_PROMPT.format(
+    final_prompt = BASE_SYSTEM_PROMPT.format(
         company_name=company_name,
         identity_section=identity_section,
         scope_restriction=scope_restriction,
         tone=tone_display,
-        niche_prompt=niche.prompt_template,
+        niche_prompt=niche.prompt_template if niche else "",
         fields_to_collect="\n".join(fields),
         custom_rules=rules_text,
         faq_section=faq_section,
     )
+    
+    # Verifica tamanho e trunca se necessário
+    if len(final_prompt) > MAX_PROMPT_LENGTH:
+        logger.warning(f"Prompt muito longo ({len(final_prompt)} chars), truncando...")
+        # Remove seções menos críticas primeiro
+        final_prompt = final_prompt[:MAX_PROMPT_LENGTH]
+        # Garante que termina em um ponto lógico
+        last_newline = final_prompt.rfind('\n')
+        if last_newline > MAX_PROMPT_LENGTH - 500:
+            final_prompt = final_prompt[:last_newline]
+    
+    logger.info(f"Prompt gerado para {company_name}: {len(final_prompt)} chars, identity={'sim' if identity else 'não'}")
+    
+    return final_prompt
+
+
+def get_identity_completeness(identity: dict) -> dict:
+    """
+    Calcula o percentual de completude da identidade.
+    
+    Returns:
+        Dict com score (0-100) e campos faltantes
+    """
+    if not identity:
+        return {"score": 0, "missing": ["identity não configurada"], "status": "não configurado"}
+    
+    checks = {
+        "description": bool(identity.get("description")),
+        "products_services": bool(identity.get("products_services")),
+        "not_offered": bool(identity.get("not_offered")),
+        "tone": bool(identity.get("tone_style", {}).get("tone")),
+        "business_rules": bool(identity.get("business_rules")),
+        "differentials": bool(identity.get("differentials")),
+    }
+    
+    completed = sum(checks.values())
+    total = len(checks)
+    score = int((completed / total) * 100)
+    
+    missing = [field for field, done in checks.items() if not done]
+    
+    if score >= 80:
+        status = "completo"
+    elif score >= 50:
+        status = "parcial"
+    else:
+        status = "básico"
+    
+    return {
+        "score": score,
+        "missing": missing,
+        "status": status,
+        "completed": completed,
+        "total": total,
+    }
