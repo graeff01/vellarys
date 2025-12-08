@@ -67,12 +67,8 @@ class Tenant(Base, TimestampMixin):
     leads: Mapped[list["Lead"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
     tags: Mapped[list["Tag"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
     sellers: Mapped[list["Seller"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
-    # Dentro da classe Tenant, adicione:
-    empreendimentos: Mapped[list["Empreendimento"]] = relationship(
-        "Empreendimento", 
-        back_populates="tenant",
-        cascade="all, delete-orphan"
-    )
+    empreendimentos: Mapped[list["Empreendimento"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
+
     # Relacionamentos de assinatura e uso
     subscription: Mapped[Optional["TenantSubscription"]] = relationship(
         back_populates="tenant", 

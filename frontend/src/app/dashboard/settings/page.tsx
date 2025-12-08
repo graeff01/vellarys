@@ -23,11 +23,18 @@ import {
   DollarSign, Calendar, UserCheck, Building
 } from 'lucide-react';
 
-import { checkEmpreendimentosAccess } from '@/lib/api';
-
-// =============================================================================
-// COMPONENTES AUXILIARES
-// =============================================================================
+// Adicionar esses imports
+import {
+  checkEmpreendimentosAccess,
+  getEmpreendimentos,
+  getEmpreendimento,
+  createEmpreendimento,
+  updateEmpreendimento,
+  deleteEmpreendimento,
+  toggleEmpreendimentoStatus,
+  Empreendimento,
+  EmpreendimentoCreate,
+} from '@/lib/api';
 
 interface TagInputProps {
   tags: string[];
@@ -254,22 +261,22 @@ export default function SettingsPage() {
         setData(response);
         const s = response.settings;
 
-        try {
-          const accessResponse = await checkEmpreendimentosAccess();
-          setHasEmpreendimentosAccess(accessResponse.has_access);
-          
-          // Se tem acesso a empreendimentos, busca os vendedores
-          if (accessResponse.has_access) {
-            try {
-              const sellersResponse = await getSellers(true, false);
-              setSellers(sellersResponse.sellers || []);
-            } catch {
-              console.error('Erro ao carregar vendedores');
-            }
+      try {
+        const accessResponse = await checkEmpreendimentosAccess();
+        setHasEmpreendimentosAccess(accessResponse.has_access);
+        
+        // Se tem acesso, busca os vendedores
+        if (accessResponse.has_access) {
+          try {
+            const sellersResponse = await getSellers(); // Você já tem essa função no api.ts?
+            setSellers(sellersResponse.sellers || []);
+          } catch {
+            console.error('Erro ao carregar vendedores');
           }
-        } catch {
-          setHasEmpreendimentosAccess(false);
         }
+      } catch {
+        setHasEmpreendimentosAccess(false);
+      }
         
         // Basic
         setCompanyName(s.basic?.company_name || response.tenant.name);
