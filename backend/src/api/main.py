@@ -161,7 +161,7 @@ app.add_middleware(
 
 
 # ============================================================
-# ROTAS
+# ROTASSssssss
 # ============================================================
 # Públicas / Tenant
 app.include_router(empreendimentos_router, prefix="/api/v1")
