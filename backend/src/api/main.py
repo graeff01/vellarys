@@ -40,6 +40,9 @@ from src.domain.entities import User, Tenant
 from src.domain.entities.enums import UserRole
 from src.infrastructure.services.auth_service import hash_password
 from sqlalchemy import select
+from src.api.routes.empreendimentos import router as empreendimentos_router
+
+
 
 settings = get_settings()
 
