@@ -149,16 +149,24 @@ else:
 
 
 
-print(f"🔒 CORS configurado para: {allowed_origins}")
+# ============================================================
+# ⭐ CORS - CONFIGURAÇÃO CORRIGIDA
+# ============================================================
+
+allowed_origins = [
+    "https://vellarys-production.up.railway.app",
+    "https://hopeful-purpose-production-3a2b.up.railway.app",
+    "http://localhost:3000",
+    "http://localhost:8000",
+]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
-
 
 # ============================================================
 # ROTASSssssss
