@@ -256,7 +256,8 @@ async def check_empreendimentos_access(
     Usado pelo frontend para mostrar/ocultar a aba.
     """
     niche = get_tenant_niche(tenant)
-    has_access = is_nicho_imobiliario(tenant)
+    has_access = True
+
     
     return {
         "has_access": has_access,
