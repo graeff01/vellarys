@@ -211,11 +211,12 @@ export interface EmpreendimentoCreate {
   whatsapp_notificacao?: string;
 }
 
-// Verifica se tenant tem acesso a empreendimentos
-export async function checkEmpreendimentosAccess() {
+// Verifica se o tenant tem acesso a empreendimentos
+export async function checkEmpreendimentosAccess(): Promise<{ has_access: boolean; niche: string }> {
   const slug = getTenantSlug();
   return request(`/empreendimentos/check-access?tenant_slug=${slug}`);
 }
+
 
 
 // Estatísticas dos empreendimentos
