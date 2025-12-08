@@ -12,6 +12,7 @@ from src.config import get_settings
 from src.infrastructure.database import init_db, async_session
 from src.infrastructure.services.gupshup_init import init_gupshup_service, shutdown_gupshup_service
 from src.api.routes import (
+    empreendimentos_router,
     dialog360_webhook_router,
     twilio_webhook_router,
     webhook_router,
@@ -163,6 +164,7 @@ app.add_middleware(
 # ROTAS
 # ============================================================
 # Públicas / Tenant
+app.include_router(empreendimentos_router, prefix="/api/v1")
 app.include_router(dialog360_webhook_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(webhook_router, prefix="/api/v1")

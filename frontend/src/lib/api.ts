@@ -114,3 +114,168 @@ export async function getNiches() {
   return request('/tenants/niches');
 }
 
+// === EMPREENDIMENTOS (apenas para imobiliárias) ===
+
+export interface Empreendimento {
+  id: number;
+  nome: string;
+  slug: string;
+  status: string;
+  status_label?: string;
+  ativo: boolean;
+  url_landing_page?: string;
+  imagem_destaque?: string;
+  gatilhos: string[];
+  prioridade: number;
+  endereco?: string;
+  bairro?: string;
+  cidade?: string;
+  estado?: string;
+  cep?: string;
+  descricao_localizacao?: string;
+  descricao?: string;
+  tipologias: string[];
+  metragem_minima?: number;
+  metragem_maxima?: number;
+  faixa_metragem?: string;
+  torres?: number;
+  andares?: number;
+  unidades_por_andar?: number;
+  total_unidades?: number;
+  vagas_minima?: number;
+  vagas_maxima?: number;
+  previsao_entrega?: string;
+  preco_minimo?: number;
+  preco_maximo?: number;
+  faixa_preco?: string;
+  aceita_financiamento: boolean;
+  aceita_fgts: boolean;
+  aceita_permuta: boolean;
+  aceita_consorcio: boolean;
+  condicoes_especiais?: string;
+  itens_lazer: string[];
+  diferenciais: string[];
+  perguntas_qualificacao: string[];
+  instrucoes_ia?: string;
+  vendedor_id?: number;
+  vendedor_nome?: string;
+  metodo_distribuicao?: string;
+  notificar_gestor: boolean;
+  whatsapp_notificacao?: string;
+  total_leads: number;
+  leads_qualificados: number;
+  leads_convertidos: number;
+  taxa_conversao?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface EmpreendimentoCreate {
+  nome: string;
+  status?: string;
+  url_landing_page?: string;
+  imagem_destaque?: string;
+  gatilhos?: string[];
+  prioridade?: number;
+  endereco?: string;
+  bairro?: string;
+  cidade?: string;
+  estado?: string;
+  cep?: string;
+  descricao_localizacao?: string;
+  descricao?: string;
+  tipologias?: string[];
+  metragem_minima?: number;
+  metragem_maxima?: number;
+  torres?: number;
+  andares?: number;
+  unidades_por_andar?: number;
+  total_unidades?: number;
+  vagas_minima?: number;
+  vagas_maxima?: number;
+  previsao_entrega?: string;
+  preco_minimo?: number;
+  preco_maximo?: number;
+  aceita_financiamento?: boolean;
+  aceita_fgts?: boolean;
+  aceita_permuta?: boolean;
+  aceita_consorcio?: boolean;
+  condicoes_especiais?: string;
+  itens_lazer?: string[];
+  diferenciais?: string[];
+  perguntas_qualificacao?: string[];
+  instrucoes_ia?: string;
+  vendedor_id?: number;
+  metodo_distribuicao?: string;
+  notificar_gestor?: boolean;
+  whatsapp_notificacao?: string;
+}
+
+// Verifica se tenant tem acesso a empreendimentos
+export async function checkEmpreendimentosAccess(): Promise<{ has_access: boolean; niche: string }> {
+  return request('/empreendimentos/check-access');
+}
+
+// Estatísticas dos empreendimentos
+export async function getEmpreendimentosStats() {
+  return request('/empreendimentos/stats');
+}
+
+// Lista empreendimentos
+export async function getEmpreendimentos(params?: {
+  ativo?: boolean;
+  status?: string;
+  search?: string;
+}): Promise<{ empreendimentos: Empreendimento[]; total: number }> {
+  const searchParams = new URLSearchParams();
+  
+  if (params?.ativo !== undefined) searchParams.set('ativo', params.ativo.toString());
+  if (params?.status) searchParams.set('status', params.status);
+  if (params?.search) searchParams.set('search', params.search);
+  
+  const query = searchParams.toString();
+  return request(`/empreendimentos${query ? `?${query}` : ''}`);
+}
+
+// Busca empreendimento por ID
+export async function getEmpreendimento(id: number): Promise<Empreendimento> {
+  return request(`/empreendimentos/${id}`);
+}
+
+// Cria empreendimento
+export async function createEmpreendimento(data: EmpreendimentoCreate) {
+  return request('/empreendimentos', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// Atualiza empreendimento
+export async function updateEmpreendimento(id: number, data: Partial<EmpreendimentoCreate>) {
+  return request(`/empreendimentos/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+// Remove empreendimento
+export async function deleteEmpreendimento(id: number) {
+  return request(`/empreendimentos/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// Ativa/desativa empreendimento
+export async function toggleEmpreendimentoStatus(id: number) {
+  return request(`/empreendimentos/${id}/toggle-status`, {
+    method: 'POST',
+  });
+}
+
+// Testa detecção de gatilhos (debug)
+export async function detectEmpreendimento(message: string) {
+  return request(`/empreendimentos/detect?message=${encodeURIComponent(message)}`, {
+    method: 'POST',
+  });
+}
+

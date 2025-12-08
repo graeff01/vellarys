@@ -15,6 +15,7 @@ from .export import router as export_router
 from .usage import router as usage_router
 from .simulator import router as simulator_router
 from .dialog360_webhook import router as dialog360_webhook_router
+from .empreendimentos import router as empreendimentos_router
 
 # Admin routes
 from .admin import (
@@ -41,6 +42,7 @@ __all__ = [
     "export_router",
     "usage_router",
     "simulator_router",
+    "empreendimentos_router",
     # Admin
     "admin_dashboard_router",
     "admin_tenants_router",

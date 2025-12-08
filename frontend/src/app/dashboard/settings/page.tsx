@@ -1,5 +1,20 @@
 'use client';
 
+// Adicionar esses imports
+import {
+  checkEmpreendimentosAccess,
+  getEmpreendimentos,
+  getEmpreendimento,
+  createEmpreendimento,
+  updateEmpreendimento,
+  deleteEmpreendimento,
+  toggleEmpreendimentoStatus,
+  Empreendimento,
+  EmpreendimentoCreate,
+} from '@/lib/api';
+
+import EmpreendimentosTab from '@/components/EmpreendimentosTab';
+import { getSellers } from '@/lib/sellers';
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardHeader } from '@/components/ui/card';
 import { 
@@ -8,14 +23,18 @@ import {
   ToneOption, PersonalityTrait,
   DistributionMethod, FallbackOption, NicheOption,
   RequiredInfoOption, FAQItem,
-  DEFAULT_IDENTITY
+  DEFAULT_IDENTITY,
+  
 } from '@/lib/settings';
 import { 
   Save, Plus, X, Phone, User, MessageSquare, 
   Clock, HelpCircle, Shield, Users, RefreshCw,
   Building2, Target, Sparkles, AlertTriangle,
-  CheckCircle2, Info, ChevronDown, ChevronUp
+  CheckCircle2, Info, ChevronDown, ChevronUp,
+  Home, Edit2, Trash2, Eye, EyeOff, MapPin,
+  DollarSign, Calendar, UserCheck, Building
 } from 'lucide-react';
+
 
 // =============================================================================
 // COMPONENTES AUXILIARES
@@ -95,12 +114,14 @@ function ToggleSwitch({ checked, onChange, label, description }: ToggleSwitchPro
 // COMPONENTE PRINCIPAL
 // =============================================================================
 
+
 export default function SettingsPage() {
   const [data, setData] = useState<SettingsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState('identidade');
+
   
   // IDENTIDADE
   const [companyName, setCompanyName] = useState('');
@@ -170,6 +191,12 @@ export default function SettingsPage() {
   const [scopeGuardEnabled, setScopeGuardEnabled] = useState(true);
   const [scopeGuardStrictness, setScopeGuardStrictness] = useState<'low' | 'medium' | 'high'>('medium');
   
+
+    // Após os outros estados, adicionar:
+  const [hasEmpreendimentosAccess, setHasEmpreendimentosAccess] = useState(false);
+  const [sellers, setSellers] = useState<Array<{ id: number; name: string }>>([]);
+
+
   // OPTIONS
   const [niches, setNiches] = useState<NicheOption[]>([
     // Fallback padrão caso a API não retorne
@@ -237,6 +264,23 @@ export default function SettingsPage() {
         const response = await getSettings();
         setData(response);
         const s = response.settings;
+
+        try {
+          const accessResponse = await checkEmpreendimentosAccess();
+          setHasEmpreendimentosAccess(accessResponse.has_access);
+          
+          // Se tem acesso a empreendimentos, busca os vendedores
+          if (accessResponse.has_access) {
+            try {
+              const sellersResponse = await getSellers(true, false);
+              setSellers(sellersResponse.sellers || []);
+            } catch {
+              console.error('Erro ao carregar vendedores');
+            }
+          }
+        } catch {
+          setHasEmpreendimentosAccess(false);
+        }
         
         // Basic
         setCompanyName(s.basic?.company_name || response.tenant.name);
@@ -386,6 +430,8 @@ export default function SettingsPage() {
     { id: 'identidade', label: 'Identidade', icon: Building2 },
     { id: 'comunicacao', label: 'Comunicação', icon: MessageSquare },
     { id: 'qualificacao', label: 'Qualificação', icon: Target },
+    // ⭐ NOVA ABA - só aparece para imobiliárias
+    ...(hasEmpreendimentosAccess ? [{ id: 'empreendimentos', label: 'Empreendimentos', icon: Home }] : []),
     { id: 'distribuicao', label: 'Distribuição', icon: Users },
     { id: 'handoff', label: 'Transferência', icon: Phone },
     { id: 'horario', label: 'Horário', icon: Clock },
@@ -398,14 +444,17 @@ export default function SettingsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Configurações da IA</h1>
-          <p className="text-gray-500">Configure a identidade e comportamento da sua IA atendente</p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Configurações da IA</h1>
+        <p className="text-gray-500">Configure a identidade e comportamento da sua IA atendente</p>
+      </div>
+      
+      {activeTab !== 'empreendimentos' && (
         <button onClick={handleSave} disabled={saving} className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50">
           {saving ? <><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>Salvando...</> : <><Save className="w-5 h-5" />Salvar</>}
         </button>
-      </div>
+      )}
+    </div>
 
       {success && <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 p-4 rounded-lg"><CheckCircle2 className="w-5 h-5" />Configurações salvas!</div>}
 

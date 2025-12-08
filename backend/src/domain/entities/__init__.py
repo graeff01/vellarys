@@ -29,6 +29,7 @@ from .plan import Plan
 from .tenant_usage import TenantUsage
 from .tenant_subscription import TenantSubscription
 from .audit_log import AuditLog
+from .empreendimento import Empreendimento  # ← ADICIONAR
 
 __all__ = [
     # Base
@@ -63,4 +64,6 @@ __all__ = [
     "TenantSubscription",
     # Audit
     "AuditLog",
+    # Imobiliário
+    "Empreendimento",  # ← ADICIONAR
 ]
