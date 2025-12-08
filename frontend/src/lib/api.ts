@@ -212,9 +212,11 @@ export interface EmpreendimentoCreate {
 }
 
 // Verifica se tenant tem acesso a empreendimentos
-export async function checkEmpreendimentosAccess(): Promise<{ has_access: boolean; niche: string }> {
-  return request('/empreendimentos/check-access');
+export async function checkEmpreendimentosAccess() {
+  const slug = getTenantSlug();
+  return request(`/empreendimentos/check-access?tenant_slug=${slug}`);
 }
+
 
 // Estatísticas dos empreendimentos
 export async function getEmpreendimentosStats() {
