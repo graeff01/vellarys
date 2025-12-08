@@ -1,5 +1,3 @@
-'use client';
-
 import { useEffect, useState } from 'react';
 import { Card, CardHeader } from '@/components/ui/card';
 import { MetricsCards } from '@/components/dashboard/metrics-cards';
@@ -91,7 +89,7 @@ export default function DashboardPage() {
         <p className="text-gray-500">Acompanhe o desempenho da sua IA de atendimento</p>
       </div>
 
-      {/* Cards principais */}
+      {/* Cards principaiss */}
       {metrics && <MetricsCards metrics={metrics} />}
 
       {/* Seção de destaque - ROI, Qualificação e Uso do Plano */}
