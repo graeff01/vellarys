@@ -268,8 +268,8 @@ export default function SettingsPage() {
         // Se tem acesso, busca os vendedores
         if (accessResponse.has_access) {
           try {
-            const sellersResponse = await getSellers(); // Você já tem essa função no api.ts?
-            setSellers(sellersResponse.sellers || []);
+        const sellersResponse = await getSellers(true, false); // activeOnly=true, availableOnly=false
+        setSellers(sellersResponse.sellers || []);
           } catch {
             console.error('Erro ao carregar vendedores');
           }
