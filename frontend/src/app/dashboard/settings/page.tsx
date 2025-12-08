@@ -1,18 +1,6 @@
 'use client';
 
 // Adicionar esses imports
-import {
-  checkEmpreendimentosAccess,
-  getEmpreendimentos,
-  getEmpreendimento,
-  createEmpreendimento,
-  updateEmpreendimento,
-  deleteEmpreendimento,
-  toggleEmpreendimentoStatus,
-  Empreendimento,
-  EmpreendimentoCreate,
-} from '@/lib/api';
-
 import EmpreendimentosTab from '@/components/EmpreendimentosTab';
 import { getSellers } from '@/lib/sellers';
 import { useEffect, useState, useCallback } from 'react';
@@ -35,6 +23,7 @@ import {
   DollarSign, Calendar, UserCheck, Building
 } from 'lucide-react';
 
+import { checkEmpreendimentosAccess } from '@/lib/api';
 
 // =============================================================================
 // COMPONENTES AUXILIARES
@@ -825,7 +814,7 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {/* TAB: GUARDRAILS */}
+{/* TAB: GUARDRAILS */}
       {activeTab === 'guardrails' && (
         <div className="space-y-6">
           <Card>
@@ -867,6 +856,11 @@ export default function SettingsPage() {
             </div>
           </Card>
         </div>
+      )}
+
+      {/* TAB: EMPREENDIMENTOS */}
+      {activeTab === 'empreendimentos' && (
+        <EmpreendimentosTab sellers={sellers} />
       )}
     </div>
   );

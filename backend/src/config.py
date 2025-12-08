@@ -1,7 +1,6 @@
 """Configurações da aplicação - carrega variáveis do .env"""
-
 from functools import lru_cache
-from typing import Optional
+from typing import Optional, List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,7 +10,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False
     )
-
+    
     # ===========================================
     # SUPERADMIN
     # ===========================================
@@ -19,7 +18,7 @@ class Settings(BaseSettings):
     superadmin_password: str | None = None
     superadmin_tenant_name: str | None = None
     superadmin_tenant_slug: str | None = None
-
+    
     # ===========================================
     # CORE
     # ===========================================
@@ -30,13 +29,18 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
-
+    
+    # ===========================================
+    # CORS - ⭐ NOVO
+    # ===========================================
+    cors_origins: str = "http://localhost:3000,http://localhost:5173,http://localhost:8080"
+    
     # ===========================================
     # OPENAI
     # ===========================================
     openai_api_key: str
     openai_model: str = "gpt-4o-mini"
-
+    
     # ===========================================
     # GUPSHUP (WhatsApp)
     # ===========================================
@@ -44,12 +48,13 @@ class Settings(BaseSettings):
     gupshup_app_name: Optional[str] = None
     gupshup_source_phone: Optional[str] = None  # Número WhatsApp Business
     gupshup_webhook_secret: Optional[str] = None  # Para validar assinaturas
-
+    
     # ===========================================
     # 360DIALOG (WhatsApp)
     # ===========================================
     dialog360_api_key: Optional[str] = None
     webhook_verify_token: str = "velaris_webhook_token"
+    
     # ===========================================
     # PROPRIEDADES
     # ===========================================
@@ -76,9 +81,11 @@ class Settings(BaseSettings):
         return bool(self.dialog360_api_key)
     
     @property
-    def dialog360_configured(self) -> bool:
-        """Verifica se 360dialog está configurado."""
-        return bool(self.dialog360_api_key)
+    def cors_origins_list(self) -> List[str]:
+        """⭐ NOVO: Retorna lista de origens CORS permitidas"""
+        if self.cors_origins == "*":
+            return ["*"]
+        return [origin.strip() for origin in self.cors_origins.split(",")]
 
 
 @lru_cache
