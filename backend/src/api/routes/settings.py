@@ -1,20 +1,31 @@
 """
-ROTAS: CONFIGURAÇÕES
-=====================
+ROTAS: CONFIGURAÇÕES (VERSÃO CORRIGIDA)
+========================================
 
 Endpoints para o gestor configurar o tenant.
 Inclui a nova seção de Identidade Empresarial.
+
+CORREÇÕES:
+- Removida dependência de entidade Niche (usa lista fixa)
+- Forçada detecção de mudanças no campo JSON
+- Adicionados logs para debug
+- flag_modified para garantir persistência
 """
 
+import logging
+import copy
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 from pydantic import BaseModel, Field
 from typing import Optional
 
 from src.infrastructure.database import get_db
-from src.domain.entities import Tenant, User, Niche
+from src.domain.entities import Tenant, User
 from src.api.dependencies import get_current_user, get_current_tenant
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/settings", tags=["Configurações"])
 
@@ -333,26 +344,33 @@ def deep_merge(base: dict, override: dict) -> dict:
     return result
 
 
-async def get_niches_from_db(db: AsyncSession) -> list[dict]:
-    """
-    Busca nichos ativos do banco de dados.
-    """
-    result = await db.execute(
-        select(Niche)
-        .where(Niche.active == True)
-        .order_by(Niche.name)
-    )
-    niches = result.scalars().all()
-    
-    return [
-        {
-            "id": niche.slug,
-            "name": niche.name,
-            "description": niche.description or "",
-            "icon": niche.icon or "📦",
-        }
-        for niche in niches
-    ]
+# =============================================================================
+# NICHOS DISPONÍVEIS (lista fixa, sem dependência de banco)
+# =============================================================================
+
+AVAILABLE_NICHES = [
+    {"id": "services", "name": "Serviços", "description": "Prestação de serviços em geral", "icon": "🔧"},
+    {"id": "retail", "name": "Varejo", "description": "Lojas e comércio", "icon": "🛒"},
+    {"id": "health", "name": "Saúde", "description": "Clínicas e consultórios", "icon": "🏥"},
+    {"id": "healthcare", "name": "Saúde", "description": "Clínicas e consultórios", "icon": "🏥"},
+    {"id": "beauty", "name": "Beleza", "description": "Salões, estética e bem-estar", "icon": "💇"},
+    {"id": "food", "name": "Alimentação", "description": "Restaurantes e delivery", "icon": "🍽️"},
+    {"id": "education", "name": "Educação", "description": "Escolas e cursos", "icon": "📚"},
+    {"id": "realestate", "name": "Imobiliário", "description": "Imóveis e corretagem", "icon": "🏠"},
+    {"id": "automotive", "name": "Automotivo", "description": "Veículos e oficinas", "icon": "🚗"},
+    {"id": "fashion", "name": "Moda", "description": "Roupas e acessórios", "icon": "👗"},
+    {"id": "events", "name": "Eventos", "description": "Festas e celebrações", "icon": "🎉"},
+    {"id": "tech", "name": "Tecnologia", "description": "Software e TI", "icon": "💻"},
+    {"id": "legal", "name": "Jurídico", "description": "Advocacia e consultoria", "icon": "⚖️"},
+    {"id": "fitness", "name": "Fitness", "description": "Academias e personal", "icon": "💪"},
+    {"id": "pet", "name": "Pet", "description": "Pet shops e veterinárias", "icon": "🐕"},
+    {"id": "other", "name": "Outro", "description": "Outros segmentos", "icon": "📦"},
+]
+
+
+def get_available_niches() -> list[dict]:
+    """Retorna lista de nichos disponíveis."""
+    return AVAILABLE_NICHES
 
 
 def migrate_legacy_settings(settings: dict) -> dict:
@@ -448,6 +466,8 @@ async def get_settings(
     Retorna configurações atuais do tenant.
     Faz migração automática se necessário.
     """
+    logger.info(f"Carregando settings para tenant {tenant.slug}")
+    
     # Migra configurações antigas se necessário
     raw_settings = tenant.settings or {}
     migrated_settings = migrate_legacy_settings(raw_settings)
@@ -459,8 +479,10 @@ async def get_settings(
     if not settings["basic"].get("company_name"):
         settings["basic"]["company_name"] = tenant.name
     
-    # Busca nichos do banco de dados
-    available_niches = await get_niches_from_db(db)
+    # Usa lista fixa de nichos (sem dependência de banco)
+    available_niches = get_available_niches()
+    
+    logger.info(f"Settings carregados: {list(settings.keys())}")
     
     return {
         "tenant": {
@@ -491,58 +513,81 @@ async def update_settings(
     """
     Atualiza configurações do tenant.
     Aceita atualizações parciais em qualquer nível.
+    
+    IMPORTANTE: Usa flag_modified para garantir que SQLAlchemy
+    detecte mudanças em campos JSON/JSONB.
     """
-    # Migra configurações antigas se necessário
-    raw_settings = tenant.settings or {}
-    current_settings = migrate_legacy_settings(raw_settings)
-    current_settings = deep_merge(DEFAULT_SETTINGS, current_settings)
+    logger.info(f"Atualizando settings para tenant {tenant.slug}")
+    logger.info(f"Payload recebido: {list(payload.keys())}")
     
-    # Atualiza nome do tenant se enviado
-    if "tenant_name" in payload and payload["tenant_name"]:
-        tenant.name = payload["tenant_name"]
-        del payload["tenant_name"]
-    
-    # Seções permitidas
-    allowed_sections = [
-        "identity",
-        "basic",
-        "ai_behavior",
-        "handoff",
-        "business_hours",
-        "faq",
-        "scope",
-        "distribution",
-        "guardrails",
-        "messages",
-    ]
-    
-    # Merge das seções
-    for section in allowed_sections:
-        if section in payload:
-            if isinstance(payload[section], dict) and section in current_settings:
-                current_settings[section] = deep_merge(
-                    current_settings[section],
-                    payload[section]
-                )
-            else:
-                current_settings[section] = payload[section]
-    
-    tenant.settings = current_settings
-    
-    await db.commit()
-    await db.refresh(tenant)
-    
-    return {
-        "success": True,
-        "message": "Configurações atualizadas",
-        "tenant": {
-            "id": tenant.id,
-            "name": tenant.name,
-            "slug": tenant.slug,
-            "plan": tenant.plan,
-        },
-        "settings": tenant.settings,
-    }
+    try:
+        # Migra configurações antigas se necessário
+        raw_settings = tenant.settings or {}
+        current_settings = migrate_legacy_settings(raw_settings)
+        current_settings = deep_merge(DEFAULT_SETTINGS, current_settings)
+        
+        # IMPORTANTE: Fazer deep copy para garantir que é um novo objeto
+        new_settings = copy.deepcopy(current_settings)
+        
+        # Atualiza nome do tenant se enviado
+        if "tenant_name" in payload and payload["tenant_name"]:
+            tenant.name = payload["tenant_name"]
+            logger.info(f"Nome do tenant atualizado para: {tenant.name}")
+        
+        # Seções permitidas
+        allowed_sections = [
+            "identity",
+            "basic",
+            "ai_behavior",
+            "handoff",
+            "business_hours",
+            "faq",
+            "scope",
+            "distribution",
+            "guardrails",
+            "messages",
+        ]
+        
+        # Merge das seções
+        for section in allowed_sections:
+            if section in payload:
+                logger.info(f"Atualizando seção: {section}")
+                if isinstance(payload[section], dict) and section in new_settings:
+                    new_settings[section] = deep_merge(
+                        new_settings[section],
+                        payload[section]
+                    )
+                else:
+                    new_settings[section] = payload[section]
+        
+        # CRÍTICO: Atribui novo objeto e marca como modificado
+        tenant.settings = new_settings
+        flag_modified(tenant, "settings")
+        
+        logger.info(f"Settings atualizados, fazendo commit...")
+        
+        await db.commit()
+        await db.refresh(tenant)
+        
+        logger.info(f"Commit realizado com sucesso!")
+        logger.info(f"Identity salva: {tenant.settings.get('identity', {}).get('description', 'vazio')[:50]}")
+        
+        return {
+            "success": True,
+            "message": "Configurações atualizadas com sucesso",
+            "tenant": {
+                "id": tenant.id,
+                "name": tenant.name,
+                "slug": tenant.slug,
+                "plan": tenant.plan,
+            },
+            "settings": tenant.settings,
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro ao salvar settings: {e}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(500, f"Erro ao salvar: {str(e)}")
 
 
 @router.get("/identity")
@@ -659,13 +704,11 @@ async def get_ai_context(
 
 
 @router.get("/niches")
-async def list_niches(
-    db: AsyncSession = Depends(get_db),
-):
+async def list_niches():
     """
-    Lista todos os nichos disponíveis (do banco de dados).
+    Lista todos os nichos disponíveis.
     """
-    return await get_niches_from_db(db)
+    return get_available_niches()
 
 
 @router.get("/distribution-options")

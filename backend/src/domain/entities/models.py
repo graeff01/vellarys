@@ -1,8 +1,11 @@
 """
-MODELOS DO BANCO DE DADOS
-==========================
+MODELOS DO BANCO DE DADOS (VERSÃO CORRIGIDA)
+=============================================
 
 Todas as tabelas do sistema Velaris.
+
+CORREÇÃO: Campo settings agora usa MutableDict para
+          SQLAlchemy detectar mudanças internas no JSON.
 """
 from sqlalchemy import func
 from datetime import datetime
@@ -10,6 +13,7 @@ from typing import List, Optional, Dict, Any, TYPE_CHECKING
 from sqlalchemy import String, Boolean, ForeignKey, Text, Integer, DateTime, Table, Column
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.ext.mutable import MutableDict  # ← ADICIONADO!
 
 from .base import Base, TimestampMixin
 from .enums import LeadStatus, LeadQualification, LeadSource, UserRole
@@ -44,7 +48,16 @@ class Tenant(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     slug: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
     plan: Mapped[str] = mapped_column(String(50), default="starter")  # slug do plano
-    settings: Mapped[dict] = mapped_column(JSONB, default=dict)
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # CORREÇÃO CRÍTICA: Usar MutableDict para detectar mudanças no JSON
+    # ═══════════════════════════════════════════════════════════════════════
+    settings: Mapped[dict] = mapped_column(
+        MutableDict.as_mutable(JSONB),  # ← CORREÇÃO!
+        default=dict,
+        nullable=True
+    )
+    
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Relacionamentos principais
@@ -100,7 +113,10 @@ class Channel(Base, TimestampMixin):
     tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
     type: Mapped[str] = mapped_column(String(20), nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    config: Mapped[dict] = mapped_column(JSONB, default=dict)
+    config: Mapped[dict] = mapped_column(
+        MutableDict.as_mutable(JSONB),  # ← Também corrigido
+        default=dict
+    )
     active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     tenant: Mapped["Tenant"] = relationship(back_populates="channels")
@@ -146,7 +162,10 @@ class Lead(Base, TimestampMixin):
     phone: Mapped[Optional[str]] = mapped_column(String(20), index=True)
     email: Mapped[Optional[str]] = mapped_column(String(255))
     city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    custom_data: Mapped[dict] = mapped_column(JSONB, default=dict)
+    custom_data: Mapped[dict] = mapped_column(
+        MutableDict.as_mutable(JSONB),  # ← Também corrigido
+        default=dict
+    )
     
     # ==========================================
     # QUALIFICAÇÃO E STATUS
