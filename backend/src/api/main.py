@@ -130,7 +130,6 @@ default_origins = [
     "https://hopeful-purpose-production-3a2b.up.railway.app",
     "http://localhost:3000",
     "http://localhost:8000",
-    "*"
 ]
 
 

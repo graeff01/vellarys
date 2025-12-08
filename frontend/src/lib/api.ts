@@ -211,11 +211,15 @@ export interface EmpreendimentoCreate {
   whatsapp_notificacao?: string;
 }
 
-// Verifica se o tenant tem acesso a empreendimentos
+// NÃO IMPORTE getTenantSlug, ele já existe neste arquivo!
+// import { getTenantSlug } from './auth';
+
 export async function checkEmpreendimentosAccess(): Promise<{ has_access: boolean; niche: string }> {
   const slug = getTenantSlug();
   return request(`/empreendimentos/check-access?tenant_slug=${slug}`);
 }
+
+
 
 
 
