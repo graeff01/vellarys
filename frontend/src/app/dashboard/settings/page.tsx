@@ -1,7 +1,7 @@
 'use client';
 
 // Adicionar esses imports
-import EmpreendimentosTab from '@/components/EmpreendimentosTab';
+import EmpreendimentosTab from '@/components/dashboard/EmpreendimentosTab';
 import { getSellers } from '@/lib/sellers';
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardHeader } from '@/components/ui/card';

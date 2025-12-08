@@ -251,21 +251,7 @@ async def check_empreendimentos_access(
     user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
 ):
-    """
-    Verifica se o tenant tem acesso ao módulo de empreendimentos.
-    Usado pelo frontend para mostrar/ocultar a aba.
-    """
-    niche = get_tenant_niche(tenant)
-    has_access = True
-
-    
-    return {
-        "has_access": has_access,
-        "niche": niche,
-        "allowed_niches": NICHOS_IMOBILIARIOS,
-        "message": "Acesso liberado" if has_access else "Disponível apenas para imobiliárias"
-    }
-
+    return {"has_access": True}
 
 @router.get("/stats")
 async def empreendimentos_stats(
