@@ -442,7 +442,14 @@ async def simulator_chat(
     # =========================================================================
     # DETECTA SENTIMENTO
     # =========================================================================
+    sentiment = "neutral"
+    try:
+        sentiment_result = await detect_sentiment(payload.message)
+        sentiment = sentiment_result.get("sentiment", "neutral")
+    except Exception as e:
+        logger.error(f"Erro detectando sentimento: {e}")
 
+    # =========================================================================
     # BUSCA CONFIG DO NICHO
     # =========================================================================
     niche_config = get_niche_config(ai_context["niche_id"])
