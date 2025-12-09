@@ -419,6 +419,7 @@ async def simulator_chat(
     settings = migrate_settings_if_needed(raw_settings)
     ai_context = extract_ai_context(tenant, settings)
     
+
     logger.info(f"Simulador - Tenant: {tenant.slug}, Company: {ai_context['company_name']}")
     logger.info(f"Identity loaded: {bool(ai_context.get('identity'))}")
     
@@ -436,8 +437,12 @@ async def simulator_chat(
     empreendimento_context = ""
     if empreendimento:
         logger.info(f"🏢 Empreendimento ativo no simulador: {empreendimento.nome}")
-        empreendimento_context = build_empreendimento_context(empreendimento)# =========================================================================
-   
+        empreendimento_context = build_empreendimento_context(empreendimento)
+
+    # =========================================================================
+    # DETECTA SENTIMENTO
+    # =========================================================================
+
     # BUSCA CONFIG DO NICHO
     # =========================================================================
     niche_config = get_niche_config(ai_context["niche_id"])
