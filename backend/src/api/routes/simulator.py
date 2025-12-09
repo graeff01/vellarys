@@ -21,7 +21,7 @@ import logging
 
 from src.infrastructure.database import get_db
 from src.api.dependencies import get_current_user
-from src.domain.entities import User, Tenant
+from src.domain.entities import User, Tenant, Empreendimento
 from src.infrastructure.services import (
     chat_completion,
     detect_sentiment,
@@ -30,7 +30,8 @@ from src.infrastructure.services import (
 from src.domain.prompts import get_niche_config, build_system_prompt
 
 logger = logging.getLogger(__name__)
-
+# Nichos que podem ter empreendimentos
+NICHOS_IMOBILIARIOS = ["realestate", "imobiliaria", "real_estate", "imobiliario"]
 router = APIRouter(prefix="/simulator", tags=["Simulador"])
 
 
@@ -241,6 +242,149 @@ def build_identity_section(identity: dict, company_name: str) -> str:
     return ""
 
 
+async def detect_empreendimento_for_simulator(
+    db: AsyncSession,
+    tenant_id: int,
+    message: str,
+    history: List[SimulatorMessage],
+    niche_id: str,
+) -> Optional[Empreendimento]:
+    """Detecta empreendimento na mensagem atual OU no histórico."""
+    from sqlalchemy import select
+    
+    if niche_id.lower() not in NICHOS_IMOBILIARIOS:
+        return None
+    
+    try:
+        result = await db.execute(
+            select(Empreendimento)
+            .where(Empreendimento.tenant_id == tenant_id)
+            .where(Empreendimento.ativo == True)
+            .order_by(Empreendimento.prioridade.desc())
+        )
+        empreendimentos = result.scalars().all()
+        
+        if not empreendimentos:
+            return None
+        
+        # Verifica na mensagem atual
+        message_lower = message.lower()
+        for emp in empreendimentos:
+            if emp.gatilhos:
+                for gatilho in emp.gatilhos:
+                    if gatilho.lower() in message_lower:
+                        logger.info(f"🏢 Simulador - Empreendimento detectado: {emp.nome}")
+                        return emp
+        
+        # Verifica no histórico (caso já tenha mencionado antes)
+        for msg in history:
+            msg_lower = msg.content.lower()
+            for emp in empreendimentos:
+                if emp.gatilhos:
+                    for gatilho in emp.gatilhos:
+                        if gatilho.lower() in msg_lower:
+                            logger.info(f"🏢 Simulador - Empreendimento no histórico: {emp.nome}")
+                            return emp
+        
+        return None
+    except Exception as e:
+        logger.error(f"Erro detectando empreendimento no simulador: {e}")
+        return None
+
+
+def build_empreendimento_context(emp: Empreendimento) -> str:
+    """Constrói contexto do empreendimento para o prompt."""
+    sections = []
+    
+    sections.append(f"\n{'=' * 50}")
+    sections.append(f"🏢 EMPREENDIMENTO: {emp.nome.upper()}")
+    sections.append(f"{'=' * 50}")
+    
+    if emp.descricao:
+        sections.append(f"\n**Descrição:** {emp.descricao}")
+    
+    # Localização
+    loc = []
+    if emp.endereco:
+        loc.append(f"Endereço: {emp.endereco}")
+    if emp.bairro:
+        loc.append(f"Bairro: {emp.bairro}")
+    if emp.cidade:
+        cidade_estado = emp.cidade
+        if emp.estado:
+            cidade_estado += f"/{emp.estado}"
+        loc.append(f"Cidade: {cidade_estado}")
+    if loc:
+        sections.append(f"\n**Localização:**\n" + "\n".join(loc))
+    
+    if emp.descricao_localizacao:
+        sections.append(f"\n**Sobre a região:** {emp.descricao_localizacao}")
+    
+    # Características
+    if emp.tipologias:
+        sections.append(f"\n**Tipologias:** {', '.join(emp.tipologias)}")
+    
+    if emp.metragem_minima or emp.metragem_maxima:
+        if emp.metragem_minima and emp.metragem_maxima:
+            sections.append(f"**Metragem:** {emp.metragem_minima}m² a {emp.metragem_maxima}m²")
+        elif emp.metragem_minima:
+            sections.append(f"**Metragem:** A partir de {emp.metragem_minima}m²")
+    
+    if emp.vagas_minima or emp.vagas_maxima:
+        if emp.vagas_minima and emp.vagas_maxima:
+            sections.append(f"**Vagas:** {emp.vagas_minima} a {emp.vagas_maxima}")
+        elif emp.vagas_minima:
+            sections.append(f"**Vagas:** {emp.vagas_minima}+")
+    
+    if emp.previsao_entrega:
+        sections.append(f"**Previsão de entrega:** {emp.previsao_entrega}")
+    
+    # Valores
+    if emp.preco_minimo or emp.preco_maximo:
+        if emp.preco_minimo and emp.preco_maximo:
+            preco = f"R$ {emp.preco_minimo:,.0f} a R$ {emp.preco_maximo:,.0f}".replace(",", ".")
+        elif emp.preco_minimo:
+            preco = f"A partir de R$ {emp.preco_minimo:,.0f}".replace(",", ".")
+        else:
+            preco = f"Até R$ {emp.preco_maximo:,.0f}".replace(",", ".")
+        sections.append(f"\n**Investimento:** {preco}")
+    
+    # Condições
+    condicoes = []
+    if emp.aceita_financiamento:
+        condicoes.append("Financiamento")
+    if emp.aceita_fgts:
+        condicoes.append("FGTS")
+    if emp.aceita_permuta:
+        condicoes.append("Permuta")
+    if emp.aceita_consorcio:
+        condicoes.append("Consórcio")
+    if condicoes:
+        sections.append(f"**Aceita:** {', '.join(condicoes)}")
+    
+    if emp.condicoes_especiais:
+        sections.append(f"**Condições especiais:** {emp.condicoes_especiais}")
+    
+    # Lazer e diferenciais
+    if emp.itens_lazer:
+        sections.append(f"\n**Lazer:** {', '.join(emp.itens_lazer)}")
+    
+    if emp.diferenciais:
+        sections.append(f"**Diferenciais:** {', '.join(emp.diferenciais)}")
+    
+    # Instruções para IA
+    if emp.instrucoes_ia:
+        sections.append(f"\n**Instruções especiais:** {emp.instrucoes_ia}")
+    
+    # Perguntas de qualificação
+    if emp.perguntas_qualificacao:
+        sections.append(f"\n**Perguntas que você DEVE fazer:**")
+        for p in emp.perguntas_qualificacao:
+            sections.append(f"- {p}")
+    
+    return "\n".join(sections)
+
+
 # =============================================================================
 # ENDPOINT PRINCIPAL
 # =============================================================================
@@ -277,7 +421,8 @@ async def simulator_chat(
     
     logger.info(f"Simulador - Tenant: {tenant.slug}, Company: {ai_context['company_name']}")
     logger.info(f"Identity loaded: {bool(ai_context.get('identity'))}")
-    
+    logger.info(f"Simulador - Tenant: {tenant.slug}, Company: {ai_context['company_name']}")
+    logger.info(f"Identity loaded: {bool(ai_context.get('identity'))}")
     # =========================================================================
     # DETECTA SENTIMENTO
     # =========================================================================
@@ -398,6 +543,19 @@ INSTRUÇÕES IMPORTANTES
 - NUNCA invente informações que não foram fornecidas acima.
 - Se não souber algo específico (como endereço, preço), diga que vai verificar ou encaminhar para um especialista.
 - Responda APENAS sobre o que a empresa oferece.
+"""
+
+    # Adiciona contexto do empreendimento se detectado
+    if empreendimento_context:
+        system_prompt += f"""
+
+{empreendimento_context}
+
+⚠️ IMPORTANTE: O cliente demonstrou interesse no empreendimento **{empreendimento.nome}**.
+- USE as informações acima para responder (endereço, preço, características)
+- NÃO diga "não tenho essa informação" se ela estiver acima
+- Faça as perguntas de qualificação listadas
+- Seja especialista neste empreendimento
 """
 
     logger.info(f"Prompt construído - Tamanho: {len(system_prompt)} chars")
