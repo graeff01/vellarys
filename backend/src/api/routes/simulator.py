@@ -421,19 +421,23 @@ async def simulator_chat(
     
     logger.info(f"Simulador - Tenant: {tenant.slug}, Company: {ai_context['company_name']}")
     logger.info(f"Identity loaded: {bool(ai_context.get('identity'))}")
-    logger.info(f"Simulador - Tenant: {tenant.slug}, Company: {ai_context['company_name']}")
-    logger.info(f"Identity loaded: {bool(ai_context.get('identity'))}")
-    # =========================================================================
-    # DETECTA SENTIMENTO
-    # =========================================================================
-    sentiment = "neutral"
-    try:
-        sentiment_result = await detect_sentiment(payload.message)
-        sentiment = sentiment_result.get("sentiment", "neutral")
-    except Exception as e:
-        logger.error(f"Erro detectando sentimento: {e}")
     
     # =========================================================================
+    # DETECTA EMPREENDIMENTO
+    # =========================================================================
+    empreendimento = await detect_empreendimento_for_simulator(
+        db=db,
+        tenant_id=tenant.id,
+        message=payload.message,
+        history=payload.history or [],
+        niche_id=ai_context["niche_id"],
+    )
+    
+    empreendimento_context = ""
+    if empreendimento:
+        logger.info(f"🏢 Empreendimento ativo no simulador: {empreendimento.nome}")
+        empreendimento_context = build_empreendimento_context(empreendimento)# =========================================================================
+   
     # BUSCA CONFIG DO NICHO
     # =========================================================================
     niche_config = get_niche_config(ai_context["niche_id"])
