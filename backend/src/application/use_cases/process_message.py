@@ -1,26 +1,28 @@
 """
-CASO DE USO: PROCESSAR MENSAGEM (VERSÃO COM EMPREENDIMENTOS)
-=============================================================
+CASO DE USO: PROCESSAR MENSAGEM (VERSÃO PRD COM EMPREENDIMENTOS)
+================================================================
 
-NOVIDADES:
-- ✅ Detecção de empreendimentos imobiliários na mensagem
-- ✅ Contexto específico do empreendimento para a IA
-- ✅ Perguntas de qualificação específicas do empreendimento
-- ✅ Distribuição para vendedor específico do empreendimento
-- ✅ Notificação imediata para gestor (se configurado)
+CORREÇÕES APLICADAS:
+- ✅ AI Guards fazem bypass quando empreendimento detectado
+- ✅ Empreendimento persiste entre mensagens do mesmo lead
+- ✅ Atualização de empreendimento para leads existentes
+- ✅ Ordem correta: busca lead → recupera empreendimento → detecta novo
 
-Fluxo:
-- Sanitização inicial
-- Rate limiting
-- Security check
-- Busca tenant/canal/lead
-- ⭐ DETECÇÃO DE EMPREENDIMENTO (NOVO!)
-- LGPD check
-- AI Guards (escopo, FAQ, limites)
-- Montagem do prompt com identidade + empreendimento
-- Chamada à IA com anti-alucinação
-- Extração de dados e qualificação
-- Handoff se necessário (para vendedor do empreendimento)
+Fluxo PRD:
+1. Sanitização inicial
+2. Rate limiting
+3. Security check
+4. Busca tenant/canal
+5. Busca/cria lead
+6. ⭐ DETECÇÃO DE EMPREENDIMENTO (com persistência)
+7. LGPD check
+8. Status check (lead transferido)
+9. AI Guards (com bypass para empreendimento)
+10. Handoff triggers
+11. Montagem do prompt com identidade + empreendimento
+12. Chamada à IA com anti-alucinação
+13. Extração de dados e qualificação
+14. Handoff se necessário
 """
 
 import logging
@@ -225,7 +227,7 @@ def sanitize_message_content(content: str) -> str:
 
 
 # =============================================================================
-# FUNÇÕES DE EMPREENDIMENTO (NOVO!)
+# FUNÇÕES DE EMPREENDIMENTO
 # =============================================================================
 
 async def detect_empreendimento(
@@ -273,6 +275,39 @@ async def detect_empreendimento(
         
     except Exception as e:
         logger.error(f"Erro detectando empreendimento: {e}")
+        return None
+
+
+async def get_empreendimento_from_lead(
+    db: AsyncSession,
+    lead: Lead,
+) -> Optional[Empreendimento]:
+    """
+    Recupera o empreendimento associado ao lead (se houver).
+    Usado para manter contexto entre mensagens.
+    """
+    try:
+        if not lead.custom_data:
+            return None
+        
+        emp_id = lead.custom_data.get("empreendimento_id")
+        if not emp_id:
+            return None
+        
+        result = await db.execute(
+            select(Empreendimento)
+            .where(Empreendimento.id == emp_id)
+            .where(Empreendimento.ativo == True)
+        )
+        emp = result.scalar_one_or_none()
+        
+        if emp:
+            logger.info(f"🏢 Empreendimento recuperado do lead: {emp.nome}")
+        
+        return emp
+        
+    except Exception as e:
+        logger.error(f"Erro recuperando empreendimento do lead: {e}")
         return None
 
 
@@ -544,22 +579,22 @@ async def process_message(
     """
     Processa uma mensagem recebida de um lead.
     
-    Fluxo:
+    Fluxo PRD:
     1. Sanitização e validação
     2. Rate limiting
     3. Security check  
-    4. Busca tenant/canal/lead
-    5. ⭐ DETECÇÃO DE EMPREENDIMENTO (NOVO!)
-    6. LGPD check
-    7. Status check (lead transferido)
-    8. AI Guards
-    9. Handoff triggers
-    10. Detecção de sentimento
-    11. Montagem do prompt (com empreendimento se detectado)
-    12. Chamada à IA
-    13. Extração de dados
-    14. Handoff se necessário (para vendedor do empreendimento)
-    15. Retorno
+    4. Busca tenant/canal
+    5. Extrai contexto e settings
+    6. Busca/cria lead
+    7. ⭐ DETECÇÃO DE EMPREENDIMENTO (com persistência)
+    8. LGPD check
+    9. Status check (lead transferido)
+    10. AI Guards (com bypass para empreendimento)
+    11. Handoff triggers
+    12. Montagem do prompt (com empreendimento se detectado)
+    13. Chamada à IA
+    14. Extração de dados e qualificação
+    15. Handoff se necessário
     """
     
     # Variável para empreendimento detectado
@@ -654,30 +689,7 @@ async def process_message(
     logger.info(f"Contexto: {ai_context['company_name']} - Nicho: {ai_context['niche_id']}")
     
     # =========================================================================
-    # 6. ⭐ DETECÇÃO DE EMPREENDIMENTO (NOVO!)
-    # =========================================================================
-    try:
-        empreendimento_detectado = await detect_empreendimento(
-            db=db,
-            tenant_id=tenant.id,
-            message=content,
-            niche_id=ai_context["niche_id"],
-        )
-        
-        if empreendimento_detectado:
-            logger.info(f"🏢 Empreendimento ativo: {empreendimento_detectado.nome}")
-            
-            # Adiciona perguntas do empreendimento às perguntas customizadas
-            if empreendimento_detectado.perguntas_qualificacao:
-                ai_context["custom_questions"] = (
-                    ai_context.get("custom_questions", []) + 
-                    empreendimento_detectado.perguntas_qualificacao
-                )
-    except Exception as e:
-        logger.error(f"Erro na detecção de empreendimento: {e}")
-    
-    # =========================================================================
-    # 7. BUSCA/CRIA LEAD
+    # 6. BUSCA/CRIA LEAD (ANTES da detecção para poder recuperar empreendimento)
     # =========================================================================
     try:
         lead, is_new = await get_or_create_lead(
@@ -685,23 +697,6 @@ async def process_message(
             sender_name=sender_name, sender_phone=sender_phone,
             source=source, campaign=campaign,
         )
-        
-        # Se detectou empreendimento e é lead novo, atualiza stats
-        if empreendimento_detectado and is_new:
-            await update_empreendimento_stats(db, empreendimento_detectado, is_new_lead=True)
-            
-            # Salva referência do empreendimento no lead
-            if not lead.custom_data:
-                lead.custom_data = {}
-            lead.custom_data["empreendimento_id"] = empreendimento_detectado.id
-            lead.custom_data["empreendimento_nome"] = empreendimento_detectado.nome
-            
-            # Se empreendimento tem vendedor específico, já atribui
-            if empreendimento_detectado.vendedor_id:
-                lead.assigned_seller_id = empreendimento_detectado.vendedor_id
-                lead.assignment_method = "empreendimento"
-                lead.assigned_at = datetime.now(timezone.utc)
-                logger.info(f"Lead atribuído ao vendedor do empreendimento: {empreendimento_detectado.vendedor_id}")
         
         await log_message_received(
             db=db, tenant_id=tenant.id, lead_id=lead.id,
@@ -712,6 +707,57 @@ async def process_message(
     except Exception as e:
         logger.error(f"Erro ao buscar/criar lead: {e}")
         return {"success": False, "error": "Erro ao processar lead", "reply": FALLBACK_RESPONSES["error"]}
+    
+    # =========================================================================
+    # 7. ⭐ DETECÇÃO DE EMPREENDIMENTO (COM PERSISTÊNCIA)
+    # =========================================================================
+    try:
+        # Primeiro: tenta detectar na mensagem atual
+        empreendimento_detectado = await detect_empreendimento(
+            db=db,
+            tenant_id=tenant.id,
+            message=content,
+            niche_id=ai_context["niche_id"],
+        )
+        
+        # Segundo: se não detectou, verifica se lead já tinha empreendimento
+        if not empreendimento_detectado and not is_new:
+            empreendimento_detectado = await get_empreendimento_from_lead(db, lead)
+        
+        # Se detectou (novo ou recuperado), processa
+        if empreendimento_detectado:
+            logger.info(f"🏢 Empreendimento ativo: {empreendimento_detectado.nome}")
+            
+            # Atualiza/salva no lead
+            if not lead.custom_data:
+                lead.custom_data = {}
+            
+            # Só atualiza se mudou ou não existia
+            old_emp_id = lead.custom_data.get("empreendimento_id")
+            if old_emp_id != empreendimento_detectado.id:
+                lead.custom_data["empreendimento_id"] = empreendimento_detectado.id
+                lead.custom_data["empreendimento_nome"] = empreendimento_detectado.nome
+                logger.info(f"🏢 Empreendimento {'atualizado' if old_emp_id else 'salvo'} no lead")
+            
+            # Se lead é novo, atualiza stats e atribui vendedor
+            if is_new:
+                await update_empreendimento_stats(db, empreendimento_detectado, is_new_lead=True)
+                
+                if empreendimento_detectado.vendedor_id:
+                    lead.assigned_seller_id = empreendimento_detectado.vendedor_id
+                    lead.assignment_method = "empreendimento"
+                    lead.assigned_at = datetime.now(timezone.utc)
+                    logger.info(f"Lead atribuído ao vendedor do empreendimento: {empreendimento_detectado.vendedor_id}")
+            
+            # Adiciona perguntas do empreendimento às perguntas customizadas
+            if empreendimento_detectado.perguntas_qualificacao:
+                ai_context["custom_questions"] = (
+                    ai_context.get("custom_questions", []) + 
+                    empreendimento_detectado.perguntas_qualificacao
+                )
+                
+    except Exception as e:
+        logger.error(f"Erro na detecção de empreendimento: {e}")
     
     # =========================================================================
     # 8. NOTIFICAÇÃO IMEDIATA (se empreendimento configurado)
@@ -755,6 +801,8 @@ async def process_message(
                 "lead_id": lead.id,
                 "is_new_lead": is_new,
                 "lgpd_request": lgpd_request,
+                "empreendimento_id": empreendimento_detectado.id if empreendimento_detectado else None,
+                "empreendimento_nome": empreendimento_detectado.nome if empreendimento_detectado else None,
             }
     except Exception as e:
         logger.error(f"Erro no LGPD check: {e}")
@@ -773,7 +821,9 @@ async def process_message(
             "lead_id": lead.id,
             "is_new_lead": False,
             "status": "transferido",
-            "message": "Lead já transferido"
+            "message": "Lead já transferido",
+            "empreendimento_id": empreendimento_detectado.id if empreendimento_detectado else None,
+            "empreendimento_nome": empreendimento_detectado.nome if empreendimento_detectado else None,
         }
     
     # =========================================================================
@@ -783,71 +833,85 @@ async def process_message(
     message_count = await count_lead_messages(db, lead.id)
     
     # =========================================================================
-    # 12. AI GUARDS
+    # 12. AI GUARDS (COM BYPASS PARA EMPREENDIMENTO)
     # =========================================================================
     guards_result = {"can_respond": True}
     
-    try:
-        guards_result = await run_ai_guards_async(
-            message=content,
-            message_count=message_count,
-            settings=settings,
-            lead_qualification=lead.qualification or "frio",
-        )
-        
-        logger.info(f"Guards result: {guards_result.get('reason', 'none')}")
-        
-        # Se guards bloquearem, retorna resposta apropriada
-        if not guards_result.get("can_respond", True):
-            guard_reason = guards_result.get("reason", "unknown")
-            guard_response = guards_result.get("response") or ai_context.get("ai_out_of_scope_message", FALLBACK_RESPONSES["out_of_scope"])
+    # ⭐ CORREÇÃO PRINCIPAL: Se detectou empreendimento, bypass dos guards de escopo
+    if empreendimento_detectado:
+        logger.info(f"🏢 Empreendimento detectado - bypass dos guards de escopo")
+        guards_result = {
+            "can_respond": True,
+            "reason": "empreendimento_detected",
+            "bypass": True,
+        }
+    else:
+        # Executa guards normalmente apenas se NÃO tem empreendimento
+        try:
+            guards_result = await run_ai_guards_async(
+                message=content,
+                message_count=message_count,
+                settings=settings,
+                lead_qualification=lead.qualification or "frio",
+            )
             
-            # Salva mensagens
-            user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
-            db.add(user_message)
+            logger.info(f"Guards result: {guards_result.get('reason', 'none')}")
             
-            assistant_message = Message(lead_id=lead.id, role="assistant", content=guard_response, tokens_used=0)
-            db.add(assistant_message)
-            
-            # Se for force_handoff
-            if guards_result.get("force_handoff"):
-                if not lead.summary:
-                    lead.summary = await generate_lead_summary(
-                        conversation=history,
-                        extracted_data=lead.custom_data or {},
-                        qualification={"qualification": lead.qualification},
+            # Se guards bloquearem, retorna resposta apropriada
+            if not guards_result.get("can_respond", True):
+                guard_reason = guards_result.get("reason", "unknown")
+                guard_response = guards_result.get("response") or ai_context.get("ai_out_of_scope_message", FALLBACK_RESPONSES["out_of_scope"])
+                
+                # Salva mensagens
+                user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
+                db.add(user_message)
+                
+                assistant_message = Message(lead_id=lead.id, role="assistant", content=guard_response, tokens_used=0)
+                db.add(assistant_message)
+                
+                # Se for force_handoff
+                if guards_result.get("force_handoff"):
+                    if not lead.summary:
+                        lead.summary = await generate_lead_summary(
+                            conversation=history,
+                            extracted_data=lead.custom_data or {},
+                            qualification={"qualification": lead.qualification},
+                        )
+                    
+                    handoff_result = await execute_handoff(lead, tenant, guard_reason, db)
+                    
+                    handoff_message = Message(
+                        lead_id=lead.id, role="assistant",
+                        content=handoff_result["message_for_lead"], tokens_used=0,
                     )
-                
-                handoff_result = await execute_handoff(lead, tenant, guard_reason, db)
-                
-                handoff_message = Message(
-                    lead_id=lead.id, role="assistant",
-                    content=handoff_result["message_for_lead"], tokens_used=0,
-                )
-                db.add(handoff_message)
+                    db.add(handoff_message)
+                    
+                    await db.commit()
+                    
+                    return {
+                        "success": True,
+                        "reply": guard_response + "\n\n" + handoff_result["message_for_lead"],
+                        "lead_id": lead.id,
+                        "is_new_lead": is_new,
+                        "status": "transferido",
+                        "guard": guard_reason,
+                        "empreendimento_id": None,
+                        "empreendimento_nome": None,
+                    }
                 
                 await db.commit()
-                
                 return {
                     "success": True,
-                    "reply": guard_response + "\n\n" + handoff_result["message_for_lead"],
+                    "reply": guard_response,
                     "lead_id": lead.id,
                     "is_new_lead": is_new,
-                    "status": "transferido",
                     "guard": guard_reason,
+                    "empreendimento_id": None,
+                    "empreendimento_nome": None,
                 }
-            
-            await db.commit()
-            return {
-                "success": True,
-                "reply": guard_response,
-                "lead_id": lead.id,
-                "is_new_lead": is_new,
-                "guard": guard_reason,
-            }
-            
-    except Exception as e:
-        logger.error(f"Erro nos guards: {e}\n{traceback.format_exc()}")
+                
+        except Exception as e:
+            logger.error(f"Erro nos guards: {e}\n{traceback.format_exc()}")
     
     # =========================================================================
     # 13. HANDOFF TRIGGERS
@@ -889,6 +953,8 @@ async def process_message(
                 "lead_id": lead.id,
                 "is_new_lead": is_new,
                 "status": "transferido",
+                "empreendimento_id": empreendimento_detectado.id if empreendimento_detectado else None,
+                "empreendimento_nome": empreendimento_detectado.nome if empreendimento_detectado else None,
             }
     except Exception as e:
         logger.error(f"Erro nos handoff triggers: {e}")
@@ -987,20 +1053,30 @@ async def process_message(
             scope_config=ai_context.get("scope_config"),
         )
         
-        # ⭐ ADICIONA CONTEXTO DO EMPREENDIMENTO (NOVO!)
+        # ⭐ ADICIONA CONTEXTO DO EMPREENDIMENTO
         if empreendimento_detectado:
             empreendimento_context = build_empreendimento_context(empreendimento_detectado)
             system_prompt += f"\n\n{empreendimento_context}"
             
-            # Instrução adicional
+            # Instrução adicional enfática
             system_prompt += f"""
 
-IMPORTANTE: O cliente demonstrou interesse específico no empreendimento **{empreendimento_detectado.nome}**.
-- Foque a conversa neste empreendimento
-- Use as informações acima para responder perguntas
-- Faça as perguntas de qualificação listadas
-- Destaque os diferenciais e benefícios
-- Seja entusiasmado mas profissional
+⚠️ ATENÇÃO MÁXIMA - EMPREENDIMENTO DETECTADO ⚠️
+
+O cliente demonstrou interesse específico no empreendimento **{empreendimento_detectado.nome}**.
+
+VOCÊ DEVE:
+✅ Usar TODAS as informações acima para responder
+✅ Falar sobre endereço, preço, tipologias, lazer quando perguntado
+✅ Fazer as perguntas de qualificação listadas
+✅ Ser especialista neste empreendimento
+✅ Ser entusiasmado mas profissional
+
+VOCÊ NÃO PODE:
+❌ Dizer "não tenho essa informação" se ela está acima
+❌ Inventar dados que não estão listados
+❌ Ignorar o interesse do cliente neste empreendimento
+❌ Falar de outros empreendimentos sem o cliente pedir
 """
             
     except Exception as e:
@@ -1012,8 +1088,8 @@ IMPORTANTE: O cliente demonstrou interesse específico no empreendimento **{empr
     # =========================================================================
     messages = [{"role": "system", "content": system_prompt}, *history]
     
-    # Adiciona instruções de segurança
-    if ai_context.get("ai_scope_description"):
+    # Adiciona instruções de segurança (mas não bloqueia empreendimento)
+    if ai_context.get("ai_scope_description") and not empreendimento_detectado:
         security_instructions = build_security_instructions(
             company_name=ai_context["company_name"],
             scope_description=ai_context["ai_scope_description"],
@@ -1045,11 +1121,17 @@ IMPORTANTE: O cliente demonstrou interesse específico no empreendimento **{empr
             previous_summary=previous_summary or lead.summary,
         )
         
-        # Sanitiza resposta (assinatura corrigida - só 2 parâmetros)
+        # Sanitiza resposta (mas com cuidado para não bloquear info do empreendimento)
         final_response, was_blocked = sanitize_response(
             ai_response["content"],
             ai_context["ai_out_of_scope_message"]
         )
+        
+        # Se foi bloqueado mas tinha empreendimento, usa resposta original
+        if was_blocked and empreendimento_detectado:
+            logger.warning(f"⚠️ Resposta bloqueada mas empreendimento detectado - usando original")
+            final_response = ai_response["content"]
+            was_blocked = False
         
         tokens_used = ai_response.get("tokens_used", 0)
         
@@ -1063,10 +1145,18 @@ IMPORTANTE: O cliente demonstrou interesse específico no empreendimento **{empr
             
     except Exception as e:
         logger.error(f"Erro chamando IA: {e}\n{traceback.format_exc()}")
-        final_response = (
-            f"Olá! Sou a assistente da {ai_context['company_name']}. "
-            f"O que você gostaria de saber sobre nossos serviços?"
-        )
+        
+        # Fallback mais inteligente se tiver empreendimento
+        if empreendimento_detectado:
+            final_response = (
+                f"Olá! Que bom que você se interessou pelo {empreendimento_detectado.nome}! "
+                f"É um empreendimento incrível. Como posso ajudá-lo?"
+            )
+        else:
+            final_response = (
+                f"Olá! Sou a assistente da {ai_context['company_name']}. "
+                f"O que você gostaria de saber sobre nossos serviços?"
+            )
     
     # =========================================================================
     # 20. VERIFICA HANDOFF SUGERIDO PELA IA
@@ -1098,6 +1188,7 @@ IMPORTANTE: O cliente demonstrou interesse específico no empreendimento **{empr
             "was_blocked": was_blocked,
             "identity_loaded": bool(ai_context.get("identity")),
             "empreendimento_id": empreendimento_detectado.id if empreendimento_detectado else None,
+            "empreendimento_nome": empreendimento_detectado.nome if empreendimento_detectado else None,
         },
     )
     
@@ -1159,6 +1250,7 @@ IMPORTANTE: O cliente demonstrou interesse específico no empreendimento **{empr
                 "typing_delay": calculate_typing_delay(len(final_response)),
                 "identity_loaded": bool(ai_context.get("identity")),
                 "empreendimento_id": empreendimento_detectado.id if empreendimento_detectado else None,
+                "empreendimento_nome": empreendimento_detectado.nome if empreendimento_detectado else None,
             }
         except Exception as e:
             logger.error(f"Erro no handoff final: {e}")
@@ -1194,6 +1286,8 @@ IMPORTANTE: O cliente demonstrou interesse específico no empreendimento **{empr
             "error": "Erro interno",
             "reply": FALLBACK_RESPONSES["error"],
             "lead_id": lead.id,
+            "empreendimento_id": empreendimento_detectado.id if empreendimento_detectado else None,
+            "empreendimento_nome": empreendimento_detectado.nome if empreendimento_detectado else None,
         }
 
 
