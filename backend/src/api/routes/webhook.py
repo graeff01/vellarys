@@ -1,17 +1,14 @@
 """
 ROTAS: WEBHOOK
 ===============
-
 Endpoint para receber mensagens de canais externos.
 WhatsApp, site, etc. enviam mensagens para cá.
 """
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.infrastructure.database import get_db
 from src.api.schemas import WebhookMessage, WebhookResponse
-from src.application.use_cases import process_message
+from src.application.use_cases.process_message import process_message
 
 router = APIRouter(prefix="/webhook", tags=["Webhook"])
 
@@ -57,6 +54,8 @@ async def receive_message(
         lead_id=result["lead_id"],
         is_new_lead=result["is_new_lead"],
         qualification=result.get("qualification"),
+        empreendimento_id=result.get("empreendimento_id"),
+        empreendimento_nome=result.get("empreendimento_nome"),
     )
 
 

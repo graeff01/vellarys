@@ -45,7 +45,8 @@ class WebhookResponse(BaseModel):
     lead_id: Optional[int] = None
     is_new_lead: bool = False
     qualification: Optional[str] = None
-
+    empreendimento_id: Optional[int] = None
+    empreendimento_nome: Optional[str] = None
 
 # ============================================
 # SELLER (Vendedor) - Resumo para exibir no Lead
