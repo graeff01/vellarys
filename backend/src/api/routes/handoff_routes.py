@@ -7,16 +7,12 @@ Endpoints para o gestor gerenciar a transferência manual de leads para vendedor
 Fluxo:
 1. IA qualifica lead como QUENTE
 2. Sistema notifica GESTOR (WhatsApp + Painel)
-3. Gestor analisa e encaminha para VENDEDOR (WhatsApp pessoal)
-4. Gestor marca no sistema qual vendedor assumiu ← ESTES ENDPOINTS
+3. Gestor analisa e escolhe vendedor no painel
+4. Sistema envia WhatsApp para o VENDEDOR com dados do lead
 5. Lead fica com status "handed_off" + assigned_seller_id
+6. Vendedor chama o cliente
 
-Endpoints:
-- POST /leads/{lead_id}/assign - Atribuir lead a vendedor (sem handoff)
-- POST /leads/{lead_id}/handoff - Executar handoff completo
-- POST /leads/{lead_id}/assign-and-handoff - Atribuir + handoff em uma ação
-- GET /leads/pending-handoff - Listar leads quentes aguardando handoff
-- GET /leads/{lead_id}/handoff-history - Histórico de handoffs do lead
+Funciona para TODOS os nichos (imobiliário, saúde, fitness, educação, etc).
 """
 
 import logging
@@ -40,7 +36,11 @@ from src.api.dependencies import (
 from src.infrastructure.services import (
     execute_handoff,
     generate_lead_summary,
+)
+from src.infrastructure.services.notification_service import (
+    notify_seller,
     notify_gestor,
+    create_panel_notification,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,6 +56,7 @@ class AssignLeadRequest(BaseModel):
     """Request para atribuir lead a um vendedor."""
     seller_id: int = Field(..., description="ID do vendedor que vai receber o lead")
     notes: Optional[str] = Field(None, description="Observações do gestor", max_length=500)
+    notify_seller: bool = Field(True, description="Se deve enviar WhatsApp para o vendedor")
 
 
 class HandoffRequest(BaseModel):
@@ -84,6 +85,10 @@ class AssignAndHandoffRequest(BaseModel):
         True,
         description="Se deve enviar mensagem de transferência para o lead"
     )
+    notify_seller: bool = Field(
+        True,
+        description="Se deve enviar WhatsApp para o vendedor"
+    )
 
 
 class LeadHandoffResponse(BaseModel):
@@ -97,6 +102,8 @@ class LeadHandoffResponse(BaseModel):
     assigned_seller_name: Optional[str]
     handed_off_at: Optional[datetime]
     message: str
+    seller_notified: bool = False
+    seller_notification_error: Optional[str] = None
 
 
 class PendingHandoffLead(BaseModel):
@@ -194,8 +201,33 @@ def create_handoff_event(
         old_value=old_value,
         new_value=new_value,
         description=description,
-        # Se tiver campo created_by no model, adicionar: created_by=user_id
     )
+
+
+async def ensure_lead_summary(db: AsyncSession, lead: Lead) -> None:
+    """Gera summary do lead se não existir."""
+    if lead.summary:
+        return
+    
+    try:
+        from src.domain.entities import Message
+        result = await db.execute(
+            select(Message)
+            .where(Message.lead_id == lead.id)
+            .order_by(Message.created_at.desc())
+            .limit(30)
+        )
+        messages = result.scalars().all()
+        conversation = [{"role": m.role, "content": m.content} for m in reversed(messages)]
+        
+        if conversation:
+            lead.summary = await generate_lead_summary(
+                conversation=conversation,
+                extracted_data=lead.custom_data or {},
+                qualification={"qualification": lead.qualification},
+            )
+    except Exception as e:
+        logger.error(f"Erro gerando summary: {e}")
 
 
 # =============================================================================
@@ -214,6 +246,7 @@ def create_handoff_event(
     - Quer trocar o vendedor atribuído
     
     O status do lead NÃO muda.
+    Opcionalmente envia WhatsApp para o vendedor.
     """
 )
 async def assign_lead_to_seller(
@@ -245,12 +278,31 @@ async def assign_lead_to_seller(
     # Cria evento
     event = create_handoff_event(
         lead_id=lead.id,
-        event_type=EventType.ASSIGNMENT.value if hasattr(EventType, 'ASSIGNMENT') else "assignment",
+        event_type="assignment",
         old_value=old_seller_name,
         new_value=seller.name,
         description=f"Atribuído manualmente por {current_user.name or current_user.email}. {request.notes or ''}".strip(),
     )
     db.add(event)
+    
+    # ⭐ NOTIFICA VENDEDOR VIA WHATSAPP
+    seller_notified = False
+    seller_notification_error = None
+    
+    if request.notify_seller:
+        # Garante que tem summary
+        await ensure_lead_summary(db, lead)
+        
+        notification_result = await notify_seller(
+            db=db,
+            tenant=tenant,
+            lead=lead,
+            seller=seller,
+            assigned_by=current_user.name or current_user.email,
+            notes=request.notes,
+        )
+        seller_notified = notification_result.get("whatsapp", False)
+        seller_notification_error = notification_result.get("whatsapp_error")
     
     await db.commit()
     
@@ -265,7 +317,9 @@ async def assign_lead_to_seller(
         assigned_seller_id=seller.id,
         assigned_seller_name=seller.name,
         handed_off_at=None,
-        message=f"Lead atribuído ao vendedor {seller.name}"
+        message=f"Lead atribuído ao vendedor {seller.name}",
+        seller_notified=seller_notified,
+        seller_notification_error=seller_notification_error,
     )
 
 
@@ -306,27 +360,7 @@ async def execute_lead_handoff(
     old_status = lead.status
     
     # Gera summary se não tiver
-    if not lead.summary:
-        try:
-            # Busca histórico de mensagens
-            from src.domain.entities import Message
-            result = await db.execute(
-                select(Message)
-                .where(Message.lead_id == lead.id)
-                .order_by(Message.created_at.desc())
-                .limit(30)
-            )
-            messages = result.scalars().all()
-            conversation = [{"role": m.role, "content": m.content} for m in reversed(messages)]
-            
-            if conversation:
-                lead.summary = await generate_lead_summary(
-                    conversation=conversation,
-                    extracted_data=lead.custom_data or {},
-                    qualification={"qualification": lead.qualification},
-                )
-        except Exception as e:
-            logger.error(f"Erro gerando summary: {e}")
+    await ensure_lead_summary(db, lead)
     
     # Executa handoff
     handoff_result = await execute_handoff(
@@ -365,8 +399,8 @@ async def execute_lead_handoff(
         status=lead.status,
         assigned_seller_id=lead.assigned_seller_id,
         assigned_seller_name=seller_name,
-        handed_off_at=lead.handed_off_at if hasattr(lead, 'handed_off_at') else datetime.now(timezone.utc),
-        message=handoff_result.get("message_for_lead", "Lead transferido com sucesso")
+        handed_off_at=datetime.now(timezone.utc),
+        message=handoff_result.get("message_for_lead", "Lead transferido com sucesso"),
     )
 
 
@@ -383,10 +417,10 @@ async def execute_lead_handoff(
     3. Decide qual vendedor vai atender
     4. Marca no sistema
     
-    O lead fica com:
-    - assigned_seller_id = vendedor escolhido
-    - status = 'handed_off'
-    - A IA para de atender este lead
+    O sistema automaticamente:
+    - Atribui o lead ao vendedor
+    - Muda status para 'handed_off' (IA para de atender)
+    - Envia WhatsApp para o vendedor com dados do lead
     """
 )
 async def assign_and_handoff(
@@ -404,7 +438,7 @@ async def assign_and_handoff(
     
     # Verifica se já está transferido
     if lead.status == LeadStatus.HANDED_OFF.value:
-        # Se já transferido, apenas atualiza o vendedor
+        # Se já transferido, apenas atualiza o vendedor e notifica
         old_seller_id = lead.assigned_seller_id
         lead.assigned_seller_id = seller.id
         lead.assignment_method = "manual"
@@ -418,6 +452,24 @@ async def assign_and_handoff(
         )
         db.add(event)
         
+        # Notifica novo vendedor
+        seller_notified = False
+        seller_notification_error = None
+        
+        if request.notify_seller:
+            await ensure_lead_summary(db, lead)
+            
+            notification_result = await notify_seller(
+                db=db,
+                tenant=tenant,
+                lead=lead,
+                seller=seller,
+                assigned_by=current_user.name or current_user.email,
+                notes=request.notes,
+            )
+            seller_notified = notification_result.get("whatsapp", False)
+            seller_notification_error = notification_result.get("whatsapp_error")
+        
         await db.commit()
         
         return LeadHandoffResponse(
@@ -428,8 +480,10 @@ async def assign_and_handoff(
             status=lead.status,
             assigned_seller_id=seller.id,
             assigned_seller_name=seller.name,
-            handed_off_at=lead.handed_off_at if hasattr(lead, 'handed_off_at') else None,
-            message=f"Lead reatribuído para {seller.name}"
+            handed_off_at=None,
+            message=f"Lead reatribuído para {seller.name}",
+            seller_notified=seller_notified,
+            seller_notification_error=seller_notification_error,
         )
     
     # Guarda valores anteriores
@@ -442,26 +496,7 @@ async def assign_and_handoff(
     lead.assigned_at = datetime.now(timezone.utc)
     
     # 2. Gera summary se não tiver
-    if not lead.summary:
-        try:
-            from src.domain.entities import Message
-            result = await db.execute(
-                select(Message)
-                .where(Message.lead_id == lead.id)
-                .order_by(Message.created_at.desc())
-                .limit(30)
-            )
-            messages = result.scalars().all()
-            conversation = [{"role": m.role, "content": m.content} for m in reversed(messages)]
-            
-            if conversation:
-                lead.summary = await generate_lead_summary(
-                    conversation=conversation,
-                    extracted_data=lead.custom_data or {},
-                    qualification={"qualification": lead.qualification},
-                )
-        except Exception as e:
-            logger.error(f"Erro gerando summary: {e}")
+    await ensure_lead_summary(db, lead)
     
     # 3. Executa handoff
     handoff_result = await execute_handoff(
@@ -492,7 +527,7 @@ async def assign_and_handoff(
     )
     db.add(event_handoff)
     
-    # 5. Cria notificação de conclusão
+    # 5. Cria notificação de conclusão no painel
     notification = Notification(
         tenant_id=tenant.id,
         type="handoff_completed",
@@ -503,6 +538,27 @@ async def assign_and_handoff(
         read=False,
     )
     db.add(notification)
+    
+    # ⭐ 6. NOTIFICA VENDEDOR VIA WHATSAPP
+    seller_notified = False
+    seller_notification_error = None
+    
+    if request.notify_seller:
+        notification_result = await notify_seller(
+            db=db,
+            tenant=tenant,
+            lead=lead,
+            seller=seller,
+            assigned_by=current_user.name or current_user.email,
+            notes=request.notes,
+        )
+        seller_notified = notification_result.get("whatsapp", False)
+        seller_notification_error = notification_result.get("whatsapp_error")
+        
+        if seller_notified:
+            logger.info(f"📲 WhatsApp enviado para vendedor {seller.name}")
+        else:
+            logger.warning(f"⚠️ Falha ao notificar vendedor: {seller_notification_error}")
     
     await db.commit()
     
@@ -517,7 +573,9 @@ async def assign_and_handoff(
         assigned_seller_id=seller.id,
         assigned_seller_name=seller.name,
         handed_off_at=datetime.now(timezone.utc),
-        message=f"Lead transferido para {seller.name}"
+        message=f"Lead transferido para {seller.name}",
+        seller_notified=seller_notified,
+        seller_notification_error=seller_notification_error,
     )
 
 
@@ -561,7 +619,7 @@ async def list_pending_handoff_leads(
             or_(
                 Lead.qualification == "quente",
                 Lead.qualification == "hot",
-                Lead.qualification == "morno",  # Incluir mornos também
+                Lead.qualification == "morno",
             )
         )
     )
@@ -578,7 +636,6 @@ async def list_pending_handoff_leads(
     
     # Ordenação: quentes primeiro, depois por data
     query = query.order_by(
-        # Prioridade: quente > hot > morno
         Lead.qualification.desc(),
         Lead.created_at.desc()
     )
@@ -617,7 +674,7 @@ async def list_pending_handoff_leads(
         )
         last_message_at = last_msg_result.scalar_one_or_none()
         
-        # Empreendimento
+        # Dados específicos do nicho (empreendimento para imobiliário, etc)
         empreendimento_nome = None
         if lead.custom_data:
             empreendimento_nome = lead.custom_data.get("empreendimento_nome")
@@ -676,14 +733,6 @@ async def get_lead_handoff_history(
     
     response = []
     for event in events:
-        # Tenta buscar nome do usuário que criou (se tiver campo)
-        created_by_name = None
-        # Se LeadEvent tiver campo created_by:
-        # if event.created_by:
-        #     user_result = await db.execute(select(User).where(User.id == event.created_by))
-        #     user = user_result.scalar_one_or_none()
-        #     created_by_name = user.name if user else None
-        
         response.append(HandoffHistoryItem(
             id=event.id,
             event_type=event.event_type,
@@ -691,7 +740,7 @@ async def get_lead_handoff_history(
             new_value=event.new_value,
             description=event.description,
             created_at=event.created_at,
-            created_by_name=created_by_name,
+            created_by_name=None,
         ))
     
     return response

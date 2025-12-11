@@ -7,7 +7,7 @@ CORREÇÕES APLICADAS:
 - ✅ Empreendimento persiste entre mensagens do mesmo lead
 - ✅ Atualização de empreendimento para leads existentes
 - ✅ Ordem correta: busca lead → recupera empreendimento → detecta novo
-- ✅ Verificação de horário comercial no início do fluxo
+- ✅ Horário comercial: IA processa normal + avisa lead + notifica gestor
 - ✅ Notificações centralizadas via notification_service
 
 Fluxo PRD:
@@ -15,7 +15,7 @@ Fluxo PRD:
 2. Rate limiting
 3. Security check
 4. Busca tenant/canal
-5. ⭐ VERIFICAÇÃO DE HORÁRIO COMERCIAL (NOVO!)
+5. ⭐ VERIFICAÇÃO DE HORÁRIO COMERCIAL (apenas flag - IA processa normal!)
 6. Busca/cria lead
 7. ⭐ DETECÇÃO DE EMPREENDIMENTO (com persistência)
 8. LGPD check
@@ -26,6 +26,7 @@ Fluxo PRD:
 13. Chamada à IA com anti-alucinação
 14. Extração de dados e qualificação
 15. Handoff se necessário
+16. ⭐ Se fora do horário: adiciona aviso + notifica gestor
 """
 
 import logging
@@ -692,57 +693,29 @@ async def process_message(
         return {"success": False, "error": "Erro interno", "reply": FALLBACK_RESPONSES["error"]}
     
     # =========================================================================
-    # 5. ⭐ VERIFICAÇÃO DE HORÁRIO COMERCIAL (NOVO!)
+    # 5. ⭐ VERIFICAÇÃO DE HORÁRIO COMERCIAL (APENAS FLAG - IA PROCESSA NORMAL!)
     # =========================================================================
+    is_out_of_hours = False
+    out_of_hours_message = ""
+    
     try:
         bh_result = check_business_hours(tenant)
         
         if not bh_result.is_open:
-            logger.info(f"⏰ Fora do horário comercial: {bh_result.reason}")
+            is_out_of_hours = True
+            logger.info(f"⏰ Fora do horário comercial: {bh_result.reason} - IA vai processar normalmente")
             
-            # Busca/cria lead para salvar a mensagem
-            lead, is_new = await get_or_create_lead(
-                db=db, tenant=tenant, channel=channel, external_id=external_id,
-                sender_name=sender_name, sender_phone=sender_phone,
-                source=source, campaign=campaign,
+            # Monta mensagem de aviso para adicionar no final da resposta
+            out_of_hours_message = (
+                "\n\n---\n"
+                "⏰ *Você está entrando em contato fora do nosso horário comercial.*\n"
+                "Mas fique tranquilo! Já registramos seu contato e um especialista "
+                "entrará em contato com você o mais breve possível! 🙌"
             )
-            
-            # Salva mensagem do usuário (não perde nada!)
-            user_message = Message(
-                lead_id=lead.id,
-                role="user",
-                content=content,
-                tokens_used=0,
-            )
-            db.add(user_message)
-            
-            # ⭐ Cria notificação pendente usando novo serviço
-            await notify_out_of_hours(db, tenant, lead)
-            
-            # Salva resposta automática
-            assistant_message = Message(
-                lead_id=lead.id,
-                role="assistant",
-                content=bh_result.message,
-                tokens_used=0,
-            )
-            db.add(assistant_message)
-            
-            await db.commit()
-            
-            return {
-                "success": True,
-                "reply": bh_result.message,
-                "lead_id": lead.id,
-                "is_new_lead": is_new,
-                "out_of_hours": True,
-                "next_opening": bh_result.next_opening.isoformat() if bh_result.next_opening else None,
-                "reason": bh_result.reason,
-            }
             
     except Exception as e:
         logger.error(f"Erro na verificação de horário: {e}")
-        # Continua o fluxo normal em caso de erro (fail-open)
+        # Continua o fluxo normal em caso de erro
     
     # =========================================================================
     # 6. EXTRAI CONTEXTO E SETTINGS
@@ -1300,11 +1273,16 @@ VOCÊ NÃO PODE:
             )
             db.add(transfer_message)
             
+            # ⭐ Adiciona aviso de fora do horário se aplicável
+            reply_with_handoff = final_response + "\n\n" + handoff_result["message_for_lead"]
+            if is_out_of_hours:
+                reply_with_handoff += out_of_hours_message
+            
             await db.commit()
             
             return {
                 "success": True,
-                "reply": final_response + "\n\n" + handoff_result["message_for_lead"],
+                "reply": reply_with_handoff,
                 "lead_id": lead.id,
                 "is_new_lead": is_new,
                 "qualification": lead.qualification,
@@ -1313,12 +1291,27 @@ VOCÊ NÃO PODE:
                 "identity_loaded": bool(ai_context.get("identity")),
                 "empreendimento_id": empreendimento_detectado.id if empreendimento_detectado else None,
                 "empreendimento_nome": empreendimento_detectado.nome if empreendimento_detectado else None,
+                "out_of_hours": is_out_of_hours,
             }
         except Exception as e:
             logger.error(f"Erro no handoff final: {e}")
     
     # =========================================================================
-    # 25. COMMIT E RETORNO
+    # 25. ⭐ NOTIFICAÇÃO FORA DO HORÁRIO (se aplicável)
+    # =========================================================================
+    if is_out_of_hours:
+        try:
+            # Notifica gestor que chegou lead fora do horário
+            await notify_out_of_hours(db, tenant, lead)
+            logger.info(f"📲 Notificação de fora do horário enviada para lead {lead.id}")
+            
+            # Adiciona aviso na resposta
+            final_response += out_of_hours_message
+        except Exception as e:
+            logger.error(f"Erro notificando fora do horário: {e}")
+    
+    # =========================================================================
+    # 26. COMMIT E RETORNO
     # =========================================================================
     try:
         await db.commit()
@@ -1336,6 +1329,7 @@ VOCÊ NÃO PODE:
             "identity_loaded": bool(ai_context.get("identity")),
             "empreendimento_id": empreendimento_detectado.id if empreendimento_detectado else None,
             "empreendimento_nome": empreendimento_detectado.nome if empreendimento_detectado else None,
+            "out_of_hours": is_out_of_hours,
         }
     except Exception as e:
         logger.error(f"Erro no commit: {e}")

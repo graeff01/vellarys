@@ -159,9 +159,11 @@ from .business_hours_service import (
     BusinessHoursCheckResult,
 )
 
-# Notification Service (Notificações painel + WhatsApp gestor)
+# Notification Service (Notificações painel + WhatsApp gestor + vendedor)
 from .notification_service import (
     notify_gestor,
+    notify_seller,
+    notify_seller_whatsapp,
     notify_lead_hot,
     notify_lead_empreendimento,
     notify_out_of_hours,
@@ -169,6 +171,7 @@ from .notification_service import (
     create_panel_notification,
     notify_gestor_whatsapp,
     build_lead_summary_text,
+    build_seller_notification_message,
 )
 
 # Export
@@ -293,6 +296,8 @@ __all__ = [
     "BusinessHoursCheckResult",
     # Notification Service
     "notify_gestor",
+    "notify_seller",
+    "notify_seller_whatsapp",
     "notify_lead_hot",
     "notify_lead_empreendimento",
     "notify_out_of_hours",
@@ -300,6 +305,7 @@ __all__ = [
     "create_panel_notification",
     "notify_gestor_whatsapp",
     "build_lead_summary_text",
+    "build_seller_notification_message",
     # Export
     "export_to_excel",
     "export_to_csv",
