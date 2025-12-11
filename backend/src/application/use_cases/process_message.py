@@ -7,22 +7,25 @@ CORREÇÕES APLICADAS:
 - ✅ Empreendimento persiste entre mensagens do mesmo lead
 - ✅ Atualização de empreendimento para leads existentes
 - ✅ Ordem correta: busca lead → recupera empreendimento → detecta novo
+- ✅ Verificação de horário comercial no início do fluxo
+- ✅ Notificações centralizadas via notification_service
 
 Fluxo PRD:
 1. Sanitização inicial
 2. Rate limiting
 3. Security check
 4. Busca tenant/canal
-5. Busca/cria lead
-6. ⭐ DETECÇÃO DE EMPREENDIMENTO (com persistência)
-7. LGPD check
-8. Status check (lead transferido)
-9. AI Guards (com bypass para empreendimento)
-10. Handoff triggers
-11. Montagem do prompt com identidade + empreendimento
-12. Chamada à IA com anti-alucinação
-13. Extração de dados e qualificação
-14. Handoff se necessário
+5. ⭐ VERIFICAÇÃO DE HORÁRIO COMERCIAL (NOVO!)
+6. Busca/cria lead
+7. ⭐ DETECÇÃO DE EMPREENDIMENTO (com persistência)
+8. LGPD check
+9. Status check (lead transferido)
+10. AI Guards (com bypass para empreendimento)
+11. Handoff triggers
+12. Montagem do prompt com identidade + empreendimento
+13. Chamada à IA com anti-alucinação
+14. Extração de dados e qualificação
+15. Handoff se necessário
 """
 
 import logging
@@ -45,6 +48,14 @@ from src.infrastructure.services import (
     run_ai_guards_async,
     mark_lead_activity,
     check_handoff_triggers,
+    # =========================================================================
+    # NOVOS SERVIÇOS INTEGRADOS
+    # =========================================================================
+    check_business_hours,
+    notify_lead_hot,
+    notify_lead_empreendimento,
+    notify_out_of_hours,
+    notify_handoff_requested,
 )
 
 from src.infrastructure.services.openai_service import (
@@ -584,7 +595,7 @@ async def process_message(
     2. Rate limiting
     3. Security check  
     4. Busca tenant/canal
-    5. Extrai contexto e settings
+    5. ⭐ VERIFICAÇÃO DE HORÁRIO COMERCIAL (NOVO!)
     6. Busca/cria lead
     7. ⭐ DETECÇÃO DE EMPREENDIMENTO (com persistência)
     8. LGPD check
@@ -681,7 +692,60 @@ async def process_message(
         return {"success": False, "error": "Erro interno", "reply": FALLBACK_RESPONSES["error"]}
     
     # =========================================================================
-    # 5. EXTRAI CONTEXTO E SETTINGS
+    # 5. ⭐ VERIFICAÇÃO DE HORÁRIO COMERCIAL (NOVO!)
+    # =========================================================================
+    try:
+        bh_result = check_business_hours(tenant)
+        
+        if not bh_result.is_open:
+            logger.info(f"⏰ Fora do horário comercial: {bh_result.reason}")
+            
+            # Busca/cria lead para salvar a mensagem
+            lead, is_new = await get_or_create_lead(
+                db=db, tenant=tenant, channel=channel, external_id=external_id,
+                sender_name=sender_name, sender_phone=sender_phone,
+                source=source, campaign=campaign,
+            )
+            
+            # Salva mensagem do usuário (não perde nada!)
+            user_message = Message(
+                lead_id=lead.id,
+                role="user",
+                content=content,
+                tokens_used=0,
+            )
+            db.add(user_message)
+            
+            # ⭐ Cria notificação pendente usando novo serviço
+            await notify_out_of_hours(db, tenant, lead)
+            
+            # Salva resposta automática
+            assistant_message = Message(
+                lead_id=lead.id,
+                role="assistant",
+                content=bh_result.message,
+                tokens_used=0,
+            )
+            db.add(assistant_message)
+            
+            await db.commit()
+            
+            return {
+                "success": True,
+                "reply": bh_result.message,
+                "lead_id": lead.id,
+                "is_new_lead": is_new,
+                "out_of_hours": True,
+                "next_opening": bh_result.next_opening.isoformat() if bh_result.next_opening else None,
+                "reason": bh_result.reason,
+            }
+            
+    except Exception as e:
+        logger.error(f"Erro na verificação de horário: {e}")
+        # Continua o fluxo normal em caso de erro (fail-open)
+    
+    # =========================================================================
+    # 6. EXTRAI CONTEXTO E SETTINGS
     # =========================================================================
     settings = migrate_settings_if_needed(tenant.settings or {})
     ai_context = extract_ai_context(tenant, settings)
@@ -689,7 +753,7 @@ async def process_message(
     logger.info(f"Contexto: {ai_context['company_name']} - Nicho: {ai_context['niche_id']}")
     
     # =========================================================================
-    # 6. BUSCA/CRIA LEAD (ANTES da detecção para poder recuperar empreendimento)
+    # 7. BUSCA/CRIA LEAD (ANTES da detecção para poder recuperar empreendimento)
     # =========================================================================
     try:
         lead, is_new = await get_or_create_lead(
@@ -709,7 +773,7 @@ async def process_message(
         return {"success": False, "error": "Erro ao processar lead", "reply": FALLBACK_RESPONSES["error"]}
     
     # =========================================================================
-    # 7. ⭐ DETECÇÃO DE EMPREENDIMENTO (COM PERSISTÊNCIA)
+    # 8. ⭐ DETECÇÃO DE EMPREENDIMENTO (COM PERSISTÊNCIA)
     # =========================================================================
     try:
         # Primeiro: tenta detectar na mensagem atual
@@ -760,26 +824,18 @@ async def process_message(
         logger.error(f"Erro na detecção de empreendimento: {e}")
     
     # =========================================================================
-    # 8. NOTIFICAÇÃO IMEDIATA (se empreendimento configurado)
+    # 9. ⭐ NOTIFICAÇÃO VIA SERVIÇO CENTRALIZADO (se empreendimento configurado)
     # =========================================================================
     if empreendimento_detectado and empreendimento_detectado.notificar_gestor and is_new:
         try:
-            notification = Notification(
-                tenant_id=tenant.id,
-                type="empreendimento_lead",
-                title=f"🏢 Lead do {empreendimento_detectado.nome}!",
-                message=f"Novo lead interessado no empreendimento {empreendimento_detectado.nome}",
-                reference_type="lead",
-                reference_id=lead.id,
-                read=False,
-            )
-            db.add(notification)
-            logger.info(f"Notificação criada para empreendimento: {empreendimento_detectado.nome}")
+            # ⭐ USA O NOVO SERVIÇO DE NOTIFICAÇÃO
+            await notify_lead_empreendimento(db, tenant, lead, empreendimento_detectado)
+            logger.info(f"📲 Notificação enviada para empreendimento: {empreendimento_detectado.nome}")
         except Exception as e:
             logger.error(f"Erro criando notificação de empreendimento: {e}")
     
     # =========================================================================
-    # 9. LGPD CHECK
+    # 10. LGPD CHECK
     # =========================================================================
     try:
         lgpd_request = detect_lgpd_request(content)
@@ -808,7 +864,7 @@ async def process_message(
         logger.error(f"Erro no LGPD check: {e}")
     
     # =========================================================================
-    # 10. STATUS CHECK (lead já transferido)
+    # 11. STATUS CHECK (lead já transferido)
     # =========================================================================
     if lead.status == LeadStatus.HANDED_OFF.value:
         user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
@@ -827,13 +883,13 @@ async def process_message(
         }
     
     # =========================================================================
-    # 11. BUSCA HISTÓRICO (ANTES dos guards)
+    # 12. BUSCA HISTÓRICO (ANTES dos guards)
     # =========================================================================
     history = await get_conversation_history(db, lead.id)
     message_count = await count_lead_messages(db, lead.id)
     
     # =========================================================================
-    # 12. AI GUARDS (COM BYPASS PARA EMPREENDIMENTO)
+    # 13. AI GUARDS (COM BYPASS PARA EMPREENDIMENTO)
     # =========================================================================
     guards_result = {"can_respond": True}
     
@@ -914,7 +970,7 @@ async def process_message(
             logger.error(f"Erro nos guards: {e}\n{traceback.format_exc()}")
     
     # =========================================================================
-    # 13. HANDOFF TRIGGERS
+    # 14. HANDOFF TRIGGERS
     # =========================================================================
     try:
         handoff_triggers = settings.get("handoff", {}).get("triggers", []) or settings.get("handoff_triggers", [])
@@ -936,6 +992,9 @@ async def process_message(
                     extracted_data=lead.custom_data or {},
                     qualification={"qualification": lead.qualification},
                 )
+            
+            # ⭐ USA O NOVO SERVIÇO DE NOTIFICAÇÃO
+            await notify_handoff_requested(db, tenant, lead, f"Trigger: {trigger_matched}")
             
             handoff_result = await execute_handoff(lead, tenant, "user_requested", db)
             
@@ -960,7 +1019,7 @@ async def process_message(
         logger.error(f"Erro nos handoff triggers: {e}")
     
     # =========================================================================
-    # 14. ATUALIZA STATUS
+    # 15. ATUALIZA STATUS
     # =========================================================================
     if lead.status == LeadStatus.NEW.value:
         lead.status = LeadStatus.IN_PROGRESS.value
@@ -974,7 +1033,7 @@ async def process_message(
         db.add(event)
     
     # =========================================================================
-    # 15. SALVA MENSAGEM DO USUÁRIO
+    # 16. SALVA MENSAGEM DO USUÁRIO
     # =========================================================================
     user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
     db.add(user_message)
@@ -986,7 +1045,7 @@ async def process_message(
     history = await get_conversation_history(db, lead.id)
     
     # =========================================================================
-    # 16. DETECÇÃO DE SENTIMENTO E CONTEXTO
+    # 17. DETECÇÃO DE SENTIMENTO E CONTEXTO
     # =========================================================================
     sentiment = {"sentiment": "neutral", "confidence": 0.5}
     is_returning_lead = False
@@ -1016,7 +1075,7 @@ async def process_message(
         logger.error(f"Erro na detecção de sentimento: {e}")
     
     # =========================================================================
-    # 17. CONTEXTO DO LEAD
+    # 18. CONTEXTO DO LEAD
     # =========================================================================
     lead_context = None
     if lead.custom_data:
@@ -1036,7 +1095,7 @@ async def process_message(
             lead_context = None
     
     # =========================================================================
-    # 18. MONTA PROMPT
+    # 19. MONTA PROMPT
     # =========================================================================
     try:
         system_prompt = build_system_prompt(
@@ -1084,7 +1143,7 @@ VOCÊ NÃO PODE:
         system_prompt = f"Você é assistente da {ai_context['company_name']}. Seja educado e profissional."
     
     # =========================================================================
-    # 19. PREPARA MENSAGENS E CHAMA IA
+    # 20. PREPARA MENSAGENS E CHAMA IA
     # =========================================================================
     messages = [{"role": "system", "content": system_prompt}, *history]
     
@@ -1159,7 +1218,7 @@ VOCÊ NÃO PODE:
             )
     
     # =========================================================================
-    # 20. VERIFICA HANDOFF SUGERIDO PELA IA
+    # 21. VERIFICA HANDOFF SUGERIDO PELA IA
     # =========================================================================
     should_transfer_by_ai = False
     try:
@@ -1169,7 +1228,7 @@ VOCÊ NÃO PODE:
         logger.error(f"Erro verificando handoff IA: {e}")
     
     # =========================================================================
-    # 21. SALVA RESPOSTA
+    # 22. SALVA RESPOSTA
     # =========================================================================
     assistant_message = Message(
         lead_id=lead.id,
@@ -1193,7 +1252,7 @@ VOCÊ NÃO PODE:
     )
     
     # =========================================================================
-    # 22. EXTRAI DADOS E QUALIFICA
+    # 23. EXTRAI DADOS E QUALIFICA
     # =========================================================================
     try:
         total_messages = await count_lead_messages(db, lead.id)
@@ -1210,7 +1269,7 @@ VOCÊ NÃO PODE:
         logger.error(f"Erro extraindo dados: {e}")
     
     # =========================================================================
-    # 23. HANDOFF FINAL
+    # 24. HANDOFF FINAL (COM NOTIFICAÇÃO CENTRALIZADA)
     # =========================================================================
     should_transfer = lead.qualification in ["quente", "hot"] or should_transfer_by_ai
     
@@ -1227,6 +1286,9 @@ VOCÊ NÃO PODE:
                     extracted_data=lead.custom_data or {},
                     qualification={"qualification": lead.qualification},
                 )
+            
+            # ⭐ USA O NOVO SERVIÇO DE NOTIFICAÇÃO PARA LEAD QUENTE
+            await notify_lead_hot(db, tenant, lead, empreendimento_detectado)
             
             handoff_result = await execute_handoff(lead, tenant, handoff_reason, db)
             
@@ -1256,7 +1318,7 @@ VOCÊ NÃO PODE:
             logger.error(f"Erro no handoff final: {e}")
     
     # =========================================================================
-    # 24. COMMIT E RETORNO
+    # 25. COMMIT E RETORNO
     # =========================================================================
     try:
         await db.commit()
@@ -1346,17 +1408,9 @@ async def update_lead_data(
             db.add(event)
             lead.qualification = new_qualification
             
-            if new_qualification in ["quente", "hot"] and old_qualification not in ["quente", "hot"]:
-                notification = Notification(
-                    tenant_id=tenant.id,
-                    type="lead_quente",
-                    title="🔥 Novo Lead Quente!",
-                    message=f"{lead.name or 'Lead'} está muito interessado!",
-                    reference_type="lead",
-                    reference_id=lead.id,
-                    read=False,
-                )
-                db.add(notification)
+            # ⭐ NOTA: A notificação de lead quente agora é feita no handoff final
+            # usando notify_lead_hot(), não mais aqui diretamente
+            # Isso centraliza a lógica e evita notificações duplicadas
                 
     except Exception as e:
         logger.error(f"Erro atualizando dados do lead {lead.id}: {e}")

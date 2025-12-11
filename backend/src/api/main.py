@@ -1,5 +1,5 @@
 """
-VELARIS API - Ponto de Entrada novo
+VELARIS API - Ponto de Entrada
 """
 
 from contextlib import asynccontextmanager
@@ -28,6 +28,7 @@ from src.api.routes import (
     usage_router,
     gupshup_webhook_router,
     simulator_router,
+    handoff_router,  # ← NOVO
     # Admin
     admin_dashboard_router,
     admin_tenants_router,
@@ -122,37 +123,8 @@ app = FastAPI(
 )
 
 # ============================================================
-# ⭐ CORS - CORRIGIDO PARA USAR CONFIG
+# ⭐ CORS - CONFIGURAÇÃO
 # ============================================================
-# Lista padrão (fallback se não tiver no .env)
-default_origins = [
-    "https://vellarys-production.up.railway.app",
-    "https://hopeful-purpose-production-3a2b.up.railway.app",
-    "http://localhost:3000",
-    "http://localhost:8000",
-]
-
-
-# Pega do config (que vem do .env) ou usa default
-allowed_origins = (
-    settings.cors_origins_list 
-    if getattr(settings, "cors_origins_list", None) 
-    else default_origins
-)
-
-# Garantir que lista do settings existe e tem itens válidos
-if getattr(settings, "cors_origins_list", None):
-    allowed_origins = [orig for orig in settings.cors_origins_list if orig.strip()]
-else:
-    allowed_origins = default_origins
-
-
-
-
-# ============================================================
-# ⭐ CORS - CONFIGURAÇÃO CORRIGIDA
-# ============================================================
-
 allowed_origins = [
     "https://vellarys-production.up.railway.app",
     "https://hopeful-purpose-production-3a2b.up.railway.app",
@@ -169,7 +141,7 @@ app.add_middleware(
 )
 
 # ============================================================
-# ROTASSssssss
+# ROTAS
 # ============================================================
 # Públicas / Tenant
 app.include_router(empreendimentos_router, prefix="/api/v1")
@@ -189,6 +161,7 @@ app.include_router(export_router, prefix="/api/v1")
 app.include_router(usage_router, prefix="/api/v1")
 app.include_router(simulator_router, prefix="/api/v1")
 app.include_router(twilio_webhook_router, prefix="/api/v1")
+app.include_router(handoff_router, prefix="/api/v1")  # ← NOVO
 
 # Admin
 app.include_router(admin_dashboard_router, prefix="/api/v1")
