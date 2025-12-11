@@ -85,7 +85,7 @@ export default function LeadsPage() {
   useEffect(() => {
     switch (activeTab) {
       case 'pending':
-        setFilters((prev) => ({ ...prev, status: '', qualification: 'hot', page: 1 }));
+        setFilters((prev) => ({ ...prev, status: '', qualification: '', page: 1 }));
         break;
       case 'in_progress':
         setFilters((prev) => ({ ...prev, status: 'in_progress', qualification: '', page: 1 }));
@@ -111,7 +111,6 @@ export default function LeadsPage() {
       
       // Para aba "Aguardando", buscar leads quentes sem vendedor e não transferidos
       if (activeTab === 'pending') {
-        params.qualification = 'hot';
         params.unassigned = true;
       }
 
@@ -126,9 +125,9 @@ export default function LeadsPage() {
       if (activeTab === 'pending') {
         items = items.filter(
           (lead) =>
-            ['hot', 'quente'].includes(lead.qualification) &&
             lead.status !== 'handed_off' &&
             lead.status !== 'converted' &&
+            lead.status !== 'lost' &&
             !lead.assigned_seller_id
         );
       }
@@ -224,9 +223,9 @@ export default function LeadsPage() {
     // Leads quentes aguardando handoff
     const pending = leads.filter(
       (l) =>
-        ['hot', 'quente'].includes(l.qualification) &&
         l.status !== 'handed_off' &&
         l.status !== 'converted' &&
+        l.status !== 'lost' &&
         !l.assigned_seller_id
     ).length;
 
