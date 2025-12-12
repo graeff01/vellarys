@@ -32,52 +32,52 @@ class ZAPIService:
     # ==========================
     # HTTP HELPERS
     # ==========================
-    async def _post(self, endpoint: str, payload: dict) -> dict:
-        url = f"{self.base_url}/{endpoint}"
+async def _post(self, endpoint: str, payload: dict) -> dict:
+    url = f"{self.base_url}/{endpoint}"
+    headers = {
+        "Client-Token": "Fac961861b4644f2837ed6513b014935"  # <-- SEU TOKEN AQUI
+    }
+    try:
+        async with httpx.AsyncClient(timeout=30, headers=headers) as client:
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(
+            f"Z-API HTTP error [{self.instance_id}] {e.response.status_code} — {e.response.text}"
+        )
+        return {
+            "success": False,
+            "error": e.response.text,
+            "status_code": e.response.status_code,
+        }
+    except Exception as e:
+        logger.exception(
+            f"Z-API POST error [{self.instance_id}] endpoint={endpoint}"
+        )
+        return {
+            "success": False,
+            "error": str(e),
+        }
 
-        try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                response = await client.post(url, json=payload)
-                response.raise_for_status()
-                return response.json()
-
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                f"Z-API HTTP error [{self.instance_id}] {e.response.status_code} — {e.response.text}"
-            )
-            return {
-                "success": False,
-                "error": e.response.text,
-                "status_code": e.response.status_code,
-            }
-
-        except Exception as e:
-            logger.exception(
-                f"Z-API POST error [{self.instance_id}] endpoint={endpoint}"
-            )
-            return {
-                "success": False,
-                "error": str(e),
-            }
-
-    async def _get(self, endpoint: str) -> dict:
-        url = f"{self.base_url}/{endpoint}"
-
-        try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                response = await client.get(url)
-                response.raise_for_status()
-                return response.json()
-
-        except Exception as e:
-            logger.exception(
-                f"Z-API GET error [{self.instance_id}] endpoint={endpoint}"
-            )
-            return {
-                "success": False,
-                "error": str(e),
-            }
-
+async def _get(self, endpoint: str) -> dict:
+    url = f"{self.base_url}/{endpoint}"
+    headers = {
+        "Client-Token": "Fac961861b4644f2837ed6513b014935"  # <-- MESMO TOKEN
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15, headers=headers) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            return response.json()
+    except Exception as e:
+        logger.exception(
+            f"Z-API GET error [{self.instance_id}] endpoint={endpoint}"
+        )
+        return {
+            "success": False,
+            "error": str(e),
+        }
     # ==========================
     # SENDERS
     # ==========================
