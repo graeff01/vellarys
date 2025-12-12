@@ -127,8 +127,12 @@ async def zapi_receive_message(
             select(Channel)
             .where(Channel.type == "whatsapp")
             .where(Channel.active == True)
+            .where(
+                Channel.config["zapi_instance_id"].astext == instance_id
+            )
         )
         channel = result.scalar_one_or_none()
+
         
         if not channel:
             logger.error("Nenhum canal WhatsApp ativo encontrado")
@@ -172,7 +176,16 @@ async def zapi_receive_message(
             zapi_instance = channel.config.get("zapi_instance_id") if channel.config else None
             zapi_token = channel.config.get("zapi_token") if channel.config else None
             
-            zapi = get_zapi_client(instance_id=zapi_instance, token=zapi_token)
+            from src.infrastructure.services.zapi_service import zapi_from_channel
+
+            zapi = zapi_from_channel(channel)
+
+            send_result = await zapi.send_text(
+                phone=phone,
+                message=result["reply"],
+                delay=2,  # simula digitação humana
+            )
+
             
             # Envia resposta
             send_result = await zapi.send_text(
@@ -192,8 +205,10 @@ async def zapi_receive_message(
         }
         
     except Exception as e:
-        logger.error(f"Erro no webhook Z-API receive: {e}", exc_info=True)
-        return {"status": "error", "message": str(e)}
+        logger.exception("Erro crítico no webhook Z-API")
+        raise
+
+
 
 
 # ============================================
