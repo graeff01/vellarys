@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     superadmin_password: str | None = None
     superadmin_tenant_name: str | None = None
     superadmin_tenant_slug: str | None = None
+
+    # Z-API
+    zapi_instance_id: str = ""
+    zapi_token: str = ""
     
     # ===========================================
     # CORE

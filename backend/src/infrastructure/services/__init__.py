@@ -183,6 +183,13 @@ from .export_service import (
     get_metrics_for_export,
 )
 
+from .zapi_service import (
+    ZAPIService,
+    get_zapi_client,
+    send_whatsapp_message,
+    check_zapi_connection,
+)
+
 
 # =============================================================================
 # EXPORTS
