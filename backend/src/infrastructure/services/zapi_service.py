@@ -132,3 +132,14 @@ def get_zapi_client(instance_id: str = None, token: str = None) -> ZAPIService:
         instance_id=instance_id or settings.zapi_instance_id,
         token=token or settings.zapi_token
     )
+
+# -----------------------------------------------------------------------------
+# Função padrão esperada pelo core (WhatsApp)
+# -----------------------------------------------------------------------------
+async def send_whatsapp_message(phone: str, message: str) -> dict:
+    """
+    Função padrão de envio WhatsApp usada pelo core do sistema.
+    Internamente usa Z-API.
+    """
+    client = get_zapi_client()
+    return await client.send_text(phone=phone, message=message)

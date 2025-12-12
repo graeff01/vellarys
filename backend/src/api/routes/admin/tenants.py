@@ -4,6 +4,7 @@ ROTAS ADMIN: TENANTS (CLIENTES)
 
 CRUD de clientes da plataforma.
 Inclui criação de usuário admin e subscription para o cliente.
+Suporta integração com 360dialog e Z-API.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -51,10 +52,17 @@ class TenantCreate(BaseModel):
     billing_cycle: str = "monthly"  # monthly ou yearly
     trial_days: int = DEFAULT_TRIAL_DAYS  # 0 = sem trial
     
-    # Integração WhatsApp / 360dialog
+    # Integração WhatsApp
+    whatsapp_provider: Optional[str] = None  # 'none', '360dialog', 'zapi'
     whatsapp_number: Optional[str] = None
+    
+    # 360dialog config
     dialog360_api_key: Optional[str] = None
     webhook_verify_token: Optional[str] = None
+    
+    # Z-API config
+    zapi_instance_id: Optional[str] = None
+    zapi_token: Optional[str] = None
 
 
 class TenantUpdate(BaseModel):
@@ -65,6 +73,11 @@ class TenantUpdate(BaseModel):
     active: Optional[bool] = None
     billing_cycle: Optional[str] = None
     custom_limits: Optional[dict] = None
+
+
+class ChannelUpdate(BaseModel):
+    """Schema para atualizar canal WhatsApp."""
+    config: dict
 
 
 class SubscriptionUpdate(BaseModel):
@@ -352,7 +365,7 @@ async def create_tenant(
     Cria:
     1. Tenant (empresa)
     2. Usuário admin para o cliente
-    3. Canal WhatsApp padrão
+    3. Canal WhatsApp padrão (com 360dialog ou Z-API)
     4. Subscription com trial (se configurado)
     5. Registro de uso inicial
     """
@@ -389,21 +402,31 @@ async def create_tenant(
             detail=f"Plano '{data.plan}' não encontrado ou inativo",
         )
     
+    # Monta settings do tenant
+    tenant_settings = {
+        "niche": data.niche,
+        "company_name": data.name,
+        "tone": "cordial",
+        "custom_questions": [],
+        "custom_rules": [],
+        # WhatsApp config
+        "whatsapp_provider": data.whatsapp_provider or "none",
+        "whatsapp_number": data.whatsapp_number,
+    }
+    
+    # Adiciona config do provider selecionado
+    if data.whatsapp_provider == "360dialog":
+        tenant_settings["dialog360_api_key"] = data.dialog360_api_key
+        tenant_settings["webhook_verify_token"] = data.webhook_verify_token or "velaris_webhook_token"
+    elif data.whatsapp_provider == "zapi":
+        tenant_settings["zapi_instance_id"] = data.zapi_instance_id
+        tenant_settings["zapi_token"] = data.zapi_token
+    
     tenant = Tenant(
         name=data.name,
         slug=data.slug,
         plan=data.plan,
-        settings={
-            "niche": data.niche,
-            "company_name": data.name,
-            "tone": "cordial",
-            "custom_questions": [],
-            "custom_rules": [],
-            # 360dialog config
-            "whatsapp_number": data.whatsapp_number,
-            "dialog360_api_key": data.dialog360_api_key,
-            "webhook_verify_token": data.webhook_verify_token or "velaris_webhook_token",
-        },
+        settings=tenant_settings,
         active=True,
     )
     db.add(tenant)
@@ -420,17 +443,34 @@ async def create_tenant(
     )
     db.add(user)
     
-# Cria canal WhatsApp padrão com config do 360dialog
+    # Monta config do canal WhatsApp
+    channel_config = {}
+    whatsapp_configured = False
+    
+    if data.whatsapp_provider == "360dialog" and data.dialog360_api_key:
+        channel_config = {
+            "provider": "360dialog",
+            "phone_number": data.whatsapp_number,
+            "api_key": data.dialog360_api_key,
+            "webhook_verify_token": data.webhook_verify_token or "velaris_webhook_token",
+        }
+        whatsapp_configured = True
+    elif data.whatsapp_provider == "zapi" and data.zapi_instance_id and data.zapi_token:
+        channel_config = {
+            "provider": "zapi",
+            "phone_number": data.whatsapp_number,
+            "instance_id": data.zapi_instance_id,
+            "token": data.zapi_token,
+        }
+        whatsapp_configured = True
+    
+    # Cria canal WhatsApp padrão
     channel = Channel(
         tenant_id=tenant.id,
         type="whatsapp",
         name="WhatsApp Principal",
-        config={
-            "phone_number": data.whatsapp_number,
-            "api_key": data.dialog360_api_key,
-            "webhook_verify_token": data.webhook_verify_token or "velaris_webhook_token",
-        } if data.dialog360_api_key else {},
-        active=True,
+        config=channel_config,
+        active=whatsapp_configured,
     )
     db.add(channel)
     
@@ -471,12 +511,18 @@ async def create_tenant(
             "admin_email": data.admin_email,
             "billing_cycle": data.billing_cycle,
             "trial_days": data.trial_days,
-            "whatsapp_configured": bool(data.dialog360_api_key),
+            "whatsapp_provider": data.whatsapp_provider,
+            "whatsapp_configured": whatsapp_configured,
         },
     )
     db.add(log)
     
     await db.commit()
+    
+    # Monta webhook URL baseado no provider
+    webhook_url = "https://hopeful-purpose-production-3a2b.up.railway.app/api/v1/webhook/360dialog"
+    if data.whatsapp_provider == "zapi":
+        webhook_url = "https://hopeful-purpose-production-3a2b.up.railway.app/api/zapi/receive"
     
     return {
         "success": True,
@@ -499,9 +545,10 @@ async def create_tenant(
             "trial_ends_at": subscription.trial_ends_at.isoformat() if subscription.trial_ends_at else None,
         },
         "whatsapp": {
-            "configured": bool(data.dialog360_api_key),
+            "configured": whatsapp_configured,
+            "provider": data.whatsapp_provider,
             "number": data.whatsapp_number,
-            "webhook_url": f"https://hopeful-purpose-production-3a2b.up.railway.app/api/v1/webhook/360dialog",
+            "webhook_url": webhook_url,
         },
     }
 
@@ -685,6 +732,77 @@ async def update_tenant(
             "slug": tenant.slug,
             "plan": tenant.plan,
             "active": tenant.active,
+        },
+    }
+
+
+@router.patch("/{tenant_id}/channel")
+async def update_tenant_channel(
+    tenant_id: int,
+    data: ChannelUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_superadmin),
+):
+    """Atualiza o canal WhatsApp de um cliente."""
+    
+    # Verifica se tenant existe
+    result = await db.execute(
+        select(Tenant).where(Tenant.id == tenant_id)
+    )
+    tenant = result.scalar_one_or_none()
+    
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cliente não encontrado",
+        )
+    
+    # Busca canal WhatsApp do tenant
+    channel_result = await db.execute(
+        select(Channel).where(
+            Channel.tenant_id == tenant_id,
+            Channel.type == "whatsapp"
+        )
+    )
+    channel = channel_result.scalar_one_or_none()
+    
+    if not channel:
+        # Cria canal se não existir
+        channel = Channel(
+            tenant_id=tenant.id,
+            type="whatsapp",
+            name="WhatsApp Principal",
+            config=data.config,
+            active=bool(data.config),
+        )
+        db.add(channel)
+    else:
+        # Atualiza canal existente
+        channel.config = data.config
+        channel.active = bool(data.config)
+    
+    # Log da ação
+    log = AdminLog(
+        admin_id=admin.id,
+        admin_email=admin.email,
+        action="update_channel",
+        target_type="channel",
+        target_id=channel.id if channel.id else None,
+        target_name=f"Tenant #{tenant_id}",
+        details={"provider": data.config.get("provider", "unknown")},
+    )
+    db.add(log)
+    
+    await db.commit()
+    
+    return {
+        "success": True,
+        "message": "Canal atualizado",
+        "channel": {
+            "id": channel.id,
+            "type": channel.type,
+            "active": channel.active,
+            "provider": data.config.get("provider"),
         },
     }
 

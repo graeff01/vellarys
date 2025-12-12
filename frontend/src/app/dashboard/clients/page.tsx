@@ -15,7 +15,9 @@ import {
   Lock,
   User,
   Phone,
-  Key
+  Key,
+  Edit,
+  Smartphone
 } from 'lucide-react';
 import { getToken, getUser } from '@/lib/auth';
 
@@ -40,7 +42,9 @@ interface Niche {
   icon?: string;
 }
 
-interface NewTenantState {
+type WhatsAppProvider = 'none' | '360dialog' | 'zapi';
+
+interface TenantFormState {
   name: string;
   slug: string;
   plan: string;
@@ -49,11 +53,34 @@ interface NewTenantState {
   admin_email: string;
   admin_password: string;
 
-  // Integração WhatsApp / 360dialog
+  // Integração WhatsApp
+  whatsapp_provider: WhatsAppProvider;
   whatsapp_number: string;
+  
+  // 360dialog
   dialog360_api_key: string;
   webhook_verify_token: string;
+  
+  // Z-API
+  zapi_instance_id: string;
+  zapi_token: string;
 }
+
+const initialFormState: TenantFormState = {
+  name: '',
+  slug: '',
+  plan: 'starter',
+  niche: '',
+  admin_name: '',
+  admin_email: '',
+  admin_password: '',
+  whatsapp_provider: 'none',
+  whatsapp_number: '',
+  dialog360_api_key: '',
+  webhook_verify_token: '',
+  zapi_instance_id: '',
+  zapi_token: '',
+};
 
 export default function ClientsPage() {
   const router = useRouter();
@@ -62,22 +89,14 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
-  const [newTenant, setNewTenant] = useState<NewTenantState>({
-    name: '',
-    slug: '',
-    plan: 'starter',
-    niche: '',
-    admin_name: '',
-    admin_email: '',
-    admin_password: '',
+  // Modo: criar ou editar
+  const [editingTenantId, setEditingTenantId] = useState<number | null>(null);
+  const [formData, setFormData] = useState<TenantFormState>(initialFormState);
 
-    whatsapp_number: '',
-    dialog360_api_key: '',
-    webhook_verify_token: '',
-  });
+  const isEditing = editingTenantId !== null;
 
   useEffect(() => {
     const user = getUser();
@@ -126,59 +145,136 @@ export default function ClientsPage() {
     }
   }
 
-  function hasIntegrationData(): boolean {
-    const { whatsapp_number, dialog360_api_key } = newTenant;
-    return Boolean(whatsapp_number || dialog360_api_key);
+  async function fetchTenantDetails(tenantId: number) {
+    try {
+      const token = getToken();
+      const response = await fetch(`${API_URL}/admin/tenants/${tenantId}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data;
+      }
+    } catch (err) {
+      console.error('Erro ao carregar detalhes do cliente:', err);
+    }
+    return null;
+  }
+
+  function openCreateModal() {
+    setEditingTenantId(null);
+    setFormData(initialFormState);
+    setShowPassword(false);
+    setShowModal(true);
+  }
+
+  async function openEditModal(tenant: Tenant) {
+    // Busca detalhes completos do tenant
+    const details = await fetchTenantDetails(tenant.id);
+    
+    if (!details) {
+      alert('Erro ao carregar dados do cliente');
+      return;
+    }
+
+    const settings = details.settings || {};
+    
+    // Determina qual provider está configurado
+    let provider: WhatsAppProvider = 'none';
+    if (settings.zapi_instance_id && settings.zapi_token) {
+      provider = 'zapi';
+    } else if (settings.dialog360_api_key) {
+      provider = '360dialog';
+    }
+
+    setEditingTenantId(tenant.id);
+    setFormData({
+      name: details.name || '',
+      slug: details.slug || '',
+      plan: details.plan || 'starter',
+      niche: settings.niche || '',
+      admin_name: '', // Não editável
+      admin_email: '', // Não editável
+      admin_password: '', // Não editável
+      whatsapp_provider: provider,
+      whatsapp_number: settings.whatsapp_number || '',
+      dialog360_api_key: settings.dialog360_api_key || '',
+      webhook_verify_token: settings.webhook_verify_token || 'velaris_webhook_token',
+      zapi_instance_id: settings.zapi_instance_id || '',
+      zapi_token: settings.zapi_token || '',
+    });
+    setShowModal(true);
+  }
+
+  function closeModal() {
+    setShowModal(false);
+    setEditingTenantId(null);
+    setFormData(initialFormState);
+    setShowPassword(false);
+  }
+
+  async function handleSubmit() {
+    if (isEditing) {
+      await updateTenant();
+    } else {
+      await createTenant();
+    }
   }
 
   async function createTenant() {
     // Validações básicas
-    if (!newTenant.name || !newTenant.slug) {
+    if (!formData.name || !formData.slug) {
       alert('Preencha o nome e o slug da empresa.');
       return;
     }
-    if (!newTenant.niche) {
+    if (!formData.niche) {
       alert('Selecione um nicho.');
       return;
     }
-    if (!newTenant.admin_name || !newTenant.admin_email || !newTenant.admin_password) {
+    if (!formData.admin_name || !formData.admin_email || !formData.admin_password) {
       alert('Preencha os dados do administrador do cliente.');
       return;
     }
-    if (newTenant.admin_password.length < 6) {
+    if (formData.admin_password.length < 6) {
       alert('A senha deve ter pelo menos 6 caracteres.');
       return;
     }
 
-    // Se for preencher integração, exige número e API key
-    if (hasIntegrationData()) {
-      const { whatsapp_number, dialog360_api_key } = newTenant;
-
-      if (!whatsapp_number || !dialog360_api_key) {
-        alert(
-          'Para ativar a integração com o WhatsApp/360dialog, preencha o número e a API Key.'
-        );
+    // Validação de integração WhatsApp
+    if (formData.whatsapp_provider === '360dialog') {
+      if (!formData.whatsapp_number || !formData.dialog360_api_key) {
+        alert('Para usar 360dialog, preencha o número e a API Key.');
+        return;
+      }
+    } else if (formData.whatsapp_provider === 'zapi') {
+      if (!formData.whatsapp_number || !formData.zapi_instance_id || !formData.zapi_token) {
+        alert('Para usar Z-API, preencha o número, Instance ID e Token.');
         return;
       }
     }
 
-    setCreating(true);
+    setSaving(true);
     try {
       const token = getToken();
 
-      // Monta payload completo (backend já aceita tudo junto agora)
       const createPayload = {
-        name: newTenant.name,
-        slug: newTenant.slug,
-        plan: newTenant.plan,
-        niche: newTenant.niche,
-        admin_name: newTenant.admin_name,
-        admin_email: newTenant.admin_email,
-        admin_password: newTenant.admin_password,
+        name: formData.name,
+        slug: formData.slug,
+        plan: formData.plan,
+        niche: formData.niche,
+        admin_name: formData.admin_name,
+        admin_email: formData.admin_email,
+        admin_password: formData.admin_password,
+        // WhatsApp config
+        whatsapp_provider: formData.whatsapp_provider,
+        whatsapp_number: formData.whatsapp_number || null,
         // 360dialog
-        whatsapp_number: newTenant.whatsapp_number || null,
-        dialog360_api_key: newTenant.dialog360_api_key || null,
-        webhook_verify_token: newTenant.webhook_verify_token || 'velaris_webhook_token',
+        dialog360_api_key: formData.whatsapp_provider === '360dialog' ? formData.dialog360_api_key : null,
+        webhook_verify_token: formData.webhook_verify_token || 'velaris_webhook_token',
+        // Z-API
+        zapi_instance_id: formData.whatsapp_provider === 'zapi' ? formData.zapi_instance_id : null,
+        zapi_token: formData.whatsapp_provider === 'zapi' ? formData.zapi_token : null,
       };
 
       const response = await fetch(`${API_URL}/admin/tenants`, {
@@ -193,13 +289,12 @@ export default function ClientsPage() {
       if (!response.ok) {
         const error = await response.json().catch(() => null);
         alert(error?.detail || 'Erro ao criar cliente');
-        setCreating(false);
+        setSaving(false);
         return;
       }
 
       const result = await response.json();
 
-      // Monta mensagem de sucesso
       let successMessage = `Cliente criado com sucesso!\n\nEmail de acesso: ${result.user.email}`;
       
       if (result.whatsapp?.configured) {
@@ -207,30 +302,141 @@ export default function ClientsPage() {
       }
 
       alert(successMessage);
-
-      // Reseta modal
-      setShowModal(false);
-      setNewTenant({
-        name: '',
-        slug: '',
-        plan: 'starter',
-        niche: '',
-        admin_name: '',
-        admin_email: '',
-        admin_password: '',
-        whatsapp_number: '',
-        dialog360_api_key: '',
-        webhook_verify_token: '',
-      });
-      setShowPassword(false);
-
-      // Atualiza lista
+      closeModal();
       fetchTenants();
     } catch (err) {
       console.error('Erro ao criar cliente:', err);
       alert('Erro ao criar cliente');
     } finally {
-      setCreating(false);
+      setSaving(false);
+    }
+  }
+
+  async function updateTenant() {
+    if (!editingTenantId) return;
+
+    // Validações básicas
+    if (!formData.name) {
+      alert('Preencha o nome da empresa.');
+      return;
+    }
+
+    // Validação de integração WhatsApp
+    if (formData.whatsapp_provider === '360dialog') {
+      if (!formData.whatsapp_number || !formData.dialog360_api_key) {
+        alert('Para usar 360dialog, preencha o número e a API Key.');
+        return;
+      }
+    } else if (formData.whatsapp_provider === 'zapi') {
+      if (!formData.whatsapp_number || !formData.zapi_instance_id || !formData.zapi_token) {
+        alert('Para usar Z-API, preencha o número, Instance ID e Token.');
+        return;
+      }
+    }
+
+    setSaving(true);
+    try {
+      const token = getToken();
+
+      // Monta settings para atualizar
+      const settings: Record<string, unknown> = {
+        niche: formData.niche,
+        whatsapp_provider: formData.whatsapp_provider,
+        whatsapp_number: formData.whatsapp_number || null,
+      };
+
+      // Adiciona config do provider selecionado
+      if (formData.whatsapp_provider === '360dialog') {
+        settings.dialog360_api_key = formData.dialog360_api_key;
+        settings.webhook_verify_token = formData.webhook_verify_token || 'velaris_webhook_token';
+        // Limpa Z-API
+        settings.zapi_instance_id = null;
+        settings.zapi_token = null;
+      } else if (formData.whatsapp_provider === 'zapi') {
+        settings.zapi_instance_id = formData.zapi_instance_id;
+        settings.zapi_token = formData.zapi_token;
+        // Limpa 360dialog
+        settings.dialog360_api_key = null;
+        settings.webhook_verify_token = null;
+      } else {
+        // Limpa tudo
+        settings.dialog360_api_key = null;
+        settings.webhook_verify_token = null;
+        settings.zapi_instance_id = null;
+        settings.zapi_token = null;
+      }
+
+      const updatePayload = {
+        name: formData.name,
+        plan: formData.plan,
+        settings: settings,
+      };
+
+      const response = await fetch(`${API_URL}/admin/tenants/${editingTenantId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatePayload),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        alert(error?.detail || 'Erro ao atualizar cliente');
+        setSaving(false);
+        return;
+      }
+
+      // Atualiza também o canal WhatsApp
+      await updateWhatsAppChannel(editingTenantId, formData);
+
+      alert('Cliente atualizado com sucesso!');
+      closeModal();
+      fetchTenants();
+    } catch (err) {
+      console.error('Erro ao atualizar cliente:', err);
+      alert('Erro ao atualizar cliente');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function updateWhatsAppChannel(tenantId: number, data: TenantFormState) {
+    try {
+      const token = getToken();
+      
+      // Monta config do canal baseado no provider
+      let channelConfig: Record<string, unknown> = {};
+      
+      if (data.whatsapp_provider === '360dialog') {
+        channelConfig = {
+          provider: '360dialog',
+          phone_number: data.whatsapp_number,
+          api_key: data.dialog360_api_key,
+          webhook_verify_token: data.webhook_verify_token || 'velaris_webhook_token',
+        };
+      } else if (data.whatsapp_provider === 'zapi') {
+        channelConfig = {
+          provider: 'zapi',
+          phone_number: data.whatsapp_number,
+          instance_id: data.zapi_instance_id,
+          token: data.zapi_token,
+        };
+      }
+
+      // Atualiza canal via endpoint específico (se existir) ou via settings
+      await fetch(`${API_URL}/admin/tenants/${tenantId}/channel`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ config: channelConfig }),
+      });
+    } catch (err) {
+      console.error('Erro ao atualizar canal:', err);
+      // Não bloqueia o fluxo principal
     }
   }
 
@@ -271,7 +477,7 @@ export default function ClientsPage() {
     for (let i = 0; i < 10; i++) {
       password += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    setNewTenant((prev) => ({ ...prev, admin_password: password }));
+    setFormData((prev) => ({ ...prev, admin_password: password }));
     setShowPassword(true);
   }
 
@@ -287,6 +493,13 @@ export default function ClientsPage() {
     enterprise: 'Enterprise',
   };
 
+  function getWebhookUrl(): string {
+    if (formData.whatsapp_provider === 'zapi') {
+      return 'https://hopeful-purpose-production-3a2b.up.railway.app/api/zapi/receive';
+    }
+    return 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1/webhook/360dialog';
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -296,7 +509,7 @@ export default function ClientsPage() {
           <p className="text-gray-600">Gerencie os clientes da plataforma e a integração com a IA.</p>
         </div>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={openCreateModal}
           className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
         >
           <Plus className="w-5 h-5" />
@@ -394,6 +607,13 @@ export default function ClientsPage() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <button
+                        onClick={() => openEditModal(tenant)}
+                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Editar cliente"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => router.push(`/dashboard/clients/${tenant.id}`)}
                         className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
                         title="Ver detalhes"
@@ -419,11 +639,13 @@ export default function ClientsPage() {
         </table>
       </div>
 
-      {/* Modal Novo Cliente */}
+      {/* Modal Criar/Editar Cliente */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Novo Cliente</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-6">
+              {isEditing ? 'Editar Cliente' : 'Novo Cliente'}
+            </h2>
             
             {/* Dados da Empresa */}
             <div className="mb-6">
@@ -438,13 +660,13 @@ export default function ClientsPage() {
                   </label>
                   <input
                     type="text"
-                    value={newTenant.name}
+                    value={formData.name}
                     onChange={(e) => {
                       const name = e.target.value;
-                      setNewTenant((prev) => ({
+                      setFormData((prev) => ({
                         ...prev,
                         name,
-                        slug: generateSlug(name),
+                        slug: isEditing ? prev.slug : generateSlug(name),
                       }));
                     }}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -458,13 +680,17 @@ export default function ClientsPage() {
                   </label>
                   <input
                     type="text"
-                    value={newTenant.slug}
+                    value={formData.slug}
                     onChange={(e) =>
-                      setNewTenant((prev) => ({ ...prev, slug: e.target.value }))
+                      setFormData((prev) => ({ ...prev, slug: e.target.value }))
                     }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    disabled={isEditing}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:bg-gray-100 disabled:text-gray-500"
                     placeholder="imobiliaria-silva"
                   />
+                  {isEditing && (
+                    <p className="text-xs text-gray-500 mt-1">O slug não pode ser alterado após criação.</p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -473,9 +699,9 @@ export default function ClientsPage() {
                       Plano
                     </label>
                     <select
-                      value={newTenant.plan}
+                      value={formData.plan}
                       onChange={(e) =>
-                        setNewTenant((prev) => ({ ...prev, plan: e.target.value }))
+                        setFormData((prev) => ({ ...prev, plan: e.target.value }))
                       }
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                     >
@@ -489,9 +715,9 @@ export default function ClientsPage() {
                       Nicho *
                     </label>
                     <select
-                      value={newTenant.niche}
+                      value={formData.niche}
                       onChange={(e) =>
-                        setNewTenant((prev) => ({ ...prev, niche: e.target.value }))
+                        setFormData((prev) => ({ ...prev, niche: e.target.value }))
                       }
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                     >
@@ -507,183 +733,293 @@ export default function ClientsPage() {
               </div>
             </div>
 
-            {/* Dados do Administrador */}
-            <div className="mb-6">
-              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-                <User className="w-4 h-4" />
-                Administrador do Cliente
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nome do Gestor *
-                  </label>
-                  <input
-                    type="text"
-                    value={newTenant.admin_name}
-                    onChange={(e) =>
-                      setNewTenant((prev) => ({ ...prev, admin_name: e.target.value }))
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Ex: João Silva"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email de Acesso *
-                  </label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            {/* Dados do Administrador - Só mostra ao criar */}
+            {!isEditing && (
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  Administrador do Cliente
+                </h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nome do Gestor *
+                    </label>
                     <input
-                      type="email"
-                      value={newTenant.admin_email}
+                      type="text"
+                      value={formData.admin_name}
                       onChange={(e) =>
-                        setNewTenant((prev) => ({ ...prev, admin_email: e.target.value }))
+                        setFormData((prev) => ({ ...prev, admin_name: e.target.value }))
                       }
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      placeholder="gestor@empresa.com"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Ex: João Silva"
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Senha de Acesso *
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email de Acesso *
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <input
-                        type={showPassword ? 'text' : 'password'}
-                        value={newTenant.admin_password}
+                        type="email"
+                        value={formData.admin_email}
                         onChange={(e) =>
-                          setNewTenant((prev) => ({
+                          setFormData((prev) => ({ ...prev, admin_email: e.target.value }))
+                        }
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        placeholder="gestor@empresa.com"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Senha de Acesso *
+                    </label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          value={formData.admin_password}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              admin_password: e.target.value,
+                            }))
+                          }
+                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          placeholder="Mínimo 6 caracteres"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={generatePassword}
+                        className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm whitespace-nowrap"
+                      >
+                        Gerar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
+                      >
+                        {showPassword ? 'Ocultar' : 'Ver'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Integração WhatsApp */}
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                <Smartphone className="w-4 h-4" />
+                Integração WhatsApp
+              </h3>
+              
+              {/* Seletor de Provider */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Provedor de WhatsApp
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, whatsapp_provider: 'none' }))}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      formData.whatsapp_provider === 'none'
+                        ? 'border-purple-500 bg-purple-50 text-purple-700'
+                        : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    Nenhum
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, whatsapp_provider: '360dialog' }))}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      formData.whatsapp_provider === '360dialog'
+                        ? 'border-purple-500 bg-purple-50 text-purple-700'
+                        : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    360dialog
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, whatsapp_provider: 'zapi' }))}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      formData.whatsapp_provider === 'zapi'
+                        ? 'border-green-500 bg-green-50 text-green-700'
+                        : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    Z-API
+                  </button>
+                </div>
+              </div>
+
+              {/* Campos comuns (quando provider != none) */}
+              {formData.whatsapp_provider !== 'none' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Número do WhatsApp (Business) *
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="text"
+                        value={formData.whatsapp_number}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
                             ...prev,
-                            admin_password: e.target.value,
+                            whatsapp_number: e.target.value,
                           }))
                         }
                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                        placeholder="Mínimo 6 caracteres"
+                        placeholder="Ex: 5511999998888 (somente dígitos)"
                       />
                     </div>
-                    <button
-                      type="button"
-                      onClick={generatePassword}
-                      className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm whitespace-nowrap"
-                    >
-                      Gerar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((prev) => !prev)}
-                      className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm"
-                    >
-                      {showPassword ? 'Ocultar' : 'Ver'}
-                    </button>
                   </div>
-                </div>
-              </div>
-            </div>
 
-            {/* Integração WhatsApp / 360dialog */}
-            <div className="mb-6">
-              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-                <Phone className="w-4 h-4" />
-                Integração WhatsApp / 360dialog
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Número do WhatsApp (Business)
-                  </label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="text"
-                      value={newTenant.whatsapp_number}
-                      onChange={(e) =>
-                        setNewTenant((prev) => ({
-                          ...prev,
-                          whatsapp_number: e.target.value,
-                        }))
-                      }
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      placeholder="Ex: 5511999998888 (somente dígitos)"
-                    />
-                  </div>
-                </div>
+                  {/* Campos 360dialog */}
+                  {formData.whatsapp_provider === '360dialog' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          360dialog API Key *
+                        </label>
+                        <div className="relative">
+                          <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input
+                            type="text"
+                            value={formData.dialog360_api_key}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                dialog360_api_key: e.target.value,
+                              }))
+                            }
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            placeholder="Chave de API do 360dialog"
+                          />
+                        </div>
+                      </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    360dialog API Key
-                  </label>
-                  <div className="relative">
-                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="text"
-                      value={newTenant.dialog360_api_key}
-                      onChange={(e) =>
-                        setNewTenant((prev) => ({
-                          ...prev,
-                          dialog360_api_key: e.target.value,
-                        }))
-                      }
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      placeholder="Chave de API do 360dialog"
-                    />
-                  </div>
-                </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Webhook Verify Token (opcional)
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.webhook_verify_token}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              webhook_verify_token: e.target.value,
+                            }))
+                          }
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          placeholder="velaris_webhook_token (padrão)"
+                        />
+                      </div>
+                    </>
+                  )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Webhook Verify Token (opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={newTenant.webhook_verify_token}
-                    onChange={(e) =>
-                      setNewTenant((prev) => ({
-                        ...prev,
-                        webhook_verify_token: e.target.value,
-                      }))
-                    }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="velaris_webhook_token (padrão)"
-                  />
+                  {/* Campos Z-API */}
+                  {formData.whatsapp_provider === 'zapi' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Z-API Instance ID *
+                        </label>
+                        <div className="relative">
+                          <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input
+                            type="text"
+                            value={formData.zapi_instance_id}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                zapi_instance_id: e.target.value,
+                              }))
+                            }
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            placeholder="ID da instância Z-API"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Z-API Token *
+                        </label>
+                        <div className="relative">
+                          <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input
+                            type="text"
+                            value={formData.zapi_token}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                zapi_token: e.target.value,
+                              }))
+                            }
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                            placeholder="Token da instância Z-API"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Info box */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <p className="text-sm text-blue-700">
-                <strong>Após criar:</strong> o cliente poderá acessar o sistema com o email e
-                senha definidos acima pelo admin. Se você preencher os dados do 360dialog,
-                a IA já estará pronta para operar com o número configurado.
-              </p>
-              <p className="text-sm text-blue-700 mt-2">
-                <strong>Webhook URL:</strong> Configure no painel do 360dialog:
-                <br />
-                <code className="bg-blue-100 px-2 py-1 rounded text-xs">
-                  https://hopeful-purpose-production-3a2b.up.railway.app/api/v1/webhook/360dialog
+            {formData.whatsapp_provider !== 'none' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <p className="text-sm text-blue-700">
+                  <strong>Webhook URL:</strong> Configure no painel do {formData.whatsapp_provider === 'zapi' ? 'Z-API' : '360dialog'}:
+                </p>
+                <code className="block bg-blue-100 px-2 py-1 rounded text-xs mt-2 break-all">
+                  {getWebhookUrl()}
                 </code>
-              </p>
-            </div>
+                {formData.whatsapp_provider === 'zapi' && (
+                  <p className="text-xs text-blue-600 mt-2">
+                    💡 No Z-API, configure também os webhooks de status, connect e disconnect.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {!isEditing && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+                <p className="text-sm text-gray-700">
+                  <strong>Após criar:</strong> o cliente poderá acessar o sistema com o email e
+                  senha definidos acima.
+                </p>
+              </div>
+            )}
 
             <div className="flex gap-3">
               <button
-                onClick={() => setShowModal(false)}
+                onClick={closeModal}
                 className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 Cancelar
               </button>
               <button
-                onClick={createTenant}
-                disabled={creating}
+                onClick={handleSubmit}
+                disabled={saving}
                 className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
               >
-                {creating ? 'Criando...' : 'Criar Cliente'}
+                {saving ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Criar Cliente'}
               </button>
             </div>
           </div>
