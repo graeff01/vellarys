@@ -19,15 +19,25 @@ settings = get_settings()
 class ZAPIService:
     """Cliente para Z-API WhatsApp."""
     
-    def __init__(self, instance_id: str = None, token: str = None):
+    def __init__(self, instance_id: str = None, token: str = None, client_token: str = None):
         self.instance_id = instance_id or getattr(settings, 'zapi_instance_id', None)
         self.token = token or getattr(settings, 'zapi_token', None)
+        self.client_token = client_token or getattr(settings, 'zapi_client_token', None)
         
         if self.instance_id and self.token:
             self.base_url = f"https://api.z-api.io/instances/{self.instance_id}/token/{self.token}"
         else:
             self.base_url = None
             logger.warning("Z-API: Credenciais nao configuradas")
+    
+    def _get_headers(self) -> dict:
+        """Retorna headers para as requisicoes, incluindo Client-Token se configurado."""
+        headers = {
+            "Content-Type": "application/json"
+        }
+        if self.client_token:
+            headers["Client-Token"] = self.client_token
+        return headers
     
     def is_configured(self) -> bool:
         """Verifica se o servico esta configurado."""
@@ -60,7 +70,12 @@ class ZAPIService:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(url, json=payload, timeout=30)
+                response = await client.post(
+                    url, 
+                    json=payload, 
+                    headers=self._get_headers(),
+                    timeout=30
+                )
                 response.raise_for_status()
                 result = response.json()
                 logger.info(f"Z-API: Mensagem enviada para {phone[:8]}***")
@@ -92,7 +107,12 @@ class ZAPIService:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(url, json=payload, timeout=30)
+                response = await client.post(
+                    url, 
+                    json=payload, 
+                    headers=self._get_headers(),
+                    timeout=30
+                )
                 response.raise_for_status()
                 return {"success": True, "data": response.json()}
             except Exception as e:
@@ -119,7 +139,12 @@ class ZAPIService:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(url, json=payload, timeout=30)
+                response = await client.post(
+                    url, 
+                    json=payload, 
+                    headers=self._get_headers(),
+                    timeout=30
+                )
                 response.raise_for_status()
                 return {"success": True, "data": response.json()}
             except Exception as e:
@@ -140,7 +165,12 @@ class ZAPIService:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(url, json=payload, timeout=30)
+                response = await client.post(
+                    url, 
+                    json=payload, 
+                    headers=self._get_headers(),
+                    timeout=30
+                )
                 response.raise_for_status()
                 return {"success": True, "data": response.json()}
             except Exception as e:
@@ -173,7 +203,12 @@ class ZAPIService:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(url, json=payload, timeout=30)
+                response = await client.post(
+                    url, 
+                    json=payload, 
+                    headers=self._get_headers(),
+                    timeout=30
+                )
                 response.raise_for_status()
                 return {"success": True, "data": response.json()}
             except Exception as e:
@@ -218,7 +253,12 @@ class ZAPIService:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(url, json=payload, timeout=30)
+                response = await client.post(
+                    url, 
+                    json=payload, 
+                    headers=self._get_headers(),
+                    timeout=30
+                )
                 response.raise_for_status()
                 return {"success": True, "data": response.json()}
             except Exception as e:
@@ -259,7 +299,12 @@ class ZAPIService:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.post(url, json=payload, timeout=30)
+                response = await client.post(
+                    url, 
+                    json=payload, 
+                    headers=self._get_headers(),
+                    timeout=30
+                )
                 response.raise_for_status()
                 return {"success": True, "data": response.json()}
             except Exception as e:
@@ -275,7 +320,11 @@ class ZAPIService:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.get(url, timeout=10)
+                response = await client.get(
+                    url, 
+                    headers=self._get_headers(),
+                    timeout=10
+                )
                 data = response.json()
                 connected = data.get("connected", False)
                 return {"connected": connected, "data": data}
@@ -292,7 +341,11 @@ class ZAPIService:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.get(url, timeout=30)
+                response = await client.get(
+                    url, 
+                    headers=self._get_headers(),
+                    timeout=30
+                )
                 data = response.json()
                 return {"success": True, "data": data}
             except Exception as e:
@@ -308,7 +361,11 @@ class ZAPIService:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.get(url, timeout=10)
+                response = await client.get(
+                    url, 
+                    headers=self._get_headers(),
+                    timeout=10
+                )
                 return {"success": True, "data": response.json()}
             except Exception as e:
                 logger.error(f"Z-API disconnect erro: {e}")
@@ -323,7 +380,11 @@ class ZAPIService:
         
         async with httpx.AsyncClient() as client:
             try:
-                response = await client.get(url, timeout=30)
+                response = await client.get(
+                    url, 
+                    headers=self._get_headers(),
+                    timeout=30
+                )
                 return {"success": True, "data": response.json()}
             except Exception as e:
                 logger.error(f"Z-API restart erro: {e}")
@@ -351,6 +412,7 @@ _zapi_client: Optional[ZAPIService] = None
 def get_zapi_client(
     instance_id: str = None, 
     token: str = None,
+    client_token: str = None,
     force_new: bool = False
 ) -> ZAPIService:
     """
@@ -359,6 +421,7 @@ def get_zapi_client(
     Args:
         instance_id: ID da instancia (opcional, usa settings)
         token: Token da instancia (opcional, usa settings)
+        client_token: Client-Token de seguranca (opcional, usa settings)
         force_new: Forca criacao de nova instancia
     
     Returns:
@@ -366,8 +429,8 @@ def get_zapi_client(
     """
     global _zapi_client
     
-    if instance_id or token or force_new:
-        return ZAPIService(instance_id=instance_id, token=token)
+    if instance_id or token or client_token or force_new:
+        return ZAPIService(instance_id=instance_id, token=token, client_token=client_token)
     
     if _zapi_client is None:
         _zapi_client = ZAPIService()
@@ -383,7 +446,8 @@ async def send_whatsapp_message(
     phone: str, 
     message: str,
     instance_id: str = None,
-    token: str = None
+    token: str = None,
+    client_token: str = None
 ) -> dict:
     """
     Funcao simplificada para enviar mensagem WhatsApp.
@@ -393,17 +457,19 @@ async def send_whatsapp_message(
         message: Texto da mensagem
         instance_id: ID da instancia Z-API (opcional)
         token: Token da instancia (opcional)
+        client_token: Client-Token de seguranca (opcional)
     
     Returns:
         {"success": True/False, "error": "..."}
     """
-    client = get_zapi_client(instance_id=instance_id, token=token)
+    client = get_zapi_client(instance_id=instance_id, token=token, client_token=client_token)
     return await client.send_text(phone, message)
 
 
 async def check_zapi_connection(
     instance_id: str = None,
-    token: str = None
+    token: str = None,
+    client_token: str = None
 ) -> bool:
     """
     Verifica se Z-API esta conectado.
@@ -411,6 +477,6 @@ async def check_zapi_connection(
     Returns:
         True se conectado, False caso contrario
     """
-    client = get_zapi_client(instance_id=instance_id, token=token)
+    client = get_zapi_client(instance_id=instance_id, token=token, client_token=client_token)
     result = await client.check_connection()
     return result.get("connected", False)

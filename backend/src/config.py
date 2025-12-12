@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     # Z-API
     zapi_instance_id: str = ""
     zapi_token: str = ""
+    zapi_client_token: str = ""  # ← ADICIONA ESSA LINHA
+
     
     # ===========================================
     # CORE
