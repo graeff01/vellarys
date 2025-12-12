@@ -6,7 +6,7 @@ Serviços de infraestrutura do Velaris.
 
 Organização:
 - Core AI: OpenAI, Sentimento, Respostas
-- Comunicação: WhatsApp (Gupshup, 360Dialog)
+- Comunicação: WhatsApp (Z-API)
 - Segurança: Auth, Rate Limit, Security, LGPD
 - Negócio: Guards, Handoff, Distribution, Reengagement
 - Operacional: Business Hours, Notifications, Export, Audit
@@ -17,13 +17,11 @@ Organização:
 # =============================================================================
 
 from .openai_service import (
-    # Funções base
     chat_completion,
     extract_lead_data,
     qualify_lead,
     generate_lead_summary,
     generate_proactive_suggestions,
-    # Funções inteligentes
     detect_sentiment,
     generate_context_aware_response,
     generate_conversation_summary,
@@ -33,19 +31,10 @@ from .openai_service import (
 )
 
 # =============================================================================
-# COMUNICAÇÃO - WhatsApp
+# COMUNICAÇÃO - WhatsApp (Z-API)
 # =============================================================================
 
-# Gupshup (WhatsApp Business API)
-from .gupshup_service import (
-    GupshupService,
-    GupshupConfig,
-    SendMessageResult,
-    ParsedIncomingMessage,
-    get_gupshup_service,
-    configure_gupshup_service,
-    send_gupshup_message,
-)
+from .zapi_service import ZAPIService
 
 # =============================================================================
 # SEGURANÇA - Auth, Rate Limit, Security, LGPD
@@ -108,15 +97,13 @@ from .audit_service import (
 # NEGÓCIO - Guards, Handoff, Distribution, Reengagement
 # =============================================================================
 
-# AI Guards (validações de escopo, FAQ, limites)
+# AI Guards
 from .ai_guard_service import (
     run_ai_guards,
     run_ai_guards_async,
     check_faq,
     check_scope,
     check_message_limit,
-    # NOTA: check_business_hours removido daqui
-    # Agora usa o business_hours_service que é mais completo
 )
 
 # Handoff
@@ -146,7 +133,7 @@ from .reengagement_service import (
 # OPERACIONAL - Business Hours, Notifications, Export
 # =============================================================================
 
-# Business Hours (Serviço completo de horário comercial)
+# Business Hours
 from .business_hours_service import (
     check_business_hours,
     is_within_business_hours,
@@ -156,7 +143,7 @@ from .business_hours_service import (
     BusinessHoursCheckResult,
 )
 
-# Notification Service (Notificações painel + WhatsApp gestor + vendedor)
+# Notifications
 from .notification_service import (
     notify_gestor,
     notify_seller,
@@ -180,19 +167,13 @@ from .export_service import (
     get_metrics_for_export,
 )
 
-from .zapi_service import ZAPIService
-
-
 # =============================================================================
 # EXPORTS
 # =============================================================================
 
 __all__ = [
-    # =========================================================================
     # CORE AI
-    # =========================================================================
     "chat_completion",
-    "ZAPIService",
     "extract_lead_data",
     "qualify_lead",
     "generate_lead_summary",
@@ -203,44 +184,32 @@ __all__ = [
     "calculate_typing_delay",
     "get_random_greeting",
     "get_random_acknowledgment",
-    
-    # =========================================================================
-    # COMUNICAÇÃO - WhatsApp
-    # =========================================================================
-    # Legado
-    "send_whatsapp_message",
-    # Gupshup
-    "GupshupService",
-    "GupshupConfig",
-    "SendMessageResult",
-    "ParsedIncomingMessage",
-    "get_gupshup_service",
-    "configure_gupshup_service",
-    "send_gupshup_message",
-    
-    # =========================================================================
-    # SEGURANÇA
-    # =========================================================================
-    # Auth
+
+    # WHATSAPP
+    "ZAPIService",
+
+    # AUTH
     "hash_password",
     "verify_password",
-    # Rate Limiting (Login)
+
+    # RATE LIMIT
     "check_rate_limit",
     "log_login_attempt",
     "get_login_history",
-    # Message Rate Limiting
     "check_message_rate_limit",
     "get_rate_limit_status",
     "reset_rate_limit",
     "get_rate_limit_response",
     "get_rate_limiter",
-    # Security
+
+    # SECURITY
     "run_security_check",
     "get_safe_response_for_threat",
     "sanitize_input",
     "ThreatLevel",
     "ThreatType",
     "SecurityCheckResult",
+
     # LGPD
     "detect_lgpd_request",
     "get_lgpd_response",
@@ -249,7 +218,8 @@ __all__ = [
     "rectify_lead_data",
     "anonymize_lead",
     "get_processing_info",
-    # Audit
+
+    # AUDIT
     "log_audit",
     "log_message_received",
     "log_security_threat",
@@ -259,42 +229,32 @@ __all__ = [
     "get_audit_logs",
     "AuditAction",
     "AuditSeverity",
-    
-    # =========================================================================
-    # NEGÓCIO
-    # =========================================================================
-    # AI Guards
+
+    # BUSINESS
     "run_ai_guards",
     "run_ai_guards_async",
     "check_faq",
     "check_scope",
     "check_message_limit",
-    # Handoff
     "execute_handoff",
     "check_handoff_triggers",
-    # Distribution
     "distribute_lead",
     "get_available_sellers",
     "assign_lead_to_seller",
-    # Reengagement
     "process_reengagement_batch",
     "execute_reengagement",
     "get_leads_to_reengage",
     "get_reengagement_message",
     "mark_lead_activity",
     "DEFAULT_REENGAGEMENT_CONFIG",
-    
-    # =========================================================================
+
     # OPERACIONAL
-    # =========================================================================
-    # Business Hours
     "check_business_hours",
     "is_within_business_hours",
     "get_out_of_hours_message",
     "get_next_business_opening",
     "get_business_hours_summary",
     "BusinessHoursCheckResult",
-    # Notification Service
     "notify_gestor",
     "notify_seller",
     "notify_seller_whatsapp",
@@ -306,7 +266,6 @@ __all__ = [
     "notify_gestor_whatsapp",
     "build_lead_summary_text",
     "build_seller_notification_message",
-    # Export
     "export_to_excel",
     "export_to_csv",
     "export_to_pdf",
