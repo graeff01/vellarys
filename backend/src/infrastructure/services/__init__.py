@@ -36,9 +36,6 @@ from .openai_service import (
 # COMUNICAÇÃO - WhatsApp
 # =============================================================================
 
-# WhatsApp (legado)
-from .whatsapp_service import send_whatsapp_message
-
 # Gupshup (WhatsApp Business API)
 from .gupshup_service import (
     GupshupService,
