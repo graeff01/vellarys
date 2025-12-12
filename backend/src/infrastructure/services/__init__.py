@@ -183,12 +183,7 @@ from .export_service import (
     get_metrics_for_export,
 )
 
-from .zapi_service import (
-    ZAPIService,
-    get_zapi_client,
-    send_whatsapp_message,
-    check_zapi_connection,
-)
+from .zapi_service import ZAPIService
 
 
 # =============================================================================
@@ -200,6 +195,7 @@ __all__ = [
     # CORE AI
     # =========================================================================
     "chat_completion",
+    "ZAPIService",
     "extract_lead_data",
     "qualify_lead",
     "generate_lead_summary",
