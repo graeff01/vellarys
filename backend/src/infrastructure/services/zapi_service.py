@@ -1,13 +1,17 @@
 """
-SERVIÇO Z-API - Integração WhatsApp (MULTI-TENANT)
-=================================================
-Adapter oficial Z-API desacoplado de settings globais.
-Cada instância representa UM tenant.
+SERVIÇO Z-API — WhatsApp (MULTI-TENANT)
+======================================
+
+Cliente oficial Z-API desacoplado de settings globais.
+Cada instância representa UM channel / tenant.
+
+Usado por:
+- WhatsAppService
+- Webhooks Z-API
 """
 
 import httpx
 import logging
-from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -29,31 +33,46 @@ class ZAPIService:
     # HTTP HELPERS
     # ==========================
     async def _post(self, endpoint: str, payload: dict) -> dict:
+        url = f"{self.base_url}/{endpoint}"
+
         try:
             async with httpx.AsyncClient(timeout=30) as client:
-                response = await client.post(
-                    f"{self.base_url}/{endpoint}",
-                    json=payload,
-                )
+                response = await client.post(url, json=payload)
                 response.raise_for_status()
                 return response.json()
+
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"Z-API HTTP error [{self.instance_id}] {e.response.status_code} — {e.response.text}"
+            )
+            return {
+                "success": False,
+                "error": e.response.text,
+                "status_code": e.response.status_code,
+            }
+
         except Exception as e:
-            logger.error(f"Z-API POST error [{endpoint}]: {e}")
+            logger.exception(
+                f"Z-API POST error [{self.instance_id}] endpoint={endpoint}"
+            )
             return {
                 "success": False,
                 "error": str(e),
             }
 
     async def _get(self, endpoint: str) -> dict:
+        url = f"{self.base_url}/{endpoint}"
+
         try:
             async with httpx.AsyncClient(timeout=15) as client:
-                response = await client.get(
-                    f"{self.base_url}/{endpoint}"
-                )
+                response = await client.get(url)
                 response.raise_for_status()
                 return response.json()
+
         except Exception as e:
-            logger.error(f"Z-API GET error [{endpoint}]: {e}")
+            logger.exception(
+                f"Z-API GET error [{self.instance_id}] endpoint={endpoint}"
+            )
             return {
                 "success": False,
                 "error": str(e),
@@ -113,10 +132,12 @@ class ZAPIService:
     # ==========================
     async def check_connection(self) -> dict:
         data = await self._get("status")
+
         return {
+            "success": True,
             "connected": data.get("connected", False),
-            "data": data,
             "instance_id": self.instance_id,
+            "raw": data,
         }
 
     # ==========================
