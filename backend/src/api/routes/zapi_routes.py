@@ -123,6 +123,7 @@ async def zapi_receive_message(
         # Por enquanto, busca o primeiro tenant ativo com canal whatsapp
         # TODO: Mapear instance_id para tenant (tabela ou campo)
         
+
         result = await db.execute(
             select(Channel)
             .where(Channel.type == "whatsapp")
@@ -130,8 +131,12 @@ async def zapi_receive_message(
             .where(
                 Channel.config["zapi_instance_id"].astext == instance_id
             )
+            .order_by(Channel.created_at.asc())
         )
-        channel = result.scalar_one_or_none()
+
+        channel = result.scalars().first()
+
+
 
         
         if not channel:
