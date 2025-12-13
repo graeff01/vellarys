@@ -3,6 +3,7 @@
 // Adicionar esses imports
 import EmpreendimentosTab from '@/components/dashboard/EmpreendimentosTab';
 import { getSellers } from '@/lib/sellers';
+import { getToken } from '@/lib/auth';
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardHeader } from '@/components/ui/card';
 import { 
@@ -35,6 +36,8 @@ import {
   Empreendimento,
   EmpreendimentoCreate,
 } from '@/lib/api';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 interface TagInputProps {
   tags: string[];
@@ -194,20 +197,9 @@ export default function SettingsPage() {
 
 
   // OPTIONS
-  const [niches, setNiches] = useState<NicheOption[]>([
-    // Fallback padrão caso a API não retorne
-    { id: 'services', name: 'Serviços', description: 'Prestação de serviços em geral', icon: '🔧' },
-    { id: 'retail', name: 'Varejo', description: 'Lojas e comércio', icon: '🛒' },
-    { id: 'health', name: 'Saúde', description: 'Clínicas e consultórios', icon: '🏥' },
-    { id: 'beauty', name: 'Beleza', description: 'Salões, estética e bem-estar', icon: '💇' },
-    { id: 'food', name: 'Alimentação', description: 'Restaurantes e delivery', icon: '🍽️' },
-    { id: 'education', name: 'Educação', description: 'Escolas e cursos', icon: '📚' },
-    { id: 'realestate', name: 'Imobiliário', description: 'Imóveis e corretagem', icon: '🏠' },
-    { id: 'automotive', name: 'Automotivo', description: 'Veículos e oficinas', icon: '🚗' },
-    { id: 'fashion', name: 'Moda', description: 'Roupas e acessórios', icon: '👗' },
-    { id: 'events', name: 'Eventos', description: 'Festas e celebrações', icon: '🎉' },
-    { id: 'other', name: 'Outro', description: 'Outros segmentos', icon: '📦' },
-  ]);
+  // ⭐ CORRIGIDO: Inicializa vazio - nichos serão carregados do banco de dados
+  const [niches, setNiches] = useState<NicheOption[]>([]);
+  
   const [toneOptions, setToneOptions] = useState<ToneOption[]>([
     { id: 'formal', name: 'Formal', description: 'Profissional, direto e corporativo', icon: '👔', examples: ['Prezado(a)', 'Agradeço o contato', 'Fico à disposição'] },
     { id: 'cordial', name: 'Cordial', description: 'Amigável, educado e acolhedor', icon: '😊', examples: ['Olá!', 'Fico feliz em ajudar', 'Conte comigo'] },
@@ -253,10 +245,36 @@ export default function SettingsPage() {
     thursday: 'Quinta-feira', friday: 'Sexta-feira', saturday: 'Sábado', sunday: 'Domingo',
   };
 
+  // ⭐ NOVA FUNÇÃO: Busca nichos do banco de dados
+  async function fetchNiches() {
+    try {
+      const token = getToken();
+      const response = await fetch(`${API_URL}/admin/niches?active_only=true`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        // Transforma do formato do banco para o formato esperado pelo componente
+        const formattedNiches = data.niches.map((n: { slug: string; name: string; description?: string; icon?: string }) => ({
+          id: n.slug,        // O componente usa 'id' mas o banco usa 'slug'
+          name: n.name,
+          description: n.description || '',
+          icon: n.icon || '📦',
+        }));
+        setNiches(formattedNiches);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar nichos:', error);
+    }
+  }
+
   // LOAD
   useEffect(() => {
     async function loadSettings() {
       try {
+        // ⭐ CORRIGIDO: Busca nichos do banco primeiro
+        await fetchNiches();
+        
         const response = await getSettings();
         setData(response);
         const s = response.settings;
@@ -347,7 +365,8 @@ export default function SettingsPage() {
         
         // Options - sobrescreve com dados da API se existirem
         const opts = response.options || {};
-        if (opts.niches && opts.niches.length > 0) setNiches(opts.niches);
+        // ⭐ REMOVIDO: if (opts.niches && opts.niches.length > 0) setNiches(opts.niches);
+        // Nichos agora vêm do endpoint /admin/niches (banco de dados)
         if (opts.tones && opts.tones.length > 0) setToneOptions(opts.tones);
         if (opts.personality_traits && opts.personality_traits.length > 0) setPersonalityOptions(opts.personality_traits);
         if (opts.distribution_methods && opts.distribution_methods.length > 0) setDistributionMethods(opts.distribution_methods);
