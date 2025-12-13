@@ -245,21 +245,22 @@ export default function SettingsPage() {
     thursday: 'Quinta-feira', friday: 'Sexta-feira', saturday: 'Sábado', sunday: 'Domingo',
   };
 
-  // ⭐ NOVA FUNÇÃO: Busca nichos do banco de dados
+  // ⭐ CORRIGIDO: Busca nichos do endpoint /tenants/niches (acessível a qualquer usuário)
   async function fetchNiches() {
     try {
       const token = getToken();
-      const response = await fetch(`${API_URL}/admin/niches?active_only=true`, {
+      // ⭐ MUDANÇA PRINCIPAL: Usa /tenants/niches ao invés de /admin/niches
+      const response = await fetch(`${API_URL}/tenants/niches`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
-        // Transforma do formato do banco para o formato esperado pelo componente
-        const formattedNiches = data.niches.map((n: { slug: string; name: string; description?: string; icon?: string }) => ({
-          id: n.slug,        // O componente usa 'id' mas o banco usa 'slug'
+        // O endpoint /tenants/niches já retorna no formato correto: [{id, name, description}, ...]
+        const formattedNiches = data.map((n: { id: string; name: string; description?: string }) => ({
+          id: n.id,
           name: n.name,
           description: n.description || '',
-          icon: n.icon || '📦',
+          icon: '📦',  // Ícone padrão
         }));
         setNiches(formattedNiches);
       }
@@ -272,7 +273,7 @@ export default function SettingsPage() {
   useEffect(() => {
     async function loadSettings() {
       try {
-        // ⭐ CORRIGIDO: Busca nichos do banco primeiro
+        // ⭐ Busca nichos do banco primeiro
         await fetchNiches();
         
         const response = await getSettings();
@@ -365,8 +366,7 @@ export default function SettingsPage() {
         
         // Options - sobrescreve com dados da API se existirem
         const opts = response.options || {};
-        // ⭐ REMOVIDO: if (opts.niches && opts.niches.length > 0) setNiches(opts.niches);
-        // Nichos agora vêm do endpoint /admin/niches (banco de dados)
+        // ⭐ REMOVIDO: Nichos agora vêm do endpoint /tenants/niches
         if (opts.tones && opts.tones.length > 0) setToneOptions(opts.tones);
         if (opts.personality_traits && opts.personality_traits.length > 0) setPersonalityOptions(opts.personality_traits);
         if (opts.distribution_methods && opts.distribution_methods.length > 0) setDistributionMethods(opts.distribution_methods);
@@ -445,7 +445,6 @@ export default function SettingsPage() {
     { id: 'identidade', label: 'Identidade', icon: Building2 },
     { id: 'comunicacao', label: 'Comunicação', icon: MessageSquare },
     { id: 'qualificacao', label: 'Qualificação', icon: Target },
-    // ⭐ NOVA ABA - só aparece para imobiliárias
     ...(hasEmpreendimentosAccess ? [{ id: 'empreendimentos', label: 'Empreendimentos', icon: Home }] : []),
     { id: 'distribuicao', label: 'Distribuição', icon: Users },
     { id: 'handoff', label: 'Transferência', icon: Phone },
@@ -840,7 +839,7 @@ export default function SettingsPage() {
         </Card>
       )}
 
-{/* TAB: GUARDRAILS */}
+      {/* TAB: GUARDRAILS */}
       {activeTab === 'guardrails' && (
         <div className="space-y-6">
           <Card>
