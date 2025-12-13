@@ -29,7 +29,7 @@ from src.api.routes import (
     export_router,
     usage_router,
     simulator_router,
-    handoff_router,
+    handoff_router,  # ← IMPORTADO
     admin_dashboard_router,
     admin_tenants_router,
     admin_niches_router,
@@ -145,6 +145,8 @@ app.include_router(export_router, prefix="/api/v1")
 app.include_router(usage_router, prefix="/api/v1")
 app.include_router(simulator_router, prefix="/api/v1")
 app.include_router(twilio_webhook_router, prefix="/api/v1")
+
+# ⭐ HANDOFF - FALTAVA ESTE!
 app.include_router(handoff_router, prefix="/api/v1")
 
 # Admin
