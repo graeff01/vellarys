@@ -40,7 +40,12 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.services.property_lookup_service import PropertyLookupService
 import re
-from src.infrastructure.services.property_lookup_service import PROPERTY_CODE_MAP
+
+
+from src.infrastructure.services.property_lookup_service import (
+    buscar_imovel_na_mensagem,
+    build_property_context,
+)
 
 
 from src.domain.entities import (
@@ -793,14 +798,14 @@ async def process_message(
 
             logger.info(f"[DEBUG] Conteúdo recebido para lookup: {content}")
 
-            match = re.search(r"\b\d{5,7}\b", content)
-
-            logger.info(f"[DEBUG] Regex match: {match.group(0) if match else 'NENHUM'}")
-
-            match = re.search(r"\b\d{5,7}\b", content)
+            match = re.search(
+                r"(im[oó]vel|c[oó]digo)\s*(\d{5,7})",
+                content.lower()
+            )
 
             if match:
-                codigo_humano = match.group(0)
+                codigo_humano = match.group(2)
+
 
                 # 1️⃣ tenta traduzir para slug real
                 slug = PROPERTY_CODE_MAP.get(codigo_humano)
@@ -815,7 +820,10 @@ async def process_message(
 
 
                 logger.info(f"[DEBUG] Resultado lookup imóvel ({codigo_humano}): {imovel_portal}")
-                logger.info(f"🏠 Imóvel PortalInvestimento detectado: {codigo_humano}")
+                if imovel_portal:
+                    logger.info(f"🏠 Imóvel PortalInvestimento detectado: {codigo_humano}")
+                else:
+                    logger.info(f"❌ Nenhum imóvel encontrado para código {codigo_humano}")
 
 
         except Exception as e:

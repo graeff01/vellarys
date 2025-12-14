@@ -1,198 +1,165 @@
-import requests
+"""
+SERVIÇO DE BUSCA DE IMÓVEIS - PORTAL DE INVESTIMENTO
+"""
+
 import logging
-from functools import lru_cache
-from typing import Optional
+import re
+import httpx
+from typing import Optional, Dict, List
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
-# ==========================================================
-# MAPEAMENTO: CÓDIGO HUMANO → SLUG REAL DO PORTAL (PRD)
-# ==========================================================
-PROPERTY_CODE_MAP = {
-    "722585": "poa001",
-    # futuros:
-    # "722586": "poa002",
-}
+PORTAL_BASE_URL = "https://portalinvestimento.com"
+PORTAL_REGIONS = ["poa", "sc", "canoas", "pb"]
+HTTP_TIMEOUT = 5.0
+
+# Cache simples em memória
+_cache: Dict[str, tuple] = {}
+_cache_ttl = 300  # 5 minutos
+
+
+def _get_cache(key: str):
+    if key in _cache:
+        value, expires = _cache[key]
+        if datetime.now() < expires:
+            return value
+    return None
+
+
+def _set_cache(key: str, value):
+    _cache[key] = (value, datetime.now() + timedelta(seconds=_cache_ttl))
 
 
 class PropertyLookupService:
-    """
-    Serviço responsável por buscar dados de imóveis no Portal de Investimento.
-
-    - Seguro
-    - Isolado
-    - Tolerante a falhas
-    - Compatível com PRD
-    """
-
-    BASE_URL = "https://portalinvestimento.com"
-    TIMEOUT = 4  # segundos (curto para não travar atendimento)
-    USER_AGENT = "VellarysBot/1.0 (+https://vellarys.ai)"
-
+    
     def __init__(self):
-        self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": self.USER_AGENT,
-            "Accept": "text/html,application/xhtml+xml",
-        })
-
-    # ==========================================================
-    # MÉTODO ÚNICO DE ENTRADA (RECOMENDADO)
-    # ==========================================================
-    def buscar(self, codigo_humano: str) -> Optional[dict]:
-        """
-        Ponto único de entrada.
-        Decide automaticamente entre slug real ou fallback.
-        """
-
-        slug = PROPERTY_CODE_MAP.get(codigo_humano)
-
-        if slug:
-            logger.info(
-                f"[PROPERTY LOOKUP] codigo_humano={codigo_humano} → slug={slug}"
-            )
-            return self.buscar_por_slug(slug)
-
-        logger.info(
-            f"[PROPERTY LOOKUP] codigo_humano={codigo_humano} sem slug, usando fallback"
-        )
-        return self.buscar_por_codigo(codigo_humano)
-
-    # ==========================================================
-    # BUSCA POR SLUG REAL (PRD / CAMINHO FELIZ)
-    # ==========================================================
-    @lru_cache(maxsize=128)
-    def buscar_por_slug(self, slug: str) -> Optional[dict]:
-        """
-        Busca imóvel pelo slug real do Portal (ex: poa001)
-        """
-
+        self._client = None
+    
+    @property
+    def client(self) -> httpx.Client:
+        if self._client is None:
+            self._client = httpx.Client(timeout=HTTP_TIMEOUT)
+        return self._client
+    
+    def buscar_por_codigo(self, codigo: str) -> Optional[Dict]:
+        """Busca imóvel pelo código (ex: 722585)."""
+        codigo = str(codigo).strip()
+        if not codigo:
+            return None
+        
+        # Cache
+        cached = _get_cache(f"cod_{codigo}")
+        if cached:
+            return cached
+        
+        # Busca em todas as regiões
+        for regiao in PORTAL_REGIONS:
+            imoveis = self._carregar_regiao(regiao)
+            if not imoveis:
+                continue
+            
+            for imovel in imoveis:
+                if str(imovel.get("codigo", "")) == codigo:
+                    resultado = self._formatar(imovel, regiao)
+                    _set_cache(f"cod_{codigo}", resultado)
+                    logger.info(f"🏠 Imóvel {codigo} encontrado em {regiao}")
+                    return resultado
+        
+        logger.info(f"❌ Imóvel {codigo} não encontrado")
+        return None
+    
+    def _carregar_regiao(self, regiao: str) -> Optional[List[Dict]]:
+        """Carrega JSON de uma região."""
+        cached = _get_cache(f"reg_{regiao}")
+        if cached:
+            return cached
+        
+        url = f"{PORTAL_BASE_URL}/imoveis/{regiao}/{regiao}.json"
+        
         try:
-            logger.info(f"🔎 PortalLookup | Buscando imóvel slug={slug}")
-
-            url = f"{self.BASE_URL}/imovel.html?id={slug}"
-
-            response = self.session.get(
-                url,
-                timeout=self.TIMEOUT,
-                verify=True
-            )
-
-            if response.status_code != 200:
-                logger.warning(
-                    f"PortalLookup | HTTP {response.status_code} para slug {slug}"
-                )
-                return None
-
-            html = response.text
-
-            if "<title>" not in html:
-                logger.warning(f"PortalLookup | HTML inválido para slug {slug}")
-                return None
-
-            return self._parse_html(slug, html)
-
-        except requests.Timeout:
-            logger.warning(f"⏱️ PortalLookup timeout para slug {slug}")
-            return None
-
-        except requests.RequestException as e:
-            logger.error(f"❌ PortalLookup erro HTTP slug {slug}: {e}")
-            return None
-
+            response = self.client.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                _set_cache(f"reg_{regiao}", data)
+                logger.info(f"✅ {len(data)} imóveis carregados de {regiao}")
+                return data
         except Exception as e:
-            logger.error(f"❌ PortalLookup erro inesperado slug {slug}: {e}")
-            return None
+            logger.warning(f"Erro ao carregar {regiao}: {e}")
+        
+        return None
+    
+    def _formatar(self, imovel: Dict, regiao: str) -> Dict:
+        """Formata dados do imóvel."""
+        preco = imovel.get("preco", 0)
+        preco_fmt = f"R$ {preco:,.0f}".replace(",", ".") if preco else "Consulte"
+        
+        return {
+            "codigo": imovel.get("codigo", ""),
+            "titulo": imovel.get("titulo", "Imóvel"),
+            "tipo": imovel.get("tipo", "Imóvel"),
+            "regiao": imovel.get("regiao", regiao.upper()),
+            "quartos": imovel.get("quartos", "Consulte"),
+            "banheiros": imovel.get("banheiros", "Consulte"),
+            "vagas": imovel.get("vagas", "Consulte"),
+            "metragem": imovel.get("metragem", "Consulte"),
+            "preco": preco_fmt,
+            "descricao": imovel.get("descricao", ""),
+            "link": f"{PORTAL_BASE_URL}/imovel.html?id={imovel.get('id', '')}",
+        }
 
-    # ==========================================================
-    # BUSCA POR CÓDIGO (FALLBACK / LEGADO)
-    # ==========================================================
-    @lru_cache(maxsize=128)
-    def buscar_por_codigo(self, codigo: str) -> Optional[dict]:
-        """
-        Fallback defensivo.
-        Só é usado se não existir mapeamento.
-        """
 
-        try:
-            logger.info(f"🔎 PortalLookup | Buscando imóvel código={codigo}")
+def extrair_codigo_imovel(mensagem: str) -> Optional[str]:
+    """Extrai código de imóvel da mensagem."""
+    if not mensagem:
+        return None
+    
+    # Padrão: Código: [722585] ou código 722585
+    match = re.search(r'[\[\(](\d{5,7})[\]\)]', mensagem)
+    if match:
+        return match.group(1)
+    
+    match = re.search(r'(?:c[oó]digo|im[oó]vel)[:\s]*(\d{5,7})', mensagem.lower())
+    if match:
+        return match.group(1)
+    
+    return None
 
-            url = f"{self.BASE_URL}/imovel.html?id={codigo}"
 
-            response = self.session.get(
-                url,
-                timeout=self.TIMEOUT,
-                verify=True
-            )
+def buscar_imovel_na_mensagem(mensagem: str) -> Optional[Dict]:
+    """Função principal - extrai código e busca imóvel."""
+    codigo = extrair_codigo_imovel(mensagem)
+    if not codigo:
+        return None
+    
+    logger.info(f"🔍 Código detectado: {codigo}")
+    service = PropertyLookupService()
+    return service.buscar_por_codigo(codigo)
 
-            if response.status_code != 200:
-                logger.warning(
-                    f"PortalLookup | HTTP {response.status_code} para código {codigo}"
-                )
-                return None
 
-            html = response.text
+def build_property_context(imovel: Dict) -> str:
+    """Constrói contexto para a IA."""
+    if not imovel:
+        return ""
+    
+    return f"""
+============================================================
+🏠 IMÓVEL DO PORTAL DE INVESTIMENTO
+============================================================
+Código: {imovel['codigo']}
+Título: {imovel['titulo']}
+Tipo: {imovel['tipo']}
+Localização: {imovel['regiao']}
+Quartos: {imovel['quartos']}
+Banheiros: {imovel['banheiros']}
+Vagas: {imovel['vagas']}
+Área: {imovel['metragem']} m²
+Preço: {imovel['preco']}
 
-            if "<title>" not in html:
-                logger.warning(f"PortalLookup | HTML inválido para código {codigo}")
-                return None
+Descrição: {imovel['descricao']}
 
-            return self._parse_html(codigo, html)
-
-        except requests.Timeout:
-            logger.warning(f"⏱️ PortalLookup timeout para código {codigo}")
-            return None
-
-        except requests.RequestException as e:
-            logger.error(f"❌ PortalLookup erro HTTP código {codigo}: {e}")
-            return None
-
-        except Exception as e:
-            logger.error(f"❌ PortalLookup erro inesperado código {codigo}: {e}")
-            return None
-
-    # ==========================================================
-    # PARSER (ISOLADO, DEFENSIVO, SEM DEPENDÊNCIAS)
-    # ==========================================================
-    def _parse_html(self, identificador: str, html: str) -> Optional[dict]:
-        """
-        Parser simples e tolerante a mudanças de HTML.
-        Nunca quebra o sistema.
-        """
-
-        try:
-            def extract_between(text, start, end):
-                if start not in text or end not in text:
-                    return None
-                return text.split(start)[1].split(end)[0].strip()
-
-            titulo = extract_between(html, "<title>", "</title>")
-            if titulo:
-                titulo = titulo.replace(" | Portal de Investimento", "").strip()
-
-            descricao = extract_between(
-                html,
-                '<meta name="description" content="',
-                '"'
-            )
-
-            return {
-                "codigo": identificador,
-                "titulo": titulo or f"Imóvel código {identificador}",
-                "tipo": "Imóvel residencial",
-                "regiao": "Consulte detalhes",
-                "quartos": "Consulte",
-                "banheiros": "Consulte",
-                "vagas": "Consulte",
-                "metragem": "Consulte",
-                "preco": "Consulte",
-                "descricao": descricao or "Imóvel disponível para mais informações.",
-                "link": f"{self.BASE_URL}/imovel.html?id={identificador}",
-                "fonte": "portalinvestimento.com",
-            }
-
-        except Exception as e:
-            logger.error(
-                f"❌ Erro ao parsear HTML do imóvel {identificador}: {e}"
-            )
-            return None
+Link: {imovel['link']}
+============================================================
+INSTRUÇÕES: Use APENAS estas informações. NÃO invente dados.
+============================================================
+"""
