@@ -9,6 +9,8 @@ CORREÇÕES APLICADAS:
 - ✅ Ordem correta: busca lead → recupera empreendimento → detecta novo
 - ✅ Horário comercial: IA processa normal + avisa lead + notifica gestor
 - ✅ Notificações centralizadas via notification_service
+- ✅ NOVO: Notifica gestor via WhatsApp para TODO lead novo
+- ✅ CORRIGIDO: Evita notificações duplicadas
 
 Fluxo PRD:
 1. Sanitização inicial
@@ -17,16 +19,17 @@ Fluxo PRD:
 4. Busca tenant/canal
 5. ⭐ VERIFICAÇÃO DE HORÁRIO COMERCIAL (apenas flag - IA processa normal!)
 6. Busca/cria lead
-7. ⭐ DETECÇÃO DE EMPREENDIMENTO (com persistência)
-8. LGPD check
-9. Status check (lead transferido)
-10. AI Guards (com bypass para empreendimento)
-11. Handoff triggers
-12. Montagem do prompt com identidade + empreendimento
-13. Chamada à IA com anti-alucinação
-14. Extração de dados e qualificação
-15. Handoff se necessário
-16. ⭐ Se fora do horário: adiciona aviso + notifica gestor
+7. ⭐ NOTIFICAÇÃO DE LEAD NOVO (sempre que lead é criado)
+8. ⭐ DETECÇÃO DE EMPREENDIMENTO (com persistência)
+9. LGPD check
+10. Status check (lead transferido)
+11. AI Guards (com bypass para empreendimento)
+12. Handoff triggers
+13. Montagem do prompt com identidade + empreendimento
+14. Chamada à IA com anti-alucinação
+15. Extração de dados e qualificação
+16. Handoff se necessário
+17. ⭐ Se fora do horário E lead novo: adiciona aviso (sem duplicar)
 """
 
 import logging
@@ -50,13 +53,14 @@ from src.infrastructure.services import (
     mark_lead_activity,
     check_handoff_triggers,
     # =========================================================================
-    # NOVOS SERVIÇOS INTEGRADOS
+    # SERVIÇOS DE NOTIFICAÇÃO
     # =========================================================================
     check_business_hours,
     notify_lead_hot,
     notify_lead_empreendimento,
     notify_out_of_hours,
     notify_handoff_requested,
+    notify_gestor,  # ← NOVO: Notificação genérica para TODO lead novo
 )
 
 from src.infrastructure.services.openai_service import (
@@ -248,20 +252,11 @@ async def detect_empreendimento(
     message: str,
     niche_id: str,
 ) -> Optional[Empreendimento]:
-    """
-    Detecta se a mensagem contém gatilhos de algum empreendimento.
-    
-    Retorna o empreendimento com maior prioridade que casou,
-    ou None se nenhum empreendimento foi detectado.
-    
-    Só funciona para nichos imobiliários.
-    """
-    # Verifica se é nicho imobiliário
+    """Detecta se a mensagem contém gatilhos de algum empreendimento."""
     if niche_id.lower() not in NICHOS_IMOBILIARIOS:
         return None
     
     try:
-        # Busca empreendimentos ativos do tenant
         result = await db.execute(
             select(Empreendimento)
             .where(Empreendimento.tenant_id == tenant_id)
@@ -275,7 +270,6 @@ async def detect_empreendimento(
         
         message_lower = message.lower()
         
-        # Procura match com gatilhos
         for emp in empreendimentos:
             if emp.gatilhos:
                 for gatilho in emp.gatilhos:
@@ -294,10 +288,7 @@ async def get_empreendimento_from_lead(
     db: AsyncSession,
     lead: Lead,
 ) -> Optional[Empreendimento]:
-    """
-    Recupera o empreendimento associado ao lead (se houver).
-    Usado para manter contexto entre mensagens.
-    """
+    """Recupera o empreendimento associado ao lead (se houver)."""
     try:
         if not lead.custom_data:
             return None
@@ -324,19 +315,13 @@ async def get_empreendimento_from_lead(
 
 
 def build_empreendimento_context(empreendimento: Empreendimento) -> str:
-    """
-    Constrói o contexto do empreendimento para adicionar ao prompt da IA.
-    
-    Retorna um texto formatado com todas as informações relevantes.
-    """
+    """Constrói o contexto do empreendimento para adicionar ao prompt da IA."""
     sections = []
     
-    # Cabeçalho
     sections.append(f"{'=' * 60}")
     sections.append(f"🏢 EMPREENDIMENTO: {empreendimento.nome.upper()}")
     sections.append(f"{'=' * 60}")
     
-    # Status
     status_map = {
         "lancamento": "🚀 Lançamento",
         "em_obras": "🏗️ Em Obras",
@@ -344,11 +329,9 @@ def build_empreendimento_context(empreendimento: Empreendimento) -> str:
     }
     sections.append(f"\n**Status:** {status_map.get(empreendimento.status, empreendimento.status)}")
     
-    # Descrição
     if empreendimento.descricao:
         sections.append(f"\n**Sobre o empreendimento:**\n{empreendimento.descricao}")
     
-    # Localização
     loc_parts = []
     if empreendimento.endereco:
         loc_parts.append(empreendimento.endereco)
@@ -365,11 +348,9 @@ def build_empreendimento_context(empreendimento: Empreendimento) -> str:
     if empreendimento.descricao_localizacao:
         sections.append(f"\n**Sobre a região:**\n{empreendimento.descricao_localizacao}")
     
-    # Tipologias
     if empreendimento.tipologias:
         sections.append(f"\n**Tipologias disponíveis:**\n" + ", ".join(empreendimento.tipologias))
     
-    # Metragem
     if empreendimento.metragem_minima or empreendimento.metragem_maxima:
         if empreendimento.metragem_minima and empreendimento.metragem_maxima:
             metragem = f"{empreendimento.metragem_minima}m² a {empreendimento.metragem_maxima}m²"
@@ -379,7 +360,6 @@ def build_empreendimento_context(empreendimento: Empreendimento) -> str:
             metragem = f"Até {empreendimento.metragem_maxima}m²"
         sections.append(f"\n**Metragem:** {metragem}")
     
-    # Vagas
     if empreendimento.vagas_minima or empreendimento.vagas_maxima:
         if empreendimento.vagas_minima and empreendimento.vagas_maxima:
             if empreendimento.vagas_minima == empreendimento.vagas_maxima:
@@ -392,7 +372,6 @@ def build_empreendimento_context(empreendimento: Empreendimento) -> str:
             vagas = f"Até {empreendimento.vagas_maxima} vagas"
         sections.append(f"**Vagas de garagem:** {vagas}")
     
-    # Estrutura
     estrutura_parts = []
     if empreendimento.torres:
         estrutura_parts.append(f"{empreendimento.torres} torre(s)")
@@ -404,11 +383,9 @@ def build_empreendimento_context(empreendimento: Empreendimento) -> str:
     if estrutura_parts:
         sections.append(f"**Estrutura:** {', '.join(estrutura_parts)}")
     
-    # Previsão de entrega
     if empreendimento.previsao_entrega:
         sections.append(f"\n**Previsão de entrega:** {empreendimento.previsao_entrega}")
     
-    # Valores
     if empreendimento.preco_minimo or empreendimento.preco_maximo:
         if empreendimento.preco_minimo and empreendimento.preco_maximo:
             preco = f"R$ {empreendimento.preco_minimo:,.0f} a R$ {empreendimento.preco_maximo:,.0f}".replace(",", ".")
@@ -418,7 +395,6 @@ def build_empreendimento_context(empreendimento: Empreendimento) -> str:
             preco = f"Até R$ {empreendimento.preco_maximo:,.0f}".replace(",", ".")
         sections.append(f"\n**Faixa de investimento:** {preco}")
     
-    # Condições de pagamento
     condicoes = []
     if empreendimento.aceita_financiamento:
         condicoes.append("Financiamento bancário")
@@ -435,19 +411,15 @@ def build_empreendimento_context(empreendimento: Empreendimento) -> str:
     if empreendimento.condicoes_especiais:
         sections.append(f"**Condições especiais:** {empreendimento.condicoes_especiais}")
     
-    # Lazer
     if empreendimento.itens_lazer:
         sections.append(f"\n**Itens de lazer:**\n" + ", ".join(empreendimento.itens_lazer))
     
-    # Diferenciais
     if empreendimento.diferenciais:
         sections.append(f"\n**Diferenciais:**\n" + ", ".join(empreendimento.diferenciais))
     
-    # Instruções específicas para a IA
     if empreendimento.instrucoes_ia:
         sections.append(f"\n**Instruções especiais:**\n{empreendimento.instrucoes_ia}")
     
-    # Perguntas de qualificação específicas
     if empreendimento.perguntas_qualificacao:
         sections.append(f"\n**Perguntas que você DEVE fazer sobre este empreendimento:**")
         for i, pergunta in enumerate(empreendimento.perguntas_qualificacao, 1):
@@ -468,10 +440,8 @@ async def update_empreendimento_stats(
     try:
         if is_new_lead:
             empreendimento.total_leads = (empreendimento.total_leads or 0) + 1
-        
         if is_qualified:
             empreendimento.leads_qualificados = (empreendimento.leads_qualificados or 0) + 1
-        
     except Exception as e:
         logger.error(f"Erro atualizando stats do empreendimento: {e}")
 
@@ -591,26 +561,16 @@ async def process_message(
     """
     Processa uma mensagem recebida de um lead.
     
-    Fluxo PRD:
-    1. Sanitização e validação
-    2. Rate limiting
-    3. Security check  
-    4. Busca tenant/canal
-    5. ⭐ VERIFICAÇÃO DE HORÁRIO COMERCIAL (NOVO!)
-    6. Busca/cria lead
-    7. ⭐ DETECÇÃO DE EMPREENDIMENTO (com persistência)
-    8. LGPD check
-    9. Status check (lead transferido)
-    10. AI Guards (com bypass para empreendimento)
-    11. Handoff triggers
-    12. Montagem do prompt (com empreendimento se detectado)
-    13. Chamada à IA
-    14. Extração de dados e qualificação
-    15. Handoff se necessário
+    ⭐ CORREÇÕES IMPORTANTES:
+    - Notifica gestor via WhatsApp para TODO lead novo (não só empreendimento/fora do horário)
+    - Evita notificações duplicadas usando flag gestor_ja_notificado
+    - Aviso de fora do horário só para leads novos
     """
     
-    # Variável para empreendimento detectado
     empreendimento_detectado: Optional[Empreendimento] = None
+    
+    # ⭐ FLAG PARA EVITAR NOTIFICAÇÕES DUPLICADAS
+    gestor_ja_notificado = False
     
     # =========================================================================
     # 1. SANITIZAÇÃO
@@ -693,7 +653,7 @@ async def process_message(
         return {"success": False, "error": "Erro interno", "reply": FALLBACK_RESPONSES["error"]}
     
     # =========================================================================
-    # 5. ⭐ VERIFICAÇÃO DE HORÁRIO COMERCIAL (APENAS FLAG - IA PROCESSA NORMAL!)
+    # 5. VERIFICAÇÃO DE HORÁRIO COMERCIAL (APENAS FLAG)
     # =========================================================================
     is_out_of_hours = False
     out_of_hours_message = ""
@@ -703,9 +663,8 @@ async def process_message(
         
         if not bh_result.is_open:
             is_out_of_hours = True
-            logger.info(f"⏰ Fora do horário comercial: {bh_result.reason} - IA vai processar normalmente")
+            logger.info(f"⏰ Fora do horário comercial: {bh_result.reason}")
             
-            # Monta mensagem de aviso para adicionar no final da resposta
             out_of_hours_message = (
                 "\n\n---\n"
                 "⏰ *Você está entrando em contato fora do nosso horário comercial.*\n"
@@ -715,7 +674,6 @@ async def process_message(
             
     except Exception as e:
         logger.error(f"Erro na verificação de horário: {e}")
-        # Continua o fluxo normal em caso de erro
     
     # =========================================================================
     # 6. EXTRAI CONTEXTO E SETTINGS
@@ -726,7 +684,7 @@ async def process_message(
     logger.info(f"Contexto: {ai_context['company_name']} - Nicho: {ai_context['niche_id']}")
     
     # =========================================================================
-    # 7. BUSCA/CRIA LEAD (ANTES da detecção para poder recuperar empreendimento)
+    # 7. BUSCA/CRIA LEAD
     # =========================================================================
     try:
         lead, is_new = await get_or_create_lead(
@@ -746,10 +704,37 @@ async def process_message(
         return {"success": False, "error": "Erro ao processar lead", "reply": FALLBACK_RESPONSES["error"]}
     
     # =========================================================================
-    # 8. ⭐ DETECÇÃO DE EMPREENDIMENTO (COM PERSISTÊNCIA)
+    # 8. ⭐⭐⭐ NOTIFICAÇÃO DE LEAD NOVO - SEMPRE QUE LEAD É CRIADO ⭐⭐⭐
+    # =========================================================================
+    if is_new:
+        try:
+            # Salva a primeira mensagem para contexto
+            if not lead.custom_data:
+                lead.custom_data = {}
+            lead.custom_data["primeira_mensagem"] = content[:500]
+            
+            # Determina o tipo de notificação
+            notification_type = "lead_out_of_hours" if is_out_of_hours else "lead_new"
+            
+            # ⭐ NOTIFICA GESTOR VIA WHATSAPP - TODO LEAD NOVO
+            await notify_gestor(
+                db=db,
+                tenant=tenant,
+                lead=lead,
+                notification_type=notification_type,
+                extra_context={"primeira_mensagem": content[:200]},
+            )
+            
+            gestor_ja_notificado = True
+            logger.info(f"📲 Gestor notificado sobre lead NOVO: {lead.id} (fora_horario={is_out_of_hours})")
+            
+        except Exception as e:
+            logger.error(f"Erro notificando gestor sobre lead novo: {e}")
+    
+    # =========================================================================
+    # 9. DETECÇÃO DE EMPREENDIMENTO (COM PERSISTÊNCIA)
     # =========================================================================
     try:
-        # Primeiro: tenta detectar na mensagem atual
         empreendimento_detectado = await detect_empreendimento(
             db=db,
             tenant_id=tenant.id,
@@ -757,26 +742,20 @@ async def process_message(
             niche_id=ai_context["niche_id"],
         )
         
-        # Segundo: se não detectou, verifica se lead já tinha empreendimento
         if not empreendimento_detectado and not is_new:
             empreendimento_detectado = await get_empreendimento_from_lead(db, lead)
         
-        # Se detectou (novo ou recuperado), processa
         if empreendimento_detectado:
             logger.info(f"🏢 Empreendimento ativo: {empreendimento_detectado.nome}")
             
-            # Atualiza/salva no lead
             if not lead.custom_data:
                 lead.custom_data = {}
             
-            # Só atualiza se mudou ou não existia
             old_emp_id = lead.custom_data.get("empreendimento_id")
             if old_emp_id != empreendimento_detectado.id:
                 lead.custom_data["empreendimento_id"] = empreendimento_detectado.id
                 lead.custom_data["empreendimento_nome"] = empreendimento_detectado.nome
-                logger.info(f"🏢 Empreendimento {'atualizado' if old_emp_id else 'salvo'} no lead")
             
-            # Se lead é novo, atualiza stats e atribui vendedor
             if is_new:
                 await update_empreendimento_stats(db, empreendimento_detectado, is_new_lead=True)
                 
@@ -784,9 +763,7 @@ async def process_message(
                     lead.assigned_seller_id = empreendimento_detectado.vendedor_id
                     lead.assignment_method = "empreendimento"
                     lead.assigned_at = datetime.now(timezone.utc)
-                    logger.info(f"Lead atribuído ao vendedor do empreendimento: {empreendimento_detectado.vendedor_id}")
             
-            # Adiciona perguntas do empreendimento às perguntas customizadas
             if empreendimento_detectado.perguntas_qualificacao:
                 ai_context["custom_questions"] = (
                     ai_context.get("custom_questions", []) + 
@@ -797,18 +774,18 @@ async def process_message(
         logger.error(f"Erro na detecção de empreendimento: {e}")
     
     # =========================================================================
-    # 9. ⭐ NOTIFICAÇÃO VIA SERVIÇO CENTRALIZADO (se empreendimento configurado)
+    # 10. NOTIFICAÇÃO ESPECÍFICA DE EMPREENDIMENTO (se não notificou ainda)
     # =========================================================================
-    if empreendimento_detectado and empreendimento_detectado.notificar_gestor and is_new:
+    if empreendimento_detectado and empreendimento_detectado.notificar_gestor and is_new and not gestor_ja_notificado:
         try:
-            # ⭐ USA O NOVO SERVIÇO DE NOTIFICAÇÃO
             await notify_lead_empreendimento(db, tenant, lead, empreendimento_detectado)
-            logger.info(f"📲 Notificação enviada para empreendimento: {empreendimento_detectado.nome}")
+            gestor_ja_notificado = True
+            logger.info(f"📲 Notificação específica de empreendimento: {empreendimento_detectado.nome}")
         except Exception as e:
             logger.error(f"Erro criando notificação de empreendimento: {e}")
     
     # =========================================================================
-    # 10. LGPD CHECK
+    # 11. LGPD CHECK
     # =========================================================================
     try:
         lgpd_request = detect_lgpd_request(content)
@@ -837,7 +814,7 @@ async def process_message(
         logger.error(f"Erro no LGPD check: {e}")
     
     # =========================================================================
-    # 11. STATUS CHECK (lead já transferido)
+    # 12. STATUS CHECK (lead já transferido)
     # =========================================================================
     if lead.status == LeadStatus.HANDED_OFF.value:
         user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
@@ -856,26 +833,20 @@ async def process_message(
         }
     
     # =========================================================================
-    # 12. BUSCA HISTÓRICO (ANTES dos guards)
+    # 13. BUSCA HISTÓRICO
     # =========================================================================
     history = await get_conversation_history(db, lead.id)
     message_count = await count_lead_messages(db, lead.id)
     
     # =========================================================================
-    # 13. AI GUARDS (COM BYPASS PARA EMPREENDIMENTO)
+    # 14. AI GUARDS (COM BYPASS PARA EMPREENDIMENTO)
     # =========================================================================
     guards_result = {"can_respond": True}
     
-    # ⭐ CORREÇÃO PRINCIPAL: Se detectou empreendimento, bypass dos guards de escopo
     if empreendimento_detectado:
-        logger.info(f"🏢 Empreendimento detectado - bypass dos guards de escopo")
-        guards_result = {
-            "can_respond": True,
-            "reason": "empreendimento_detected",
-            "bypass": True,
-        }
+        logger.info(f"🏢 Empreendimento detectado - bypass dos guards")
+        guards_result = {"can_respond": True, "reason": "empreendimento_detected", "bypass": True}
     else:
-        # Executa guards normalmente apenas se NÃO tem empreendimento
         try:
             guards_result = await run_ai_guards_async(
                 message=content,
@@ -884,21 +855,16 @@ async def process_message(
                 lead_qualification=lead.qualification or "frio",
             )
             
-            logger.info(f"Guards result: {guards_result.get('reason', 'none')}")
-            
-            # Se guards bloquearem, retorna resposta apropriada
             if not guards_result.get("can_respond", True):
                 guard_reason = guards_result.get("reason", "unknown")
                 guard_response = guards_result.get("response") or ai_context.get("ai_out_of_scope_message", FALLBACK_RESPONSES["out_of_scope"])
                 
-                # Salva mensagens
                 user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
                 db.add(user_message)
                 
                 assistant_message = Message(lead_id=lead.id, role="assistant", content=guard_response, tokens_used=0)
                 db.add(assistant_message)
                 
-                # Se for force_handoff
                 if guards_result.get("force_handoff"):
                     if not lead.summary:
                         lead.summary = await generate_lead_summary(
@@ -914,7 +880,6 @@ async def process_message(
                         content=handoff_result["message_for_lead"], tokens_used=0,
                     )
                     db.add(handoff_message)
-                    
                     await db.commit()
                     
                     return {
@@ -924,8 +889,6 @@ async def process_message(
                         "is_new_lead": is_new,
                         "status": "transferido",
                         "guard": guard_reason,
-                        "empreendimento_id": None,
-                        "empreendimento_nome": None,
                     }
                 
                 await db.commit()
@@ -935,15 +898,13 @@ async def process_message(
                     "lead_id": lead.id,
                     "is_new_lead": is_new,
                     "guard": guard_reason,
-                    "empreendimento_id": None,
-                    "empreendimento_nome": None,
                 }
                 
         except Exception as e:
-            logger.error(f"Erro nos guards: {e}\n{traceback.format_exc()}")
+            logger.error(f"Erro nos guards: {e}")
     
     # =========================================================================
-    # 14. HANDOFF TRIGGERS
+    # 15. HANDOFF TRIGGERS
     # =========================================================================
     try:
         handoff_triggers = settings.get("handoff", {}).get("triggers", []) or settings.get("handoff_triggers", [])
@@ -966,7 +927,6 @@ async def process_message(
                     qualification={"qualification": lead.qualification},
                 )
             
-            # ⭐ USA O NOVO SERVIÇO DE NOTIFICAÇÃO
             await notify_handoff_requested(db, tenant, lead, f"Trigger: {trigger_matched}")
             
             handoff_result = await execute_handoff(lead, tenant, "user_requested", db)
@@ -976,7 +936,6 @@ async def process_message(
                 content=handoff_result["message_for_lead"], tokens_used=0,
             )
             db.add(assistant_message)
-            
             await db.commit()
             
             return {
@@ -992,7 +951,7 @@ async def process_message(
         logger.error(f"Erro nos handoff triggers: {e}")
     
     # =========================================================================
-    # 15. ATUALIZA STATUS
+    # 16. ATUALIZA STATUS
     # =========================================================================
     if lead.status == LeadStatus.NEW.value:
         lead.status = LeadStatus.IN_PROGRESS.value
@@ -1006,19 +965,17 @@ async def process_message(
         db.add(event)
     
     # =========================================================================
-    # 16. SALVA MENSAGEM DO USUÁRIO
+    # 17. SALVA MENSAGEM DO USUÁRIO
     # =========================================================================
     user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
     db.add(user_message)
     await db.flush()
     
     await mark_lead_activity(db, lead)
-    
-    # Atualiza histórico
     history = await get_conversation_history(db, lead.id)
     
     # =========================================================================
-    # 17. DETECÇÃO DE SENTIMENTO E CONTEXTO
+    # 18. DETECÇÃO DE SENTIMENTO E CONTEXTO
     # =========================================================================
     sentiment = {"sentiment": "neutral", "confidence": 0.5}
     is_returning_lead = False
@@ -1048,7 +1005,7 @@ async def process_message(
         logger.error(f"Erro na detecção de sentimento: {e}")
     
     # =========================================================================
-    # 18. CONTEXTO DO LEAD
+    # 19. CONTEXTO DO LEAD
     # =========================================================================
     lead_context = None
     if lead.custom_data:
@@ -1068,7 +1025,7 @@ async def process_message(
             lead_context = None
     
     # =========================================================================
-    # 19. MONTA PROMPT
+    # 20. MONTA PROMPT
     # =========================================================================
     try:
         system_prompt = build_system_prompt(
@@ -1085,12 +1042,10 @@ async def process_message(
             scope_config=ai_context.get("scope_config"),
         )
         
-        # ⭐ ADICIONA CONTEXTO DO EMPREENDIMENTO
         if empreendimento_detectado:
             empreendimento_context = build_empreendimento_context(empreendimento_detectado)
             system_prompt += f"\n\n{empreendimento_context}"
             
-            # Instrução adicional enfática
             system_prompt += f"""
 
 ⚠️ ATENÇÃO MÁXIMA - EMPREENDIMENTO DETECTADO ⚠️
@@ -1116,11 +1071,10 @@ VOCÊ NÃO PODE:
         system_prompt = f"Você é assistente da {ai_context['company_name']}. Seja educado e profissional."
     
     # =========================================================================
-    # 20. PREPARA MENSAGENS E CHAMA IA
+    # 21. PREPARA MENSAGENS E CHAMA IA
     # =========================================================================
     messages = [{"role": "system", "content": system_prompt}, *history]
     
-    # Adiciona instruções de segurança (mas não bloqueia empreendimento)
     if ai_context.get("ai_scope_description") and not empreendimento_detectado:
         security_instructions = build_security_instructions(
             company_name=ai_context["company_name"],
@@ -1129,14 +1083,12 @@ VOCÊ NÃO PODE:
         )
         messages[0]["content"] += f"\n\n{security_instructions}"
     
-    # FAQ do guards
     if guards_result.get("reason") == "faq" and guards_result.get("response"):
         messages.append({
             "role": "system",
             "content": f"INFORMAÇÃO DO FAQ: {guards_result['response']}"
         })
     
-    # Chama IA
     ai_response = None
     final_response = ""
     was_blocked = False
@@ -1153,13 +1105,11 @@ VOCÊ NÃO PODE:
             previous_summary=previous_summary or lead.summary,
         )
         
-        # Sanitiza resposta (mas com cuidado para não bloquear info do empreendimento)
         final_response, was_blocked = sanitize_response(
             ai_response["content"],
             ai_context["ai_out_of_scope_message"]
         )
         
-        # Se foi bloqueado mas tinha empreendimento, usa resposta original
         if was_blocked and empreendimento_detectado:
             logger.warning(f"⚠️ Resposta bloqueada mas empreendimento detectado - usando original")
             final_response = ai_response["content"]
@@ -1176,9 +1126,8 @@ VOCÊ NÃO PODE:
             )
             
     except Exception as e:
-        logger.error(f"Erro chamando IA: {e}\n{traceback.format_exc()}")
+        logger.error(f"Erro chamando IA: {e}")
         
-        # Fallback mais inteligente se tiver empreendimento
         if empreendimento_detectado:
             final_response = (
                 f"Olá! Que bom que você se interessou pelo {empreendimento_detectado.nome}! "
@@ -1191,7 +1140,7 @@ VOCÊ NÃO PODE:
             )
     
     # =========================================================================
-    # 21. VERIFICA HANDOFF SUGERIDO PELA IA
+    # 22. VERIFICA HANDOFF SUGERIDO PELA IA
     # =========================================================================
     should_transfer_by_ai = False
     try:
@@ -1201,7 +1150,7 @@ VOCÊ NÃO PODE:
         logger.error(f"Erro verificando handoff IA: {e}")
     
     # =========================================================================
-    # 22. SALVA RESPOSTA
+    # 23. SALVA RESPOSTA
     # =========================================================================
     assistant_message = Message(
         lead_id=lead.id,
@@ -1225,7 +1174,7 @@ VOCÊ NÃO PODE:
     )
     
     # =========================================================================
-    # 23. EXTRAI DADOS E QUALIFICA
+    # 24. EXTRAI DADOS E QUALIFICA
     # =========================================================================
     try:
         total_messages = await count_lead_messages(db, lead.id)
@@ -1235,14 +1184,13 @@ VOCÊ NÃO PODE:
                 {"role": "assistant", "content": final_response},
             ])
             
-            # Atualiza stats do empreendimento se lead foi qualificado
             if empreendimento_detectado and lead.qualification in ["morno", "quente", "hot"]:
                 await update_empreendimento_stats(db, empreendimento_detectado, is_qualified=True)
     except Exception as e:
         logger.error(f"Erro extraindo dados: {e}")
     
     # =========================================================================
-    # 24. HANDOFF FINAL (COM NOTIFICAÇÃO CENTRALIZADA)
+    # 25. HANDOFF FINAL
     # =========================================================================
     should_transfer = lead.qualification in ["quente", "hot"] or should_transfer_by_ai
     
@@ -1260,7 +1208,6 @@ VOCÊ NÃO PODE:
                     qualification={"qualification": lead.qualification},
                 )
             
-            # ⭐ USA O NOVO SERVIÇO DE NOTIFICAÇÃO PARA LEAD QUENTE
             await notify_lead_hot(db, tenant, lead, empreendimento_detectado)
             
             handoff_result = await execute_handoff(lead, tenant, handoff_reason, db)
@@ -1273,9 +1220,8 @@ VOCÊ NÃO PODE:
             )
             db.add(transfer_message)
             
-            # ⭐ Adiciona aviso de fora do horário se aplicável
             reply_with_handoff = final_response + "\n\n" + handoff_result["message_for_lead"]
-            if is_out_of_hours:
+            if is_out_of_hours and is_new:
                 reply_with_handoff += out_of_hours_message
             
             await db.commit()
@@ -1297,21 +1243,14 @@ VOCÊ NÃO PODE:
             logger.error(f"Erro no handoff final: {e}")
     
     # =========================================================================
-    # 25. ⭐ NOTIFICAÇÃO FORA DO HORÁRIO (se aplicável)
+    # 26. ⭐ AVISO DE FORA DO HORÁRIO (só para lead NOVO - notificação já foi na seção 8)
     # =========================================================================
-    if is_out_of_hours:
-        try:
-            # Notifica gestor que chegou lead fora do horário
-            await notify_out_of_hours(db, tenant, lead)
-            logger.info(f"📲 Notificação de fora do horário enviada para lead {lead.id}")
-            
-            # Adiciona aviso na resposta
-            final_response += out_of_hours_message
-        except Exception as e:
-            logger.error(f"Erro notificando fora do horário: {e}")
+    if is_out_of_hours and is_new:
+        final_response += out_of_hours_message
+        logger.info(f"⏰ Aviso de fora do horário adicionado para lead NOVO {lead.id}")
     
     # =========================================================================
-    # 26. COMMIT E RETORNO
+    # 27. COMMIT E RETORNO
     # =========================================================================
     try:
         await db.commit()
@@ -1342,8 +1281,6 @@ VOCÊ NÃO PODE:
             "error": "Erro interno",
             "reply": FALLBACK_RESPONSES["error"],
             "lead_id": lead.id,
-            "empreendimento_id": empreendimento_detectado.id if empreendimento_detectado else None,
-            "empreendimento_nome": empreendimento_detectado.nome if empreendimento_detectado else None,
         }
 
 
@@ -1401,10 +1338,6 @@ async def update_lead_data(
             )
             db.add(event)
             lead.qualification = new_qualification
-            
-            # ⭐ NOTA: A notificação de lead quente agora é feita no handoff final
-            # usando notify_lead_hot(), não mais aqui diretamente
-            # Isso centraliza a lógica e evita notificações duplicadas
                 
     except Exception as e:
         logger.error(f"Erro atualizando dados do lead {lead.id}: {e}")
