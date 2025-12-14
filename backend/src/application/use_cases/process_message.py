@@ -38,7 +38,6 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, Tuple
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.infrastructure.services.property_lookup_service import PropertyLookupService
 import re
 
 
@@ -775,32 +774,36 @@ async def process_message(
                 
     except Exception as e:
         logger.error(f"Erro na detecção de empreendimento: {e}")
-    
 
-    
+
+
     # =========================================================================
     # 9.1 DETECÇÃO DE IMÓVEL (PORTAL DE INVESTIMENTO)
     # =========================================================================
     imovel_portal = None
 
-    # Se empreendimento foi detectado, ignora imóvel do portal
-    if empreendimento_detectado:
-        imovel_portal = None
-
-
-    try:
-        lookup = PropertyLookupService()
-        
-        # tenta extrair código direto da mensagem
+    if not empreendimento_detectado:
         match = re.search(r"\b\d{5,7}\b", content)
+
         if match:
             codigo = match.group(0)
-            imovel_portal = lookup.buscar_por_codigo(codigo)
-            
-            if imovel_portal:
-                logger.info(f"🏠 Imóvel PortalInvestimento detectado: {codigo}")
-    except Exception as e:
-        logger.error(f"Erro no lookup de imóvel PortalInvestimento: {e}")
+
+            try:
+                lookup = PropertyLookupService()
+                
+                # tenta extrair código direto da mensagem
+                match = re.search(r"\b\d{5,7}\b", content)
+                if match:
+                    codigo = match.group(0)
+                    imovel_portal = lookup.buscar_por_codigo(codigo)
+
+                    # 🔍 DEBUG CRÍTICO
+                    logger.info(f"[DEBUG] Resultado lookup imóvel ({codigo}): {imovel_portal}")
+                    
+                    if imovel_portal:
+                        logger.info(f"🏠 Imóvel PortalInvestimento detectado: {codigo}")
+            except Exception as e:
+                logger.error(f"Erro no lookup de imóvel PortalInvestimento: {e}")
 
 
 
@@ -1130,6 +1133,11 @@ VOCÊ NÃO PODE:
     - Se algo não estiver listado, pergunte ao cliente
     - Atue como especialista neste imóvel
     - Priorize este imóvel na conversa
+
+
+    VOCÊ TEM ACESSO TOTAL AOS DADOS ACIMA.
+    NÃO diga que não possui informações.
+    RESPONDA como especialista nesse imóvel.
 
     ============================================================
     """
