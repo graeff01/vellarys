@@ -782,28 +782,31 @@ async def process_message(
     # =========================================================================
     imovel_portal = None
 
-    if not empreendimento_detectado:
-        match = re.search(r"\b\d{5,7}\b", content)
+    # Se empreendimento foi detectado, ignora imóvel do portal
+    if empreendimento_detectado:
+        imovel_portal = None
+    else:
+        try:
+            lookup = PropertyLookupService()
 
-        if match:
-            codigo = match.group(0)
+            logger.info(f"[DEBUG] Conteúdo recebido para lookup: {content}")
 
-            try:
-                lookup = PropertyLookupService()
-                
-                # tenta extrair código direto da mensagem
-                match = re.search(r"\b\d{5,7}\b", content)
-                if match:
-                    codigo = match.group(0)
-                    imovel_portal = lookup.buscar_por_codigo(codigo)
+            match = re.search(r"\b\d{5,7}\b", content)
 
-                    # 🔍 DEBUG CRÍTICO
-                    logger.info(f"[DEBUG] Resultado lookup imóvel ({codigo}): {imovel_portal}")
-                    
-                    if imovel_portal:
-                        logger.info(f"🏠 Imóvel PortalInvestimento detectado: {codigo}")
-            except Exception as e:
-                logger.error(f"Erro no lookup de imóvel PortalInvestimento: {e}")
+            logger.info(f"[DEBUG] Regex match: {match.group(0) if match else 'NENHUM'}")
+
+            if match:
+                codigo = match.group(0)
+
+                imovel_portal = lookup.buscar_por_codigo(codigo)
+
+                logger.info(f"[DEBUG] Resultado lookup imóvel ({codigo}): {imovel_portal}")
+
+                if imovel_portal:
+                    logger.info(f"🏠 Imóvel PortalInvestimento detectado: {codigo}")
+
+        except Exception as e:
+            logger.error(f"Erro no lookup de imóvel PortalInvestimento: {e}")
 
 
 
