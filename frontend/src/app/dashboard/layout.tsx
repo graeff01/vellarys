@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -43,12 +43,100 @@ const superadminMenuItems = [
   { href: '/dashboard/logs', label: 'Logs', icon: ScrollText },
 ];
 
+// =============================================================================
+// HOOK DE NOTIFICAÇÃO COM SOM
+// =============================================================================
+
+function useNotificationSound() {
+  const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
+  const [lastCount, setLastCount] = useState<number>(0);
+  const [isFirstLoad, setIsFirstLoad] = useState(true);
+
+  // Inicializa o áudio
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const newAudio = new Audio('/sounds/notification.mp3');
+      newAudio.volume = 0.5;
+      setAudio(newAudio);
+    }
+  }, []);
+
+  // Função para tocar som
+  const playSound = useCallback(() => {
+    if (audio) {
+      audio.currentTime = 0;
+      audio.play().catch((e) => {
+        console.warn('Não foi possível tocar som:', e);
+      });
+    }
+  }, [audio]);
+
+  // Polling de notificações
+  useEffect(() => {
+    const checkNotifications = async () => {
+      try {
+        const token = getToken();
+        if (!token) return;
+
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1';
+        
+        const response = await fetch(`${apiUrl}/notifications/count`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const newCount = data.count || data.unread_count || 0;
+
+        // Se não é a primeira carga e tem mais notificações que antes
+        if (!isFirstLoad && newCount > lastCount) {
+          console.log('🔔 Nova notificação detectada! Tocando som...');
+          playSound();
+          
+          // Mostrar notificação do navegador também
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('🔔 Velaris', {
+              body: 'Você tem uma nova notificação!',
+              icon: '/icons/icon-192x192.png',
+            });
+          }
+        }
+
+        setLastCount(newCount);
+        setIsFirstLoad(false);
+      } catch (e) {
+        console.warn('Erro ao verificar notificações:', e);
+      }
+    };
+
+    // Verifica imediatamente
+    checkNotifications();
+
+    // Configura intervalo de 15 segundos
+    const timer = setInterval(checkNotifications, 15000);
+
+    return () => clearInterval(timer);
+  }, [lastCount, isFirstLoad, playSound]);
+
+  return { playSound };
+}
+
+// =============================================================================
+// COMPONENTE PRINCIPAL
+// =============================================================================
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Hook de notificação com som
+  useNotificationSound();
 
   const isSuperAdmin = user?.role === 'superadmin';
   const menuItems = isSuperAdmin ? superadminMenuItems : gestorMenuItems;
