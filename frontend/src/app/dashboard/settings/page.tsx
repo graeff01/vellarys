@@ -6,6 +6,7 @@ import { getSellers } from '@/lib/sellers';
 import { getToken } from '@/lib/auth';
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardHeader } from '@/components/ui/card';
+import { requestNotificationPermission, subscribeToPush } from '@/components/pwa/service-worker-registration';
 import { 
   getSettings, updateSettings, 
   SettingsResponse, TenantSettings,
@@ -454,14 +455,39 @@ export default function SettingsPage() {
     { id: 'guardrails', label: 'Proteções', icon: AlertTriangle },
   ];
 
+  async function handleEnableNotifications() {
+  const granted = await requestNotificationPermission();
+
+  if (!granted) {
+    alert('Permissão de notificações negada');
+    return;
+  }
+
+  const subscription = await subscribeToPush();
+  console.log('PUSH SUBSCRIPTION:', subscription);
+
+  alert('Notificações ativadas com sucesso!');
+}
+
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Configurações da IA</h1>
-        <p className="text-gray-500">Configure a identidade e comportamento da sua IA atendente</p>
-      </div>
+  <h1 className="text-3xl font-bold text-gray-900">Configurações da IA</h1>
+  <p className="text-gray-500">
+    Configure a identidade e comportamento da sua IA atendente
+  </p>
+
+  <button
+    onClick={handleEnableNotifications}
+    className="mt-3 inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+  >
+    🔔 Ativar notificações
+  </button>
+</div>
+
       
       {activeTab !== 'empreendimentos' && (
         <button onClick={handleSave} disabled={saving} className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50">
