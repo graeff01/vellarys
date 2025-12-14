@@ -38,8 +38,6 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, Tuple
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.infrastructure.services.property_lookup_service import PropertyLookupService
-import re
 
 
 from src.infrastructure.services.property_lookup_service import (
@@ -783,52 +781,25 @@ async def process_message(
         logger.error(f"Erro na detecção de empreendimento: {e}")
 
 
-
-    # =========================================================================
-    # 9.1 DETECÇÃO DE IMÓVEL (PORTAL DE INVESTIMENTO SITE)
+# =========================================================================
+    # 9.1 DETECÇÃO DE IMÓVEL PORTAL (apenas nicho imobiliário sem atualizar outros nichos) 
     # =========================================================================
     imovel_portal = None
-
-    # Se empreendimento foi detectado, ignora imóvel do portal
-    if empreendimento_detectado:
-        imovel_portal = None
-    else:
+    
+    logger.info(f"🔎 Debug Portal: nicho={ai_context['niche_id']}, emp_detectado={empreendimento_detectado is not None}")
+    
+    if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS and not empreendimento_detectado:
         try:
-            lookup = PropertyLookupService()
-
-            logger.info(f"[DEBUG] Conteúdo recebido para lookup: {content}")
-
-            match = re.search(
-                r"(im[oó]vel|c[oó]digo)\s*(\d{5,7})",
-                content.lower()
-            )
-
-            if match:
-                codigo_humano = match.group(2)
-
-
-                # 1️⃣ tenta traduzir para slug real
-                slug = PROPERTY_CODE_MAP.get(codigo_humano)
-
-
-                if slug:
-                    logger.info(f"🔁 Código {codigo_humano} traduzido para slug {slug}")
-                    imovel_portal = lookup.buscar_por_slug(slug)
-                else:
-                    logger.info(f"🔎 Código {codigo_humano} sem mapeamento, tentando busca direta")
-                    imovel_portal = lookup.buscar_por_codigo(codigo_humano)
-
-
-                logger.info(f"[DEBUG] Resultado lookup imóvel ({codigo_humano}): {imovel_portal}")
-                if imovel_portal:
-                    logger.info(f"🏠 Imóvel PortalInvestimento detectado: {codigo_humano}")
-                else:
-                    logger.info(f"❌ Nenhum imóvel encontrado para código {codigo_humano}")
-
-
+            logger.info(f"🔎 Buscando imóvel na mensagem: {content[:100]}")
+            imovel_portal = buscar_imovel_na_mensagem(content)
+            if imovel_portal:
+                logger.info(f"🏠 Imóvel Portal detectado: {imovel_portal['codigo']}")
+            else:
+                logger.info(f"❌ Nenhum código de imóvel encontrado na mensagem")
         except Exception as e:
-            logger.error(f"Erro no lookup de imóvel PortalInvestimento: {e}")
-
+            logger.error(f"Erro buscando imóvel portal: {e}")
+    else:
+        logger.info(f"⏭️ Skip busca portal: nicho não imobiliário ou empreendimento já detectado")
 
 
     # =========================================================================
@@ -900,10 +871,10 @@ async def process_message(
     # 14. AI GUARDS (COM BYPASS PARA EMPREENDIMENTO)
     # =========================================================================
     guards_result = {"can_respond": True}
-    
+
     if empreendimento_detectado or imovel_portal:
-        logger.info(f"🏢 Empreendimento detectado - bypass dos guards")
-        guards_result = {"can_respond": True, "reason": "empreendimento_detected", "bypass": True}
+        logger.info("🏢 Contexto imobiliário detectado - bypass dos guards")
+        guards_result = {"can_respond": True, "bypass": True}
     else:
         try:
             guards_result = await run_ai_guards_async(
