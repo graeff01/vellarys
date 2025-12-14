@@ -110,29 +110,42 @@ class PropertyLookupService:
 
 
 def extrair_codigo_imovel(mensagem: str) -> Optional[str]:
-    """Extrai código de imóvel da mensagem."""
+    """Extrai código de imóvel da mensagem - VERSÃO ROBUSTA."""
     if not mensagem:
         return None
     
-    # Padrão 1: Código: [722585] ou (722585)
+    mensagem_lower = mensagem.lower()
+    
+    # Padrão 1: Entre colchetes ou parênteses [722585] ou (722585)
     match = re.search(r'[\[\(](\d{5,7})[\]\)]', mensagem)
     if match:
         return match.group(1)
     
-    # Padrão 2: código 722585, imóvel 722585
-    match = re.search(r'(?:c[oó]digo|im[oó]vel)[:\s]*(\d{5,7})', mensagem.lower())
+    # Padrão 2: código/imóvel seguido de número
+    # "código 722585", "código: 722585", "imóvel 722585"
+    match = re.search(r'(?:c[oó]digo|im[oó]vel)[:\s]*(\d{5,7})', mensagem_lower)
     if match:
         return match.group(1)
     
-    # Padrão 3: "esse 758582", "nesse 758582", "este 758582"
-    match = re.search(r'(?:n?ess[ea]|este)\s+(\d{5,7})', mensagem.lower())
+    # Padrão 3: referência contextual
+    # "esse 758582", "nesse 758582", "este 758582", "o 758582"
+    match = re.search(r'(?:n?ess[ea]|este|o)\s+(\d{5,7})\b', mensagem_lower)
     if match:
         return match.group(1)
     
-    # Padrão 4: número isolado de 6-7 dígitos (última tentativa)
-    match = re.search(r'\b(\d{6,7})\b', mensagem)
+    # Padrão 4: "e esse 758582", "e o 758582", "e 758582"
+    match = re.search(r'\be\s+(?:(?:o|ess[ea])\s+)?(\d{5,7})\b', mensagem_lower)
     if match:
         return match.group(1)
+    
+    # Padrão 5: número isolado de 5-7 dígitos (última tentativa)
+    # Captura qualquer número nesse range que não seja telefone/CEP
+    match = re.search(r'\b(\d{5,7})\b', mensagem)
+    if match:
+        numero = match.group(1)
+        # Evita confundir com CEP (8 dígitos) ou telefone
+        if len(numero) >= 5:
+            return numero
     
     return None
 
