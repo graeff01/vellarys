@@ -6,7 +6,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # ==========================================================
-# MAPEAMENTO: CÓDIGO HUMANO → SLUG REAL DO PORTAL
+# MAPEAMENTO: CÓDIGO HUMANO → SLUG REAL DO PORTAL (PRD)
 # ==========================================================
 PROPERTY_CODE_MAP = {
     "722585": "poa001",
@@ -18,7 +18,11 @@ PROPERTY_CODE_MAP = {
 class PropertyLookupService:
     """
     Serviço responsável por buscar dados de imóveis no Portal de Investimento.
-    Totalmente isolado, seguro e tolerante a falhas.
+
+    - Seguro
+    - Isolado
+    - Tolerante a falhas
+    - Compatível com PRD
     """
 
     BASE_URL = "https://portalinvestimento.com"
@@ -33,59 +37,36 @@ class PropertyLookupService:
         })
 
     # ==========================================================
-    # BUSCA POR CÓDIGO (fallback / legado)
+    # MÉTODO ÚNICO DE ENTRADA (RECOMENDADO)
     # ==========================================================
-    @lru_cache(maxsize=128)
-    def buscar_por_codigo(self, codigo: str) -> Optional[dict]:
+    def buscar(self, codigo_humano: str) -> Optional[dict]:
         """
-        Busca um imóvel pelo código direto (fallback).
-        Retorna dict normalizado ou None.
+        Ponto único de entrada.
+        Decide automaticamente entre slug real ou fallback.
         """
-        try:
-            logger.info(f"🔎 PortalLookup | Buscando imóvel código={codigo}")
 
-            url = f"{self.BASE_URL}/imovel/{codigo}"
+        slug = PROPERTY_CODE_MAP.get(codigo_humano)
 
-            response = self.session.get(
-                url,
-                timeout=self.TIMEOUT,
-                verify=True
+        if slug:
+            logger.info(
+                f"[PROPERTY LOOKUP] codigo_humano={codigo_humano} → slug={slug}"
             )
+            return self.buscar_por_slug(slug)
 
-            if response.status_code != 200:
-                logger.warning(
-                    f"PortalLookup | HTTP {response.status_code} para código {codigo}"
-                )
-                return None
-
-            html = response.text
-
-            if "<title>" not in html:
-                logger.warning(f"PortalLookup | HTML inválido para código {codigo}")
-                return None
-
-            return self._parse_html(codigo, html)
-
-        except requests.Timeout:
-            logger.warning(f"⏱️ PortalLookup timeout para código {codigo}")
-            return None
-
-        except requests.RequestException as e:
-            logger.error(f"❌ PortalLookup erro HTTP: {e}")
-            return None
-
-        except Exception as e:
-            logger.error(f"❌ PortalLookup erro inesperado: {e}")
-            return None
+        logger.info(
+            f"[PROPERTY LOOKUP] codigo_humano={codigo_humano} sem slug, usando fallback"
+        )
+        return self.buscar_por_codigo(codigo_humano)
 
     # ==========================================================
-    # BUSCA POR SLUG REAL (RECOMENDADO / PRD)
+    # BUSCA POR SLUG REAL (PRD / CAMINHO FELIZ)
     # ==========================================================
     @lru_cache(maxsize=128)
     def buscar_por_slug(self, slug: str) -> Optional[dict]:
         """
         Busca imóvel pelo slug real do Portal (ex: poa001)
         """
+
         try:
             logger.info(f"🔎 PortalLookup | Buscando imóvel slug={slug}")
 
@@ -124,11 +105,59 @@ class PropertyLookupService:
             return None
 
     # ==========================================================
-    # PARSER (ISOLADO E DEFENSIVO)
+    # BUSCA POR CÓDIGO (FALLBACK / LEGADO)
+    # ==========================================================
+    @lru_cache(maxsize=128)
+    def buscar_por_codigo(self, codigo: str) -> Optional[dict]:
+        """
+        Fallback defensivo.
+        Só é usado se não existir mapeamento.
+        """
+
+        try:
+            logger.info(f"🔎 PortalLookup | Buscando imóvel código={codigo}")
+
+            url = f"{self.BASE_URL}/imovel.html?id={codigo}"
+
+            response = self.session.get(
+                url,
+                timeout=self.TIMEOUT,
+                verify=True
+            )
+
+            if response.status_code != 200:
+                logger.warning(
+                    f"PortalLookup | HTTP {response.status_code} para código {codigo}"
+                )
+                return None
+
+            html = response.text
+
+            if "<title>" not in html:
+                logger.warning(f"PortalLookup | HTML inválido para código {codigo}")
+                return None
+
+            return self._parse_html(codigo, html)
+
+        except requests.Timeout:
+            logger.warning(f"⏱️ PortalLookup timeout para código {codigo}")
+            return None
+
+        except requests.RequestException as e:
+            logger.error(f"❌ PortalLookup erro HTTP código {codigo}: {e}")
+            return None
+
+        except Exception as e:
+            logger.error(f"❌ PortalLookup erro inesperado código {codigo}: {e}")
+            return None
+
+    # ==========================================================
+    # PARSER (ISOLADO, DEFENSIVO, SEM DEPENDÊNCIAS)
     # ==========================================================
     def _parse_html(self, identificador: str, html: str) -> Optional[dict]:
         """
         Parser simples e tolerante a mudanças de HTML.
+        Nunca quebra o sistema.
         """
 
         try:
