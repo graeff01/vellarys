@@ -17,7 +17,7 @@ import logging
 from typing import Optional
 
 from src.domain.entities import Channel
-from src.infrastructure.services.zapi_service import ZAPIService
+from src.infrastructure.services.zapi_service import ZAPIService, get_zapi_client
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +54,9 @@ class WhatsAppService:
         Envia mensagem via Z-API.
         """
 
-        instance_id = self.channel.config.get("zapi_instance_id")
-        token = self.channel.config.get("zapi_token")
+        instance_id = self.channel.config.get("zapi_instance_id") or self.channel.config.get("instance_id")
+        token = self.channel.config.get("zapi_token") or self.channel.config.get("token")
+        client_token = self.channel.config.get("zapi_client_token") or self.channel.config.get("client_token")
 
         if not instance_id or not token:
             logger.error("Z-API não configurado corretamente no channel")
@@ -67,15 +68,136 @@ class WhatsAppService:
         zapi = ZAPIService(
             instance_id=instance_id,
             token=token,
+            client_token=client_token,
         )
 
-        await zapi.send_text(
+        result = await zapi.send_text(
             phone=to,
             message=message,
         )
 
         return {
-            "success": True,
+            "success": result.get("success", False),
             "provider": "zapi",
             "to": to,
+            "data": result.get("data"),
+            "error": result.get("error"),
+        }
+
+
+# =============================================================================
+# FUNÇÃO HELPER GLOBAL (usada pelo handoff_service)
+# =============================================================================
+
+async def send_whatsapp_message(
+    to: str,
+    message: str,
+    instance_id: str = None,
+    token: str = None,
+    client_token: str = None,
+) -> dict:
+    """
+    Função helper para enviar mensagem WhatsApp via Z-API.
+    
+    Usa credenciais das variáveis de ambiente se não forem passadas.
+    
+    Args:
+        to: Número do destinatário (com DDI, ex: 5551999999999)
+        message: Texto da mensagem
+        instance_id: ID da instância Z-API (opcional)
+        token: Token da instância Z-API (opcional)
+        client_token: Client-Token de segurança (opcional)
+    
+    Returns:
+        {"success": True/False, "error": "...", "data": {...}}
+    """
+    try:
+        # Sanitiza número
+        to_clean = "".join(filter(str.isdigit, str(to)))
+        
+        # Garante DDI do Brasil
+        if len(to_clean) == 11:
+            to_clean = "55" + to_clean
+        elif len(to_clean) == 10:
+            to_clean = "55" + to_clean
+        
+        # Obtém cliente Z-API
+        zapi = get_zapi_client(
+            instance_id=instance_id,
+            token=token,
+            client_token=client_token,
+        )
+        
+        if not zapi.is_configured():
+            logger.error("Z-API não configurado - verifique ZAPI_INSTANCE_ID e ZAPI_TOKEN")
+            return {
+                "success": False,
+                "error": "Z-API não configurado. Verifique as variáveis de ambiente.",
+            }
+        
+        # Envia mensagem
+        result = await zapi.send_text(
+            phone=to_clean,
+            message=message,
+            delay_message=2,  # Pequeno delay para parecer mais natural
+        )
+        
+        if result.get("success"):
+            logger.info(f"✅ WhatsApp enviado para {to_clean[:8]}***")
+            return {
+                "success": True,
+                "data": result.get("data"),
+            }
+        else:
+            error = result.get("error", "Erro desconhecido")
+            logger.error(f"❌ Erro ao enviar WhatsApp: {error}")
+            return {
+                "success": False,
+                "error": error,
+            }
+    
+    except Exception as e:
+        logger.error(f"❌ Exceção ao enviar WhatsApp: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
+async def check_whatsapp_connection(
+    instance_id: str = None,
+    token: str = None,
+    client_token: str = None,
+) -> dict:
+    """
+    Verifica se a conexão WhatsApp (Z-API) está ativa.
+    
+    Returns:
+        {"connected": True/False, "error": "..."}
+    """
+    try:
+        zapi = get_zapi_client(
+            instance_id=instance_id,
+            token=token,
+            client_token=client_token,
+        )
+        
+        if not zapi.is_configured():
+            return {
+                "connected": False,
+                "error": "Z-API não configurado",
+            }
+        
+        result = await zapi.check_connection()
+        
+        return {
+            "connected": result.get("connected", False),
+            "data": result.get("data"),
+            "error": result.get("error"),
+        }
+    
+    except Exception as e:
+        return {
+            "connected": False,
+            "error": str(e),
         }
