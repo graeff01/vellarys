@@ -38,6 +38,9 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, Tuple
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from src.infrastructure.services.property_lookup_service import PropertyLookupService
+import re
+
 
 from src.domain.entities import (
     Tenant, Lead, Message, Channel, LeadEvent, Notification, Empreendimento
@@ -773,6 +776,34 @@ async def process_message(
     except Exception as e:
         logger.error(f"Erro na detecção de empreendimento: {e}")
     
+
+    
+    # =========================================================================
+    # 9.1 DETECÇÃO DE IMÓVEL (PORTAL DE INVESTIMENTO)
+    # =========================================================================
+    imovel_portal = None
+
+    # Se empreendimento foi detectado, ignora imóvel do portal
+    if empreendimento_detectado:
+        imovel_portal = None
+
+
+    try:
+        lookup = PropertyLookupService()
+        
+        # tenta extrair código direto da mensagem
+        match = re.search(r"\b\d{5,7}\b", content)
+        if match:
+            codigo = match.group(0)
+            imovel_portal = lookup.buscar_por_codigo(codigo)
+            
+            if imovel_portal:
+                logger.info(f"🏠 Imóvel PortalInvestimento detectado: {codigo}")
+    except Exception as e:
+        logger.error(f"Erro no lookup de imóvel PortalInvestimento: {e}")
+
+
+
     # =========================================================================
     # 10. NOTIFICAÇÃO ESPECÍFICA DE EMPREENDIMENTO (se não notificou ainda)
     # =========================================================================
@@ -843,7 +874,7 @@ async def process_message(
     # =========================================================================
     guards_result = {"can_respond": True}
     
-    if empreendimento_detectado:
+    if empreendimento_detectado or imovel_portal:
         logger.info(f"🏢 Empreendimento detectado - bypass dos guards")
         guards_result = {"can_respond": True, "reason": "empreendimento_detected", "bypass": True}
     else:
@@ -1070,6 +1101,41 @@ VOCÊ NÃO PODE:
         logger.error(f"Erro montando prompt: {e}")
         system_prompt = f"Você é assistente da {ai_context['company_name']}. Seja educado e profissional."
     
+
+    # ==========================================================
+    # CONTEXTO EXTERNO - IMÓVEL PORTAL DE INVESTIMENTO
+    # ==========================================================
+    if imovel_portal:
+        system_prompt += f"""
+
+    ============================================================
+    🏠 IMÓVEL SELECIONADO (PORTAL DE INVESTIMENTO)
+    ============================================================
+
+    Código: {imovel_portal['codigo']}
+    Título: {imovel_portal['titulo']}
+    Tipo: {imovel_portal['tipo']}
+    Localização: {imovel_portal['regiao']}
+    Quartos: {imovel_portal['quartos']}
+    Banheiros: {imovel_portal['banheiros']}
+    Vagas: {imovel_portal['vagas']}
+    Área: {imovel_portal['metragem']} m²
+    Preço: R$ {imovel_portal['preco']}
+    Descrição: {imovel_portal['descricao']}
+    Link oficial: {imovel_portal['link']}
+
+    REGRAS OBRIGATÓRIAS:
+    - Use EXCLUSIVAMENTE as informações acima
+    - NÃO invente dados
+    - Se algo não estiver listado, pergunte ao cliente
+    - Atue como especialista neste imóvel
+    - Priorize este imóvel na conversa
+
+    ============================================================
+    """
+
+
+
     # =========================================================================
     # 21. PREPARA MENSAGENS E CHAMA IA
     # =========================================================================
