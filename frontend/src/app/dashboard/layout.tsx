@@ -296,7 +296,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <NotificationBell />
       </div>
 
-      {/* Conteúdo principal */}
+      {/* Conteúdo principal aqu kkk */}
       <main className="lg:ml-64 p-4 lg:p-8">{children}</main>
     </div>
   );

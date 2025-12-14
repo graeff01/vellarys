@@ -315,7 +315,7 @@ export function LeadsTable({
         </table>
       </div>
 
-      <div className="md:hidden space-y-3 p-4">
+      <div className="md:hidden space-y-3 px-2 pb-4">
         {leads.map((lead) => {
           const isHot = isHotLead(lead.qualification);
           const needsHandoff = isHot && !lead.assigned_seller_id && lead.status !== "handed_off";
