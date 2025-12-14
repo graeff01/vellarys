@@ -19,11 +19,19 @@ class Settings(BaseSettings):
     superadmin_tenant_name: str | None = None
     superadmin_tenant_slug: str | None = None
 
-    # Z-API
+    # ===========================================
+    # Z-API (WhatsApp)
+    # ===========================================
     zapi_instance_id: str = ""
     zapi_token: str = ""
-    zapi_client_token: str = ""  # ← ADICIONA ESSA LINHA
+    zapi_client_token: str = ""
 
+    # ===========================================
+    # VAPID (Push Notifications) ← NOVO
+    # ===========================================
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = "mailto:contato@velaris.app"
     
     # ===========================================
     # CORE
@@ -37,7 +45,7 @@ class Settings(BaseSettings):
     debug: bool = False
     
     # ===========================================
-    # CORS - ⭐ NOVO
+    # CORS
     # ===========================================
     cors_origins: str = "http://localhost:3000,http://localhost:5173,http://localhost:8080"
     
@@ -52,8 +60,8 @@ class Settings(BaseSettings):
     # ===========================================
     gupshup_api_key: Optional[str] = None
     gupshup_app_name: Optional[str] = None
-    gupshup_source_phone: Optional[str] = None  # Número WhatsApp Business
-    gupshup_webhook_secret: Optional[str] = None  # Para validar assinaturas
+    gupshup_source_phone: Optional[str] = None
+    gupshup_webhook_secret: Optional[str] = None
     
     # ===========================================
     # 360DIALOG (WhatsApp)
@@ -87,8 +95,13 @@ class Settings(BaseSettings):
         return bool(self.dialog360_api_key)
     
     @property
+    def vapid_configured(self) -> bool:
+        """Verifica se VAPID está configurado para Push Notifications."""
+        return bool(self.vapid_public_key and self.vapid_private_key)
+    
+    @property
     def cors_origins_list(self) -> List[str]:
-        """⭐ NOVO: Retorna lista de origens CORS permitidas"""
+        """Retorna lista de origens CORS permitidas"""
         if self.cors_origins == "*":
             return ["*"]
         return [origin.strip() for origin in self.cors_origins.split(",")]
