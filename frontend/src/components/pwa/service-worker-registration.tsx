@@ -2,6 +2,18 @@
 
 import { useEffect } from 'react';
 
+// =============================================================================
+// EXTENSÃO DE TIPOS (DOM)
+// =============================================================================
+
+type ExtendedNotificationOptions = NotificationOptions & {
+  vibrate?: number[];
+};
+
+// =============================================================================
+// SERVICE WORKER REGISTRATION
+// =============================================================================
+
 export function ServiceWorkerRegistration() {
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
@@ -27,7 +39,10 @@ async function registerServiceWorker() {
 
       if (newWorker) {
         newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+          if (
+            newWorker.state === 'installed' &&
+            navigator.serviceWorker.controller
+          ) {
             console.log('📦 Nova versão disponível! Recarregue para atualizar.');
 
             if (window.confirm('Nova versão disponível! Deseja atualizar?')) {
@@ -43,7 +58,6 @@ async function registerServiceWorker() {
     navigator.serviceWorker.addEventListener('message', (event) => {
       console.log('📩 Mensagem do Service Worker:', event.data);
     });
-
   } catch (error) {
     console.error('❌ Erro ao registrar Service Worker:', error);
   }
@@ -83,14 +97,15 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
       return null;
     }
 
+    const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+
     const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-    });
+        userVisibleOnly: true,
+        applicationServerKey: applicationServerKey as BufferSource,
+        });
 
     console.log('✅ Inscrito para push notifications:', subscription);
     return subscription;
-
   } catch (error) {
     console.error('❌ Erro ao inscrever para push:', error);
     return null;
@@ -160,12 +175,15 @@ export async function showLocalNotification(
 
   const registration = await navigator.serviceWorker.ready;
 
-  await registration.showNotification(title, {
-    icon: '/icons/icon-192x192.png',
-    badge: '/icons/icon-72x72.png',
-    vibrate: [200, 100, 200],
-    tag: 'velaris-local',
-    renotify: true,
-    ...options,
-  });
+  await registration.showNotification(
+    title,
+    {
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/icon-72x72.png',
+      vibrate: [200, 100, 200],
+      tag: 'velaris-local',
+      renotify: true,
+      ...options,
+    } as ExtendedNotificationOptions
+  );
 }

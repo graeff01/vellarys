@@ -35,6 +35,15 @@ function getNotificationAudio(): HTMLAudioElement | null {
 }
 
 // =============================================================================
+// EXTENSÃO DE TIPOS (DOM)
+// =============================================================================
+
+type ExtendedNotificationOptions = NotificationOptions & {
+  vibrate?: number[];
+};
+
+
+// =============================================================================
 // HOOK PRINCIPAL
 // =============================================================================
 
@@ -111,13 +120,14 @@ export function useNotifications(): UseNotificationsReturn {
         const registration = await navigator.serviceWorker.ready;
         
         await registration.showNotification(title, {
-          body,
-          icon: '/icons/icon-192x192.png',
-          badge: '/icons/icon-72x72.png',
-          vibrate: [200, 100, 200],
-          tag: 'velaris-notification',
-          renotify: true,
-        });
+  body,
+  icon: '/icons/icon-192x192.png',
+  badge: '/icons/icon-72x72.png',
+  vibrate: [200, 100, 200],
+  tag: 'velaris-notification',
+  renotify: true,
+} as ExtendedNotificationOptions);
+
       } catch (error) {
         console.error('Erro ao mostrar notificação:', error);
         

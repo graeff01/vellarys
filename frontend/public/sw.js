@@ -120,11 +120,11 @@ self.addEventListener('push', (event) => {
   
   let data = {
     title: 'Velaris',
-    body: 'Nova notificação',
+    body: 'Você tem uma nova atualização',
     icon: '/icons/icon-192x192.png',
     badge: '/icons/icon-72x72.png',
     tag: 'velaris-notification',
-    data: {},
+    data: { url: '/dashboard/leads' }, // fallback URL
   };
   
   // Tenta parsear dados do push
@@ -145,6 +145,7 @@ self.addEventListener('push', (event) => {
     vibrate: [200, 100, 200, 100, 200], // Padrão de vibração
     requireInteraction: data.requireInteraction || false,
     renotify: true,
+    sound: '/sounds/notification.mp3',
     data: data.data || {},
     actions: data.actions || [
       { action: 'open', title: 'Abrir' },
