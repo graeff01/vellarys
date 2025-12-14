@@ -240,7 +240,7 @@ export default function LeadsPage() {
       : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-3 md:px-0 overflow-x-hidden">
       {/* Header + switch de visualização */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <LeadsHeader
@@ -254,7 +254,7 @@ export default function LeadsPage() {
       </div>
 
       {/* Tabs de Status */}
-      <div className="flex gap-1 overflow-x-auto pb-1">
+      <div className="flex gap-2 overflow-x-auto pb-2 px-1 snap-x snap-mandatory">
         {tabConfig.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -320,7 +320,7 @@ export default function LeadsPage() {
 
       {/* Filtros */}
       <Card>
-        <div className="flex flex-wrap gap-4">
+         <div className="flex flex-wrap gap-3 p-4 md:p-0">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
