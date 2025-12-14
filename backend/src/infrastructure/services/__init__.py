@@ -106,6 +106,12 @@ from .ai_guard_service import (
     check_message_limit,
 )
 
+def _get_default_headers(self) -> dict:
+    headers = {}
+    if self.client_token:
+        headers["Client-Token"] = self.client_token
+    return headers
+
 # Handoff
 from .handoff_service import (
     execute_handoff,
