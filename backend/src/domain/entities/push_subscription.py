@@ -7,13 +7,16 @@ para enviar notificações push.
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from sqlalchemy import String, Boolean, ForeignKey, Text, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.mutable import MutableDict
 
 from .base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from .models import User, Tenant
 
 
 class PushSubscription(Base, TimestampMixin):
@@ -65,10 +68,6 @@ class PushSubscription(Base, TimestampMixin):
     # Contador de falhas (para desativar subscriptions inválidas)
     failure_count: Mapped[int] = mapped_column(default=0)
     
-    # Relacionamentos
-    user: Mapped["User"] = relationship(back_populates="push_subscriptions")
-    tenant: Mapped["Tenant"] = relationship()
-
-
-# Adicionar ao User o relacionamento reverso
-# Isso será feito no __init__.py ou models.py
+    # Relacionamentos (sem back_populates para evitar erro)
+    user: Mapped["User"] = relationship("User")
+    tenant: Mapped["Tenant"] = relationship("Tenant")
