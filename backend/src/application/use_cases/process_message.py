@@ -796,10 +796,22 @@ async def process_message(
 
             logger.info(f"[DEBUG] Regex match: {match.group(0) if match else 'NENHUM'}")
 
-            if match:
-                codigo = match.group(0)
+            match = re.search(r"\b\d{5,7}\b", content)
 
-                imovel_portal = lookup.buscar_por_codigo(codigo)
+            if match:
+                codigo_humano = match.group(0)
+
+                # 1️⃣ tenta traduzir para slug real
+                slug = lookup.PROPERTY_CODE_MAP.get(codigo_humano)
+
+                if slug:
+                    logger.info(f"🔁 Código {codigo_humano} traduzido para slug {slug}")
+                    imovel_portal = lookup.buscar_por_slug(slug)
+                else:
+                    logger.info(f"🔎 Código {codigo_humano} sem mapeamento, tentando busca direta")
+                    imovel_portal = lookup.buscar_por_codigo(codigo_humano)
+
+
 
                 logger.info(f"[DEBUG] Resultado lookup imóvel ({codigo}): {imovel_portal}")
 
@@ -823,7 +835,7 @@ async def process_message(
             logger.error(f"Erro criando notificação de empreendimento: {e}")
     
     # =========================================================================
-    # 11. LGPD CHECK
+    # 11. LGPD CHECK TOTAL DO SITE INVESTIMENTO
     # =========================================================================
     try:
         lgpd_request = detect_lgpd_request(content)
@@ -852,7 +864,7 @@ async def process_message(
         logger.error(f"Erro no LGPD check: {e}")
     
     # =========================================================================
-    # 12. STATUS CHECK (lead já transferido)
+    # 12. STATUS CHECK (lead já transferido) para o vendedor gestor
     # =========================================================================
     if lead.status == LeadStatus.HANDED_OFF.value:
         user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)

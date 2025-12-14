@@ -5,6 +5,15 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# ==========================================================
+# MAPEAMENTO: CÓDIGO HUMANO → SLUG REAL DO PORTAL
+# ==========================================================
+PROPERTY_CODE_MAP = {
+    "722585": "poa001",
+    # futuros:
+    # "722586": "poa002",
+}
+
 
 class PropertyLookupService:
     """
@@ -23,10 +32,13 @@ class PropertyLookupService:
             "Accept": "text/html,application/xhtml+xml",
         })
 
+    # ==========================================================
+    # BUSCA POR CÓDIGO (fallback / legado)
+    # ==========================================================
     @lru_cache(maxsize=128)
     def buscar_por_codigo(self, codigo: str) -> Optional[dict]:
         """
-        Busca um imóvel pelo código.
+        Busca um imóvel pelo código direto (fallback).
         Retorna dict normalizado ou None.
         """
         try:
@@ -37,7 +49,7 @@ class PropertyLookupService:
             response = self.session.get(
                 url,
                 timeout=self.TIMEOUT,
-                verify=True  # SSL sempre ativo
+                verify=True
             )
 
             if response.status_code != 200:
@@ -48,7 +60,6 @@ class PropertyLookupService:
 
             html = response.text
 
-            # 🔴 Fallback simples: se não encontrou título, aborta
             if "<title>" not in html:
                 logger.warning(f"PortalLookup | HTML inválido para código {codigo}")
                 return None
@@ -68,12 +79,56 @@ class PropertyLookupService:
             return None
 
     # ==========================================================
-    # PARSER (ISOLADO PARA FACILITAR MANUTENÇÃO)
+    # BUSCA POR SLUG REAL (RECOMENDADO / PRD)
     # ==========================================================
-    def _parse_html(self, codigo: str, html: str) -> Optional[dict]:
+    @lru_cache(maxsize=128)
+    def buscar_por_slug(self, slug: str) -> Optional[dict]:
         """
-        Parser simples e defensivo.
-        NÃO quebra se o HTML mudar.
+        Busca imóvel pelo slug real do Portal (ex: poa001)
+        """
+        try:
+            logger.info(f"🔎 PortalLookup | Buscando imóvel slug={slug}")
+
+            url = f"{self.BASE_URL}/imovel.html?id={slug}"
+
+            response = self.session.get(
+                url,
+                timeout=self.TIMEOUT,
+                verify=True
+            )
+
+            if response.status_code != 200:
+                logger.warning(
+                    f"PortalLookup | HTTP {response.status_code} para slug {slug}"
+                )
+                return None
+
+            html = response.text
+
+            if "<title>" not in html:
+                logger.warning(f"PortalLookup | HTML inválido para slug {slug}")
+                return None
+
+            return self._parse_html(slug, html)
+
+        except requests.Timeout:
+            logger.warning(f"⏱️ PortalLookup timeout para slug {slug}")
+            return None
+
+        except requests.RequestException as e:
+            logger.error(f"❌ PortalLookup erro HTTP slug {slug}: {e}")
+            return None
+
+        except Exception as e:
+            logger.error(f"❌ PortalLookup erro inesperado slug {slug}: {e}")
+            return None
+
+    # ==========================================================
+    # PARSER (ISOLADO E DEFENSIVO)
+    # ==========================================================
+    def _parse_html(self, identificador: str, html: str) -> Optional[dict]:
+        """
+        Parser simples e tolerante a mudanças de HTML.
         """
 
         try:
@@ -93,8 +148,8 @@ class PropertyLookupService:
             )
 
             return {
-                "codigo": codigo,
-                "titulo": titulo or f"Imóvel código {codigo}",
+                "codigo": identificador,
+                "titulo": titulo or f"Imóvel código {identificador}",
                 "tipo": "Imóvel residencial",
                 "regiao": "Consulte detalhes",
                 "quartos": "Consulte",
@@ -103,10 +158,12 @@ class PropertyLookupService:
                 "metragem": "Consulte",
                 "preco": "Consulte",
                 "descricao": descricao or "Imóvel disponível para mais informações.",
-                "link": f"{self.BASE_URL}/imovel/{codigo}",
+                "link": f"{self.BASE_URL}/imovel.html?id={identificador}",
                 "fonte": "portalinvestimento.com",
             }
 
         except Exception as e:
-            logger.error(f"❌ Erro ao parsear HTML do imóvel {codigo}: {e}")
+            logger.error(
+                f"❌ Erro ao parsear HTML do imóvel {identificador}: {e}"
+            )
             return None
