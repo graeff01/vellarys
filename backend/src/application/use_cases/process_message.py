@@ -38,6 +38,7 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, Tuple
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from src.infrastructure.services.property_lookup_service import PropertyLookupService
 import re
 
 
@@ -778,7 +779,7 @@ async def process_message(
 
 
     # =========================================================================
-    # 9.1 DETECÇÃO DE IMÓVEL (PORTAL DE INVESTIMENTO)
+    # 9.1 DETECÇÃO DE IMÓVEL (PORTAL DE INVESTIMENTO SITE)
     # =========================================================================
     imovel_portal = None
 
@@ -811,7 +812,7 @@ async def process_message(
 
 
     # =========================================================================
-    # 10. NOTIFICAÇÃO ESPECÍFICA DE EMPREENDIMENTO (se não notificou ainda)
+    # 10. NOTIFICAÇÃO ESPECÍFICA DE EMPREENDIMENTOOO (se não notificou ainda)
     # =========================================================================
     if empreendimento_detectado and empreendimento_detectado.notificar_gestor and is_new and not gestor_ja_notificado:
         try:
