@@ -1099,44 +1099,50 @@ VOCÊ NÃO PODE:
         logger.error(f"Erro montando prompt: {e}")
         system_prompt = f"Você é assistente da {ai_context['company_name']}. Seja educado e profissional."
     
-
-    # ==========================================================
+# ==========================================================
     # CONTEXTO EXTERNO - IMÓVEL PORTAL DE INVESTIMENTO
     # ==========================================================
     if imovel_portal:
         system_prompt += f"""
 
-    ============================================================
-    🏠 IMÓVEL SELECIONADO (PORTAL DE INVESTIMENTO)
-    ============================================================
+============================================================
+🏠 IMÓVEL DO PORTAL DE INVESTIMENTO
+============================================================
+Código: {imovel_portal['codigo']}
+Título: {imovel_portal['titulo']}
+Tipo: {imovel_portal['tipo']}
+Localização: {imovel_portal['regiao']}
+Quartos: {imovel_portal['quartos']}
+Banheiros: {imovel_portal['banheiros']}
+Vagas: {imovel_portal['vagas']}
+Área: {imovel_portal['metragem']} m²
+Preço: {imovel_portal['preco']}
+Descrição: {imovel_portal['descricao']}
+Link: {imovel_portal['link']}
+============================================================
 
-    Código: {imovel_portal['codigo']}
-    Título: {imovel_portal['titulo']}
-    Tipo: {imovel_portal['tipo']}
-    Localização: {imovel_portal['regiao']}
-    Quartos: {imovel_portal['quartos']}
-    Banheiros: {imovel_portal['banheiros']}
-    Vagas: {imovel_portal['vagas']}
-    Área: {imovel_portal['metragem']} m²
-    Preço: R$ {imovel_portal['preco']}
-    Descrição: {imovel_portal['descricao']}
-    Link oficial: {imovel_portal['link']}
+INSTRUÇÕES DE COMPORTAMENTO:
+- Você TEM todas as informações acima. USE-AS naturalmente.
+- NÃO faça listas ou bullet points. Converse de forma fluida.
+- Fale sobre o imóvel como um corretor experiente faria: 
+  destaque pontos fortes, faça perguntas de qualificação.
+- Se o cliente perguntar algo que não está acima, diga que 
+  vai verificar com a equipe.
+- Seja entusiasmado mas genuíno, não robótico.
 
-    REGRAS OBRIGATÓRIAS:
-    - Use EXCLUSIVAMENTE as informações acima
-    - NÃO invente dados
-    - Se algo não estiver listado, pergunte ao cliente
-    - Atue como especialista neste imóvel
-    - Priorize este imóvel na conversa
+EXEMPLO DE RESPOSTA BOA:
+"Que ótima escolha! Esse apartamento no [bairro] é perfeito 
+pra quem busca praticidade. São [X] quartos com [Y]m², 
+pertinho de tudo. O valor está em [preço]. Você tá buscando 
+pra morar ou investir?"
 
-
-    VOCÊ TEM ACESSO TOTAL AOS DADOS ACIMA.
-    NÃO diga que não possui informações.
-    RESPONDA como especialista nesse imóvel.
-
-    ============================================================
-    """
-
+EXEMPLO DE RESPOSTA RUIM:
+"Aqui estão as informações:
+- Quartos: 2
+- Banheiros: 1
+..."
+============================================================
+"""
 
 
     # =========================================================================

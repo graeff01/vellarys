@@ -114,12 +114,23 @@ def extrair_codigo_imovel(mensagem: str) -> Optional[str]:
     if not mensagem:
         return None
     
-    # Padrão: Código: [722585] ou código 722585
+    # Padrão 1: Código: [722585] ou (722585)
     match = re.search(r'[\[\(](\d{5,7})[\]\)]', mensagem)
     if match:
         return match.group(1)
     
+    # Padrão 2: código 722585, imóvel 722585
     match = re.search(r'(?:c[oó]digo|im[oó]vel)[:\s]*(\d{5,7})', mensagem.lower())
+    if match:
+        return match.group(1)
+    
+    # Padrão 3: "esse 758582", "nesse 758582", "este 758582"
+    match = re.search(r'(?:n?ess[ea]|este)\s+(\d{5,7})', mensagem.lower())
+    if match:
+        return match.group(1)
+    
+    # Padrão 4: número isolado de 6-7 dígitos (última tentativa)
+    match = re.search(r'\b(\d{6,7})\b', mensagem)
     if match:
         return match.group(1)
     
