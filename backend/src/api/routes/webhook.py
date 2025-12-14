@@ -9,6 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.database import get_db
 from src.api.schemas import WebhookMessage, WebhookResponse
 from src.application.use_cases.process_message import process_message
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 router = APIRouter(prefix="/webhook", tags=["Webhook"])
 
@@ -18,6 +22,8 @@ async def receive_message(
     payload: WebhookMessage,
     db: AsyncSession = Depends(get_db),
 ):
+    logger.warning(f"[WEBHOOK RAW] payload.content = {payload.content}")
+
     """
     Recebe mensagem de um canal externo.
     
