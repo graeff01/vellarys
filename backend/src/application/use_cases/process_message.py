@@ -40,6 +40,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.services.property_lookup_service import PropertyLookupService
 import re
+from src.infrastructure.services.property_lookup_service import PROPERTY_CODE_MAP
 
 
 from src.domain.entities import (
@@ -802,7 +803,8 @@ async def process_message(
                 codigo_humano = match.group(0)
 
                 # 1️⃣ tenta traduzir para slug real
-                slug = lookup.PROPERTY_CODE_MAP.get(codigo_humano)
+                slug = PROPERTY_CODE_MAP.get(codigo_humano)
+
 
                 if slug:
                     logger.info(f"🔁 Código {codigo_humano} traduzido para slug {slug}")
@@ -812,11 +814,9 @@ async def process_message(
                     imovel_portal = lookup.buscar_por_codigo(codigo_humano)
 
 
+                logger.info(f"[DEBUG] Resultado lookup imóvel ({codigo_humano}): {imovel_portal}")
+                logger.info(f"🏠 Imóvel PortalInvestimento detectado: {codigo_humano}")
 
-                logger.info(f"[DEBUG] Resultado lookup imóvel ({codigo}): {imovel_portal}")
-
-                if imovel_portal:
-                    logger.info(f"🏠 Imóvel PortalInvestimento detectado: {codigo}")
 
         except Exception as e:
             logger.error(f"Erro no lookup de imóvel PortalInvestimento: {e}")
