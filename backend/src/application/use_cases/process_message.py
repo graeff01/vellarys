@@ -781,7 +781,7 @@ async def process_message(
         logger.error(f"Erro na detecção de empreendimento: {e}")
 
 
-    # =========================================================================
+# =========================================================================
     # 9.1 DETECÇÃO DE IMÓVEL PORTAL (COM PERSISTÊNCIA)
     # =========================================================================
     imovel_portal = None
@@ -802,8 +802,14 @@ async def process_message(
                 # 💾 SALVA no lead para persistir entre mensagens
                 if not lead.custom_data:
                     lead.custom_data = {}
-                lead.custom_data["imovel_portal"] = imovel_portal
-                lead.custom_data["imovel_portal_codigo"] = imovel_portal['codigo']
+                
+                # ⭐ CRIA NOVA CÓPIA DO DICT para SQLAlchemy detectar mudança
+                lead.custom_data = {
+                    **lead.custom_data,
+                    "imovel_portal": imovel_portal,
+                    "imovel_portal_codigo": imovel_portal['codigo']
+                }
+                
                 logger.info(f"💾 Imóvel {imovel_portal['codigo']} salvo no lead {lead.id}")
             
             # 2️⃣ SEGUNDO: Se não encontrou novo, recupera do lead existente
@@ -818,7 +824,7 @@ async def process_message(
             logger.error(f"Erro buscando imóvel portal: {e}")
     else:
         logger.info(f"⏭️ Skip busca portal: nicho não imobiliário ou empreendimento já detectado")
-
+        
 
     # =========================================================================
     # 10. NOTIFICAÇÃO ESPECÍFICA DE EMPREENDIMENTOOO (se não notificou ainda)
