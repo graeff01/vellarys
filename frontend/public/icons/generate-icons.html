@@ -25,53 +25,50 @@
     const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
     
     function drawIcon(canvas, size) {
-      const ctx = canvas.getContext('2d');
-      canvas.width = size;
-      canvas.height = size;
-      
-      // Background gradient
-      const gradient = ctx.createLinearGradient(0, 0, size, size);
-      gradient.addColorStop(0, '#3B82F6');
-      gradient.addColorStop(1, '#1D4ED8');
-      
-      // Rounded rectangle
-      const radius = size * 0.18;
-      ctx.beginPath();
-      ctx.moveTo(radius, 0);
-      ctx.lineTo(size - radius, 0);
-      ctx.quadraticCurveTo(size, 0, size, radius);
-      ctx.lineTo(size, size - radius);
-      ctx.quadraticCurveTo(size, size, size - radius, size);
-      ctx.lineTo(radius, size);
-      ctx.quadraticCurveTo(0, size, 0, size - radius);
-      ctx.lineTo(0, radius);
-      ctx.quadraticCurveTo(0, 0, radius, 0);
-      ctx.closePath();
-      ctx.fillStyle = gradient;
-      ctx.fill();
-      
-      // Letter V
-      ctx.strokeStyle = 'white';
-      ctx.lineWidth = size * 0.09;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      ctx.moveTo(size * 0.29, size * 0.27);
-      ctx.lineTo(size * 0.5, size * 0.74);
-      ctx.lineTo(size * 0.71, size * 0.27);
-      ctx.stroke();
-      
-      // Sparkle
-      ctx.fillStyle = 'rgba(255,255,255,0.9)';
-      ctx.beginPath();
-      ctx.arc(size * 0.74, size * 0.31, size * 0.047, 0, Math.PI * 2);
-      ctx.fill();
-      
-      ctx.fillStyle = '#2563EB';
-      ctx.beginPath();
-      ctx.arc(size * 0.74, size * 0.31, size * 0.023, 0, Math.PI * 2);
-      ctx.fill();
-    }
+  const ctx = canvas.getContext('2d');
+  canvas.width = size;
+  canvas.height = size;
+
+  // ======================
+  // Background gradient (SaaS premium)
+  // ======================
+const gradient = ctx.createLinearGradient(0, 0, size, size);
+gradient.addColorStop(0, '#2563EB'); // azul principal Velaris
+gradient.addColorStop(1, '#1E40AF'); // azul profundo SaaS
+
+
+  const radius = size * 0.18;
+  ctx.beginPath();
+  ctx.moveTo(radius, 0);
+  ctx.lineTo(size - radius, 0);
+  ctx.quadraticCurveTo(size, 0, size, radius);
+  ctx.lineTo(size, size - radius);
+  ctx.quadraticCurveTo(size, size, size - radius, size);
+  ctx.lineTo(radius, size);
+  ctx.quadraticCurveTo(0, size, 0, size - radius);
+  ctx.lineTo(0, radius);
+  ctx.quadraticCurveTo(0, 0, radius, 0);
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+
+  
+// ======================
+// V tipográfico (elegante, SaaS)
+// ======================
+ctx.strokeStyle = '#FFFFFF';
+ctx.lineWidth = size * 0.080;
+ctx.lineCap = 'round';
+ctx.lineJoin = 'round';
+
+ctx.beginPath();
+ctx.moveTo(size * 0.34, size * 0.26);
+ctx.lineTo(size * 0.50, size * 0.74);
+ctx.lineTo(size * 0.66, size * 0.26);
+ctx.stroke();
+
+}
+
     
     function createIconElement(size) {
       const div = document.createElement('div');
