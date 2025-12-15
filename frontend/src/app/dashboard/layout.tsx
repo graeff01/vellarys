@@ -159,6 +159,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setSidebarOpen(false);
   }, [pathname]);
 
+  // NOVO: Bloqueia scroll do body quando menu aberto no mobile
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [sidebarOpen]);
+
   function handleLogout() {
     logout();
     router.push('/login');
@@ -174,15 +187,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Overlay para mobile */}
+      {/* CORRIGIDO: Overlay para mobile - z-index 40 */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
+      {/* CORRIGIDO: Sidebar - z-index 50 (acima do overlay) */}
       <aside
         className={`
           fixed left-0 top-0 h-full w-64 bg-white shadow-lg z-50
@@ -209,14 +222,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Botão fechar - só mobile */}
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
+            className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
         {/* Menu */}
-        <nav className="p-4">
+        <nav className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
           <ul className="space-y-2">
             {menuItems.map((item) => {
               const isActive = pathname === item.href ||
@@ -256,9 +269,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         {/* User Info */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t">
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-white">
           <div className="px-4 py-2 mb-2">
-            <p className="text-sm font-medium text-gray-900">{user?.name}</p>
+            <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
             <p className="text-xs text-gray-500 truncate">{user?.email}</p>
             {isSuperAdmin && (
               <span className="inline-block mt-1 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
@@ -268,7 +281,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 w-full text-gray-600 hover:bg-gray-50 rounded-lg"
+            className="flex items-center gap-3 px-4 py-3 w-full text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
           >
             <LogOut className="w-5 h-5" />
             Sair
@@ -276,12 +289,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* Header com notificações */}
+      {/* CORRIGIDO: Header - z-index 30 (abaixo do overlay) */}
       <div className="lg:ml-64 bg-white border-b px-4 lg:px-8 py-4 flex justify-between items-center sticky top-0 z-30">
         {/* Botão hamburguer - só mobile */}
         <button
           onClick={() => setSidebarOpen(true)}
-          className="lg:hidden p-2 hover:bg-gray-100 rounded-lg mr-4"
+          className="lg:hidden p-2 hover:bg-gray-100 rounded-lg mr-4 transition-colors"
         >
           <Menu className="w-6 h-6 text-gray-600" />
         </button>
@@ -296,8 +309,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <NotificationBell />
       </div>
 
-      {/* Conteúdo principal aqu kkk */}
-      <main className="lg:ml-64 p-4 lg:p-8">{children}</main>
+      {/* CORRIGIDO: Conteúdo principal - z-index 10 (abaixo do overlay) */}
+      <main className="lg:ml-64 p-4 lg:p-8 relative z-10">{children}</main>
     </div>
   );
 }
