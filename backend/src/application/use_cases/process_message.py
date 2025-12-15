@@ -781,8 +781,8 @@ async def process_message(
         logger.error(f"Erro na detecção de empreendimento: {e}")
 
 
-# =========================================================================
-    # 9.1 DETECÇÃO DE IMÓVEL PORTAL (apenas nicho imobiliário sem atualizar outros nichos) 
+    # =========================================================================
+    # 9.1 DETECÇÃO DE IMÓVEL PORTAL (COM PERSISTÊNCIA)
     # =========================================================================
     imovel_portal = None
     
@@ -790,12 +790,30 @@ async def process_message(
     
     if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS and not empreendimento_detectado:
         try:
+            # 1️⃣ PRIMEIRO: Tenta detectar novo código na mensagem atual
             logger.info(f"🔎 Buscando imóvel na mensagem: {content[:100]}")
-            imovel_portal = buscar_imovel_na_mensagem(content)
-            if imovel_portal:
+            imovel_novo = buscar_imovel_na_mensagem(content)
+            
+            if imovel_novo:
+                # ✅ Encontrou novo imóvel - usa ele e salva no lead
+                imovel_portal = imovel_novo
                 logger.info(f"🏠 Imóvel Portal detectado: {imovel_portal['codigo']}")
+                
+                # 💾 SALVA no lead para persistir entre mensagens
+                if not lead.custom_data:
+                    lead.custom_data = {}
+                lead.custom_data["imovel_portal"] = imovel_portal
+                lead.custom_data["imovel_portal_codigo"] = imovel_portal['codigo']
+                logger.info(f"💾 Imóvel {imovel_portal['codigo']} salvo no lead {lead.id}")
+            
+            # 2️⃣ SEGUNDO: Se não encontrou novo, recupera do lead existente
+            elif not is_new and lead.custom_data and lead.custom_data.get("imovel_portal"):
+                imovel_portal = lead.custom_data.get("imovel_portal")
+                logger.info(f"🔄 Imóvel Portal recuperado do lead: {imovel_portal.get('codigo')}")
+            
             else:
-                logger.info(f"❌ Nenhum código de imóvel encontrado na mensagem")
+                logger.info(f"❌ Nenhum código de imóvel encontrado na mensagem e nenhum salvo no lead")
+                
         except Exception as e:
             logger.error(f"Erro buscando imóvel portal: {e}")
     else:
@@ -1099,73 +1117,92 @@ VOCÊ NÃO PODE:
         logger.error(f"Erro montando prompt: {e}")
         system_prompt = f"Você é assistente da {ai_context['company_name']}. Seja educado e profissional."
 
+    
+# =============================================================================
+# SEÇÃO 20.1 - COLE ESTE CÓDIGO APÓS O EXCEPT DA SEÇÃO 20
+# =============================================================================
+# ⚠️ IMPORTANTE: Este bloco deve estar FORA do try/except, na mesma indentação!
+
     # ==========================================================
     # 20.1 CONTEXTO EXTERNO - IMÓVEL PORTAL DE INVESTIMENTO
     # ==========================================================
-    # ⚠️ ESTE BLOCO DEVE ESTAR FORA DO TRY/EXCEPT ACIMA!
     
     if imovel_portal:
-        # ✅ Imóvel ENCONTRADO no portal - responde com os dados
+        # ✅ Temos os dados do imóvel (detectado agora OU recuperado do lead)
         system_prompt += f"""
 
 ============================================================
-🏠 IMÓVEL DO PORTAL DE INVESTIMENTO
+🏠 IMÓVEL QUE O CLIENTE ESTÁ INTERESSADO
 ============================================================
-Código: {imovel_portal['codigo']}
-Tipo: {imovel_portal['tipo']} em {imovel_portal['regiao']}
-Quartos: {imovel_portal['quartos']} | Área: {imovel_portal['metragem']}m²
-Preço: {imovel_portal['preco']}
+Código: {imovel_portal.get('codigo', 'N/A')}
+Título: {imovel_portal.get('titulo', 'Imóvel')}
+Tipo: {imovel_portal.get('tipo', 'Imóvel')}
+Localização: {imovel_portal.get('regiao', 'N/A')}
+Quartos: {imovel_portal.get('quartos', 'Consulte')}
+Banheiros: {imovel_portal.get('banheiros', 'Consulte')}
+Vagas: {imovel_portal.get('vagas', 'Consulte')}
+Área: {imovel_portal.get('metragem', 'Consulte')} m²
+Preço: {imovel_portal.get('preco', 'Consulte')}
+Descrição: {imovel_portal.get('descricao', '')}
 ============================================================
 
-🎯 COMO RESPONDER (seja um corretor AMIGO):
+🎯 INSTRUÇÕES - RESPONDA AS PERGUNTAS SOBRE O IMÓVEL:
 
-O cliente JÁ viu o imóvel no site. NÃO repita tudo!
+QUANDO PERGUNTAREM:
+• "Quantos quartos?" → "{imovel_portal.get('quartos', 'Consulte')} quartos"
+• "Qual o tamanho/área?" → "{imovel_portal.get('metragem', 'Consulte')} m²"
+• "Qual o preço/valor?" → "{imovel_portal.get('preco', 'Consulte')}"
+• "Onde fica?" → "{imovel_portal.get('regiao', 'N/A')}"
+• "Tem garagem/vagas?" → "{imovel_portal.get('vagas', 'Consulte')} vaga(s)"
 
-RESPOSTA IDEAL (máximo 3 frases):
-"Opa! Ótima escolha esse {imovel_portal['tipo'].lower()} em {imovel_portal['regiao']}! 
-Tá bem localizado e com preço bacana. Você tá buscando pra morar ou investir?"
+⚠️ REGRAS:
+1. RESPONDA usando os dados acima - NÃO diga "não tenho informação"!
+2. Seja BREVE (2-3 frases no máximo)
+3. Após responder, faça uma pergunta de qualificação
+4. NÃO peça nome ou telefone
+5. Seja SIMPÁTICO como um corretor amigo
 
-PROIBIDO:
-❌ Listar todos os dados (quartos, banheiros, área, etc)
-❌ Pedir nome ou telefone
-❌ Mensagens longas e robóticas
+EXEMPLOS DE RESPOSTAS BOAS:
 
-Faça UMA pergunta natural pra entender o que ele busca!
+Pergunta: "quantos quartos tem?"
+Resposta: "Esse imóvel tem {imovel_portal.get('quartos', '2')} quartos! Você tá buscando pra morar sozinho ou com família?"
+
+Pergunta: "qual o valor?"
+Resposta: "O valor tá em {imovel_portal.get('preco', 'R$ X')}. Tá dentro do que você tava pensando em investir?"
+
+Pergunta: "qual o tamanho?"
+Resposta: "São {imovel_portal.get('metragem', 'X')} m² - um espaço bem legal! Você precisa de mais espaço ou esse tamanho te atende?"
 ============================================================
 """
     
     elif ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS and not empreendimento_detectado:
-        # Nicho imobiliário - verifica se mencionou código não encontrado
+        # Nicho imobiliário mas sem imóvel - verifica se mencionou código
         from src.infrastructure.services.property_lookup_service import extrair_codigo_imovel
         codigo_mencionado = extrair_codigo_imovel(content)
         
         if codigo_mencionado:
-            # ⚠️ Cliente mencionou código que NÃO está no portal
+            # Cliente mencionou código que NÃO encontramos
             system_prompt += f"""
 
 ============================================================
 🏠 CLIENTE PERGUNTOU SOBRE IMÓVEL - CÓDIGO: {codigo_mencionado}
 ============================================================
 
-O cliente mencionou o código {codigo_mencionado}, mas você não tem 
+O cliente mencionou o código {codigo_mencionado}, mas não temos 
 os detalhes específicos deste imóvel no momento.
 
-🎯 COMO RESPONDER (seja HONESTO mas POSITIVO):
+🎯 COMO RESPONDER:
 
 "Oi! Vi que você se interessou pelo imóvel {codigo_mencionado}! 
 Deixa eu verificar os detalhes pra você. Me conta: o que mais 
 te chamou atenção nele? Tá buscando pra morar ou investir?"
 
-PROIBIDO:
-❌ Dizer "não tenho informações" de forma seca ou robótica
-❌ Inventar dados sobre o imóvel
-❌ Pedir nome ou telefone
-❌ Encaminhar direto pro corretor sem conversar
-
-Mantenha a conversa FLUINDO! Qualifique o lead com perguntas naturais.
+⚠️ PROIBIDO:
+- Dizer "não tenho informações" de forma seca
+- Inventar dados
+- Pedir nome ou telefone
 ============================================================
 """
-
     # =========================================================================
     # 21. PREPARA MENSAGENS E CHAMA IA
     # =========================================================================
