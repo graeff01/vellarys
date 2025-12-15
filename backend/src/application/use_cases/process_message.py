@@ -802,8 +802,8 @@ async def process_message(
     # =========================================================================
     guards_result = {"can_respond": True}
 
-    if empreendimento_detectado or imovel_portal:
-        logger.info("🏢 Contexto imobiliário detectado - bypass dos guards")
+    if imovel_portal:
+        logger.info("🏠 Imóvel do portal ativo — guards completamente desativados")
         guards_result = {"can_respond": True, "bypass": True}
     else:
         try:
@@ -1047,6 +1047,13 @@ VOCÊ NÃO PODE:
             logger.info(f"🏠 [SEÇÃO 20] ENTROU NO ELIF - Nicho imobiliário detectado!")
             logger.info(f"🏠 [SEÇÃO 20] Chamando buscar_imovel_na_mensagem...")
             
+            # 🔄 Recarregar imóvel do portal do contexto do lead
+            if not imovel_portal and lead.custom_data:
+                imovel_salvo = lead.custom_data.get("imovel_portal")
+                if imovel_salvo:
+                    logger.info(f"🔄 Reutilizando imóvel do portal salvo no lead: {imovel_salvo.get('codigo')}")
+                    imovel_portal = imovel_salvo
+
             # 1️⃣ Busca código na mensagem ATUAL
             imovel_portal = buscar_imovel_na_mensagem(content)
             logger.info(f"🏠 [SEÇÃO 20] Resultado da busca na msg atual: {imovel_portal}")
@@ -1059,8 +1066,25 @@ VOCÊ NÃO PODE:
                         logger.info(f"🏠 [SEÇÃO 20] Verificando msg {i}: {msg.get('content', '')[:50]}...")
                         imovel_portal = buscar_imovel_na_mensagem(msg.get("content", ""))
                         if imovel_portal:
-                            logger.info(f"🔄 [SEÇÃO 20] Imóvel encontrado no histórico: {imovel_portal['codigo']}")
-                            break
+                            logger.info(f"💾 Persistindo imóvel do portal no lead {lead.id}")
+
+                            if not lead.custom_data:
+                                lead.custom_data = {}
+
+                            lead.custom_data["imovel_portal"] = {
+                                "codigo": imovel_portal.get("codigo"),
+                                "tipo": imovel_portal.get("tipo"),
+                                "regiao": imovel_portal.get("regiao"),
+                                "quartos": imovel_portal.get("quartos"),
+                                "banheiros": imovel_portal.get("banheiros"),
+                                "vagas": imovel_portal.get("vagas"),
+                                "metragem": imovel_portal.get("metragem"),
+                                "preco": imovel_portal.get("preco"),
+                                "descricao": imovel_portal.get("descricao"),
+                            }
+
+                            lead.custom_data["contexto_ativo"] = "imovel_portal"
+
             
             # 3️⃣ Se encontrou, injeta no prompt
             if imovel_portal:
