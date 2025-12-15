@@ -54,13 +54,19 @@ interface LeadsResponse {
 type ViewMode = 'table' | 'kanban' | 'insights';
 type TabFilter = 'all' | 'pending' | 'in_progress' | 'handed_off' | 'converted' | 'lost';
 
-const tabConfig: { id: TabFilter; label: string; icon: React.ElementType; color: string }[] = [
-  { id: 'all', label: 'Todos', icon: Users, color: 'text-gray-600' },
-  { id: 'pending', label: 'Aguardando', icon: Flame, color: 'text-orange-500' },
-  { id: 'in_progress', label: 'Em Atendimento', icon: Clock, color: 'text-blue-500' },
-  { id: 'handed_off', label: 'Transferidos', icon: CheckCircle, color: 'text-green-500' },
-  { id: 'converted', label: 'Convertidos', icon: CheckCircle, color: 'text-emerald-500' },
-  { id: 'lost', label: 'Perdidos', icon: XCircle, color: 'text-red-500' },
+const tabConfig: {
+  id: TabFilter;
+  label: string;
+  shortLabel: string;
+  icon: React.ElementType;
+  color: string;
+}[] = [
+  { id: 'all', label: 'Todos', shortLabel: 'Todos', icon: Users, color: 'text-gray-600' },
+  { id: 'pending', label: 'Aguardando', shortLabel: 'Aguard.', icon: Flame, color: 'text-orange-500' },
+  { id: 'in_progress', label: 'Em Atendimento', shortLabel: 'Atend.', icon: Clock, color: 'text-blue-500' },
+  { id: 'handed_off', label: 'Transferidos', shortLabel: 'Transf.', icon: CheckCircle, color: 'text-green-500' },
+  { id: 'converted', label: 'Convertidos', shortLabel: 'Conv.', icon: CheckCircle, color: 'text-emerald-500' },
+  { id: 'lost', label: 'Perdidos', shortLabel: 'Perd.', icon: XCircle, color: 'text-red-500' },
 ];
 
 export default function LeadsPage() {
