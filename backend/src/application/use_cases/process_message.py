@@ -797,60 +797,81 @@ async def process_message(
     history = await get_conversation_history(db, lead.id)
     message_count = await count_lead_messages(db, lead.id)
 
+
     # =========================================================================
-    # 14. AI GUARDS
+    # 13.5 PRÉ-CONTEXTO IMOBILIÁRIO (ANTES DOS GUARDS)
     # =========================================================================
+
+    # 🔄 1. Reutiliza imóvel salvo no lead
+    if not imovel_portal and lead.custom_data:
+        imovel_salvo = lead.custom_data.get("imovel_portal")
+        if imovel_salvo:
+            logger.info(f"🔄 Pré-contexto: reutilizando imóvel salvo {imovel_salvo.get('codigo')}")
+            imovel_portal = imovel_salvo
+
+    # 🔍 2. Busca na mensagem atual (somente se ainda não achou)
+    if not imovel_portal and ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
+        if imovel_portal:
+            logger.info(f"🏠 Pré-contexto: imóvel detectado na mensagem {imovel_portal.get('codigo')}")
+
+    # 🕰️ 3. Busca no histórico (fallback)
+    if not imovel_portal and history:
+        for msg in reversed(history):
+            if msg.get("role") == "user":
+                imovel_portal = buscar_imovel_na_mensagem(msg.get("content", ""))
+                if imovel_portal:
+                    logger.info(f"🏠 Pré-contexto: imóvel encontrado no histórico {imovel_portal.get('codigo')}")
+                    break
+
+    # 💾 4. Persistência forte
+    if imovel_portal:
+        if not lead.custom_data:
+            lead.custom_data = {}
+
+        lead.custom_data["imovel_portal"] = imovel_portal
+        lead.custom_data["contexto_ativo"] = "imovel_portal"
+
+
+
+    # =========================================================================
+    # 14. AI GUARDS (APÓS PRÉ-CONTEXTO)
+    # =========================================================================
+
     guards_result = {"can_respond": True}
 
-    if imovel_portal:
-        logger.info("🏠 Imóvel do portal ativo — guards completamente desativados")
-        guards_result = {"can_respond": True, "bypass": True}
-    else:
-        try:
+    try:
+        if empreendimento_detectado or imovel_portal:
+            logger.info("🟢 Guards bypassados por contexto imobiliário ativo")
+            guards_result = {"can_respond": True, "bypass": True}
+
+        else:
             guards_result = await run_ai_guards_async(
                 message=content,
                 message_count=message_count,
                 settings=settings,
                 lead_qualification=lead.qualification or "frio",
             )
-            
+
             if not guards_result.get("can_respond", True):
                 guard_reason = guards_result.get("reason", "unknown")
-                guard_response = guards_result.get("response") or ai_context.get("ai_out_of_scope_message", FALLBACK_RESPONSES["out_of_scope"])
-                
-                user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
+                guard_response = (
+                    guards_result.get("response")
+                    or ai_context.get("ai_out_of_scope_message")
+                    or FALLBACK_RESPONSES["out_of_scope"]
+                )
+
+                user_message = Message(
+                    lead_id=lead.id, role="user", content=content, tokens_used=0
+                )
                 db.add(user_message)
-                
-                assistant_message = Message(lead_id=lead.id, role="assistant", content=guard_response, tokens_used=0)
+
+                assistant_message = Message(
+                    lead_id=lead.id, role="assistant", content=guard_response, tokens_used=0
+                )
                 db.add(assistant_message)
-                
-                if guards_result.get("force_handoff"):
-                    if not lead.summary:
-                        lead.summary = await generate_lead_summary(
-                            conversation=history,
-                            extracted_data=lead.custom_data or {},
-                            qualification={"qualification": lead.qualification},
-                        )
-                    
-                    handoff_result = await execute_handoff(lead, tenant, guard_reason, db)
-                    
-                    handoff_message = Message(
-                        lead_id=lead.id, role="assistant",
-                        content=handoff_result["message_for_lead"], tokens_used=0,
-                    )
-                    db.add(handoff_message)
-                    await db.commit()
-                    
-                    return {
-                        "success": True,
-                        "reply": guard_response + "\n\n" + handoff_result["message_for_lead"],
-                        "lead_id": lead.id,
-                        "is_new_lead": is_new,
-                        "status": "transferido",
-                        "guard": guard_reason,
-                    }
-                
+
                 await db.commit()
+
                 return {
                     "success": True,
                     "reply": guard_response,
@@ -858,10 +879,13 @@ async def process_message(
                     "is_new_lead": is_new,
                     "guard": guard_reason,
                 }
-                
-        except Exception as e:
-            logger.error(f"Erro nos guards: {e}")
-    
+
+    except Exception as e:
+        logger.error(f"Erro nos guards: {e}")
+
+
+
+
     # =========================================================================
     # 15. HANDOFF TRIGGERS
     # =========================================================================
