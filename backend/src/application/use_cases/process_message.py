@@ -1053,7 +1053,7 @@ async def process_message(
         if not lead_context:
             lead_context = None
     
-    # =========================================================================
+# =========================================================================
     # 20. MONTA PROMPT
     # =========================================================================
     try:
@@ -1077,78 +1077,94 @@ async def process_message(
             
             system_prompt += f"""
 
-    ⚠️ ATENÇÃO MÁXIMA - EMPREENDIMENTO DETECTADO ⚠️
+⚠️ ATENÇÃO MÁXIMA - EMPREENDIMENTO DETECTADO ⚠️
 
-    O cliente demonstrou interesse específico no empreendimento **{empreendimento_detectado.nome}**.
+O cliente demonstrou interesse específico no empreendimento **{empreendimento_detectado.nome}**.
 
-    VOCÊ DEVE:
-    ✅ Usar TODAS as informações acima para responder
-    ✅ Falar sobre endereço, preço, tipologias, lazer quando perguntado
-    ✅ Fazer as perguntas de qualificação listadas
-    ✅ Ser especialista neste empreendimento
-    ✅ Ser entusiasmado mas profissional
+VOCÊ DEVE:
+✅ Usar TODAS as informações acima para responder
+✅ Falar sobre endereço, preço, tipologias, lazer quando perguntado
+✅ Fazer as perguntas de qualificação listadas
+✅ Ser especialista neste empreendimento
+✅ Ser entusiasmado mas profissional
 
-    VOCÊ NÃO PODE:
-    ❌ Dizer "não tenho essa informação" se ela está acima
-    ❌ Inventar dados que não estão listados
-    ❌ Ignorar o interesse do cliente neste empreendimento
-    ❌ Falar de outros empreendimentos sem o cliente pedir
-    """
+VOCÊ NÃO PODE:
+❌ Dizer "não tenho essa informação" se ela está acima
+❌ Inventar dados que não estão listados
+❌ Ignorar o interesse do cliente neste empreendimento
+❌ Falar de outros empreendimentos sem o cliente pedir
+"""
             
     except Exception as e:
         logger.error(f"Erro montando prompt: {e}")
         system_prompt = f"Você é assistente da {ai_context['company_name']}. Seja educado e profissional."
 
     # ==========================================================
-        # CONTEXTO EXTERNO - IMÓVEL PORTAL DE INVESTIMENTO
-        # ==========================================================
-        if imovel_portal:
+    # 20.1 CONTEXTO EXTERNO - IMÓVEL PORTAL DE INVESTIMENTO
+    # ==========================================================
+    # ⚠️ ESTE BLOCO DEVE ESTAR FORA DO TRY/EXCEPT ACIMA!
+    
+    if imovel_portal:
+        # ✅ Imóvel ENCONTRADO no portal - responde com os dados
+        system_prompt += f"""
+
+============================================================
+🏠 IMÓVEL DO PORTAL DE INVESTIMENTO
+============================================================
+Código: {imovel_portal['codigo']}
+Tipo: {imovel_portal['tipo']} em {imovel_portal['regiao']}
+Quartos: {imovel_portal['quartos']} | Área: {imovel_portal['metragem']}m²
+Preço: {imovel_portal['preco']}
+============================================================
+
+🎯 COMO RESPONDER (seja um corretor AMIGO):
+
+O cliente JÁ viu o imóvel no site. NÃO repita tudo!
+
+RESPOSTA IDEAL (máximo 3 frases):
+"Opa! Ótima escolha esse {imovel_portal['tipo'].lower()} em {imovel_portal['regiao']}! 
+Tá bem localizado e com preço bacana. Você tá buscando pra morar ou investir?"
+
+PROIBIDO:
+❌ Listar todos os dados (quartos, banheiros, área, etc)
+❌ Pedir nome ou telefone
+❌ Mensagens longas e robóticas
+
+Faça UMA pergunta natural pra entender o que ele busca!
+============================================================
+"""
+    
+    elif ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS and not empreendimento_detectado:
+        # Nicho imobiliário - verifica se mencionou código não encontrado
+        from src.infrastructure.services.property_lookup_service import extrair_codigo_imovel
+        codigo_mencionado = extrair_codigo_imovel(content)
+        
+        if codigo_mencionado:
+            # ⚠️ Cliente mencionou código que NÃO está no portal
             system_prompt += f"""
 
-    ============================================================
-    🏠 IMÓVEL QUE O CLIENTE ESTÁ PERGUNTANDO
-    ============================================================
-    Código: {imovel_portal['codigo']}
-    Título: {imovel_portal['titulo']}
-    Tipo: {imovel_portal['tipo']}
-    Localização: {imovel_portal['regiao']}
-    Quartos: {imovel_portal['quartos']}
-    Banheiros: {imovel_portal['banheiros']}
-    Vagas: {imovel_portal['vagas']}
-    Área: {imovel_portal['metragem']} m²
-    Preço: {imovel_portal['preco']}
-    Descrição: {imovel_portal['descricao']}
-    Link: {imovel_portal['link']}
-    ============================================================
+============================================================
+🏠 CLIENTE PERGUNTOU SOBRE IMÓVEL - CÓDIGO: {codigo_mencionado}
+============================================================
 
-    🚨 REGRAS DE ABORDAGEM:
+O cliente mencionou o código {codigo_mencionado}, mas você não tem 
+os detalhes específicos deste imóvel no momento.
 
-    1. O CLIENTE JÁ VIU O IMÓVEL NO SITE - não repita todas as informações!
-    2. Seja BREVE e DIRETO - máximo 2-3 frases curtas
-    3. Demonstre ENTUSIASMO genuíno pelo interesse dele
-    4. Faça UMA pergunta de qualificação natural
-    5. NÃO peça nome ou telefone - você já tem essas informações
-    6. Fale como um AMIGO corretor, não como um robô
+🎯 COMO RESPONDER (seja HONESTO mas POSITIVO):
 
-    PERGUNTAS NATURAIS (escolha UMA):
-    - "Você tá buscando pra morar ou investir?"
-    - "Já conhece a região?"
-    - "Tem preferência por andar alto ou baixo?"
-    - "Tá com pressa pra se mudar ou ainda pesquisando?"
-    - "O que mais te chamou atenção nesse imóvel?"
+"Oi! Vi que você se interessou pelo imóvel {codigo_mencionado}! 
+Deixa eu verificar os detalhes pra você. Me conta: o que mais 
+te chamou atenção nele? Tá buscando pra morar ou investir?"
 
-    EXEMPLO DE RESPOSTA IDEAL:
-    "Opa, ótima escolha! Esse imóvel em Canoas é muito bem localizado 
-    e tá com um preço bacana. Você tá buscando pra morar ou investir?"
+PROIBIDO:
+❌ Dizer "não tenho informações" de forma seca ou robótica
+❌ Inventar dados sobre o imóvel
+❌ Pedir nome ou telefone
+❌ Encaminhar direto pro corretor sem conversar
 
-    EXEMPLO RUIM (NÃO FAÇA):
-    "O imóvel possui 110m², 2 quartos, 2 banheiros, área gourmet, 
-    piscina, academia... [lista enorme]. Qual seu nome?"
-
-    Lembre-se: seja CURTO, SIMPÁTICO e faça o cliente CONVERSAR!
-    ============================================================
-    """
-
+Mantenha a conversa FLUINDO! Qualifique o lead com perguntas naturais.
+============================================================
+"""
 
     # =========================================================================
     # 21. PREPARA MENSAGENS E CHAMA IA
