@@ -83,11 +83,6 @@ async def create_superadmin():
         await session.commit()
         print("✅ Superadmin criado com sucesso!")
 
-
-@app.get("/api/v1/version")
-async def version():
-    return {"version": "2024-12-15-DEBUG-PORTAL", "timestamp": "03:30"}
-
 # ============================================================
 # 🔁 LIFESPAN
 # ============================================================
@@ -172,3 +167,8 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
+
+
+@app.get("/api/v1/version")
+async def version():
+    return {"version": "2024-12-15-DEBUG-PORTAL", "timestamp": "03:30"}
