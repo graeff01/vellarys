@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, Tuple
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
+
 
 
 from src.infrastructure.services.property_lookup_service import (
@@ -801,36 +803,71 @@ async def process_message(
     # =========================================================================
     # 13.5 PRÉ-CONTEXTO IMOBILIÁRIO (ANTES DOS GUARDS)
     # =========================================================================
+    
+    logger.info(f"🔍 [13.5] Iniciando pré-contexto imobiliário")
+    logger.info(f"🔍 [13.5] niche_id = {ai_context['niche_id']}")
+    logger.info(f"🔍 [13.5] is_new = {is_new}")
+    logger.info(f"🔍 [13.5] lead.custom_data = {lead.custom_data}")
+    
+    # Só processa se for nicho imobiliário
+    if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
+        logger.info(f"🏠 [13.5] Nicho imobiliário confirmado!")
+        
+        # 🔄 1. PRIMEIRO: Tenta recuperar imóvel já salvo no lead
+        if not imovel_portal and lead.custom_data:
+            imovel_salvo = lead.custom_data.get("imovel_portal")
+            if imovel_salvo:
+                logger.info(f"🔄 [13.5] RECUPEROU imóvel salvo: {imovel_salvo.get('codigo')}")
+                imovel_portal = imovel_salvo
 
-    # 🔄 1. Reutiliza imóvel salvo no lead
-    if not imovel_portal and lead.custom_data:
-        imovel_salvo = lead.custom_data.get("imovel_portal")
-        if imovel_salvo:
-            logger.info(f"🔄 Pré-contexto: reutilizando imóvel salvo {imovel_salvo.get('codigo')}")
-            imovel_portal = imovel_salvo
+        # 🔍 2. SEGUNDO: Busca na mensagem atual (só se ainda não tem)
+        if not imovel_portal:
+            logger.info(f"🔍 [13.5] Buscando na mensagem atual: '{content[:50]}...'")
+            imovel_portal = buscar_imovel_na_mensagem(content)
+            if imovel_portal:
+                logger.info(f"✅ [13.5] ENCONTROU na mensagem atual: {imovel_portal.get('codigo')}")
 
-    # 🔍 2. Busca na mensagem atual (somente se ainda não achou)
-    if not imovel_portal and ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
+        # 🕰️ 3. TERCEIRO: Busca no histórico (fallback)
+        if not imovel_portal and history:
+            logger.info(f"🕰️ [13.5] Buscando no histórico ({len(history)} msgs)...")
+            for msg in reversed(history):
+                if msg.get("role") == "user":
+                    imovel_portal = buscar_imovel_na_mensagem(msg.get("content", ""))
+                    if imovel_portal:
+                        logger.info(f"✅ [13.5] ENCONTROU no histórico: {imovel_portal.get('codigo')}")
+                        break
+
+        # 💾 4. SALVA no lead para próximas mensagens (COM FLAG_MODIFIED!)
         if imovel_portal:
-            logger.info(f"🏠 Pré-contexto: imóvel detectado na mensagem {imovel_portal.get('codigo')}")
-
-    # 🕰️ 3. Busca no histórico (fallback)
-    if not imovel_portal and history:
-        for msg in reversed(history):
-            if msg.get("role") == "user":
-                imovel_portal = buscar_imovel_na_mensagem(msg.get("content", ""))
-                if imovel_portal:
-                    logger.info(f"🏠 Pré-contexto: imóvel encontrado no histórico {imovel_portal.get('codigo')}")
-                    break
-
-    # 💾 4. Persistência forte
-    if imovel_portal:
-        if not lead.custom_data:
-            lead.custom_data = {}
-
-        lead.custom_data["imovel_portal"] = imovel_portal
-        lead.custom_data["contexto_ativo"] = "imovel_portal"
-
+            logger.info(f"💾 [13.5] Salvando imóvel {imovel_portal.get('codigo')} no lead...")
+            
+            if not lead.custom_data:
+                lead.custom_data = {}
+            
+            lead.custom_data["imovel_portal"] = {
+                "codigo": imovel_portal.get("codigo"),
+                "titulo": imovel_portal.get("titulo"),
+                "tipo": imovel_portal.get("tipo"),
+                "regiao": imovel_portal.get("regiao"),
+                "quartos": imovel_portal.get("quartos"),
+                "banheiros": imovel_portal.get("banheiros"),
+                "vagas": imovel_portal.get("vagas"),
+                "metragem": imovel_portal.get("metragem"),
+                "preco": imovel_portal.get("preco"),
+                "descricao": imovel_portal.get("descricao", ""),
+            }
+            lead.custom_data["contexto_ativo"] = "imovel_portal"
+            
+            # ⚠️ CRÍTICO: Força o SQLAlchemy a detectar a mudança no JSONB!
+            flag_modified(lead, "custom_data")
+            
+            logger.info(f"✅ [13.5] Imóvel salvo e flag_modified aplicado!")
+        else:
+            logger.info(f"❌ [13.5] Nenhum imóvel encontrado")
+    else:
+        logger.info(f"⏭️ [13.5] Nicho não é imobiliário, pulando...")
+    
+    logger.info(f"🔍 [13.5] FIM - imovel_portal = {imovel_portal}")
 
 
     # =========================================================================
@@ -1006,19 +1043,15 @@ async def process_message(
             lead_context = None
 
 
+
     # =========================================================================
-    # 20. MONTA PROMPT (COM BUSCA DE IMÓVEL INTEGRADA) - DEBUG VERSION
+    # 20. MONTA PROMPT (USA IMÓVEL JÁ ENCONTRADO NA 13.5)
     # =========================================================================
     
-    # 🔍 DEBUG: Verificar o estado ANTES de tudo
     logger.info(f"=" * 60)
-    logger.info(f"🔍 [SEÇÃO 20] INICIANDO MONTAGEM DO PROMPT")
-    logger.info(f"🔍 [SEÇÃO 20] niche_id = {ai_context['niche_id']}")
-    logger.info(f"🔍 [SEÇÃO 20] NICHOS_IMOBILIARIOS = {NICHOS_IMOBILIARIOS}")
-    logger.info(f"🔍 [SEÇÃO 20] niche_id.lower() in NICHOS = {ai_context['niche_id'].lower() in NICHOS_IMOBILIARIOS}")
+    logger.info(f"🔍 [SEÇÃO 20] MONTANDO PROMPT")
     logger.info(f"🔍 [SEÇÃO 20] empreendimento_detectado = {empreendimento_detectado}")
-    logger.info(f"🔍 [SEÇÃO 20] imovel_portal (antes) = {imovel_portal}")
-    logger.info(f"🔍 [SEÇÃO 20] content = {content[:100]}...")
+    logger.info(f"🔍 [SEÇÃO 20] imovel_portal = {imovel_portal}")
     logger.info(f"=" * 60)
     
     try:
@@ -1037,10 +1070,10 @@ async def process_message(
         )
         
         # =================================================================
-        # EMPREENDIMENTO
+        # EMPREENDIMENTO (prioridade 1)
         # =================================================================
         if empreendimento_detectado:
-            logger.info(f"🏢 [SEÇÃO 20] ENTROU NO IF empreendimento_detectado")
+            logger.info(f"🏢 [SEÇÃO 20] Injetando empreendimento: {empreendimento_detectado.nome}")
             empreendimento_context = build_empreendimento_context(empreendimento_detectado)
             system_prompt += f"\n\n{empreendimento_context}"
             
@@ -1065,58 +1098,15 @@ VOCÊ NÃO PODE:
 """
         
         # =================================================================
-        # 🏠 IMÓVEL PORTAL DE INVESTIMENTO - BUSCA AQUI
+        # 🏠 IMÓVEL PORTAL (prioridade 2) - JÁ FOI BUSCADO NA 13.5!
         # =================================================================
-        elif ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
-            logger.info(f"🏠 [SEÇÃO 20] ENTROU NO ELIF - Nicho imobiliário detectado!")
-            logger.info(f"🏠 [SEÇÃO 20] Chamando buscar_imovel_na_mensagem...")
+        elif imovel_portal:
+            logger.info(f"🏠 [SEÇÃO 20] Injetando imóvel do portal: {imovel_portal.get('codigo')}")
             
-            # 🔄 Recarregar imóvel do portal do contexto do lead
-            if not imovel_portal and lead.custom_data:
-                imovel_salvo = lead.custom_data.get("imovel_portal")
-                if imovel_salvo:
-                    logger.info(f"🔄 Reutilizando imóvel do portal salvo no lead: {imovel_salvo.get('codigo')}")
-                    imovel_portal = imovel_salvo
-
-            # 1️⃣ Busca código na mensagem ATUAL
-            imovel_portal = buscar_imovel_na_mensagem(content)
-            logger.info(f"🏠 [SEÇÃO 20] Resultado da busca na msg atual: {imovel_portal}")
-            
-            # 2️⃣ Se não achou, busca no HISTÓRICO
-            if not imovel_portal and history:
-                logger.info(f"🏠 [SEÇÃO 20] Não achou na msg atual, buscando no histórico ({len(history)} msgs)...")
-                for i, msg in enumerate(history):
-                    if msg.get("role") == "user":
-                        logger.info(f"🏠 [SEÇÃO 20] Verificando msg {i}: {msg.get('content', '')[:50]}...")
-                        imovel_portal = buscar_imovel_na_mensagem(msg.get("content", ""))
-                        if imovel_portal:
-                            logger.info(f"💾 Persistindo imóvel do portal no lead {lead.id}")
-
-                            if not lead.custom_data:
-                                lead.custom_data = {}
-
-                            lead.custom_data["imovel_portal"] = {
-                                "codigo": imovel_portal.get("codigo"),
-                                "tipo": imovel_portal.get("tipo"),
-                                "regiao": imovel_portal.get("regiao"),
-                                "quartos": imovel_portal.get("quartos"),
-                                "banheiros": imovel_portal.get("banheiros"),
-                                "vagas": imovel_portal.get("vagas"),
-                                "metragem": imovel_portal.get("metragem"),
-                                "preco": imovel_portal.get("preco"),
-                                "descricao": imovel_portal.get("descricao"),
-                            }
-
-                            lead.custom_data["contexto_ativo"] = "imovel_portal"
-
-            
-            # 3️⃣ Se encontrou, injeta no prompt
-            if imovel_portal:
-                logger.info(f"✅✅✅ [SEÇÃO 20] SUCESSO! Injetando imóvel no prompt: {imovel_portal}")
-                system_prompt += f"""
+            system_prompt += f"""
 
 ============================================================
-🏠 IMÓVEL DO PORTAL DE INVESTIMENTO
+🏠 IMÓVEL DO PORTAL DE INVESTIMENTO - CONTEXTO ATIVO
 ============================================================
 Código: {imovel_portal.get('codigo', 'N/A')}
 Tipo: {imovel_portal.get('tipo', 'Imóvel')}
@@ -1129,64 +1119,79 @@ Preço: {imovel_portal.get('preco', 'Consulte')}
 Descrição: {imovel_portal.get('descricao', '')}
 ============================================================
 
-⚠️ INSTRUÇÕES OBRIGATÓRIAS:
+⚠️ INSTRUÇÕES OBRIGATÓRIAS - LEIA COM ATENÇÃO:
 
-USE os dados acima para responder QUALQUER pergunta sobre o imóvel:
-- "quantos quartos?" → "{imovel_portal.get('quartos', 'Consulte')} quartos"
-- "qual o preço/valor?" → "{imovel_portal.get('preco', 'Consulte')}"
-- "qual o tamanho/área?" → "{imovel_portal.get('metragem', 'Consulte')} m²"
-- "onde fica?" → "{imovel_portal.get('regiao', 'N/A')}"
-- "tem garagem?" → "{imovel_portal.get('vagas', 'Consulte')} vaga(s)"
+O cliente está perguntando sobre o imóvel código {imovel_portal.get('codigo')}.
+Você TEM todas as informações acima. USE-AS!
 
-REGRAS:
-- NUNCA diga "não tenho informações" - você TEM as informações acima!
-- Seja breve (2-3 frases)
-- Seja simpático como um corretor amigo
-- Faça perguntas de qualificação: "Tá buscando pra morar ou investir?"
+RESPOSTAS CORRETAS:
+- "quantos quartos?" → "Este imóvel tem {imovel_portal.get('quartos', 'N/A')} quartos!"
+- "qual o preço/valor?" → "O valor é {imovel_portal.get('preco', 'Consulte')}"
+- "qual o tamanho/área?" → "A área é de {imovel_portal.get('metragem', 'N/A')} m²"
+- "onde fica/localização?" → "Fica em {imovel_portal.get('regiao', 'N/A')}"
+- "tem garagem/vagas?" → "Tem {imovel_portal.get('vagas', 'N/A')} vaga(s) de garagem"
+- "quantos banheiros?" → "Tem {imovel_portal.get('banheiros', 'N/A')} banheiro(s)"
+
+REGRAS ABSOLUTAS:
+🚫 NUNCA diga "não tenho informações" - você TEM as informações acima!
+🚫 NUNCA diga "desculpe, não posso ajudar com isso"
+🚫 NUNCA peça para o cliente repetir o código
+✅ SEMPRE responda com base nos dados acima
+✅ Seja breve e simpático (2-3 frases)
+✅ Após responder, faça UMA pergunta de qualificação
+
+EXEMPLOS DE PERGUNTAS DE QUALIFICAÇÃO:
+- "Você está buscando para morar ou investir?"
+- "Esse tamanho atende sua necessidade?"
+- "Posso te ajudar a agendar uma visita?"
 ============================================================
 """
-            else:
-                logger.warning(f"❌ [SEÇÃO 20] Imóvel NÃO encontrado")
-                # Código mencionado mas não encontrado
-                from src.infrastructure.services.property_lookup_service import extrair_codigo_imovel
-                codigo_mencionado = extrair_codigo_imovel(content)
-                
-                if codigo_mencionado:
-                    logger.warning(f"⚠️ [SEÇÃO 20] Código {codigo_mencionado} mencionado mas não encontrado no portal")
-                    system_prompt += f"""
+        
+        # =================================================================
+        # NICHO IMOBILIÁRIO SEM IMÓVEL ESPECÍFICO (prioridade 3)
+        # =================================================================
+        elif ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
+            logger.info(f"🏠 [SEÇÃO 20] Nicho imobiliário mas sem imóvel específico")
+            
+            # Verifica se mencionou algum código que não foi encontrado
+            from src.infrastructure.services.property_lookup_service import extrair_codigo_imovel
+            codigo_mencionado = extrair_codigo_imovel(content)
+            
+            if codigo_mencionado:
+                logger.warning(f"⚠️ [SEÇÃO 20] Código {codigo_mencionado} mencionado mas não encontrado")
+                system_prompt += f"""
 
 ============================================================
 🏠 CLIENTE INTERESSADO EM IMÓVEL - CÓDIGO: {codigo_mencionado}
 ============================================================
 
 O cliente mencionou interesse no imóvel {codigo_mencionado}.
-Você não tem os detalhes específicos no momento.
+Você não tem os detalhes específicos deste imóvel no momento.
 
-RESPONDA ASSIM:
+RESPONDA ASSIM (adapte naturalmente):
 "Oi! Que bom que você se interessou por esse imóvel! 
 Vou verificar os detalhes pra você. Me conta: você tá 
 buscando pra morar ou pra investir?"
 
 PROIBIDO:
-- Dizer "não tenho informações" de forma seca
-- Inventar dados
-- Pedir nome ou telefone (já temos)
+❌ Dizer "não tenho informações" de forma seca
+❌ Inventar dados do imóvel
+❌ Pedir nome ou telefone (já temos)
 ============================================================
 """
         else:
-            logger.info(f"⚠️ [SEÇÃO 20] NÃO ENTROU EM NENHUM IF/ELIF!")
-            logger.info(f"⚠️ [SEÇÃO 20] empreendimento_detectado={empreendimento_detectado}")
-            logger.info(f"⚠️ [SEÇÃO 20] niche check={ai_context['niche_id'].lower() in NICHOS_IMOBILIARIOS}")
+            logger.info(f"⏭️ [SEÇÃO 20] Nicho não é imobiliário")
             
     except Exception as e:
-        logger.error(f"💥 [SEÇÃO 20] ERRO montando prompt: {e}")
+        logger.error(f"💥 [SEÇÃO 20] ERRO: {e}")
         import traceback
         logger.error(traceback.format_exc())
         system_prompt = f"Você é assistente da {ai_context['company_name']}. Seja educado e profissional."
     
-    logger.info(f"🔍 [SEÇÃO 20] imovel_portal (depois) = {imovel_portal}")
-    logger.info(f"🔍 [SEÇÃO 20] FIM DA SEÇÃO 20")
-    logger.info(f"=" * 60)
+    logger.info(f"✅ [SEÇÃO 20] Prompt montado com sucesso")
+
+
+
 
     # =========================================================================
     # 21. PREPARA MENSAGENS E CHAMA IA
