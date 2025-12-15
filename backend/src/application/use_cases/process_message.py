@@ -780,52 +780,6 @@ async def process_message(
     except Exception as e:
         logger.error(f"Erro na detecção de empreendimento: {e}")
 
-
-# =========================================================================
-    # 9.1 DETECÇÃO DE IMÓVEL PORTAL (COM PERSISTÊNCIA)
-    # =========================================================================
-    imovel_portal = None
-    
-    logger.info(f"🔎 Debug Portal: nicho={ai_context['niche_id']}, emp_detectado={empreendimento_detectado is not None}")
-    
-    if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS and not empreendimento_detectado:
-        try:
-            # 1️⃣ PRIMEIRO: Tenta detectar novo código na mensagem atual
-            logger.info(f"🔎 Buscando imóvel na mensagem: {content[:100]}")
-            imovel_novo = buscar_imovel_na_mensagem(content)
-            
-            if imovel_novo:
-                # ✅ Encontrou novo imóvel - usa ele e salva no lead
-                imovel_portal = imovel_novo
-                logger.info(f"🏠 Imóvel Portal detectado: {imovel_portal['codigo']}")
-                
-                # 💾 SALVA no lead para persistir entre mensagens
-                if not lead.custom_data:
-                    lead.custom_data = {}
-                
-                # ⭐ CRIA NOVA CÓPIA DO DICT para SQLAlchemy detectar mudança
-                lead.custom_data = {
-                    **lead.custom_data,
-                    "imovel_portal": imovel_portal,
-                    "imovel_portal_codigo": imovel_portal['codigo']
-                }
-                
-                logger.info(f"💾 Imóvel {imovel_portal['codigo']} salvo no lead {lead.id}")
-            
-            # 2️⃣ SEGUNDO: Se não encontrou novo, recupera do lead existente
-            elif not is_new and lead.custom_data and lead.custom_data.get("imovel_portal"):
-                imovel_portal = lead.custom_data.get("imovel_portal")
-                logger.info(f"🔄 Imóvel Portal recuperado do lead: {imovel_portal.get('codigo')}")
-            
-            else:
-                logger.info(f"❌ Nenhum código de imóvel encontrado na mensagem e nenhum salvo no lead")
-                
-        except Exception as e:
-            logger.error(f"Erro buscando imóvel portal: {e}")
-    else:
-        logger.info(f"⏭️ Skip busca portal: nicho não imobiliário ou empreendimento já detectado")
-        
-
     # =========================================================================
     # 10. NOTIFICAÇÃO ESPECÍFICA DE EMPREENDIMENTOOO (se não notificou ainda)
     # =========================================================================
@@ -890,6 +844,32 @@ async def process_message(
     # =========================================================================
     history = await get_conversation_history(db, lead.id)
     message_count = await count_lead_messages(db, lead.id)
+
+    # =========================================================================
+    # 13.1 DETECÇÃO DE IMÓVEL PORTAL (USA HISTÓRICO)
+    # =========================================================================
+    imovel_portal = None
+    
+    if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS and not empreendimento_detectado:
+        try:
+            # Busca código na mensagem ATUAL
+            imovel_portal = buscar_imovel_na_mensagem(content)
+            
+            # Se não achou, busca no HISTÓRICO
+            if not imovel_portal and history:
+                for msg in history:
+                    if msg.get("role") == "user":
+                        imovel_portal = buscar_imovel_na_mensagem(msg.get("content", ""))
+                        if imovel_portal:
+                            logger.info(f"🔄 Imóvel encontrado no histórico: {imovel_portal['codigo']}")
+                            break
+            
+            if imovel_portal:
+                logger.info(f"🏠 Imóvel Portal ativo: {imovel_portal['codigo']}")
+                
+        except Exception as e:
+            logger.error(f"Erro buscando imóvel portal: {e}")
+
     
     # =========================================================================
     # 14. AI GUARDS (COM BYPASS PARA EMPREENDIMENTO)
