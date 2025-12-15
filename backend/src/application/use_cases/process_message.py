@@ -981,9 +981,22 @@ async def process_message(
         if not lead_context:
             lead_context = None
 
+
     # =========================================================================
-    # 20. MONTA PROMPT (COM BUSCA DE IMÓVEL INTEGRADA)
+    # 20. MONTA PROMPT (COM BUSCA DE IMÓVEL INTEGRADA) - DEBUG VERSION
     # =========================================================================
+    
+    # 🔍 DEBUG: Verificar o estado ANTES de tudo
+    logger.info(f"=" * 60)
+    logger.info(f"🔍 [SEÇÃO 20] INICIANDO MONTAGEM DO PROMPT")
+    logger.info(f"🔍 [SEÇÃO 20] niche_id = {ai_context['niche_id']}")
+    logger.info(f"🔍 [SEÇÃO 20] NICHOS_IMOBILIARIOS = {NICHOS_IMOBILIARIOS}")
+    logger.info(f"🔍 [SEÇÃO 20] niche_id.lower() in NICHOS = {ai_context['niche_id'].lower() in NICHOS_IMOBILIARIOS}")
+    logger.info(f"🔍 [SEÇÃO 20] empreendimento_detectado = {empreendimento_detectado}")
+    logger.info(f"🔍 [SEÇÃO 20] imovel_portal (antes) = {imovel_portal}")
+    logger.info(f"🔍 [SEÇÃO 20] content = {content[:100]}...")
+    logger.info(f"=" * 60)
+    
     try:
         system_prompt = build_system_prompt(
             niche_id=ai_context["niche_id"],
@@ -1003,6 +1016,7 @@ async def process_message(
         # EMPREENDIMENTO
         # =================================================================
         if empreendimento_detectado:
+            logger.info(f"🏢 [SEÇÃO 20] ENTROU NO IF empreendimento_detectado")
             empreendimento_context = build_empreendimento_context(empreendimento_detectado)
             system_prompt += f"\n\n{empreendimento_context}"
             
@@ -1030,21 +1044,27 @@ VOCÊ NÃO PODE:
         # 🏠 IMÓVEL PORTAL DE INVESTIMENTO - BUSCA AQUI
         # =================================================================
         elif ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
+            logger.info(f"🏠 [SEÇÃO 20] ENTROU NO ELIF - Nicho imobiliário detectado!")
+            logger.info(f"🏠 [SEÇÃO 20] Chamando buscar_imovel_na_mensagem...")
+            
             # 1️⃣ Busca código na mensagem ATUAL
             imovel_portal = buscar_imovel_na_mensagem(content)
+            logger.info(f"🏠 [SEÇÃO 20] Resultado da busca na msg atual: {imovel_portal}")
             
             # 2️⃣ Se não achou, busca no HISTÓRICO
             if not imovel_portal and history:
-                for msg in history:
+                logger.info(f"🏠 [SEÇÃO 20] Não achou na msg atual, buscando no histórico ({len(history)} msgs)...")
+                for i, msg in enumerate(history):
                     if msg.get("role") == "user":
+                        logger.info(f"🏠 [SEÇÃO 20] Verificando msg {i}: {msg.get('content', '')[:50]}...")
                         imovel_portal = buscar_imovel_na_mensagem(msg.get("content", ""))
                         if imovel_portal:
-                            logger.info(f"🔄 Imóvel encontrado no histórico: {imovel_portal['codigo']}")
+                            logger.info(f"🔄 [SEÇÃO 20] Imóvel encontrado no histórico: {imovel_portal['codigo']}")
                             break
             
             # 3️⃣ Se encontrou, injeta no prompt
             if imovel_portal:
-                logger.info(f"🏠 Injetando imóvel no prompt: {imovel_portal['codigo']}")
+                logger.info(f"✅✅✅ [SEÇÃO 20] SUCESSO! Injetando imóvel no prompt: {imovel_portal}")
                 system_prompt += f"""
 
 ============================================================
@@ -1078,12 +1098,13 @@ REGRAS:
 ============================================================
 """
             else:
+                logger.warning(f"❌ [SEÇÃO 20] Imóvel NÃO encontrado")
                 # Código mencionado mas não encontrado
                 from src.infrastructure.services.property_lookup_service import extrair_codigo_imovel
                 codigo_mencionado = extrair_codigo_imovel(content)
                 
                 if codigo_mencionado:
-                    logger.warning(f"⚠️ Código {codigo_mencionado} não encontrado no portal")
+                    logger.warning(f"⚠️ [SEÇÃO 20] Código {codigo_mencionado} mencionado mas não encontrado no portal")
                     system_prompt += f"""
 
 ============================================================
@@ -1104,10 +1125,20 @@ PROIBIDO:
 - Pedir nome ou telefone (já temos)
 ============================================================
 """
+        else:
+            logger.info(f"⚠️ [SEÇÃO 20] NÃO ENTROU EM NENHUM IF/ELIF!")
+            logger.info(f"⚠️ [SEÇÃO 20] empreendimento_detectado={empreendimento_detectado}")
+            logger.info(f"⚠️ [SEÇÃO 20] niche check={ai_context['niche_id'].lower() in NICHOS_IMOBILIARIOS}")
             
     except Exception as e:
-        logger.error(f"Erro montando prompt: {e}")
+        logger.error(f"💥 [SEÇÃO 20] ERRO montando prompt: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         system_prompt = f"Você é assistente da {ai_context['company_name']}. Seja educado e profissional."
+    
+    logger.info(f"🔍 [SEÇÃO 20] imovel_portal (depois) = {imovel_portal}")
+    logger.info(f"🔍 [SEÇÃO 20] FIM DA SEÇÃO 20")
+    logger.info(f"=" * 60)
 
     # =========================================================================
     # 21. PREPARA MENSAGENS E CHAMA IA
