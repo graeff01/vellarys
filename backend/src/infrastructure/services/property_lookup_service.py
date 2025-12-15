@@ -1,6 +1,8 @@
 """
 SERVIÇO DE BUSCA DE IMÓVEIS - PORTAL DE INVESTIMENTO
 VERSÃO ROBUSTA COM FALLBACK E LOGS EXTENSIVOS
+=====================================================
+Arquivo: backend/src/infrastructure/services/property_lookup_service.py
 """
 
 import logging
@@ -165,8 +167,20 @@ class PropertyLookupService:
 
 
 def extrair_codigo_imovel(mensagem: str) -> Optional[str]:
-    """Extrai código de imóvel da mensagem."""
-    logger.info(f"🔎 [EXTRATOR] Analisando: '{mensagem[:100] if mensagem else 'VAZIA'}'")
+    """
+    Extrai código de imóvel da mensagem.
+    
+    Detecta padrões como:
+    - [722585] ou (722585)
+    - Código: 722585 / código 722585
+    - imóvel 722585
+    - esse 722585 / e esse 722585
+    - e o 722585 / o 722585
+    - sobre o 722585
+    - quero ver 722585
+    - 722585 (número isolado)
+    """
+    logger.info(f"🔎 [EXTRATOR] Analisando: '{mensagem[:80] if mensagem else 'VAZIA'}'")
     
     if not mensagem:
         return None
@@ -184,28 +198,51 @@ def extrair_codigo_imovel(mensagem: str) -> Optional[str]:
     match = re.search(r'(?:c[oó]digo|im[oó]vel)[:\s]*(\d{5,7})', mensagem_lower)
     if match:
         codigo = match.group(1)
-        logger.info(f"✅ [EXTRATOR] Padrão CÓDIGO: {codigo}")
+        logger.info(f"✅ [EXTRATOR] Padrão CÓDIGO/IMÓVEL: {codigo}")
         return codigo
     
-    # Padrão 3: referência contextual "esse 758582", "o 758582"
-    match = re.search(r'(?:n?ess[ea]|este|o)\s+(\d{5,7})\b', mensagem_lower)
+    # Padrão 3: "e" + "esse/o" + número (e esse 442025, e o 442025)
+    # IMPORTANTE: Este padrão deve vir ANTES do padrão 4 para capturar "e esse X"
+    match = re.search(r'\be\s+(?:ess[ea]|o|este|aquele)\s+(\d{5,7})\b', mensagem_lower)
     if match:
         codigo = match.group(1)
-        logger.info(f"✅ [EXTRATOR] Padrão ESSE X: {codigo}")
+        logger.info(f"✅ [EXTRATOR] Padrão E ESSE/O: {codigo}")
         return codigo
     
-    # Padrão 4: "e esse 758582", "e o 758582", "e 758582"
-    match = re.search(r'\be\s+(?:(?:o|ess[ea])\s+)?(\d{5,7})\b', mensagem_lower)
+    # Padrão 4: "esse/este/o/aquele" + número (esse 722585, o 722585)
+    match = re.search(r'(?:n?ess[ea]|este|aquele|o)\s+(\d{5,7})\b', mensagem_lower)
     if match:
         codigo = match.group(1)
-        logger.info(f"✅ [EXTRATOR] Padrão E X: {codigo}")
+        logger.info(f"✅ [EXTRATOR] Padrão ESSE/O: {codigo}")
         return codigo
     
-    # Padrão 5: número isolado de 5-7 dígitos (última tentativa)
-    match = re.search(r'\b(\d{5,7})\b', mensagem)
+    # Padrão 5: "sobre" + opcional "o/esse" + número
+    match = re.search(r'sobre\s+(?:o|ess[ea]|este)?\s*(\d{5,7})\b', mensagem_lower)
     if match:
         codigo = match.group(1)
-        logger.info(f"✅ [EXTRATOR] Padrão NÚMERO: {codigo}")
+        logger.info(f"✅ [EXTRATOR] Padrão SOBRE: {codigo}")
+        return codigo
+    
+    # Padrão 6: "e" + número direto (e 722585)
+    match = re.search(r'\be\s+(\d{5,7})\b', mensagem_lower)
+    if match:
+        codigo = match.group(1)
+        logger.info(f"✅ [EXTRATOR] Padrão E + NÚMERO: {codigo}")
+        return codigo
+    
+    # Padrão 7: verbos de interesse + número (quero 722585, ver 722585)
+    match = re.search(r'(?:quero|gostei|interesse|ver|saber|conhecer)\s+(?:do|o|sobre|esse|este)?\s*(\d{5,7})\b', mensagem_lower)
+    if match:
+        codigo = match.group(1)
+        logger.info(f"✅ [EXTRATOR] Padrão INTERESSE: {codigo}")
+        return codigo
+    
+    # Padrão 8: Número isolado de 5-7 dígitos (última tentativa)
+    matches = re.findall(r'\b(\d{5,7})\b', mensagem)
+    if len(matches) >= 1:
+        # Pega o primeiro número encontrado
+        codigo = matches[0]
+        logger.info(f"✅ [EXTRATOR] Padrão NÚMERO ISOLADO: {codigo}")
         return codigo
     
     logger.info(f"❌ [EXTRATOR] Nenhum código encontrado")

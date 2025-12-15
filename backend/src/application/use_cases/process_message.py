@@ -800,46 +800,76 @@ async def process_message(
     message_count = await count_lead_messages(db, lead.id)
 
 
+    """
+SEÇÃO 13.5 MELHORADA - DETECTA MUDANÇA DE IMÓVEL
+================================================
+Substitua a seção 13.5 no process_message.py
+
+Esta versão:
+1. Detecta quando o lead pergunta sobre um NOVO imóvel
+2. Faz nova busca quando detecta código diferente
+3. Atualiza o contexto corretamente
+"""
+
     # =========================================================================
-    # 13.5 PRÉ-CONTEXTO IMOBILIÁRIO (ANTES DOS GUARDS)
+    # 13.5 PRÉ-CONTEXTO IMOBILIÁRIO (VERSÃO MELHORADA)
     # =========================================================================
     
     logger.info(f"🔍 [13.5] Iniciando pré-contexto imobiliário")
     logger.info(f"🔍 [13.5] niche_id = {ai_context['niche_id']}")
-    logger.info(f"🔍 [13.5] is_new = {is_new}")
-    logger.info(f"🔍 [13.5] lead.custom_data = {lead.custom_data}")
     
     # Só processa se for nicho imobiliário
     if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
         logger.info(f"🏠 [13.5] Nicho imobiliário confirmado!")
         
-        # 🔄 1. PRIMEIRO: Tenta recuperar imóvel já salvo no lead
-        if not imovel_portal and lead.custom_data:
-            imovel_salvo = lead.custom_data.get("imovel_portal")
-            if imovel_salvo:
-                logger.info(f"🔄 [13.5] RECUPEROU imóvel salvo: {imovel_salvo.get('codigo')}")
-                imovel_portal = imovel_salvo
-
-        # 🔍 2. SEGUNDO: Busca na mensagem atual (só se ainda não tem)
-        if not imovel_portal:
-            logger.info(f"🔍 [13.5] Buscando na mensagem atual: '{content[:50]}...'")
-            imovel_portal = buscar_imovel_na_mensagem(content)
-            if imovel_portal:
-                logger.info(f"✅ [13.5] ENCONTROU na mensagem atual: {imovel_portal.get('codigo')}")
-
-        # 🕰️ 3. TERCEIRO: Busca no histórico (fallback)
-        if not imovel_portal and history:
-            logger.info(f"🕰️ [13.5] Buscando no histórico ({len(history)} msgs)...")
-            for msg in reversed(history):
-                if msg.get("role") == "user":
-                    imovel_portal = buscar_imovel_na_mensagem(msg.get("content", ""))
-                    if imovel_portal:
-                        logger.info(f"✅ [13.5] ENCONTROU no histórico: {imovel_portal.get('codigo')}")
-                        break
-
-        # 💾 4. SALVA no lead para próximas mensagens (COM FLAG_MODIFIED!)
+        # 🔍 PRIMEIRO: Verifica se a mensagem atual menciona um código
+        from src.infrastructure.services.property_lookup_service import extrair_codigo_imovel
+        codigo_na_mensagem = extrair_codigo_imovel(content)
+        
+        # 📦 Pega código do imóvel salvo (se houver)
+        codigo_salvo = None
+        if lead.custom_data and lead.custom_data.get("imovel_portal"):
+            codigo_salvo = lead.custom_data["imovel_portal"].get("codigo")
+        
+        logger.info(f"🔍 [13.5] código_na_mensagem = {codigo_na_mensagem}")
+        logger.info(f"🔍 [13.5] código_salvo = {codigo_salvo}")
+        
+        # 🔄 DECISÃO: Buscar novo ou reutilizar salvo?
+        if codigo_na_mensagem:
+            # Lead mencionou um código na mensagem
+            if codigo_na_mensagem != codigo_salvo:
+                # É um código DIFERENTE - faz nova busca!
+                logger.info(f"🆕 [13.5] NOVO código detectado: {codigo_na_mensagem} (era {codigo_salvo})")
+                imovel_portal = buscar_imovel_na_mensagem(content)
+                
+                if imovel_portal:
+                    logger.info(f"✅ [13.5] Novo imóvel encontrado: {imovel_portal.get('codigo')}")
+                else:
+                    logger.warning(f"⚠️ [13.5] Código {codigo_na_mensagem} não encontrado no portal")
+            else:
+                # É o MESMO código - reutiliza
+                logger.info(f"🔄 [13.5] Mesmo código, reutilizando salvo")
+                imovel_portal = lead.custom_data.get("imovel_portal")
+        
+        elif codigo_salvo:
+            # Mensagem não tem código, mas tem um salvo - reutiliza
+            logger.info(f"🔄 [13.5] Reutilizando imóvel salvo: {codigo_salvo}")
+            imovel_portal = lead.custom_data.get("imovel_portal")
+        
+        else:
+            # Não tem código na mensagem nem salvo - busca no histórico
+            logger.info(f"🕰️ [13.5] Buscando no histórico...")
+            if history:
+                for msg in reversed(history):
+                    if msg.get("role") == "user":
+                        imovel_portal = buscar_imovel_na_mensagem(msg.get("content", ""))
+                        if imovel_portal:
+                            logger.info(f"✅ [13.5] Encontrado no histórico: {imovel_portal.get('codigo')}")
+                            break
+        
+        # 💾 SALVA no lead (se encontrou algo)
         if imovel_portal:
-            logger.info(f"💾 [13.5] Salvando imóvel {imovel_portal.get('codigo')} no lead...")
+            logger.info(f"💾 [13.5] Salvando imóvel {imovel_portal.get('codigo')} no lead")
             
             if not lead.custom_data:
                 lead.custom_data = {}
@@ -858,10 +888,10 @@ async def process_message(
             }
             lead.custom_data["contexto_ativo"] = "imovel_portal"
             
-            # ⚠️ CRÍTICO: Força o SQLAlchemy a detectar a mudança no JSONB!
+            # ⚠️ CRÍTICO: Força SQLAlchemy a detectar mudança
             flag_modified(lead, "custom_data")
             
-            logger.info(f"✅ [13.5] Imóvel salvo e flag_modified aplicado!")
+            logger.info(f"✅ [13.5] Imóvel salvo com flag_modified!")
         else:
             logger.info(f"❌ [13.5] Nenhum imóvel encontrado")
     else:
@@ -1044,13 +1074,25 @@ async def process_message(
 
 
 
+    """
+SEÇÃO 20 SUPER ROBUSTA - PROMPT INTELIGENTE
+===========================================
+Substitua a seção 20 no process_message.py
+
+Esta versão tem instruções MUITO mais enfáticas para a IA:
+1. NUNCA dizer "não tenho informações"
+2. Responder qualquer pergunta sobre o imóvel
+3. Lidar com objeções de forma natural
+4. Manter contexto entre mensagens
+"""
+
     # =========================================================================
-    # 20. MONTA PROMPT (USA IMÓVEL JÁ ENCONTRADO NA 13.5)
+    # 20. MONTA PROMPT (VERSÃO SUPER ROBUSTA)
     # =========================================================================
     
     logger.info(f"=" * 60)
     logger.info(f"🔍 [SEÇÃO 20] MONTANDO PROMPT")
-    logger.info(f"🔍 [SEÇÃO 20] empreendimento_detectado = {empreendimento_detectado}")
+    logger.info(f"🔍 [SEÇÃO 20] empreendimento = {empreendimento_detectado}")
     logger.info(f"🔍 [SEÇÃO 20] imovel_portal = {imovel_portal}")
     logger.info(f"=" * 60)
     
@@ -1088,96 +1130,168 @@ VOCÊ DEVE:
 ✅ Falar sobre endereço, preço, tipologias, lazer quando perguntado
 ✅ Fazer as perguntas de qualificação listadas
 ✅ Ser especialista neste empreendimento
-✅ Ser entusiasmado mas profissional
 
 VOCÊ NÃO PODE:
 ❌ Dizer "não tenho essa informação" se ela está acima
 ❌ Inventar dados que não estão listados
-❌ Ignorar o interesse do cliente neste empreendimento
-❌ Falar de outros empreendimentos sem o cliente pedir
 """
         
         # =================================================================
-        # 🏠 IMÓVEL PORTAL (prioridade 2) - JÁ FOI BUSCADO NA 13.5!
+        # 🏠 IMÓVEL PORTAL (prioridade 2)
         # =================================================================
         elif imovel_portal:
-            logger.info(f"🏠 [SEÇÃO 20] Injetando imóvel do portal: {imovel_portal.get('codigo')}")
+            cod = imovel_portal.get('codigo', 'N/A')
+            quartos = imovel_portal.get('quartos', 'N/A')
+            banheiros = imovel_portal.get('banheiros', 'N/A')
+            vagas = imovel_portal.get('vagas', 'N/A')
+            metragem = imovel_portal.get('metragem', 'N/A')
+            preco = imovel_portal.get('preco', 'Consulte')
+            regiao = imovel_portal.get('regiao', 'N/A')
+            tipo = imovel_portal.get('tipo', 'Imóvel')
+            descricao = imovel_portal.get('descricao', '')
+            
+            logger.info(f"🏠 [SEÇÃO 20] Injetando imóvel: {cod}")
             
             system_prompt += f"""
 
-============================================================
-🏠 IMÓVEL DO PORTAL DE INVESTIMENTO - CONTEXTO ATIVO
-============================================================
-Código: {imovel_portal.get('codigo', 'N/A')}
-Tipo: {imovel_portal.get('tipo', 'Imóvel')}
-Localização: {imovel_portal.get('regiao', 'N/A')}
-Quartos: {imovel_portal.get('quartos', 'Consulte')}
-Banheiros: {imovel_portal.get('banheiros', 'Consulte')}
-Vagas: {imovel_portal.get('vagas', 'Consulte')}
-Área: {imovel_portal.get('metragem', 'Consulte')} m²
-Preço: {imovel_portal.get('preco', 'Consulte')}
-Descrição: {imovel_portal.get('descricao', '')}
-============================================================
+###############################################################
+#                                                             #
+#    🏠 CONTEXTO DO IMÓVEL - VOCÊ TEM TODAS AS INFORMAÇÕES    #
+#                                                             #
+###############################################################
 
-⚠️ INSTRUÇÕES OBRIGATÓRIAS - LEIA COM ATENÇÃO:
+DADOS DO IMÓVEL (código {cod}):
+┌─────────────────────────────────────────────────────────────┐
+│ Código:     {cod}
+│ Tipo:       {tipo}
+│ Localização: {regiao}
+│ Quartos:    {quartos}
+│ Banheiros:  {banheiros}
+│ Vagas:      {vagas}
+│ Área:       {metragem} m²
+│ Preço:      {preco}
+│ Descrição:  {descricao[:200] if descricao else 'N/A'}
+└─────────────────────────────────────────────────────────────┘
 
-O cliente está perguntando sobre o imóvel código {imovel_portal.get('codigo')}.
-Você TEM todas as informações acima. USE-AS!
+###############################################################
+#                COMO VOCÊ DEVE RESPONDER                     #
+###############################################################
 
-RESPOSTAS CORRETAS:
-- "quantos quartos?" → "Este imóvel tem {imovel_portal.get('quartos', 'N/A')} quartos!"
-- "qual o preço/valor?" → "O valor é {imovel_portal.get('preco', 'Consulte')}"
-- "qual o tamanho/área?" → "A área é de {imovel_portal.get('metragem', 'N/A')} m²"
-- "onde fica/localização?" → "Fica em {imovel_portal.get('regiao', 'N/A')}"
-- "tem garagem/vagas?" → "Tem {imovel_portal.get('vagas', 'N/A')} vaga(s) de garagem"
-- "quantos banheiros?" → "Tem {imovel_portal.get('banheiros', 'N/A')} banheiro(s)"
+REGRA #1 - RESPOSTAS DIRETAS (use os dados acima!):
+- "quantos quartos?" → "Este imóvel tem {quartos} quartos!"
+- "qual o preço?" / "quanto custa?" / "valor?" → "O valor é {preco}"
+- "qual o tamanho?" / "metragem?" / "área?" → "A área é de {metragem} m²"
+- "onde fica?" / "localização?" → "Fica em {regiao}"
+- "tem garagem?" / "vagas?" → "Tem {vagas} vaga(s)"
+- "banheiros?" → "Tem {banheiros} banheiro(s)"
+- "qual o código?" → "O código é {cod}"
 
-REGRAS ABSOLUTAS:
-🚫 NUNCA diga "não tenho informações" - você TEM as informações acima!
-🚫 NUNCA diga "desculpe, não posso ajudar com isso"
-🚫 NUNCA peça para o cliente repetir o código
-✅ SEMPRE responda com base nos dados acima
-✅ Seja breve e simpático (2-3 frases)
-✅ Após responder, faça UMA pergunta de qualificação
+REGRA #2 - PERGUNTAS DE CONTEXTO (continue naturalmente):
+- "é bom?" → "Sim! É um ótimo {tipo} com {quartos} quartos em {regiao}. Quer saber mais?"
+- "vale a pena?" → "Com certeza! Por {preco} você tem {metragem}m² com {quartos} quartos!"
+- "tem mais fotos?" → "Posso te enviar mais detalhes! Você prefere agendar uma visita?"
+- "aceita financiamento?" → "Vou verificar as condições de pagamento. Você tem interesse em financiar?"
 
-EXEMPLOS DE PERGUNTAS DE QUALIFICAÇÃO:
+REGRA #3 - PERGUNTAS DE QUALIFICAÇÃO (faça uma por vez):
+Após responder, faça UMA dessas perguntas:
 - "Você está buscando para morar ou investir?"
-- "Esse tamanho atende sua necessidade?"
-- "Posso te ajudar a agendar uma visita?"
-============================================================
+- "Esse tamanho atende sua necessidade?"  
+- "Quer que eu agende uma visita?"
+- "Tem mais alguém que vai decidir junto com você?"
+- "Qual é o seu prazo para se mudar?"
+
+###############################################################
+#                    PROIBIÇÕES ABSOLUTAS                     #
+###############################################################
+
+🚫 NUNCA, EM HIPÓTESE ALGUMA, DIGA:
+- "Desculpe, não tenho informações sobre isso"
+- "Não tenho essa informação"
+- "Não posso ajudar com isso"
+- "Não sei responder"
+- "Preciso verificar"
+
+Se você não souber algo específico, RESPONDA com o que você SABE:
+❌ ERRADO: "Não tenho informações sobre isso"
+✅ CERTO: "O imóvel tem {quartos} quartos e {metragem}m². Quer saber mais algum detalhe?"
+
+###############################################################
+#                     ESTILO DE RESPOSTA                      #
+###############################################################
+
+✅ Seja BREVE (2-3 frases no máximo)
+✅ Seja SIMPÁTICO e NATURAL (como um corretor amigo)
+✅ Use emojis com moderação (1-2 por mensagem)
+✅ SEMPRE termine com uma pergunta de engajamento
+✅ Chame o cliente pelo nome se souber
+
+EXEMPLOS DE BOAS RESPOSTAS:
+- "Este apartamento tem 2 quartos e 36m²! 🏠 Você está buscando para morar ou investir?"
+- "O valor é R$ 245.000! Ótimo custo-benefício para a região. Quer agendar uma visita?"
+- "Fica em Porto Alegre, região bem valorizada! Esse tamanho atende você?"
+
+###############################################################
 """
         
         # =================================================================
-        # NICHO IMOBILIÁRIO SEM IMÓVEL ESPECÍFICO (prioridade 3)
+        # NICHO IMOBILIÁRIO SEM IMÓVEL ESPECÍFICO
         # =================================================================
         elif ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
-            logger.info(f"🏠 [SEÇÃO 20] Nicho imobiliário mas sem imóvel específico")
+            logger.info(f"🏠 [SEÇÃO 20] Nicho imobiliário sem imóvel específico")
             
-            # Verifica se mencionou algum código que não foi encontrado
+            # Verifica se mencionou código não encontrado
             from src.infrastructure.services.property_lookup_service import extrair_codigo_imovel
             codigo_mencionado = extrair_codigo_imovel(content)
             
             if codigo_mencionado:
-                logger.warning(f"⚠️ [SEÇÃO 20] Código {codigo_mencionado} mencionado mas não encontrado")
+                logger.warning(f"⚠️ [SEÇÃO 20] Código {codigo_mencionado} não encontrado")
                 system_prompt += f"""
 
-============================================================
-🏠 CLIENTE INTERESSADO EM IMÓVEL - CÓDIGO: {codigo_mencionado}
-============================================================
+###############################################################
+#    ⚠️ CLIENTE PERGUNTOU SOBRE IMÓVEL NÃO ENCONTRADO        #
+###############################################################
 
-O cliente mencionou interesse no imóvel {codigo_mencionado}.
-Você não tem os detalhes específicos deste imóvel no momento.
+O cliente mencionou o código {codigo_mencionado}, mas não temos os dados deste imóvel.
 
-RESPONDA ASSIM (adapte naturalmente):
-"Oi! Que bom que você se interessou por esse imóvel! 
-Vou verificar os detalhes pra você. Me conta: você tá 
-buscando pra morar ou pra investir?"
+RESPONDA DE FORMA ACOLHEDORA:
+"Oi! Vi que você se interessou pelo imóvel {codigo_mencionado}! 
+Vou verificar os detalhes pra você. Me conta: você tá buscando pra morar ou investir?"
 
-PROIBIDO:
-❌ Dizer "não tenho informações" de forma seca
-❌ Inventar dados do imóvel
-❌ Pedir nome ou telefone (já temos)
-============================================================
+OU
+
+"Que bom seu interesse! Deixa eu checar esse imóvel. Enquanto isso, 
+me fala: qual região você prefere?"
+
+🚫 NUNCA DIGA:
+- "Não tenho informações sobre esse código"
+- "Código não encontrado"
+- "Não existe"
+
+###############################################################
+"""
+            else:
+                # Conversa geral sobre imóveis
+                system_prompt += f"""
+
+###############################################################
+#         🏠 CONVERSA GERAL SOBRE IMÓVEIS                    #
+###############################################################
+
+Você é um corretor simpático da {ai_context['company_name']}.
+O cliente ainda não mencionou um imóvel específico.
+
+SEU OBJETIVO:
+1. Entender o que o cliente procura
+2. Fazer perguntas de qualificação
+3. Oferecer ajuda para encontrar o imóvel ideal
+
+PERGUNTAS ÚTEIS:
+- "Você está buscando para morar ou investir?"
+- "Qual região você prefere?"
+- "Quantos quartos você precisa?"
+- "Qual sua faixa de investimento?"
+
+###############################################################
 """
         else:
             logger.info(f"⏭️ [SEÇÃO 20] Nicho não é imobiliário")
@@ -1188,9 +1302,7 @@ PROIBIDO:
         logger.error(traceback.format_exc())
         system_prompt = f"Você é assistente da {ai_context['company_name']}. Seja educado e profissional."
     
-    logger.info(f"✅ [SEÇÃO 20] Prompt montado com sucesso")
-
-
+    logger.info(f"✅ [SEÇÃO 20] Prompt montado!")
 
 
     # =========================================================================
