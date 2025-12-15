@@ -13,7 +13,7 @@ from src.config import get_settings
 from src.infrastructure.database import init_db, async_session
 
 # Routers
-from src.api.routes.messages import router as messages_router
+from src.api.routes.debug_portal import router as debug_portal_router
 from src.api.routes.zapi_routes import router as zapi_router
 from src.api.routes import (
     empreendimentos_router,
