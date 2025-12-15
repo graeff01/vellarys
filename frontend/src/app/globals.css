@@ -259,7 +259,6 @@
   z-index: 9998;
   display: flex;
   align-items: center;
-  justify-center;
 }
 
 .modal-content {
