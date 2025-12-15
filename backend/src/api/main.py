@@ -84,6 +84,10 @@ async def create_superadmin():
         print("✅ Superadmin criado com sucesso!")
 
 
+@app.get("/api/v1/version")
+async def version():
+    return {"version": "2024-12-15-DEBUG-PORTAL", "timestamp": "03:30"}
+
 # ============================================================
 # 🔁 LIFESPAN
 # ============================================================
