@@ -8,7 +8,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
 from src.api.routes.debug_portal import router as debug_portal_router
-app.include_router(debug_portal_router, prefix="/api/v1/debug", tags=["debug"])
 
 from src.config import get_settings
 from src.infrastructure.database import init_db, async_session
@@ -132,6 +131,7 @@ app.add_middleware(
 # ROTAS
 # ============================================================
 app.include_router(zapi_router, prefix="/api")
+app.include_router(debug_portal_router, prefix="/api/v1/debug", tags=["debug"])
 app.include_router(empreendimentos_router, prefix="/api/v1")
 app.include_router(dialog360_webhook_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
