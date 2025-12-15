@@ -7,13 +7,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
-
+from src.api.routes.debug_portal import router as debug_portal_router
+app.include_router(debug_portal_router, prefix="/api/v1/debug", tags=["debug"])
 
 from src.config import get_settings
 from src.infrastructure.database import init_db, async_session
 
 # Routers
-from src.api.routes.debug_portal import router as debug_portal_router
+from src.api.routes.messages import router as messages_router
 from src.api.routes.zapi_routes import router as zapi_router
 from src.api.routes import (
     empreendimentos_router,
@@ -147,7 +148,6 @@ app.include_router(export_router, prefix="/api/v1")
 app.include_router(usage_router, prefix="/api/v1")
 app.include_router(simulator_router, prefix="/api/v1")
 app.include_router(twilio_webhook_router, prefix="/api/v1")
-app.include_router(debug_portal_router, prefix="/api/v1/debug", tags=["debug"])
 
 # ⭐ HANDOFF - FALTAVA ESTE!
 app.include_router(handoff_router, prefix="/api/v1")
