@@ -285,3 +285,31 @@ body.modal-open {
     margin: 0;
   }
 }
+
+/* =============================================================================
+   CORREÇÃO: DROPDOWN DE STATUS
+   =============================================================================
+*/
+
+/* Permite que dropdown apareça fora do container */
+.overflow-x-auto {
+  overflow-y: visible !important;
+}
+
+/* Z-index alto para dropdowns/selects */
+select,
+[role="combobox"],
+[role="listbox"] {
+  position: relative;
+  z-index: 100;
+}
+
+/* Menu dropdown deve ficar por cima */
+select[size],
+select[multiple],
+.dropdown-menu {
+  position: absolute;
+  z-index: 101 !important;
+  max-height: 300px;
+  overflow-y: auto;
+}
