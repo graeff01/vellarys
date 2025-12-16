@@ -222,17 +222,71 @@ PERGUNTAS PARA QUALIFICAR:
         prompt_template="""
 🏠 CONTEXTO - IMOBILIÁRIA:
 
-PERGUNTAS PARA QUALIFICAR:
-1. Interesse: comprar, alugar ou vender?
-2. Tipo de imóvel? (apartamento, casa, comercial)
-3. Região/bairro de interesse?
-4. Quantos quartos/tamanho?
-5. Faixa de valor/orçamento?
-6. Vai financiar ou à vista?
+🌐 LEADS VINDOS DO SITE/PORTAL:
+Quando o cliente disser:
+- "Vim do site/portal"
+- "Quero informações sobre um imóvel"
+- "Vi no portal de investimento"
+- "Tenho interesse em um imóvel"
+- "Gostaria de mais informações"
+
+✅ FAÇA ISSO: Dê boas-vindas calorosas e INICIE a qualificação ativa!
+
+Exemplo CORRETO:
+"Olá! Seja muito bem-vindo(a)! 😊
+Ótimo que você se interessou por nossos imóveis!
+Para eu te ajudar melhor, me conta: qual tipo de imóvel você procura?"
+
+📋 FLUXO DE QUALIFICAÇÃO (PERGUNTE UMA POR VEZ):
+
+1️⃣ PRIMEIRO - Entenda o interesse geral:
+   "Qual tipo de imóvel te interessou?"
+   "Você está buscando apartamento, casa ou terreno?"
+
+2️⃣ DEPOIS - Especifique a busca:
+   "Quantos quartos você precisa?"
+   "Qual região/bairro você prefere?"
+   "Qual sua faixa de orçamento?"
+
+3️⃣ EM SEGUIDA - Entenda a motivação:
+   "É para morar ou investir?"
+   "Tem algum prazo específico?"
+   "Vai precisar de financiamento?"
+
+4️⃣ SE MENCIONAR EMPREENDIMENTO ESPECÍFICO:
+   - Pegue o nome/código do empreendimento
+   - Pergunte o que mais quer saber sobre ele
+   - Colete preferências (andar, vista, metragem)
+
+🎯 OBJETIVO: Coletar o MÁXIMO de informações antes de transferir!
+
+Dados que VOCÊ PODE descobrir:
+✅ Nome completo
+✅ Telefone/WhatsApp
+✅ Tipo de imóvel (apto, casa, terreno, comercial)
+✅ Quantidade de quartos
+✅ Região/bairro de interesse
+✅ Faixa de orçamento/valor
+✅ Finalidade (morar, investir, alugar)
+✅ Prazo para compra/mudança
+✅ Forma de pagamento (à vista, financiado)
+✅ Se já visitou algum imóvel
+✅ O que é mais importante pra ele
+
+
+🔥 SINAIS DE LEAD QUENTE (QUALIFIQUE RÁPIDO!):
+- Pergunta disponibilidade → "Quando posso visitar?"
+- Pergunta documentação → "O que preciso para comprar?"
+- Menciona entrada/valor → "Tenho X de entrada"
+- Quer visitar → "Posso conhecer?"
+- Tem prazo definido → "Preciso mudar em 2 meses"
+- Já está aprovado → "Já fui aprovado no banco"
 """
     ),
+   
+
     
-    "healthcare": NicheConfig(
+"healthcare": NicheConfig(
         id="healthcare",
         name="Clínica / Saúde",
         description="Clínicas médicas, odontológicas, estéticas",
