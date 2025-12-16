@@ -13,6 +13,8 @@ Responsabilidades:
 - Evitar spam (não repetir notificações)
 
 Funciona para TODOS os nichos (imobiliário, saúde, fitness, educação, etc).
+
+MODIFICAÇÃO: Removida qualificação (quente/frio) da mensagem do vendedor
 """
 
 import logging
@@ -294,6 +296,8 @@ def build_seller_notification_message(
     """
     Constrói mensagem de notificação para o VENDEDOR quando recebe um lead.
 
+    MODIFICADO: Removida qualificação (quente/frio/morno) da mensagem
+    
     Funciona para qualquer nicho.
     """
     company_name = tenant.name or "Empresa"
@@ -315,8 +319,9 @@ def build_seller_notification_message(
     if lead.city:
         lines.append(f"📍 *Cidade:* {lead.city}")
 
-    lines.append("")
-    lines.append(f"📊 *Qualificação:* {get_qualification_display(lead.qualification)}")
+    # REMOVIDO: Qualificação (não mostrar mais para vendedor)
+    # lines.append("")
+    # lines.append(f"📊 *Qualificação:* {get_qualification_display(lead.qualification)}")
 
     # Informações coletadas (custom_data)
     if lead.custom_data:
