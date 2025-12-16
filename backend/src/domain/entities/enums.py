@@ -18,6 +18,7 @@ class LeadQualification(str, Enum):
     HOT = "quente"
     WARM = "morno"
     COLD = "frio"
+    NEW = "novo"
 
 
 class ChannelType(str, Enum):

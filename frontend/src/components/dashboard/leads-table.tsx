@@ -53,6 +53,7 @@ interface LeadsTableProps {
 }
 
 const qualificationVariant: Record<string, "hot" | "warm" | "cold" | "default"> = {
+  novo: "default",
   quente: "hot",
   morno: "warm",
   frio: "cold",
@@ -62,6 +63,7 @@ const qualificationVariant: Record<string, "hot" | "warm" | "cold" | "default"> 
 };
 
 const qualificationLabels: Record<string, string> = {
+  novo: "NOVO",
   quente: "QUENTE",
   morno: "MORNO",
   frio: "FRIO",

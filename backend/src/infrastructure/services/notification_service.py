@@ -44,6 +44,7 @@ NOTIFICATION_TYPES = {
 }
 
 QUALIFICATION_EMOJIS = {
+    "novo": "🆕",
     "frio": "❄️",
     "morno": "🌤️",
     "quente": "🔥",
@@ -51,6 +52,7 @@ QUALIFICATION_EMOJIS = {
 }
 
 QUALIFICATION_LABELS = {
+    "novo": "Novo",
     "frio": "Frio",
     "morno": "Morno",
     "quente": "QUENTE",

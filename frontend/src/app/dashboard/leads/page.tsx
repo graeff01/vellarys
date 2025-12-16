@@ -374,6 +374,7 @@ export default function LeadsPage() {
                     }
                   >
                     <option value="">Qualificação</option>
+                    <option value="novo">🆕 Novo</option>      {/* ← ADICIONAR ESTA LINHA */}
                     <option value="hot">🔥 Quente</option>
                     <option value="warm">🌡️ Morno</option>
                     <option value="cold">❄️ Frio</option>

@@ -1560,8 +1560,13 @@ async def update_lead_data(
             extracted_data=extracted,
             qualification_rules=niche_config.qualification_rules,
         )
+        # NOVO: Só qualifica após 4+ mensagens
+        message_count = len(conversation)
+        if message_count < 4:
+            new_qualification = "novo"
+        else:
+            new_qualification = qualification_result.get("qualification", "frio")
         
-        new_qualification = qualification_result.get("qualification", "frio")
         old_qualification = lead.qualification
         
         if new_qualification != old_qualification:
