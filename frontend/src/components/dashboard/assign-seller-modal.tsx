@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   Loader2,
@@ -11,6 +12,7 @@ import {
   Sparkles,
   AlertCircle,
   CheckCircle2,
+  ChevronRight,
 } from 'lucide-react';
 
 interface Seller {
@@ -45,13 +47,34 @@ export function AssignSellerModal({
   const [notifySeller, setNotifySeller] = useState(true);
   const [executeHandoff, setExecuteHandoff] = useState(true);
   const [step, setStep] = useState<'select' | 'options'>('select');
+  const [mounted, setMounted] = useState(false);
 
   const availableSellers = sellers.filter((s) => s.active);
   const isHotLead = leadQualification === 'hot' || leadQualification === 'quente';
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [open]);
+
   function handleSelectSeller(sellerId: number) {
     setSelectedSellerId(sellerId);
-    setStep('options');
+  }
+
+  function handleNext() {
+    if (selectedSellerId) {
+      setStep('options');
+    }
   }
 
   function handleConfirm() {
@@ -72,20 +95,18 @@ export function AssignSellerModal({
     onClose();
   }
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   const selectedSeller = sellers.find((s) => s.id === selectedSellerId);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Overlay */}
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={handleClose}
       />
 
-      {/* Modal */}
-      <div className="relative bg-white w-full max-w-md rounded-xl shadow-2xl z-50 animate-fadeIn overflow-hidden">
+      <div className="relative bg-white w-full max-w-md rounded-xl shadow-2xl z-[10000] animate-fadeIn overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b bg-gray-50">
           <div>
@@ -115,29 +136,62 @@ export function AssignSellerModal({
         <div className="p-4">
           {step === 'select' && (
             <>
+              {/* Instrução */}
+              <p className="text-sm text-gray-600 mb-3 flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-blue-500" />
+                Clique no vendedor que deseja atribuir:
+              </p>
+
               {/* Lista de Vendedores */}
               <div className="space-y-2 max-h-64 overflow-y-auto">
-                {availableSellers.map((seller) => (
-                  <button
-                    key={seller.id}
-                    onClick={() => handleSelectSeller(seller.id)}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg border hover:bg-blue-50 hover:border-blue-200 transition group"
-                  >
-                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center group-hover:bg-blue-100">
-                      <UserCheck className="w-5 h-5 text-gray-500 group-hover:text-blue-600" />
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="font-medium text-gray-800">{seller.name}</p>
-                      <p className="text-sm text-gray-500">{seller.whatsapp}</p>
-                    </div>
-                    <div
-                      className={`w-2.5 h-2.5 rounded-full ${
-                        seller.available ? 'bg-green-500' : 'bg-gray-300'
+                {availableSellers.map((seller) => {
+                  const isSelected = selectedSellerId === seller.id;
+                  
+                  return (
+                    <button
+                      key={seller.id}
+                      onClick={() => handleSelectSeller(seller.id)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-50 shadow-md'
+                          : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
                       }`}
-                      title={seller.available ? 'Disponível' : 'Indisponível'}
-                    />
-                  </button>
-                ))}
+                    >
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                          isSelected
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-100 group-hover:bg-blue-100'
+                        }`}
+                      >
+                        {isSelected ? (
+                          <CheckCircle2 className="w-5 h-5" />
+                        ) : (
+                          <UserCheck className="w-5 h-5 text-gray-500" />
+                        )}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className={`font-medium ${isSelected ? 'text-blue-800' : 'text-gray-800'}`}>
+                          {seller.name}
+                        </p>
+                        <p className={`text-sm ${isSelected ? 'text-blue-600' : 'text-gray-500'}`}>
+                          {seller.whatsapp}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`w-2.5 h-2.5 rounded-full ${
+                            seller.available ? 'bg-green-500' : 'bg-gray-300'
+                          }`}
+                          title={seller.available ? 'Disponível' : 'Indisponível'}
+                        />
+                        {isSelected && (
+                          <ChevronRight className="w-5 h-5 text-blue-500" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
 
                 {availableSellers.length === 0 && (
                   <div className="text-center py-8">
@@ -156,8 +210,8 @@ export function AssignSellerModal({
             <div className="space-y-4">
               {/* Vendedor Selecionado */}
               <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                  <UserCheck className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1">
                   <p className="font-medium text-blue-800">{selectedSeller.name}</p>
@@ -165,7 +219,7 @@ export function AssignSellerModal({
                 </div>
                 <button
                   onClick={() => setStep('select')}
-                  className="text-sm text-blue-600 hover:underline"
+                  className="text-sm text-blue-600 hover:underline font-medium"
                 >
                   Trocar
                 </button>
@@ -240,7 +294,7 @@ export function AssignSellerModal({
                   </div>
                   <ul className="text-sm text-green-600 ml-6 space-y-0.5">
                     <li>• Nome e telefone do lead</li>
-                    <li>• Qualificação e resumo da conversa</li>
+                    <li>• Resumo da conversa</li>
                     <li>• Dados coletados pela IA</li>
                     {notes && <li>• Suas observações</li>}
                     <li>• Link direto para WhatsApp do lead</li>
@@ -259,6 +313,17 @@ export function AssignSellerModal({
           >
             Cancelar
           </button>
+          
+          {step === 'select' && (
+            <button
+              onClick={handleNext}
+              disabled={!selectedSellerId}
+              className="flex-1 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              Próximo
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
           
           {step === 'options' && (
             <button
@@ -281,6 +346,7 @@ export function AssignSellerModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
