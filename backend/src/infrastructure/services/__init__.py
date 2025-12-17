@@ -13,7 +13,7 @@ Organização:
 """
 
 # =============================================================================
-# CORE AI - OpenAI e Inteligência
+# CORE AI - OpenAI e Inteligênciaa
 # =============================================================================
 
 from .openai_service import (
@@ -21,7 +21,6 @@ from .openai_service import (
     extract_lead_data,
     qualify_lead,
     generate_lead_summary,
-    generate_proactive_suggestions,
     detect_sentiment,
     generate_context_aware_response,
     generate_conversation_summary,
