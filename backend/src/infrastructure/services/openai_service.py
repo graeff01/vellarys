@@ -304,64 +304,65 @@ async def generate_lead_summary(
     qualification: dict,
 ) -> str:
     """
-    Gera resumo CURTO e OBJETIVO do lead para o vendedor.
-    CORRIGIDO: Máximo 5 linhas, sem formatação excessiva.
+    Gera resumo CURTO e ÚTIL para o vendedor.
+    Máximo 5 linhas, informações acionáveis.
     """
 
-    # Pega nome do lead
     lead_name = extracted_data.get("name", "Cliente")
     
-    # Pega interesse principal
-    interest = "informações sobre o serviço"
+    # Interesse principal
+    interest = "informações"
     if extracted_data.get("preferences"):
         prefs = extracted_data["preferences"]
         if isinstance(prefs, list) and prefs:
-            interest = prefs[0]
+            interest = prefs[0][:30]
         elif isinstance(prefs, str):
-            interest = prefs
+            interest = prefs[:30]
+    
+    # Qualificação
+    qual = qualification.get("qualification", "cold").upper()
     
     # Urgência
-    urgency_level = extracted_data.get("urgency_level", "não informada")
-    if qualification.get("qualification") == "hot":
-        urgency_display = "Alta"
-    elif urgency_level and urgency_level != "não informada":
-        urgency_display = urgency_level.capitalize()
-    else:
-        urgency_display = "Média" if qualification.get("qualification") == "warm" else "Baixa"
+    urgency = "Média"
+    if qual == "HOT":
+        urgency = "Alta"
+    elif qual == "COLD":
+        urgency = "Baixa"
     
     # Orçamento
     budget = extracted_data.get("budget_range", "Não informado")
+    if isinstance(budget, str) and len(budget) > 25:
+        budget = budget[:22] + "..."
     
     # Próximo passo
-    next_step = qualification.get("recommended_action", "Continuar qualificação")
+    next_step = qualification.get("recommended_action", "Fazer contato")
+    if len(next_step) > 35:
+        next_step = next_step[:32] + "..."
 
-    summary_prompt = f"""Crie um resumo CURTO para o vendedor (máximo 5 linhas).
+    summary_prompt = f"""Crie resumo ULTRA CURTO para vendedor (5 linhas, 40 chars/linha).
 
 DADOS:
-- Nome: {lead_name}
-- Interesse: {interest}
-- Qualificação: {qualification.get('qualification', 'N/A').upper()}
-- Urgência: {urgency_display}
+- Cliente: {lead_name}
+- Busca: {interest}
+- Status: {qual}
+- Urgência: {urgency}
 - Orçamento: {budget}
-- Ação: {next_step}
 
-CONVERSA (últimas 4):
-{json.dumps(conversation[-4:], ensure_ascii=False)}
+CONVERSA (últimas 3 mensagens):
+{json.dumps(conversation[-3:], ensure_ascii=False)}
 
-FORMATO OBRIGATÓRIO (máximo 5 linhas, sem asteriscos, sem bullets):
-
-🎯 [Nome] quer [interesse em 5 palavras]
-📍 Busca: [especificação em 5 palavras]
-⏰ Urgência: [Alta/Média/Baixa] - [motivo em 3 palavras]
-💰 Orçamento: [faixa ou "Não informado"]
-✅ Ação: [próximo passo em 5 palavras]
+FORMATO (EXATAMENTE assim):
+🎯 {lead_name} quer [resumo do interesse]
+📍 Busca [especifique o que procura]
+⏰ Urgência {urgency} - [motivo curto]
+💰 {budget}
+✅ Ação: [próximo passo]
 
 REGRAS:
-- MÁXIMO 5 LINHAS (não pode passar!)
-- SEM formatação (**bold**, bullets, etc)
-- Emojis APENAS no início de cada linha
-- DIRETO E OBJETIVO
-- Cada linha com NO MÁXIMO 50 caracteres
+- MÁXIMO 40 caracteres por linha
+- SEM asteriscos, SEM bullets
+- Emojis APENAS no início
+- DIRETO, ACIONÁVEL
 
 RESUMO:"""
 
@@ -369,31 +370,38 @@ RESUMO:"""
         response = await client.chat.completions.create(
             model=settings.openai_model,
             messages=[{"role": "user", "content": summary_prompt}],
-            temperature=0.1,  # Muito determinístico
-            max_tokens=150,   # Limita tamanho
+            temperature=0.1,
+            max_tokens=150,
         )
 
         summary = response.choices[0].message.content.strip()
         
-        # Remove formatação excessiva
-        summary = summary.replace("**", "").replace("- ", "")
+        # Limpa formatação
+        summary = summary.replace("**", "").replace("- ", "").replace("* ", "")
         
-        # Garante máximo 5 linhas
+        # Força 5 linhas
         lines = [line.strip() for line in summary.split('\n') if line.strip()]
         if len(lines) > 5:
             lines = lines[:5]
-            logger.warning("Resumo tinha mais de 5 linhas, truncado")
+            logger.warning(f"Resumo truncado de {len(lines)} para 5 linhas")
+        elif len(lines) < 5:
+            # Completa com linha de ação se faltar
+            while len(lines) < 5:
+                lines.append(f"✅ Ação: {next_step}")
+        
+        # Limita tamanho de cada linha
+        lines = [line[:60] if len(line) > 60 else line for line in lines]
         
         return '\n'.join(lines)
         
     except Exception as e:
         logger.error(f"Erro ao gerar resumo: {e}")
-        # Fallback seguro
-        return f"""🎯 {lead_name} quer {interest[:30]}
-📍 Interesse demonstrado na conversa
-⏰ Urgência: {urgency_display}
-💰 Orçamento: {budget}
-✅ Ação: Fazer contato"""
+        # Fallback direto e garantido
+        return f"""🎯 {lead_name} quer {interest[:20]}
+📍 Interesse em {qual}
+⏰ Urgência {urgency}
+💰 {budget}
+✅ Ação: {next_step[:30]}"""
 
 
 async def generate_conversation_summary(conversation: list[dict]) -> str:

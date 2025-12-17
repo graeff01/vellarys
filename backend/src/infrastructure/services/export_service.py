@@ -62,6 +62,8 @@ STATUS_MAP = {
 
 # Mapeamento de qualificação para português
 QUALIFICATION_MAP = {
+    'new': 'Novo', 
+    'novo': 'Novo',
     'cold': 'Frio',
     'frio': 'Frio',
     'warm': 'Morno',
