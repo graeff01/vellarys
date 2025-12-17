@@ -42,7 +42,6 @@ from src.infrastructure.services import (
 
 from src.infrastructure.services.openai_service import (
     detect_sentiment,
-    generate_context_aware_response,
     generate_conversation_summary,
     calculate_typing_delay,
 )
@@ -1330,14 +1329,13 @@ PERGUNTAS ÚTEIS:
     tokens_used = 0
     
     try:
-        ai_response = await generate_context_aware_response(
+        # CORRIGIDO: Usa chat_completion ao invés de generate_context_aware_response
+        from src.infrastructure.services import chat_completion
+        
+        ai_response = await chat_completion(
             messages=messages,
-            lead_data=lead_context or {},
-            sentiment=sentiment,
-            tone=ai_context["tone"],
-            is_returning_lead=is_returning_lead,
-            hours_since_last_message=hours_since_last,
-            previous_summary=previous_summary or lead.summary,
+            temperature=0.7,
+            max_tokens=500,
         )
         
         final_response, was_blocked = sanitize_response(
@@ -1379,7 +1377,8 @@ PERGUNTAS ÚTEIS:
                 f"Olá! Sou a assistente da {ai_context['company_name']}. "
                 f"O que você gostaria de saber sobre nossos serviços?"
             )
-    
+
+
     # =========================================================================
     # 22. VERIFICA HANDOFF SUGERIDO PELA IA
     # =========================================================================
