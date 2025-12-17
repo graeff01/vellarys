@@ -183,7 +183,6 @@ __all__ = [
     "extract_lead_data",
     "qualify_lead",
     "generate_lead_summary",
-    "generate_proactive_suggestions",
     "detect_sentiment",
     "generate_context_aware_response",
     "generate_conversation_summary",
