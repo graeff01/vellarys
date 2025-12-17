@@ -22,11 +22,9 @@ from .openai_service import (
     qualify_lead,
     generate_lead_summary,
     detect_sentiment,
-    generate_context_aware_response,
     generate_conversation_summary,
     calculate_typing_delay,
     get_random_greeting,
-    get_random_acknowledgment,
 )
 
 # =============================================================================
@@ -183,11 +181,9 @@ __all__ = [
     "qualify_lead",
     "generate_lead_summary",
     "detect_sentiment",
-    "generate_context_aware_response",
     "generate_conversation_summary",
     "calculate_typing_delay",
     "get_random_greeting",
-    "get_random_acknowledgment",
 
     # WHATSAPP
     "ZAPIService",
