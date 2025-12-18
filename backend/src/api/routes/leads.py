@@ -10,7 +10,7 @@ CORREÇÕES:
 """
 
 from datetime import datetime, timedelta
-
+from typing import Optional  # ← ADICIONAR ESTA LINHA
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
