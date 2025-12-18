@@ -52,22 +52,36 @@ export default function DashboardPage() {
     const user = getUser();
     setIsSuperAdmin(user?.role === 'superadmin');
 
-    async function loadData() {
-      try {
-        const [metricsData, leadsData, sellersData] = await Promise.all([
-          getMetrics(),
-          getLeads({ page: 1 }),
-          getSellers(),
-        ]);
-        setMetrics(metricsData as Metrics);
-        setLeads((leadsData as { items: Lead[] }).items);
-        setSellers((sellersData as any).sellers || []);
-      } catch (error) {
-        console.error('Erro ao carregar dados:', error);
-      } finally {
-        setLoading(false);
-      }
+  async function loadData() {
+    try {
+      setLoading(true);
+      
+      const [metricsData, leadsData, sellersData] = await Promise.all([
+        getMetrics().catch(e => {
+          console.error('❌ Erro ao carregar métricas:', e);
+          return null;
+        }),
+        getLeads({ page: 1 }).catch(e => {
+          console.error('❌ Erro ao carregar leads:', e);
+          return { items: [] };
+        }),
+        getSellers().catch(e => {
+          console.error('❌ Erro ao carregar vendedores:', e);
+          return { sellers: [] };
+        }),
+      ]);
+      
+      console.log('✅ Métricas:', metricsData);
+      
+      setMetrics(metricsData as Metrics);
+      setLeads((leadsData as { items: Lead[] }).items);
+      setSellers((sellersData as any).sellers || []);
+    } catch (error) {
+      console.error('❌ Erro fatal:', error);
+    } finally {
+      setLoading(false);
     }
+  }
     loadData();
   }, []);
 

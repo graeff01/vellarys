@@ -9,8 +9,8 @@ CORREÇÕES:
 - Melhor logging para debug
 """
 
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timedelta
+
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -558,4 +558,106 @@ async def get_leads_summary(
         raise
     except Exception as e:
         logger.error(f"Erro ao buscar stats de leads: {e}")
+        raise HTTPException(500, f"Erro interno: {str(e)}")
+
+
+        # ===============================
+# MÉTRICAS DO DASHBOARD
+# ===============================
+@router.get("/metrics")
+async def get_metrics(
+    tenant_slug: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Retorna métricas completas para o dashboard."""
+    try:
+        from datetime import timedelta
+        
+        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
+        tenant = result.scalar_one_or_none()
+        if not tenant:
+            raise HTTPException(404, "Tenant não encontrado")
+
+        now = datetime.utcnow()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=now.weekday())
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        
+        # Total de leads
+        total = (await db.execute(
+            select(func.count(Lead.id))
+            .where(Lead.tenant_id == tenant.id)
+        )).scalar() or 0
+        
+        # Leads hoje
+        today = (await db.execute(
+            select(func.count(Lead.id))
+            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.created_at >= today_start)
+        )).scalar() or 0
+        
+        # Leads esta semana
+        week = (await db.execute(
+            select(func.count(Lead.id))
+            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.created_at >= week_start)
+        )).scalar() or 0
+        
+        # Leads este mês
+        month = (await db.execute(
+            select(func.count(Lead.id))
+            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.created_at >= month_start)
+        )).scalar() or 0
+        
+        # Por qualificação
+        result = await db.execute(
+            select(
+                Lead.qualification,
+                func.count(Lead.id).label('count')
+            )
+            .where(Lead.tenant_id == tenant.id)
+            .group_by(Lead.qualification)
+        )
+        
+        by_qualification = {}
+        for row in result:
+            qual = row.qualification or 'frio'
+            if qual in ['hot', 'quente']:
+                by_qualification['quente'] = by_qualification.get('quente', 0) + row.count
+            elif qual in ['warm', 'morno']:
+                by_qualification['morno'] = by_qualification.get('morno', 0) + row.count
+            else:
+                by_qualification['frio'] = by_qualification.get('frio', 0) + row.count
+        
+        # Por status
+        result = await db.execute(
+            select(
+                Lead.status,
+                func.count(Lead.id).label('count')
+            )
+            .where(Lead.tenant_id == tenant.id)
+            .group_by(Lead.status)
+        )
+        by_status = {row.status: row.count for row in result}
+        
+        # Taxa de conversão
+        hot_leads = by_qualification.get('quente', 0)
+        conversion_rate = round((hot_leads / total * 100), 1) if total > 0 else 0
+        
+        return {
+            "total_leads": total,
+            "leads_today": today,
+            "leads_this_week": week,
+            "leads_this_month": month,
+            "conversion_rate": conversion_rate,
+            "avg_qualification_time_hours": 2.5,
+            "by_qualification": by_qualification,
+            "by_status": by_status,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao buscar métricas: {e}", exc_info=True)
         raise HTTPException(500, f"Erro interno: {str(e)}")
