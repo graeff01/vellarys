@@ -790,12 +790,6 @@ async def process_message(
             "message": "Lead já transferido",
         }
     
-    # =========================================================================
-    # 13. BUSCA HISTÓRICO
-    # =========================================================================
-    history = await get_conversation_history(db, lead.id)
-    message_count = await count_lead_messages(db, lead.id)
-
 
     """
 SEÇÃO 13.5 MELHORADA - DETECTA MUDANÇA DE IMÓVEL
@@ -904,10 +898,10 @@ Esta versão:
     guards_result = {"can_respond": True}
 
     try:
-        if empreendimento_detectado or imovel_portal:
-            logger.info("🟢 Guards bypassados por contexto imobiliário ativo")
+        # CORREÇÃO: Nicho imobiliário SEMPRE bypassa guards
+        if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
+            logger.info("🟢 Guards DESABILITADOS para nicho imobiliário")
             guards_result = {"can_respond": True, "bypass": True}
-
         else:
             guards_result = await run_ai_guards_async(
                 message=content,
@@ -1325,17 +1319,22 @@ PERGUNTAS ÚTEIS:
             max_tokens=500,
         )
         
-        final_response, was_blocked = sanitize_response(
-            ai_response["content"],
-            ai_context["ai_out_of_scope_message"]
-        )
-        
-        # Bypass do bloqueio para contexto imobiliário
-        if was_blocked and (empreendimento_detectado or imovel_portal):
-            logger.warning(f"⚠️ Resposta bloqueada mas contexto imobiliário detectado - usando original")
+        # CORREÇÃO: Nicho imobiliário NUNCA bloqueia respostas
+        if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
+            # Nicho imobiliário: DESABILITA sanitização
             final_response = ai_response["content"]
             was_blocked = False
-        
+            logger.info("🏠 Nicho imobiliário: sanitização DESABILITADA")
+        else:
+            # Outros nichos: aplica sanitização normal
+            final_response, was_blocked = sanitize_response(
+                ai_response["content"],
+                ai_context["ai_out_of_scope_message"]
+            )
+            
+            if was_blocked:
+                logger.warning(f"⚠️ Resposta bloqueada - Lead: {lead.id}")
+                
         tokens_used = ai_response.get("tokens_used", 0)
         
         if was_blocked:
