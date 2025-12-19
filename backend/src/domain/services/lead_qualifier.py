@@ -1,7 +1,13 @@
 """
-SISTEMA DE QUALIFICAÇÃO INTELIGENTE DE LEADS
-=============================================
+SISTEMA DE QUALIFICAÇÃO INTELIGENTE DE LEADS - VERSÃO MELHORADA
+=================================================================
 Analisa contexto real da conversa para qualificar leads corretamente.
+
+MELHORIAS:
+- ✅ Detecção precisa de orçamento ("550 mil", "em torno de", "até")
+- ✅ Detecção de prazo ("me mudar em 3 meses", "até 3 meses")
+- ✅ Engajamento corrigido (4 mensagens = positivo)
+- ✅ Thresholds ajustados (warm >= 20, hot >= 40)
 """
 
 import re
@@ -27,50 +33,65 @@ class LeadQualifier:
         # SINAIS DE LEAD QUENTE (cada um vale pontos)
         self.hot_patterns = {
             # Orçamento aprovado (25 pontos)
-            r"(tenho|possuo|consegui|saiu|aprovado|aprovada).{0,20}(entrada|dinheiro|recurso|grana)": 25,
-            r"(aprovado|aprovada|pré-aprovado).{0,20}(banco|financiamento|crédito)": 25,
-            r"nome saiu.{0,30}(compra assistida|minha casa minha vida|programa)": 25,
+            r"(tenho|possuo|consegui|saiu|aprovado|aprovada).{0,30}(entrada|dinheiro|recurso|grana|valor)": 25,
+            r"(aprovado|aprovada|pré-aprovado|pre-aprovado).{0,30}(banco|financiamento|crédito|credito)": 25,
+            r"nome saiu.{0,40}(compra assistida|minha casa|programa)": 25,
             
             # Urgência real com prazo (20 pontos)
-            r"preciso.{0,20}mudar.{0,20}em.{0,20}[0-9]+.{0,10}(mes|meses|semana)": 20,
-            r"(casamento|mudança|trabalho novo).{0,20}em.{0,20}(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)": 20,
-            r"urgente|preciso.{0,10}(hoje|amanhã|essa semana|logo)": 15,
+            r"(preciso|quero|tenho que).{0,20}mudar.{0,20}(em|até|dentro de).{0,20}[0-9]+.{0,15}(dia|semana|mes|meses)": 20,
+            r"(casamento|mudança|trabalho novo|novo emprego).{0,30}(em|até|dentro de).{0,20}[0-9]+.{0,15}(mes|meses)": 20,
+            r"urgente|preciso.{0,15}(hoje|amanhã|essa semana|logo|rapido|rápido)": 15,
+            r"prazo.{0,20}(curto|apertado|urgente)": 15,
             
             # Quer avançar no processo (20 pontos)
-            r"quando.{0,20}(posso|podemos|dá pra|pode).{0,20}(visitar|conhecer|ver)": 20,
-            r"(quero|gostaria de|preciso).{0,20}(visitar|conhecer|agendar)": 20,
+            r"quando.{0,20}(posso|podemos|dá pra|pode).{0,20}(visitar|conhecer|ver|agendar)": 20,
+            r"(quero|gostaria de|preciso).{0,20}(visitar|conhecer|agendar|ver)": 20,
+            r"pode.{0,20}agendar": 15,
             
             # Pergunta sobre documentação/processo (15 pontos)
-            r"(que|quais).{0,20}documentos?.{0,20}(preciso|necessário|precisa)": 15,
-            r"como.{0,20}(funciona|é|faz).{0,20}(compra|financiamento|processo)": 15,
-            r"o que preciso.{0,20}para.{0,20}(comprar|alugar)": 15,
+            r"(que|quais).{0,30}documentos?.{0,30}(preciso|necessário|precisa|necessita)": 15,
+            r"como.{0,20}(funciona|é|faz|fazer).{0,30}(compra|financiamento|processo|aquisição)": 15,
+            r"o que preciso.{0,30}para.{0,30}(comprar|alugar|adquirir)": 15,
             
             # Tem recurso disponível (20 pontos)
-            r"(tenho|possuo).{0,20}[0-9]+.{0,10}(mil|k|reais).{0,20}(guardado|disponível|de entrada)": 20,
-            r"(vendendo|vendi).{0,20}(meu|minha).{0,20}(casa|apartamento|imóvel)": 20,
-            r"vou receber.{0,20}(herança|venda|indenização)": 15,
+            r"(tenho|possuo|disponho|dispor).{0,30}[0-9]+.{0,15}(mil|k|reais).{0,30}(guardado|disponível|de entrada|entrada)": 20,
+            r"(vendendo|vendi|vou vender).{0,30}(meu|minha).{0,30}(casa|apartamento|imóvel|imovel)": 20,
+            r"vou receber.{0,30}(herança|venda|indenização|indenizacao)": 15,
             
             # Decisão tomada (15 pontos)
-            r"(já|ja).{0,20}decid(i|imos)": 15,
-            r"(tenho certeza|com certeza|definitivamente)": 15,
+            r"(já|ja).{0,20}decid(i|imos|ido)": 15,
+            r"(tenho certeza|com certeza|definitivamente|decidido)": 15,
         }
         
         # SINAIS DE LEAD MORNO (cada um vale pontos)
         self.warm_patterns = {
-            r"(estou|to).{0,20}(pesquisando|procurando|vendo|buscando)": 10,
-            r"(comparando|avaliando).{0,20}(opções|imóveis|preços)": 10,
-            r"(próximos|nos próximos).{0,20}[0-9]+.{0,20}meses": 10,
-            r"preciso.{0,20}(conversar|falar).{0,20}(esposa|marido|família)": 10,
+            # Pesquisando ativamente
+            r"(estou|to|tô).{0,20}(pesquisando|procurando|vendo|buscando|olhando)": 10,
+            r"(comparando|avaliando|analisando).{0,30}(opções|imóveis|imoveis|preços|precos)": 10,
+            
+            # Prazo médio/longo
+            r"(próximos|proximos|nos próximos|nos proximos).{0,20}[0-9]+.{0,20}(mes|meses|semana)": 10,
+            
+            # Precisa alinhar com terceiros
+            r"preciso.{0,30}(conversar|falar|discutir).{0,30}(esposa|marido|família|familia|cônjuge|conjuge)": 10,
             r"(vou|vamos).{0,20}pensar": 5,
+            
+            # ✅ NOVO - Orçamento mencionado (não aprovado, mas definido)
+            r"(orçamento|orcamento).{0,30}(de|é|eh|fica|em torno|cerca|aproximadamente).{0,30}[0-9]+": 15,
+            r"(até|ate|em torno|cerca de).{0,30}[0-9]+.{0,15}(mil|k|reais)": 15,
+            
+            # ✅ NOVO - Prazo mencionado (não urgente, mas definido)
+            r"(me mudar|mudar|mudança|mudanca).{0,30}(em|até|ate|dentro de).{0,30}[0-9]+": 10,
+            r"(ideia|plano|pretendo).{0,30}(mudar|me mudar).{0,30}(em|até|ate).{0,30}[0-9]+": 10,
         }
         
         # SINAIS DE LEAD FRIO (cada um REMOVE pontos)
         self.cold_patterns = {
-            r"só.{0,20}(olhando|vendo|curiosidade)": -20,
-            r"(talvez|quem sabe|pode ser).{0,20}(um dia|futuramente|ano que vem)": -20,
-            r"sem.{0,20}(previsão|prazo|data|urgência)": -15,
-            r"(muito caro|tá caro|caro demais)": -10,  # Objeção sem solução
-            r"^(ok|sim|não sei|talvez)$": -5,  # Respostas curtas
+            r"só.{0,20}(olhando|vendo|curiosidade|curioso)": -20,
+            r"(talvez|quem sabe|pode ser|sei lá|sei la).{0,30}(um dia|futuramente|ano que vem|no futuro)": -20,
+            r"sem.{0,20}(previsão|previsao|prazo|data|urgência|urgencia)": -15,
+            r"(muito caro|tá caro|ta caro|caro demais)": -10,
+            r"^(ok|sim|não sei|nao sei|talvez)$": -5,
         }
     
     def qualify(
@@ -116,9 +137,9 @@ class LeadQualifier:
             matches = re.finditer(pattern, conversation_lower, re.IGNORECASE)
             for match in matches:
                 score += points
-                signal = match.group(0)[:50]  # Limita tamanho
+                signal = match.group(0)[:50]
                 signals["hot"].append(signal)
-                logger.debug(f"Hot signal encontrado: {signal} (+{points})")
+                logger.debug(f"Hot signal: {signal} (+{points})")
         
         # 2. ANALISA PADRÕES MORNOS
         for pattern, points in self.warm_patterns.items():
@@ -127,42 +148,42 @@ class LeadQualifier:
                 score += points
                 signal = match.group(0)[:50]
                 signals["warm"].append(signal)
-                logger.debug(f"Warm signal encontrado: {signal} (+{points})")
+                logger.debug(f"Warm signal: {signal} (+{points})")
         
         # 3. ANALISA PADRÕES FRIOS
         for pattern, points in self.cold_patterns.items():
             matches = re.finditer(pattern, conversation_lower, re.IGNORECASE)
             for match in matches:
-                score += points  # Já é negativo
+                score += points
                 signal = match.group(0)[:50]
                 signals["cold"].append(signal)
-                logger.debug(f"Cold signal encontrado: {signal} ({points})")
+                logger.debug(f"Cold signal: {signal} ({points})")
         
-        # 4. ANÁLISE DE ORÇAMENTO
+        # 4. ANÁLISE DE ORÇAMENTO (MELHORADA)
         budget_score, budget_reason = self._analyze_budget(conversation_lower, lead)
         score += budget_score
         if budget_reason:
             reasons.append(budget_reason)
         
-        # 5. ANÁLISE DE ENGAJAMENTO
+        # 5. ANÁLISE DE ENGAJAMENTO (CORRIGIDA)
         engagement_score, engagement_reason = self._analyze_engagement(messages, lead)
         score += engagement_score
         if engagement_reason:
             reasons.append(engagement_reason)
         
-        # 6. ANÁLISE DE URGÊNCIA
+        # 6. ANÁLISE DE URGÊNCIA (MELHORADA)
         urgency_score, urgency_reason = self._analyze_urgency(conversation_lower)
         score += urgency_score
         if urgency_reason:
             reasons.append(urgency_reason)
         
-        # CLASSIFICAÇÃO FINAL
+        # CLASSIFICAÇÃO FINAL (THRESHOLDS AJUSTADOS)
         if score >= 40:
             qualification = "hot"
             confidence = min(score / 100, 1.0)
-        elif score >= 15:
+        elif score >= 20:  # ✅ AJUSTADO (era 15)
             qualification = "warm"
-            confidence = min(score / 60, 0.8)
+            confidence = min(score / 60, 0.9)
         else:
             qualification = "cold"
             confidence = max(0.3, 1.0 - abs(score) / 40)
@@ -172,7 +193,7 @@ class LeadQualifier:
             if qualification == "hot":
                 reasons = ["Múltiplos sinais de compra identificados"]
             elif qualification == "warm":
-                reasons = ["Interesse genuíno sem urgência"]
+                reasons = ["Interesse genuíno com orçamento/prazo definido"]
             else:
                 reasons = ["Baixo engajamento ou interesse inicial"]
         
@@ -180,7 +201,7 @@ class LeadQualifier:
             "qualification": qualification,
             "score": score,
             "confidence": round(confidence, 2),
-            "reasons": reasons[:3],  # Top 3 razões
+            "reasons": reasons[:3],
             "signals": {
                 "hot": signals["hot"][:3],
                 "warm": signals["warm"][:3],
@@ -193,22 +214,31 @@ class LeadQualifier:
         return result
     
     def _analyze_budget(self, text: str, lead) -> tuple:
-        """Analisa menções de orçamento."""
+        """Analisa menções de orçamento - VERSÃO MELHORADA."""
         score = 0
         reason = None
         
-        # Busca menções de valores
+        # ✅ PADRÕES MELHORADOS para detectar orçamento
         budget_patterns = [
-            r"[0-9]+\s*(mil|k|reais)",
-            r"r\$\s*[0-9]+",
-            r"orçamento.{0,20}[0-9]+",
-            r"até.{0,20}[0-9]+.{0,10}(mil|reais)",
+            # "550 mil", "550k", "R$ 550.000"
+            r"[0-9]{2,3}\s*(mil|k)\b",
+            r"r\$?\s*[0-9]{2,3}[.,]?[0-9]{3}",
+            
+            # "orçamento de 550", "orçamento fica em torno de 550"
+            r"(orçamento|orcamento).{0,30}(de|é|eh|fica|em torno|cerca|aproximadamente).{0,30}[0-9]{2,3}",
+            
+            # "até 550 mil", "em torno de 550k"
+            r"(até|ate|em torno|cerca de|aproximadamente).{0,30}[0-9]{2,3}.{0,15}(mil|k|reais)",
+            
+            # "tenho 550k", "disponho de 550 mil"
+            r"(tenho|possuo|disponho|dispor).{0,30}[0-9]{2,3}.{0,15}(mil|k|reais)",
         ]
         
         for pattern in budget_patterns:
-            if re.search(pattern, text):
+            if re.search(pattern, text, re.IGNORECASE):
                 score += 15
                 reason = "Orçamento definido"
+                logger.debug(f"Budget detectado: {pattern}")
                 break
         
         # Se tem orçamento no lead
@@ -219,55 +249,66 @@ class LeadQualifier:
         return score, reason
     
     def _analyze_engagement(self, messages: List, lead) -> tuple:
-        """Analisa engajamento na conversa."""
+        """Analisa engajamento na conversa - VERSÃO CORRIGIDA."""
         score = 0
         reason = None
         
         user_messages = [m for m in messages if m.role == "user"]
         
-        # Quantidade de mensagens
-        if len(user_messages) >= 8:
+        # ✅ THRESHOLDS AJUSTADOS
+        if len(user_messages) >= 6:
             score += 15
-            reason = "Alto engajamento (8+ mensagens)"
-        elif len(user_messages) >= 5:
+            reason = "Alto engajamento (6+ mensagens)"
+        elif len(user_messages) >= 4:  # ✅ NOVO
             score += 10
+            reason = "Engajamento bom (4-5 mensagens)"
+        elif len(user_messages) == 3:  # ✅ NOVO
+            score += 5
             reason = "Engajamento moderado"
         elif len(user_messages) <= 2:
-            score -= 10
+            score -= 5  # ✅ REDUZIDO (era -10)
             reason = "Baixo engajamento"
         
         # Tamanho médio das mensagens
         if user_messages:
             avg_length = sum(len(m.content) for m in user_messages) / len(user_messages)
-            if avg_length > 100:
-                score += 10  # Respostas detalhadas
+            
+            # ✅ THRESHOLDS AJUSTADOS
+            if avg_length > 80:  # ✅ REDUZIDO (era 100)
+                score += 10
             elif avg_length < 20:
-                score -= 5  # Respostas muito curtas
+                score -= 5
         
         # Tempo de resposta (se disponível)
         if len(user_messages) >= 2:
-            response_times = []
-            for i in range(1, len(user_messages)):
-                time_diff = user_messages[i].created_at - messages[messages.index(user_messages[i-1]) - 1].created_at
-                response_times.append(time_diff.total_seconds())
-            
-            avg_response_time = sum(response_times) / len(response_times)
-            
-            # Responde rápido = mais interessado
-            if avg_response_time < 300:  # < 5 min
-                score += 5
+            try:
+                response_times = []
+                for i in range(1, len(user_messages)):
+                    prev_msg_index = messages.index(user_messages[i-1])
+                    if prev_msg_index > 0:
+                        time_diff = user_messages[i].created_at - messages[prev_msg_index - 1].created_at
+                        response_times.append(time_diff.total_seconds())
+                
+                if response_times:
+                    avg_response_time = sum(response_times) / len(response_times)
+                    
+                    # Responde rápido = mais interessado
+                    if avg_response_time < 300:  # < 5 min
+                        score += 5
+            except Exception as e:
+                logger.debug(f"Erro calculando tempo de resposta: {e}")
         
         return score, reason
     
     def _analyze_urgency(self, text: str) -> tuple:
-        """Analisa urgência mencionada."""
+        """Analisa urgência mencionada - VERSÃO MELHORADA."""
         score = 0
         reason = None
         
         # Urgência extrema
         extreme_urgency = [
             "urgente", "hoje", "amanhã", "essa semana",
-            "preciso logo", "o mais rápido possível"
+            "preciso logo", "o mais rápido possível", "rapido", "rápido"
         ]
         
         for word in extreme_urgency:
@@ -276,14 +317,28 @@ class LeadQualifier:
                 reason = "Urgência alta"
                 break
         
-        # Prazo definido
-        if re.search(r"(em|dentro de|até).{0,20}[0-9]+.{0,10}(dia|semana|mes)", text):
-            score += 10
-            if not reason:
-                reason = "Prazo definido"
+        # ✅ PADRÕES MELHORADOS para detectar prazo
+        prazo_patterns = [
+            # "3 meses", "até 3 meses", "em 3 meses", "dentro de 3 meses"
+            r"(em|até|ate|dentro de|prazo de).{0,20}[0-9]+.{0,15}(dia|semana|mes|meses)",
+            
+            # "me mudar em 3 meses", "mudar em até 3 meses"
+            r"(me mudar|mudar|mudança|mudanca).{0,30}(em|até|ate).{0,20}[0-9]+.{0,15}(mes|meses)",
+            
+            # "ideia seria me mudar em X", "plano é mudar em X"
+            r"(ideia|plano|pretendo).{0,30}(mudar|me mudar).{0,30}(em|até|ate).{0,20}[0-9]+",
+        ]
+        
+        for pattern in prazo_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                score += 10
+                if not reason:
+                    reason = "Prazo definido"
+                logger.debug(f"Prazo detectado: {pattern}")
+                break
         
         # Sem urgência
-        no_urgency = ["sem pressa", "sem urgência", "com calma", "quando der"]
+        no_urgency = ["sem pressa", "sem urgência", "sem urgencia", "com calma", "quando der"]
         for phrase in no_urgency:
             if phrase in text:
                 score -= 10
