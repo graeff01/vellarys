@@ -19,6 +19,7 @@ from .models import (
     lead_tags,
     Notification,
 )
+from .lead import Lead
 from .seller import Seller
 from .lead_assignment import LeadAssignment
 from .niche import Niche

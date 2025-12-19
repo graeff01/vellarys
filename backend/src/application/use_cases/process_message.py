@@ -22,18 +22,16 @@ from src.infrastructure.services.property_lookup_service import (
 from src.domain.entities import (
     Tenant, Lead, Message, Channel, LeadEvent, Notification, Empreendimento
 )
+from src.domain.services.lead_intelligence import analyze_lead_conversation
 from src.domain.entities.enums import LeadStatus, EventType
 from src.domain.prompts import build_system_prompt, get_niche_config
 from src.infrastructure.services import (
     extract_lead_data,
-    qualify_lead,
-    generate_lead_summary,
     execute_handoff,
     run_ai_guards_async,
     mark_lead_activity,
     check_handoff_triggers,
     check_business_hours,
-    notify_lead_hot,
     notify_lead_empreendimento,
     notify_out_of_hours,
     notify_handoff_requested,
@@ -42,7 +40,6 @@ from src.infrastructure.services import (
 
 from src.infrastructure.services.openai_service import (
     detect_sentiment,
-    generate_conversation_summary,
     calculate_typing_delay,
 )
 
@@ -719,7 +716,8 @@ async def process_message(
             if old_emp_id != empreendimento_detectado.id:
                 lead.custom_data["empreendimento_id"] = empreendimento_detectado.id
                 lead.custom_data["empreendimento_nome"] = empreendimento_detectado.nome
-            
+                flag_modified(lead, "custom_data")
+
             if is_new:
                 await update_empreendimento_stats(db, empreendimento_detectado, is_new_lead=True)
                 
@@ -969,13 +967,6 @@ Esta versão:
             db.add(user_message)
             await db.flush()
             
-            if not lead.summary:
-                lead.summary = await generate_lead_summary(
-                    conversation=history,
-                    extracted_data=lead.custom_data or {},
-                    qualification={"qualification": lead.qualification},
-                )
-            
             await notify_handoff_requested(db, tenant, lead, f"Trigger: {trigger_matched}")
             
             handoff_result = await execute_handoff(lead, tenant, "user_requested", db)
@@ -1027,29 +1018,25 @@ Esta versão:
     sentiment = {"sentiment": "neutral", "confidence": 0.5}
     is_returning_lead = False
     hours_since_last = 0
-    previous_summary = None
-    
+
     try:
         sentiment = await detect_sentiment(content)
-        
+
         if not is_new:
             last_message_time = await get_last_message_time(db, lead.id)
             if last_message_time:
                 now = datetime.now(timezone.utc)
                 if last_message_time.tzinfo is None:
                     last_message_time = last_message_time.replace(tzinfo=timezone.utc)
-                
+
                 time_diff = now - last_message_time
                 hours_since_last = time_diff.total_seconds() / 3600
-                
+
                 if hours_since_last > 6:
                     is_returning_lead = True
-                    if hours_since_last > 24 and len(history) >= 4:
-                        previous_summary = await generate_conversation_summary(history)
-                        if not lead.summary and previous_summary:
-                            lead.summary = previous_summary
     except Exception as e:
         logger.error(f"Erro na detecção de sentimento: {e}")
+
     
     # =========================================================================
     # 19. CONTEXTO DO LEAD
@@ -1412,22 +1399,54 @@ PERGUNTAS ÚTEIS:
             "imovel_portal_codigo": imovel_portal.get("codigo") if imovel_portal else None,
         },
     )
-    
     # =========================================================================
-    # 24. EXTRAI DADOS E QUALIFICA
+    # 24.5 ANÁLISE INTELIGENTE DO LEAD
     # =========================================================================
     try:
-        total_messages = await count_lead_messages(db, lead.id)
-        if total_messages % 3 == 0 or total_messages >= 4:
-            await update_lead_data(db, lead, tenant, history + [
-                {"role": "user", "content": content},
-                {"role": "assistant", "content": final_response},
-            ])
-            
-            if empreendimento_detectado and lead.qualification in ["morno", "quente", "hot"]:
-                await update_empreendimento_stats(db, empreendimento_detectado, is_qualified=True)
+        logger.info(f"🧠 Iniciando análise inteligente do lead {lead.id}")
+        
+        # Busca todas as mensagens da conversa
+        result = await db.execute(
+            select(Message)
+            .where(Message.lead_id == lead.id)
+            .order_by(Message.created_at.asc())
+        )
+        all_messages = result.scalars().all()
+        
+        # Analisa conversa (qualificação + resumo + notificações)
+        analysis = await analyze_lead_conversation(
+            db=db,
+            lead=lead,
+            messages=all_messages,
+            tenant=tenant
+        )
+        
+        # Logs de qualificação
+        if analysis["qualification_changed"]:
+            logger.info(
+                f"🔄 Lead {lead.id} qualificação: "
+                f"{analysis['old_qualification']} → {analysis['new_qualification']}"
+            )
+        
+        # Notificação de lead quente
+        if "hot_lead" in analysis["notifications_sent"]:
+            logger.info(f"🔥 Lead {lead.id} virou QUENTE! Gestor notificado via WhatsApp.")
+        
+        # Notificação de objeção
+        if "objection" in analysis["notifications_sent"]:
+            logger.warning(f"⚠️ Lead {lead.id} levantou objeção importante! Gestor notificado.")
+        
+        # Log de resumo atualizado
+        if analysis["summary_updated"]:
+            logger.info(f"📝 Resumo estruturado gerado para lead {lead.id}")
+        
+        logger.info(f"✅ Análise inteligente concluída para lead {lead.id}")
+        
     except Exception as e:
-        logger.error(f"Erro extraindo dados: {e}")
+        # Não deixa análise quebrar o fluxo principal
+        logger.error(f"❌ Erro na análise inteligente do lead {lead.id}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
     
     # =========================================================================
     # 25. HANDOFF FINAL
@@ -1437,19 +1456,7 @@ PERGUNTAS ÚTEIS:
     if should_transfer:
         try:
             handoff_reason = "lead_hot" if lead.qualification in ["quente", "hot"] else "ai_suggested"
-            
-            if not lead.summary:
-                lead.summary = await generate_lead_summary(
-                    conversation=history + [
-                        {"role": "user", "content": content},
-                        {"role": "assistant", "content": final_response},
-                    ],
-                    extracted_data=lead.custom_data or {},
-                    qualification={"qualification": lead.qualification},
-                )
-            
-            await notify_lead_hot(db, tenant, lead, empreendimento_detectado)
-            
+                        
             handoff_result = await execute_handoff(lead, tenant, handoff_reason, db)
             
             transfer_message = Message(
@@ -1517,67 +1524,3 @@ PERGUNTAS ÚTEIS:
             "reply": FALLBACK_RESPONSES["error"],
             "lead_id": lead.id,
         }
-
-
-async def update_lead_data(
-    db: AsyncSession,
-    lead: Lead,
-    tenant: Tenant,
-    conversation: list[dict],
-) -> None:
-    """Extrai dados da conversa e atualiza o lead."""
-    try:
-        settings = migrate_settings_if_needed(tenant.settings or {})
-        ai_context = extract_ai_context(tenant, settings)
-        niche_config = get_niche_config(ai_context["niche_id"])
-        
-        if not niche_config:
-            return
-        
-        extracted = await extract_lead_data(
-            conversation=conversation,
-            required_fields=niche_config.required_fields,
-            optional_fields=niche_config.optional_fields,
-        )
-        
-        if extracted.get("name") and not lead.name:
-            lead.name = extracted["name"]
-        if extracted.get("phone") and not lead.phone:
-            lead.phone = extracted["phone"]
-        if extracted.get("email") and not lead.email:
-            lead.email = extracted["email"]
-        if extracted.get("city") and not lead.city:
-            lead.city = extracted["city"]
-        
-        custom_fields = {k: v for k, v in extracted.items() 
-                         if k not in ["name", "phone", "email", "city"] and v is not None}
-        if custom_fields:
-            lead.custom_data = {**(lead.custom_data or {}), **custom_fields}
-        
-        qualification_result = await qualify_lead(
-            conversation=conversation,
-            extracted_data=extracted,
-            qualification_rules=niche_config.qualification_rules,
-        )
-        # NOVO: Só qualifica após 4+ mensagens
-        message_count = len(conversation)
-        if message_count < 4:
-            new_qualification = "novo"
-        else:
-            new_qualification = qualification_result.get("qualification", "frio")
-        
-        old_qualification = lead.qualification
-        
-        if new_qualification != old_qualification:
-            event = LeadEvent(
-                lead_id=lead.id,
-                event_type=EventType.QUALIFICATION_CHANGE.value,
-                old_value=old_qualification,
-                new_value=new_qualification,
-                description=qualification_result.get("reason", ""),
-            )
-            db.add(event)
-            lead.qualification = new_qualification
-                
-    except Exception as e:
-        logger.error(f"Erro atualizando dados do lead {lead.id}: {e}")
