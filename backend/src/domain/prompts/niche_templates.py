@@ -621,10 +621,16 @@ Um lead bem qualificado = Corretor feliz = Cliente satisfeito! 🏆
 """
     ),
     
-    # ... (outros nichos)
+    # ... (outros nichos se houver)
     
 }
 
+# ============================================
+# ALIASES - PERMITE USAR NOMES ALTERNATIVOS
+# ============================================
+# ✅ CORREÇÃO DO BUG: Banco usa "imobiliaria", código usa "real_estate"
+NICHE_TEMPLATES["imobiliaria"] = NICHE_TEMPLATES["real_estate"]
+NICHE_TEMPLATES["services"] = NICHE_TEMPLATES["real_estate"]  # Fallback padrão seguro
 
 # ============================================
 # FUNÇÕES DE BUILD (mantidas iguais)
