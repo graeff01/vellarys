@@ -1,6 +1,7 @@
 """
-CASO DE USO: PROCESSAR MENSAGEM (VERSÃO PRD COM EMPREENDIMENTOS + PORTAL)
-=========================================================================
+CASO DE USO: PROCESSAR MENSAGEM (VERSÃO REFATORADA)
+====================================================
+Versão otimizada com correções de bugs e melhor organização.
 """
 
 import logging
@@ -11,13 +12,10 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
-
-
 from src.infrastructure.services.property_lookup_service import (
     buscar_imovel_na_mensagem,
-    build_property_context,
+    extrair_codigo_imovel,
 )
-
 
 from src.domain.entities import (
     Tenant, Lead, Message, Channel, LeadEvent, Notification, Empreendimento
@@ -36,6 +34,7 @@ from src.infrastructure.services import (
     notify_out_of_hours,
     notify_handoff_requested,
     notify_gestor,
+    chat_completion,
 )
 
 from src.infrastructure.services.openai_service import (
@@ -515,636 +514,95 @@ async def count_lead_messages(db: AsyncSession, lead_id: int) -> int:
         return 0
 
 
-# =============================================================================
-# FUNÇÃO PRINCIPAL
-# =============================================================================
-
-async def process_message(
-    db: AsyncSession,
-    tenant_slug: str,
-    channel_type: str,
-    external_id: str,
+async def detect_property_context(
     content: str,
-    sender_name: str = None,
-    sender_phone: str = None,
-    source: str = "organico",
-    campaign: str = None,
-) -> dict:
-    """Processa uma mensagem recebida de um lead."""
-    
-    empreendimento_detectado: Optional[Empreendimento] = None
-    imovel_portal: Optional[Dict] = None  # ← INICIALIZA AQUI
-    gestor_ja_notificado = False
-    
-    # =========================================================================
-    # 1. SANITIZAÇÃO
-    # =========================================================================
-    try:
-        content = sanitize_message_content(content)
-        if not content or len(content.strip()) < 1:
-            return {"success": False, "error": "Mensagem vazia", "reply": FALLBACK_RESPONSES["error"]}
-        
-        logger.info(f"📥 Processando: Tenant={tenant_slug}, Sender={sender_phone or external_id}")
-    except Exception as e:
-        logger.error(f"Erro na sanitização: {e}")
-        return {"success": False, "error": str(e), "reply": FALLBACK_RESPONSES["error"]}
-    
-    # =========================================================================
-    # 2. RATE LIMITING
-    # =========================================================================
-    try:
-        rate_limit_result = await check_message_rate_limit(
-            phone=sender_phone or external_id,
-            tenant_id=None,
-        )
-        if not rate_limit_result.allowed:
-            logger.warning(f"Rate limit: {sender_phone or external_id}")
-            return {
-                "success": True,
-                "reply": get_rate_limit_response(),
-                "lead_id": None,
-                "is_new_lead": False,
-                "blocked_reason": "rate_limit",
-            }
-    except Exception as e:
-        logger.error(f"Erro no rate limit: {e}")
-    
-    # =========================================================================
-    # 3. SECURITY CHECK
-    # =========================================================================
-    try:
-        security_result = run_security_check(
-            content=content,
-            sender_id=sender_phone or external_id,
-            tenant_id=None,
-        )
-        if not security_result.is_safe and security_result.should_block:
-            logger.warning(f"Mensagem bloqueada: {security_result.threat_type}")
-            return {
-                "success": True,
-                "reply": get_safe_response_for_threat(security_result.threat_type),
-                "lead_id": None,
-                "is_new_lead": False,
-                "security_blocked": True,
-            }
-        content = security_result.sanitized_content
-    except Exception as e:
-        logger.error(f"Erro no security check: {e}")
-    
-    # =========================================================================
-    # 4. BUSCA TENANT E CANAL
-    # =========================================================================
-    try:
-        result = await db.execute(
-            select(Tenant).where(Tenant.slug == tenant_slug).where(Tenant.active == True)
-        )
-        tenant = result.scalar_one_or_none()
-        
-        if not tenant:
-            logger.error(f"Tenant não encontrado: {tenant_slug}")
-            return {"success": False, "error": "Tenant não encontrado", "reply": FALLBACK_RESPONSES["error"]}
-        
-        result = await db.execute(
-            select(Channel)
-            .where(Channel.tenant_id == tenant.id)
-            .where(Channel.type == channel_type)
-            .where(Channel.active == True)
-        )
-        channel = result.scalar_one_or_none()
-        
-    except Exception as e:
-        logger.error(f"Erro ao buscar tenant/canal: {e}")
-        return {"success": False, "error": "Erro interno", "reply": FALLBACK_RESPONSES["error"]}
-    
-    # =========================================================================
-    # 5. VERIFICAÇÃO DE HORÁRIO COMERCIAL
-    # =========================================================================
-    is_out_of_hours = False
-    out_of_hours_message = ""
-    
-    try:
-        bh_result = check_business_hours(tenant)
-        
-        if not bh_result.is_open:
-            is_out_of_hours = True
-            logger.info(f"⏰ Fora do horário comercial: {bh_result.reason}")
-            
-            out_of_hours_message = (
-                "\n\n---\n"
-                "⏰ *Você está entrando em contato fora do nosso horário comercial.*\n"
-                "Mas fique tranquilo! Já registramos seu contato e um especialista "
-                "entrará em contato com você o mais breve possível! 🙌"
-            )
-            
-    except Exception as e:
-        logger.error(f"Erro na verificação de horário: {e}")
-    
-    # =========================================================================
-    # 6. EXTRAI CONTEXTO E SETTINGS
-    # =========================================================================
-    settings = migrate_settings_if_needed(tenant.settings or {})
-    ai_context = extract_ai_context(tenant, settings)
-    
-    logger.info(f"Contexto: {ai_context['company_name']} - Nicho: {ai_context['niche_id']}")
-    
-    # =========================================================================
-    # 7. BUSCA/CRIA LEAD
-    # =========================================================================
-    try:
-        lead, is_new = await get_or_create_lead(
-            db=db, tenant=tenant, channel=channel, external_id=external_id,
-            sender_name=sender_name, sender_phone=sender_phone,
-            source=source, campaign=campaign,
-        )
-        
-        await log_message_received(
-            db=db, tenant_id=tenant.id, lead_id=lead.id,
-            content_preview=content[:100], channel=channel_type,
-        )
-        
-        logger.info(f"Lead {'criado' if is_new else 'encontrado'}: {lead.id}")
-    except Exception as e:
-        logger.error(f"Erro ao buscar/criar lead: {e}")
-        return {"success": False, "error": "Erro ao processar lead", "reply": FALLBACK_RESPONSES["error"]}
-    
-    # =========================================================================
-    # 8. NOTIFICAÇÃO DE LEAD NOVO
-    # =========================================================================
-    if is_new:
-        try:
-            if not lead.custom_data:
-                lead.custom_data = {}
-            lead.custom_data["primeira_mensagem"] = content[:500]
-            
-            notification_type = "lead_out_of_hours" if is_out_of_hours else "lead_new"
-            
-            await notify_gestor(
-                db=db,
-                tenant=tenant,
-                lead=lead,
-                notification_type=notification_type,
-                extra_context={"primeira_mensagem": content[:200]},
-            )
-            
-            gestor_ja_notificado = True
-            logger.info(f"📲 Gestor notificado sobre lead NOVO: {lead.id}")
-            
-        except Exception as e:
-            logger.error(f"Erro notificando gestor sobre lead novo: {e}")
-    
-    # =========================================================================
-    # 9. DETECÇÃO DE EMPREENDIMENTO
-    # =========================================================================
-    try:
-        empreendimento_detectado = await detect_empreendimento(
-            db=db,
-            tenant_id=tenant.id,
-            message=content,
-            niche_id=ai_context["niche_id"],
-        )
-        
-        if not empreendimento_detectado and not is_new:
-            empreendimento_detectado = await get_empreendimento_from_lead(db, lead)
-        
-        if empreendimento_detectado:
-            logger.info(f"🏢 Empreendimento ativo: {empreendimento_detectado.nome}")
-            
-            if not lead.custom_data:
-                lead.custom_data = {}
-            
-            old_emp_id = lead.custom_data.get("empreendimento_id")
-            if old_emp_id != empreendimento_detectado.id:
-                lead.custom_data["empreendimento_id"] = empreendimento_detectado.id
-                lead.custom_data["empreendimento_nome"] = empreendimento_detectado.nome
-                flag_modified(lead, "custom_data")
-
-            if is_new:
-                await update_empreendimento_stats(db, empreendimento_detectado, is_new_lead=True)
-                
-                if empreendimento_detectado.vendedor_id:
-                    lead.assigned_seller_id = empreendimento_detectado.vendedor_id
-                    lead.assignment_method = "empreendimento"
-                    lead.assigned_at = datetime.now(timezone.utc)
-            
-            if empreendimento_detectado.perguntas_qualificacao:
-                ai_context["custom_questions"] = (
-                    ai_context.get("custom_questions", []) + 
-                    empreendimento_detectado.perguntas_qualificacao
-                )
-                
-    except Exception as e:
-        logger.error(f"Erro na detecção de empreendimento: {e}")
-
-    # =========================================================================
-    # 10. NOTIFICAÇÃO ESPECÍFICA DE EMPREENDIMENTO
-    # =========================================================================
-    if empreendimento_detectado and empreendimento_detectado.notificar_gestor and is_new and not gestor_ja_notificado:
-        try:
-            await notify_lead_empreendimento(db, tenant, lead, empreendimento_detectado)
-            gestor_ja_notificado = True
-            logger.info(f"📲 Notificação específica de empreendimento: {empreendimento_detectado.nome}")
-        except Exception as e:
-            logger.error(f"Erro criando notificação de empreendimento: {e}")
-    
-    # =========================================================================
-    # 11. LGPD CHECK
-    # =========================================================================
-    try:
-        lgpd_request = detect_lgpd_request(content)
-        if lgpd_request:
-            logger.info(f"LGPD request: {lgpd_request}")
-            
-            user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
-            db.add(user_message)
-            
-            lgpd_reply = get_lgpd_response(lgpd_request, tenant_name=ai_context["company_name"])
-            
-            assistant_message = Message(lead_id=lead.id, role="assistant", content=lgpd_reply, tokens_used=0)
-            db.add(assistant_message)
-            await db.commit()
-            
-            return {
-                "success": True,
-                "reply": lgpd_reply,
-                "lead_id": lead.id,
-                "is_new_lead": is_new,
-                "lgpd_request": lgpd_request,
-            }
-    except Exception as e:
-        logger.error(f"Erro no LGPD check: {e}")
-    
-    # =========================================================================
-    # 12. STATUS CHECK (lead já transferido)
-    # =========================================================================
-    if lead.status == LeadStatus.HANDED_OFF.value:
-        user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
-        db.add(user_message)
-        await db.commit()
-        
-        return {
-            "success": True,
-            "reply": None,
-            "lead_id": lead.id,
-            "is_new_lead": False,
-            "status": "transferido",
-            "message": "Lead já transferido",
-        }
-    
-
+    lead: Lead,
+    history: list[dict],
+    niche_id: str,
+) -> Optional[Dict]:
     """
-SEÇÃO 13.5 MELHORADA - DETECTA MUDANÇA DE IMÓVEL
-================================================
-Substitua a seção 13.5 no process_message.py
-
-Esta versão:
-1. Detecta quando o lead pergunta sobre um NOVO imóvel
-2. Faz nova busca quando detecta código diferente
-3. Atualiza o contexto corretamente
-"""
-
-    # =========================================================================
-    # 13.5 PRÉ-CONTEXTO IMOBILIÁRIO (VERSÃO MELHORADA)
-    # =========================================================================
+    Detecta contexto de imóvel (portal) para nichos imobiliários.
+    Retorna dados do imóvel ou None.
+    """
+    if niche_id.lower() not in NICHOS_IMOBILIARIOS:
+        return None
     
-    logger.info(f"🔍 [13.5] Iniciando pré-contexto imobiliário")
-    logger.info(f"🔍 [13.5] niche_id = {ai_context['niche_id']}")
+    logger.info(f"🏠 Detectando contexto imobiliário")
     
-    # Só processa se for nicho imobiliário
-    if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
-        logger.info(f"🏠 [13.5] Nicho imobiliário confirmado!")
-        
-        # 🔍 PRIMEIRO: Verifica se a mensagem atual menciona um código
-        from src.infrastructure.services.property_lookup_service import extrair_codigo_imovel
-        codigo_na_mensagem = extrair_codigo_imovel(content)
-        
-        # 📦 Pega código do imóvel salvo (se houver)
-        codigo_salvo = None
-        if lead.custom_data and lead.custom_data.get("imovel_portal"):
-            codigo_salvo = lead.custom_data["imovel_portal"].get("codigo")
-        
-        logger.info(f"🔍 [13.5] código_na_mensagem = {codigo_na_mensagem}")
-        logger.info(f"🔍 [13.5] código_salvo = {codigo_salvo}")
-        
-        # 🔄 DECISÃO: Buscar novo ou reutilizar salvo?
-        if codigo_na_mensagem:
-            # Lead mencionou um código na mensagem
-            if codigo_na_mensagem != codigo_salvo:
-                # É um código DIFERENTE - faz nova busca!
-                logger.info(f"🆕 [13.5] NOVO código detectado: {codigo_na_mensagem} (era {codigo_salvo})")
-                imovel_portal = buscar_imovel_na_mensagem(content)
-                
-                if imovel_portal:
-                    logger.info(f"✅ [13.5] Novo imóvel encontrado: {imovel_portal.get('codigo')}")
-                else:
-                    logger.warning(f"⚠️ [13.5] Código {codigo_na_mensagem} não encontrado no portal")
-            else:
-                # É o MESMO código - reutiliza
-                logger.info(f"🔄 [13.5] Mesmo código, reutilizando salvo")
-                imovel_portal = lead.custom_data.get("imovel_portal")
-        
-        elif codigo_salvo:
-            # Mensagem não tem código, mas tem um salvo - reutiliza
-            logger.info(f"🔄 [13.5] Reutilizando imóvel salvo: {codigo_salvo}")
+    # Extrai código da mensagem atual
+    codigo_na_mensagem = extrair_codigo_imovel(content)
+    
+    # Pega código salvo (se houver)
+    codigo_salvo = None
+    if lead.custom_data and lead.custom_data.get("imovel_portal"):
+        codigo_salvo = lead.custom_data["imovel_portal"].get("codigo")
+    
+    imovel_portal = None
+    
+    # Decisão: buscar novo ou reutilizar?
+    if codigo_na_mensagem:
+        if codigo_na_mensagem != codigo_salvo:
+            # Código DIFERENTE - busca novo
+            logger.info(f"🆕 Novo código: {codigo_na_mensagem}")
+            imovel_portal = buscar_imovel_na_mensagem(content)
+        else:
+            # MESMO código - reutiliza
+            logger.info(f"🔄 Reutilizando código: {codigo_salvo}")
             imovel_portal = lead.custom_data.get("imovel_portal")
-        
-        else:
-            # Não tem código na mensagem nem salvo - busca no histórico
-            logger.info(f"🕰️ [13.5] Buscando no histórico...")
-            if history:
-                for msg in reversed(history):
-                    if msg.get("role") == "user":
-                        imovel_portal = buscar_imovel_na_mensagem(msg.get("content", ""))
-                        if imovel_portal:
-                            logger.info(f"✅ [13.5] Encontrado no histórico: {imovel_portal.get('codigo')}")
-                            break
-        
-        # 💾 SALVA no lead (se encontrou algo)
-        if imovel_portal:
-            logger.info(f"💾 [13.5] Salvando imóvel {imovel_portal.get('codigo')} no lead")
-            
-            if not lead.custom_data:
-                lead.custom_data = {}
-            
-            lead.custom_data["imovel_portal"] = {
-                "codigo": imovel_portal.get("codigo"),
-                "titulo": imovel_portal.get("titulo"),
-                "tipo": imovel_portal.get("tipo"),
-                "regiao": imovel_portal.get("regiao"),
-                "quartos": imovel_portal.get("quartos"),
-                "banheiros": imovel_portal.get("banheiros"),
-                "vagas": imovel_portal.get("vagas"),
-                "metragem": imovel_portal.get("metragem"),
-                "preco": imovel_portal.get("preco"),
-                "descricao": imovel_portal.get("descricao", ""),
-            }
-            lead.custom_data["contexto_ativo"] = "imovel_portal"
-            
-            # ⚠️ CRÍTICO: Força SQLAlchemy a detectar mudança
-            flag_modified(lead, "custom_data")
-            
-            logger.info(f"✅ [13.5] Imóvel salvo com flag_modified!")
-        else:
-            logger.info(f"❌ [13.5] Nenhum imóvel encontrado")
+    
+    elif codigo_salvo:
+        # Reutiliza salvo
+        logger.info(f"🔄 Usando salvo: {codigo_salvo}")
+        imovel_portal = lead.custom_data.get("imovel_portal")
+    
     else:
-        logger.info(f"⏭️ [13.5] Nicho não é imobiliário, pulando...")
+        # Busca no histórico
+        logger.info(f"🕰️ Buscando no histórico")
+        for msg in reversed(history):
+            if msg.get("role") == "user":
+                imovel_portal = buscar_imovel_na_mensagem(msg.get("content", ""))
+                if imovel_portal:
+                    logger.info(f"✅ Encontrado no histórico: {imovel_portal.get('codigo')}")
+                    break
     
-    logger.info(f"🔍 [13.5] FIM - imovel_portal = {imovel_portal}")
-
-
-    # =========================================================================
-    # 14. AI GUARDS (APÓS PRÉ-CONTEXTO)
-    # =========================================================================
-
-    guards_result = {"can_respond": True}
-
-    try:
-        # CORREÇÃO: Nicho imobiliário SEMPRE bypassa guards
-        if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
-            logger.info("🟢 Guards DESABILITADOS para nicho imobiliário")
-            guards_result = {"can_respond": True, "bypass": True}
-        else:
-            guards_result = await run_ai_guards_async(
-                message=content,
-                message_count=message_count,
-                settings=settings,
-                lead_qualification=lead.qualification or "frio",
-            )
-
-            if not guards_result.get("can_respond", True):
-                guard_reason = guards_result.get("reason", "unknown")
-                guard_response = (
-                    guards_result.get("response")
-                    or ai_context.get("ai_out_of_scope_message")
-                    or FALLBACK_RESPONSES["out_of_scope"]
-                )
-
-                user_message = Message(
-                    lead_id=lead.id, role="user", content=content, tokens_used=0
-                )
-                db.add(user_message)
-
-                assistant_message = Message(
-                    lead_id=lead.id, role="assistant", content=guard_response, tokens_used=0
-                )
-                db.add(assistant_message)
-
-                await db.commit()
-
-                return {
-                    "success": True,
-                    "reply": guard_response,
-                    "lead_id": lead.id,
-                    "is_new_lead": is_new,
-                    "guard": guard_reason,
-                }
-
-    except Exception as e:
-        logger.error(f"Erro nos guards: {e}")
-
-
-
-
-    # =========================================================================
-    # 15. HANDOFF TRIGGERS
-    # =========================================================================
-    try:
-        handoff_triggers = settings.get("handoff", {}).get("triggers", []) or settings.get("handoff_triggers", [])
-        trigger_found, trigger_matched = check_handoff_triggers(
-            message=content,
-            custom_triggers=handoff_triggers,
-        )
+    # Salva no lead se encontrou
+    if imovel_portal:
+        logger.info(f"💾 Salvando imóvel: {imovel_portal.get('codigo')}")
         
-        if trigger_found:
-            logger.info(f"Handoff trigger: {trigger_matched}")
-            
-            user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
-            db.add(user_message)
-            await db.flush()
-            
-            await notify_handoff_requested(db, tenant, lead, f"Trigger: {trigger_matched}")
-            
-            handoff_result = await execute_handoff(lead, tenant, "user_requested", db)
-            
-            assistant_message = Message(
-                lead_id=lead.id, role="assistant",
-                content=handoff_result["message_for_lead"], tokens_used=0,
-            )
-            db.add(assistant_message)
-            await db.commit()
-            
-            return {
-                "success": True,
-                "reply": handoff_result["message_for_lead"],
-                "lead_id": lead.id,
-                "is_new_lead": is_new,
-                "status": "transferido",
-            }
-    except Exception as e:
-        logger.error(f"Erro nos handoff triggers: {e}")
-    
-    # =========================================================================
-    # 16. ATUALIZA STATUS
-    # =========================================================================
-    if lead.status == LeadStatus.NEW.value:
-        lead.status = LeadStatus.IN_PROGRESS.value
-        event = LeadEvent(
-            lead_id=lead.id,
-            event_type=EventType.STATUS_CHANGE.value,
-            old_value=LeadStatus.NEW.value,
-            new_value=LeadStatus.IN_PROGRESS.value,
-            description="Lead iniciou conversa"
-        )
-        db.add(event)
-    
-    # =========================================================================
-    # 17. SALVA MENSAGEM DO USUÁRIO
-    # =========================================================================
-    user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
-    db.add(user_message)
-    await db.flush()
-    
-    await mark_lead_activity(db, lead)
-    history = await get_conversation_history(db, lead.id)
-    
-    # =========================================================================
-    # 18. DETECÇÃO DE SENTIMENTO E CONTEXTO
-    # =========================================================================
-    sentiment = {"sentiment": "neutral", "confidence": 0.5}
-    is_returning_lead = False
-    hours_since_last = 0
-
-    try:
-        sentiment = await detect_sentiment(content)
-
-        if not is_new:
-            last_message_time = await get_last_message_time(db, lead.id)
-            if last_message_time:
-                now = datetime.now(timezone.utc)
-                if last_message_time.tzinfo is None:
-                    last_message_time = last_message_time.replace(tzinfo=timezone.utc)
-
-                time_diff = now - last_message_time
-                hours_since_last = time_diff.total_seconds() / 3600
-
-                if hours_since_last > 6:
-                    is_returning_lead = True
-    except Exception as e:
-        logger.error(f"Erro na detecção de sentimento: {e}")
-
-    
-    # =========================================================================
-    # 19. CONTEXTO DO LEAD
-    # =========================================================================
-    lead_context = None
-    if lead.custom_data:
-        lead_context = {k: v for k, v in {
-            "name": lead.name,
-            "family_situation": lead.custom_data.get("family_situation"),
-            "work_info": lead.custom_data.get("work_info"),
-            "budget_range": lead.custom_data.get("budget_range"),
-            "urgency_level": lead.custom_data.get("urgency_level"),
-            "preferences": lead.custom_data.get("preferences"),
-            "pain_points": lead.custom_data.get("pain_points"),
-            "objections": lead.custom_data.get("objections"),
-            "buying_signals": lead.custom_data.get("buying_signals"),
-            "empreendimento_nome": lead.custom_data.get("empreendimento_nome"),
-        }.items() if v is not None}
-        if not lead_context:
-            lead_context = None
-
-
-
-    # =========================================================================
-    # 20. MONTA PROMPT (VERSÃO CONVERSACIONAL)
-    # =========================================================================
-    
-    logger.info(f"=" * 60)
-    logger.info(f"🔍 [SEÇÃO 20] MONTANDO PROMPT")
-    logger.info(f"🔍 [SEÇÃO 20] empreendimento = {empreendimento_detectado}")
-    logger.info(f"🔍 [SEÇÃO 20] imovel_portal = {imovel_portal}")
-    logger.info(f"=" * 60)
-    
-    try:
-        system_prompt = build_system_prompt(
-            niche_id=ai_context["niche_id"],
-            company_name=ai_context["company_name"],
-            tone=ai_context["tone"],
-            custom_questions=ai_context.get("custom_questions", []),
-            custom_rules=ai_context.get("custom_rules", []),
-            custom_prompt=ai_context.get("custom_prompt"),
-            faq_items=ai_context.get("faq_items", []),
-            scope_description=ai_context.get("scope_description", ""),
-            lead_context=lead_context,
-            identity=ai_context.get("identity"),
-            scope_config=ai_context.get("scope_config"),
-        )
+        if not lead.custom_data:
+            lead.custom_data = {}
         
-        # =================================================================
-        # INSTRUÇÃO GLOBAL PARA NICHO IMOBILIÁRIO (ANTES DOS IFS)
-        # =================================================================
-        if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
-            system_prompt += """
+        lead.custom_data["imovel_portal"] = {
+            "codigo": imovel_portal.get("codigo"),
+            "titulo": imovel_portal.get("titulo"),
+            "tipo": imovel_portal.get("tipo"),
+            "regiao": imovel_portal.get("regiao"),
+            "quartos": imovel_portal.get("quartos"),
+            "banheiros": imovel_portal.get("banheiros"),
+            "vagas": imovel_portal.get("vagas"),
+            "metragem": imovel_portal.get("metragem"),
+            "preco": imovel_portal.get("preco"),
+            "descricao": imovel_portal.get("descricao", ""),
+        }
+        lead.custom_data["contexto_ativo"] = "imovel_portal"
+        flag_modified(lead, "custom_data")
+    
+    return imovel_portal
 
-🚨 ATENÇÃO CRÍTICA - NICHO IMOBILIÁRIO 🚨
 
-VOCÊ É UM CORRETOR HUMANO conversando no WhatsApp, NÃO UM ROBÔ!
-
-REGRAS ABSOLUTAS:
-✅ SEMPRE responda perguntas sobre imóveis, preços, financiamento
-✅ SEMPRE colete informações: orçamento, urgência, preferências
-✅ SEMPRE reconheça sinais de compra (crédito aprovado, quer visitar)
-✅ SEMPRE faça perguntas de qualificação
-
-🚫 PROIBIÇÕES TOTAIS:
-❌ Formatação markdown (**, __, ##, -, *, bullet points)
-❌ Listas numeradas ou com bullets
-❌ Tom formal/corporativo
-❌ Fichas técnicas completas
-❌ Respostas longas (máximo 3-4 linhas)
-❌ Dizer "Desculpe, não tenho informações"
-
-ESTILO OBRIGATÓRIO:
-✅ Conversa natural de WhatsApp
-✅ Máximo 3-4 linhas por resposta
-✅ Tom casual e amigável
-✅ Dar informação + fazer pergunta
-✅ Emoji com moderação (1 por mensagem)
-
-LEMBRE-SE: Você é um CORRETOR AMIGO conversando no WhatsApp!
-"""
-        
-        # =================================================================
-        # EMPREENDIMENTO (prioridade 1)
-        # =================================================================
-        if empreendimento_detectado:
-            logger.info(f"🏢 [SEÇÃO 20] Injetando empreendimento: {empreendimento_detectado.nome}")
-            empreendimento_context = build_empreendimento_context(empreendimento_detectado)
-            system_prompt += f"\n\n{empreendimento_context}"
-            
-            system_prompt += f"""
-
-O cliente demonstrou interesse no empreendimento {empreendimento_detectado.nome}.
-Use TODAS as informações acima para responder de forma conversacional e natural.
-Fale como um corretor amigo, não como um robô!
-"""
-        
-        # =================================================================
-        # 🏠 IMÓVEL PORTAL (prioridade 2) - VERSÃO CONVERSACIONAL
-        # =================================================================
-        elif imovel_portal:
-            cod = imovel_portal.get('codigo', 'N/A')
-            quartos = imovel_portal.get('quartos', 'N/A')
-            banheiros = imovel_portal.get('banheiros', 'N/A')
-            vagas = imovel_portal.get('vagas', 'N/A')
-            metragem = imovel_portal.get('metragem', 'N/A')
-            preco = imovel_portal.get('preco', 'Consulte')
-            regiao = imovel_portal.get('regiao', 'N/A')
-            tipo = imovel_portal.get('tipo', 'Imóvel')
-            descricao = imovel_portal.get('descricao', '')
-            
-            logger.info(f"🏠 [SEÇÃO 20] Injetando imóvel: {cod}")
-            
-            system_prompt += f"""
+def build_property_prompt_context(imovel: Dict, content: str) -> str:
+    """Constrói contexto do imóvel para o prompt."""
+    cod = imovel.get('codigo', 'N/A')
+    quartos = imovel.get('quartos', 'N/A')
+    banheiros = imovel.get('banheiros', 'N/A')
+    vagas = imovel.get('vagas', 'N/A')
+    metragem = imovel.get('metragem', 'N/A')
+    preco = imovel.get('preco', 'Consulte')
+    regiao = imovel.get('regiao', 'N/A')
+    tipo = imovel.get('tipo', 'Imóvel')
+    descricao = imovel.get('descricao', '')
+    
+    return f"""
 
 ═══════════════════════════════════════════════════════════
 🏠 CONTEXTO DO IMÓVEL (código {cod})
@@ -1171,12 +629,6 @@ Descrição: {descricao[:300] if descricao else 'N/A'}
 ❌ Ficha técnica completa
 ❌ Respostas longas (mais de 4 linhas)
 
-EXEMPLO ERRADO:
-"Aqui estão os detalhes:
-- Quartos: 2
-- Banheiros: 3
-- Preço: R$ 579.000"
-
 ✅ OBRIGATÓRIO (parece humano):
 ✅ Conversa natural de WhatsApp
 ✅ Máximo 3-4 linhas
@@ -1185,114 +637,535 @@ EXEMPLO ERRADO:
 ✅ Usar emoji com moderação (1 por mensagem)
 
 EXEMPLO CERTO:
-"Opa! Essa casa é show! Tem 2 quartos, 3 banheiros, 110m² em Canoas por R$ 579mil. Você tá buscando pra morar ou investir?"
+"Opa! Essa casa é show! Tem {quartos} quartos, {banheiros} banheiros, {metragem}m² em {regiao} por {preco}. Você tá buscando pra morar ou investir?"
 
 ═══════════════════════════════════════════════════════════
 COMO RESPONDER CADA TIPO DE PERGUNTA
 ═══════════════════════════════════════════════════════════
 
 Cliente: "Me passa mais detalhes"
-✅ RESPOSTA: "Claro! É {tipo} com {quartos} quartos em {regiao} por {preco}. Tem {metragem}m² com {vagas} vaga(s). Esse orçamento funciona pra você?"
+✅ "Claro! É {tipo} com {quartos} quartos em {regiao} por {preco}. Tem {metragem}m² com {vagas} vaga(s). Esse orçamento funciona pra você?"
 
 Cliente: "Quanto custa?"
-✅ RESPOSTA: "O valor é {preco}! Cabe no seu orçamento?"
+✅ "O valor é {preco}! Cabe no seu orçamento?"
 
 Cliente: "Onde fica?"
-✅ RESPOSTA: "Fica em {regiao}! Você conhece a região?"
+✅ "Fica em {regiao}! Você conhece a região?"
 
-Cliente: "Tem quantos quartos?"
-✅ RESPOSTA: "Tem {quartos} quartos! É pra você ou tem família?"
-
-Cliente: "É bom esse imóvel?"
-✅ RESPOSTA: "Muito bom! {metragem}m² em {regiao} por {preco} tá ótimo! Quer agendar visita?"
-
-Cliente: "Quais as características?"
-✅ RESPOSTA: "É {tipo} de {metragem}m² com {quartos} quartos e {vagas} vaga(s) em {regiao}. Esse tamanho atende você?"
-
-═══════════════════════════════════════════════════════════
-REGRAS DE OURO
-═══════════════════════════════════════════════════════════
-
-1. SEMPRE responda em 2-4 LINHAS (não mais!)
-2. SEMPRE termine com uma PERGUNTA de qualificação
+REGRAS DE OURO:
+1. SEMPRE responda em 2-4 LINHAS
+2. SEMPRE termine com PERGUNTA de qualificação
 3. NUNCA use formatação markdown
 4. NUNCA faça listas
 5. Seja DIRETO e OBJETIVO
-6. Fale como você falaria com um amigo no WhatsApp
-
-PERGUNTAS DE QUALIFICAÇÃO (use uma por vez):
-- "Você tá buscando pra morar ou investir?"
-- "Tem prazo pra se mudar?"
-- "Esse orçamento funciona pra você?"
-- "Quer que eu agende uma visita?"
-- "Tem mais alguém que vai decidir junto?"
-- "Conhece a região?"
-- "Esse tamanho atende você?"
-
-═══════════════════════════════════════════════════════════
 """
+
+
+# =============================================================================
+# FUNÇÃO PRINCIPAL
+# =============================================================================
+
+async def process_message(
+    db: AsyncSession,
+    tenant_slug: str,
+    channel_type: str,
+    external_id: str,
+    content: str,
+    sender_name: str = None,
+    sender_phone: str = None,
+    source: str = "organico",
+    campaign: str = None,
+) -> dict:
+    """Processa uma mensagem recebida de um lead."""
+    
+    # =========================================================================
+    # INICIALIZAÇÃO DE VARIÁVEIS (EVITA UNDEFINED)
+    # =========================================================================
+    empreendimento_detectado: Optional[Empreendimento] = None
+    imovel_portal: Optional[Dict] = None
+    gestor_ja_notificado = False
+    history: list[dict] = []
+    message_count: int = 0
+    
+    # =========================================================================
+    # 1. SANITIZAÇÃO
+    # =========================================================================
+    content = sanitize_message_content(content)
+    if not content or len(content.strip()) < 1:
+        return {
+            "success": False,
+            "error": "Mensagem vazia",
+            "reply": FALLBACK_RESPONSES["error"]
+        }
+    
+    logger.info(f"📥 Processando: {tenant_slug} | {sender_phone or external_id}")
+    
+    # =========================================================================
+    # 2. RATE LIMITING
+    # =========================================================================
+    rate_limit_result = await check_message_rate_limit(
+        phone=sender_phone or external_id,
+        tenant_id=None,
+    )
+    if not rate_limit_result.allowed:
+        logger.warning(f"⚠️ Rate limit: {sender_phone or external_id}")
+        return {
+            "success": True,
+            "reply": get_rate_limit_response(),
+            "lead_id": None,
+            "is_new_lead": False,
+            "blocked_reason": "rate_limit",
+        }
+    
+    # =========================================================================
+    # 3. SECURITY CHECK
+    # =========================================================================
+    security_result = run_security_check(
+        content=content,
+        sender_id=sender_phone or external_id,
+        tenant_id=None,
+    )
+    if not security_result.is_safe and security_result.should_block:
+        logger.warning(f"🚨 Bloqueado: {security_result.threat_type}")
+        return {
+            "success": True,
+            "reply": get_safe_response_for_threat(security_result.threat_type),
+            "lead_id": None,
+            "is_new_lead": False,
+            "security_blocked": True,
+        }
+    content = security_result.sanitized_content
+    
+    # =========================================================================
+    # 4. BUSCA TENANT E CANAL
+    # =========================================================================
+    result = await db.execute(
+        select(Tenant).where(Tenant.slug == tenant_slug).where(Tenant.active == True)
+    )
+    tenant = result.scalar_one_or_none()
+    
+    if not tenant:
+        logger.error(f"❌ Tenant não encontrado: {tenant_slug}")
+        return {
+            "success": False,
+            "error": "Tenant não encontrado",
+            "reply": FALLBACK_RESPONSES["error"]
+        }
+    
+    result = await db.execute(
+        select(Channel)
+        .where(Channel.tenant_id == tenant.id)
+        .where(Channel.type == channel_type)
+        .where(Channel.active == True)
+    )
+    channel = result.scalar_one_or_none()
+    
+    # =========================================================================
+    # 5. VERIFICAÇÃO DE HORÁRIO COMERCIAL
+    # =========================================================================
+    is_out_of_hours = False
+    out_of_hours_message = ""
+    
+    bh_result = check_business_hours(tenant)
+    if not bh_result.is_open:
+        is_out_of_hours = True
+        logger.info(f"⏰ Fora do horário: {bh_result.reason}")
+        out_of_hours_message = (
+            "\n\n---\n"
+            "⏰ *Você está entrando em contato fora do nosso horário comercial.*\n"
+            "Mas fique tranquilo! Já registramos seu contato e um especialista "
+            "entrará em contato com você o mais breve possível! 🙌"
+        )
+    
+    # =========================================================================
+    # 6. EXTRAI CONTEXTO E SETTINGS
+    # =========================================================================
+    settings = migrate_settings_if_needed(tenant.settings or {})
+    ai_context = extract_ai_context(tenant, settings)
+    
+    logger.info(f"🔧 Contexto: {ai_context['company_name']} | Nicho: {ai_context['niche_id']}")
+    
+    # =========================================================================
+    # 7. BUSCA/CRIA LEAD
+    # =========================================================================
+    lead, is_new = await get_or_create_lead(
+        db=db, tenant=tenant, channel=channel, external_id=external_id,
+        sender_name=sender_name, sender_phone=sender_phone,
+        source=source, campaign=campaign,
+    )
+    
+    await log_message_received(
+        db=db, tenant_id=tenant.id, lead_id=lead.id,
+        content_preview=content[:100], channel=channel_type,
+    )
+    
+    logger.info(f"👤 Lead {'✨ NOVO' if is_new else '🔄 existente'}: {lead.id}")
+    
+    # =========================================================================
+    # 7.5 PRÉ-CARREGA HISTÓRICO E CONTAGEM (ANTES DE USAR)
+    # =========================================================================
+    history = await get_conversation_history(db, lead.id)
+    message_count = await count_lead_messages(db, lead.id)
+    
+    logger.info(f"📊 Lead {lead.id}: {message_count} mensagens no histórico")
+    
+    # =========================================================================
+    # 8. NOTIFICAÇÃO DE LEAD NOVO
+    # =========================================================================
+    if is_new:
+        if not lead.custom_data:
+            lead.custom_data = {}
+        lead.custom_data["primeira_mensagem"] = content[:500]
         
-        # =================================================================
-        # NICHO IMOBILIÁRIO SEM IMÓVEL ESPECÍFICO
-        # =================================================================
-        elif ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
-            logger.info(f"🏠 [SEÇÃO 20] Nicho imobiliário sem imóvel específico")
+        notification_type = "lead_out_of_hours" if is_out_of_hours else "lead_new"
+        
+        await notify_gestor(
+            db=db,
+            tenant=tenant,
+            lead=lead,
+            notification_type=notification_type,
+            extra_context={"primeira_mensagem": content[:200]},
+        )
+        
+        gestor_ja_notificado = True
+        logger.info(f"📲 Gestor notificado: lead NOVO {lead.id}")
+    
+    # =========================================================================
+    # 9. DETECÇÃO DE EMPREENDIMENTO
+    # =========================================================================
+    empreendimento_detectado = await detect_empreendimento(
+        db=db,
+        tenant_id=tenant.id,
+        message=content,
+        niche_id=ai_context["niche_id"],
+    )
+    
+    if not empreendimento_detectado and not is_new:
+        empreendimento_detectado = await get_empreendimento_from_lead(db, lead)
+    
+    if empreendimento_detectado:
+        logger.info(f"🏢 Empreendimento: {empreendimento_detectado.nome}")
+        
+        if not lead.custom_data:
+            lead.custom_data = {}
+        
+        old_emp_id = lead.custom_data.get("empreendimento_id")
+        if old_emp_id != empreendimento_detectado.id:
+            lead.custom_data["empreendimento_id"] = empreendimento_detectado.id
+            lead.custom_data["empreendimento_nome"] = empreendimento_detectado.nome
+            flag_modified(lead, "custom_data")
+        
+        if is_new:
+            await update_empreendimento_stats(db, empreendimento_detectado, is_new_lead=True)
             
-            # Verifica se mencionou código não encontrado
-            from src.infrastructure.services.property_lookup_service import extrair_codigo_imovel
-            codigo_mencionado = extrair_codigo_imovel(content)
+            if empreendimento_detectado.vendedor_id:
+                lead.assigned_seller_id = empreendimento_detectado.vendedor_id
+                lead.assignment_method = "empreendimento"
+                lead.assigned_at = datetime.now(timezone.utc)
+        
+        if empreendimento_detectado.perguntas_qualificacao:
+            ai_context["custom_questions"] = (
+                ai_context.get("custom_questions", []) + 
+                empreendimento_detectado.perguntas_qualificacao
+            )
+    
+    # =========================================================================
+    # 10. NOTIFICAÇÃO ESPECÍFICA DE EMPREENDIMENTO
+    # =========================================================================
+    if (empreendimento_detectado and 
+        empreendimento_detectado.notificar_gestor and 
+        is_new and 
+        not gestor_ja_notificado):
+        await notify_lead_empreendimento(db, tenant, lead, empreendimento_detectado)
+        gestor_ja_notificado = True
+        logger.info(f"📲 Notificação empreendimento: {empreendimento_detectado.nome}")
+    
+    # =========================================================================
+    # 11. LGPD CHECK
+    # =========================================================================
+    lgpd_request = detect_lgpd_request(content)
+    if lgpd_request:
+        logger.info(f"🔒 LGPD request: {lgpd_request}")
+        
+        user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
+        db.add(user_message)
+        
+        lgpd_reply = get_lgpd_response(lgpd_request, tenant_name=ai_context["company_name"])
+        
+        assistant_message = Message(lead_id=lead.id, role="assistant", content=lgpd_reply, tokens_used=0)
+        db.add(assistant_message)
+        await db.commit()
+        
+        return {
+            "success": True,
+            "reply": lgpd_reply,
+            "lead_id": lead.id,
+            "is_new_lead": is_new,
+            "lgpd_request": lgpd_request,
+        }
+    
+    # =========================================================================
+    # 12. STATUS CHECK (lead já transferido)
+    # =========================================================================
+    if lead.status == LeadStatus.HANDED_OFF.value:
+        user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
+        db.add(user_message)
+        await db.commit()
+        
+        return {
+            "success": True,
+            "reply": None,
+            "lead_id": lead.id,
+            "is_new_lead": False,
+            "status": "transferido",
+            "message": "Lead já transferido",
+        }
+    
+    # =========================================================================
+    # 13. DETECÇÃO DE CONTEXTO IMOBILIÁRIO (PORTAL)
+    # =========================================================================
+    imovel_portal = await detect_property_context(
+        content=content,
+        lead=lead,
+        history=history,
+        niche_id=ai_context["niche_id"],
+    )
+    
+    if imovel_portal:
+        logger.info(f"🏠 Imóvel portal: {imovel_portal.get('codigo')}")
+    
+    # =========================================================================
+    # 14. AI GUARDS
+    # =========================================================================
+    guards_result = {"can_respond": True}
+    
+    # Nicho imobiliário bypassa guards
+    if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
+        logger.info("🟢 Guards desabilitados (nicho imobiliário)")
+        guards_result = {"can_respond": True, "bypass": True}
+    else:
+        guards_result = await run_ai_guards_async(
+            message=content,
+            message_count=message_count,
+            settings=settings,
+            lead_qualification=lead.qualification or "frio",
+        )
+        
+        if not guards_result.get("can_respond", True):
+            guard_reason = guards_result.get("reason", "unknown")
+            guard_response = (
+                guards_result.get("response")
+                or ai_context.get("ai_out_of_scope_message")
+                or FALLBACK_RESPONSES["out_of_scope"]
+            )
             
-            if codigo_mencionado:
-                logger.warning(f"⚠️ [SEÇÃO 20] Código {codigo_mencionado} não encontrado")
-                system_prompt += f"""
+            user_message = Message(
+                lead_id=lead.id, role="user", content=content, tokens_used=0
+            )
+            db.add(user_message)
+            
+            assistant_message = Message(
+                lead_id=lead.id, role="assistant", content=guard_response, tokens_used=0
+            )
+            db.add(assistant_message)
+            
+            await db.commit()
+            
+            return {
+                "success": True,
+                "reply": guard_response,
+                "lead_id": lead.id,
+                "is_new_lead": is_new,
+                "guard": guard_reason,
+            }
+    
+    # =========================================================================
+    # 15. HANDOFF TRIGGERS
+    # =========================================================================
+    handoff_triggers = settings.get("handoff", {}).get("triggers", []) or settings.get("handoff_triggers", [])
+    trigger_found, trigger_matched = check_handoff_triggers(
+        message=content,
+        custom_triggers=handoff_triggers,
+    )
+    
+    if trigger_found:
+        logger.info(f"🔔 Handoff trigger: {trigger_matched}")
+        
+        user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
+        db.add(user_message)
+        await db.flush()
+        
+        await notify_handoff_requested(db, tenant, lead, f"Trigger: {trigger_matched}")
+        
+        handoff_result = await execute_handoff(lead, tenant, "user_requested", db)
+        
+        assistant_message = Message(
+            lead_id=lead.id, role="assistant",
+            content=handoff_result["message_for_lead"], tokens_used=0,
+        )
+        db.add(assistant_message)
+        await db.commit()
+        
+        return {
+            "success": True,
+            "reply": handoff_result["message_for_lead"],
+            "lead_id": lead.id,
+            "is_new_lead": is_new,
+            "status": "transferido",
+        }
+    
+    # =========================================================================
+    # 16. ATUALIZA STATUS
+    # =========================================================================
+    if lead.status == LeadStatus.NEW.value:
+        lead.status = LeadStatus.IN_PROGRESS.value
+        event = LeadEvent(
+            lead_id=lead.id,
+            event_type=EventType.STATUS_CHANGE.value,
+            old_value=LeadStatus.NEW.value,
+            new_value=LeadStatus.IN_PROGRESS.value,
+            description="Lead iniciou conversa"
+        )
+        db.add(event)
+    
+    # =========================================================================
+    # 17. SALVA MENSAGEM DO USUÁRIO E ATUALIZA HISTÓRICO
+    # =========================================================================
+    user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
+    db.add(user_message)
+    await db.flush()
+    
+    await mark_lead_activity(db, lead)
+    
+    # Atualiza histórico (inclui mensagem recém-adicionada)
+    history = await get_conversation_history(db, lead.id)
+    
+    # =========================================================================
+    # 18. DETECÇÃO DE SENTIMENTO E CONTEXTO
+    # =========================================================================
+    sentiment = {"sentiment": "neutral", "confidence": 0.5}
+    is_returning_lead = False
+    hours_since_last = 0
+    
+    sentiment = await detect_sentiment(content)
+    
+    if not is_new:
+        last_message_time = await get_last_message_time(db, lead.id)
+        if last_message_time:
+            now = datetime.now(timezone.utc)
+            if last_message_time.tzinfo is None:
+                last_message_time = last_message_time.replace(tzinfo=timezone.utc)
+            
+            time_diff = now - last_message_time
+            hours_since_last = time_diff.total_seconds() / 3600
+            
+            if hours_since_last > 6:
+                is_returning_lead = True
+    
+    # =========================================================================
+    # 19. CONTEXTO DO LEAD
+    # =========================================================================
+    lead_context = None
+    if lead.custom_data:
+        lead_context = {k: v for k, v in {
+            "name": lead.name,
+            "family_situation": lead.custom_data.get("family_situation"),
+            "work_info": lead.custom_data.get("work_info"),
+            "budget_range": lead.custom_data.get("budget_range"),
+            "urgency_level": lead.custom_data.get("urgency_level"),
+            "preferences": lead.custom_data.get("preferences"),
+            "pain_points": lead.custom_data.get("pain_points"),
+            "objections": lead.custom_data.get("objections"),
+            "buying_signals": lead.custom_data.get("buying_signals"),
+            "empreendimento_nome": lead.custom_data.get("empreendimento_nome"),
+        }.items() if v is not None}
+        if not lead_context:
+            lead_context = None
+    
+    # =========================================================================
+    # 20. MONTA PROMPT
+    # =========================================================================
+    logger.info(f"🔨 Montando prompt | Emp: {bool(empreendimento_detectado)} | Imóvel: {bool(imovel_portal)}")
+    
+    system_prompt = build_system_prompt(
+        niche_id=ai_context["niche_id"],
+        company_name=ai_context["company_name"],
+        tone=ai_context["tone"],
+        custom_questions=ai_context.get("custom_questions", []),
+        custom_rules=ai_context.get("custom_rules", []),
+        custom_prompt=ai_context.get("custom_prompt"),
+        faq_items=ai_context.get("faq_items", []),
+        scope_description=ai_context.get("scope_description", ""),
+        lead_context=lead_context,
+        identity=ai_context.get("identity"),
+        scope_config=ai_context.get("scope_config"),
+    )
+    
+    # Instrução global para nicho imobiliário
+    if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
+        system_prompt += """
 
-O cliente mencionou o código {codigo_mencionado}, mas não temos os dados deste imóvel.
+🚨 VOCÊ É UM CORRETOR HUMANO no WhatsApp, NÃO UM ROBÔ!
 
-RESPONDA DE FORMA ACOLHEDORA (sem formatação):
-"Oi! Vi que você se interessou pelo imóvel {codigo_mencionado}! Vou verificar os detalhes pra você. Me conta: você tá buscando pra morar ou investir?"
+REGRAS:
+✅ SEMPRE responda perguntas sobre imóveis, preços, financiamento
+✅ SEMPRE colete: orçamento, urgência, preferências
+✅ Máximo 3-4 linhas por resposta
+✅ Tom casual e amigável
+✅ Dar informação + fazer pergunta
 
-OU
-
-"Que bom seu interesse! Deixa eu checar esse imóvel. Enquanto isso, me fala: qual região você prefere?"
-
-🚫 NUNCA DIGA:
-- "Não tenho informações sobre esse código"
-- "Código não encontrado"
-- "Não existe"
+🚫 PROIBIDO:
+❌ Formatação markdown (**, -, *)
+❌ Listas numeradas
+❌ Tom formal
+❌ Respostas longas
+❌ Dizer "não tenho informações"
 """
-            else:
-                # Conversa geral sobre imóveis
-                system_prompt += f"""
+    
+    # Adiciona contexto específico
+    if empreendimento_detectado:
+        logger.info(f"🏢 Injetando: {empreendimento_detectado.nome}")
+        empreendimento_context = build_empreendimento_context(empreendimento_detectado)
+        system_prompt += f"\n\n{empreendimento_context}"
+        system_prompt += f"\n\nCliente interessado no {empreendimento_detectado.nome}. Responda como corretor amigo!"
+    
+    elif imovel_portal:
+        logger.info(f"🏠 Injetando: código {imovel_portal.get('codigo')}")
+        property_context = build_property_prompt_context(imovel_portal, content)
+        system_prompt += property_context
+    
+    elif ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
+        codigo_mencionado = extrair_codigo_imovel(content)
+        
+        if codigo_mencionado:
+            logger.warning(f"⚠️ Código {codigo_mencionado} não encontrado")
+            system_prompt += f"""
 
-Você é um corretor simpático da {ai_context['company_name']}.
-O cliente ainda não mencionou um imóvel específico.
+Cliente mencionou código {codigo_mencionado} mas não temos dados.
 
-SEU OBJETIVO:
-1. Entender o que o cliente procura
-2. Fazer perguntas de qualificação (uma por vez)
-3. Oferecer ajuda para encontrar o imóvel ideal
+RESPONDA (sem formatação):
+"Oi! Vi seu interesse no imóvel {codigo_mencionado}! Vou verificar os detalhes. Me conta: você tá buscando pra morar ou investir?"
 
-EXEMPLOS DE PERGUNTAS:
+🚫 NUNCA DIGA: "Não tenho informações", "Código não encontrado"
+"""
+        else:
+            system_prompt += f"""
+
+Você é corretor da {ai_context['company_name']}.
+Cliente ainda não mencionou imóvel específico.
+
+OBJETIVO: Entender o que procura, fazer perguntas (uma por vez).
+
+EXEMPLOS:
 - "Você tá buscando pra morar ou investir?"
 - "Qual região você prefere?"
 - "Quantos quartos você precisa?"
-- "Qual sua faixa de investimento?"
 
-LEMBRE-SE: Respostas curtas (3-4 linhas), sem listas, sem formatação!
+Respostas curtas (3-4 linhas), sem listas, sem formatação!
 """
-        else:
-            logger.info(f"⏭️ [SEÇÃO 20] Nicho não é imobiliário")
-            
-    except Exception as e:
-        logger.error(f"💥 [SEÇÃO 20] ERRO: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        system_prompt = f"Você é assistente da {ai_context['company_name']}. Seja educado e profissional."
     
-    logger.info(f"✅ [SEÇÃO 20] Prompt montado!")
-
-
-
+    logger.info(f"✅ Prompt montado")
+    
     # =========================================================================
     # 21. PREPARA MENSAGENS E CHAMA IA
     # =========================================================================
@@ -1312,76 +1185,49 @@ LEMBRE-SE: Respostas curtas (3-4 linhas), sem listas, sem formatação!
             "content": f"INFORMAÇÃO DO FAQ: {guards_result['response']}"
         })
     
-    ai_response = None
     final_response = ""
     was_blocked = False
     tokens_used = 0
     
     try:
-        # CORRIGIDO: Usa chat_completion ao invés de generate_context_aware_response
-        from src.infrastructure.services import chat_completion
-        
         ai_response = await chat_completion(
             messages=messages,
             temperature=0.7,
             max_tokens=500,
         )
         
-        # CORREÇÃO: Nicho imobiliário NUNCA bloqueia respostas
+        # Nicho imobiliário: sem sanitização
         if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
-            # Nicho imobiliário: DESABILITA sanitização
             final_response = ai_response["content"]
             was_blocked = False
-            logger.info("🏠 Nicho imobiliário: sanitização DESABILITADA")
+            logger.info("🏠 Sanitização desabilitada")
         else:
-            # Outros nichos: aplica sanitização normal
             final_response, was_blocked = sanitize_response(
                 ai_response["content"],
                 ai_context["ai_out_of_scope_message"]
             )
             
             if was_blocked:
-                logger.warning(f"⚠️ Resposta bloqueada - Lead: {lead.id}")
-                
+                logger.warning(f"⚠️ Resposta bloqueada: {lead.id}")
+        
         tokens_used = ai_response.get("tokens_used", 0)
         
-        if was_blocked:
-            logger.warning(f"⚠️ Resposta bloqueada - Lead: {lead.id}")
-            await log_ai_action(
-                db=db, tenant_id=tenant.id, lead_id=lead.id,
-                action_type="blocked_response",
-                details={"reason": "hallucination_detected"},
-            )
-            
     except Exception as e:
-        logger.error(f"Erro chamando IA: {e}")
+        logger.error(f"❌ Erro chamando IA: {e}")
         
         if empreendimento_detectado:
-            final_response = (
-                f"Olá! Que bom que você se interessou pelo {empreendimento_detectado.nome}! "
-                f"É um empreendimento incrível. Como posso ajudá-lo?"
-            )
+            final_response = f"Olá! Que bom seu interesse no {empreendimento_detectado.nome}! Como posso ajudar?"
         elif imovel_portal:
-            final_response = (
-                f"Olá! Vi que você se interessou pelo imóvel {imovel_portal.get('codigo')}! "
-                f"Como posso ajudá-lo?"
-            )
+            final_response = f"Olá! Vi seu interesse no imóvel {imovel_portal.get('codigo')}! Como posso ajudar?"
         else:
-            final_response = (
-                f"Olá! Sou a assistente da {ai_context['company_name']}. "
-                f"O que você gostaria de saber sobre nossos serviços?"
-            )
-
-
+            final_response = f"Olá! Sou da {ai_context['company_name']}. Como posso ajudar?"
+    
     # =========================================================================
     # 22. VERIFICA HANDOFF SUGERIDO PELA IA
     # =========================================================================
     should_transfer_by_ai = False
-    try:
-        handoff_check = check_ai_handoff(content, final_response)
-        should_transfer_by_ai = handoff_check["should_handoff"]
-    except Exception as e:
-        logger.error(f"Erro verificando handoff IA: {e}")
+    handoff_check = check_ai_handoff(content, final_response)
+    should_transfer_by_ai = handoff_check["should_handoff"]
     
     # =========================================================================
     # 23. SALVA RESPOSTA
@@ -1408,52 +1254,49 @@ LEMBRE-SE: Respostas curtas (3-4 linhas), sem listas, sem formatação!
     )
     
     # =========================================================================
-    # 25. HANDOFF FINAL
+    # 24. HANDOFF FINAL
     # =========================================================================
     should_transfer = lead.qualification in ["quente", "hot"] or should_transfer_by_ai
     
     if should_transfer:
-        try:
-            handoff_reason = "lead_hot" if lead.qualification in ["quente", "hot"] else "ai_suggested"
-                        
-            handoff_result = await execute_handoff(lead, tenant, handoff_reason, db)
-            
-            transfer_message = Message(
-                lead_id=lead.id,
-                role="assistant",
-                content=handoff_result["message_for_lead"],
-                tokens_used=0,
-            )
-            db.add(transfer_message)
-            
-            reply_with_handoff = final_response + "\n\n" + handoff_result["message_for_lead"]
-            if is_out_of_hours and is_new:
-                reply_with_handoff += out_of_hours_message
-            
-            await db.commit()
-            
-            return {
-                "success": True,
-                "reply": reply_with_handoff,
-                "lead_id": lead.id,
-                "is_new_lead": is_new,
-                "qualification": lead.qualification,
-                "status": "transferido",
-                "typing_delay": calculate_typing_delay(len(final_response)),
-                "out_of_hours": is_out_of_hours,
-            }
-        except Exception as e:
-            logger.error(f"Erro no handoff final: {e}")
+        handoff_reason = "lead_hot" if lead.qualification in ["quente", "hot"] else "ai_suggested"
+        
+        handoff_result = await execute_handoff(lead, tenant, handoff_reason, db)
+        
+        transfer_message = Message(
+            lead_id=lead.id,
+            role="assistant",
+            content=handoff_result["message_for_lead"],
+            tokens_used=0,
+        )
+        db.add(transfer_message)
+        
+        reply_with_handoff = final_response + "\n\n" + handoff_result["message_for_lead"]
+        if is_out_of_hours and is_new:
+            reply_with_handoff += out_of_hours_message
+        
+        await db.commit()
+        
+        return {
+            "success": True,
+            "reply": reply_with_handoff,
+            "lead_id": lead.id,
+            "is_new_lead": is_new,
+            "qualification": lead.qualification,
+            "status": "transferido",
+            "typing_delay": calculate_typing_delay(len(final_response)),
+            "out_of_hours": is_out_of_hours,
+        }
     
     # =========================================================================
-    # 26. AVISO DE FORA DO HORÁRIO
+    # 25. AVISO DE FORA DO HORÁRIO
     # =========================================================================
     if is_out_of_hours and is_new:
         final_response += out_of_hours_message
-        logger.info(f"⏰ Aviso de fora do horário adicionado para lead NOVO {lead.id}")
+        logger.info(f"⏰ Aviso horário adicionado: {lead.id}")
     
     # =========================================================================
-    # 27. COMMIT E RETORNO
+    # 26. COMMIT E RETORNO
     # =========================================================================
     try:
         await db.commit()
@@ -1472,11 +1315,8 @@ LEMBRE-SE: Respostas curtas (3-4 linhas), sem listas, sem formatação!
             "imovel_portal_codigo": imovel_portal.get("codigo") if imovel_portal else None,
         }
     except Exception as e:
-        logger.error(f"Erro no commit: {e}")
-        try:
-            await db.rollback()
-        except:
-            pass
+        logger.error(f"❌ Erro no commit: {e}")
+        await db.rollback()
         return {
             "success": False,
             "error": "Erro interno",
