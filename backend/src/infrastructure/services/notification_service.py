@@ -288,6 +288,7 @@ def build_whatsapp_notification_message(
     return "\n".join(lines)
 
 
+
 def build_seller_notification_message(
     lead: Lead,
     seller: Seller,
@@ -298,7 +299,7 @@ def build_seller_notification_message(
     """
     Constrói mensagem de notificação para o VENDEDOR quando recebe um lead.
 
-    MODIFICADO: Removida qualificação (quente/frio/morno) da mensagem
+    ATUALIZADO: Inclui código do imóvel, orçamento e prazo
     
     Funciona para qualquer nicho.
     """
@@ -311,7 +312,7 @@ def build_seller_notification_message(
         "",
     ]
 
-    # Dados principais do lead (o vendedor precisa ver claramente)
+    # Dados principais do lead
     lines.append(f"👤 *Nome:* {lead.name or 'Não informado'}")
     lines.append(f"📱 *WhatsApp:* {format_phone_display(lead.phone)}")
 
@@ -321,22 +322,106 @@ def build_seller_notification_message(
     if lead.city:
         lines.append(f"📍 *Cidade:* {lead.city}")
 
-    # REMOVIDO: Qualificação (não mostrar mais para vendedor)
-    # lines.append("")
-    # lines.append(f"📊 *Qualificação:* {get_qualification_display(lead.qualification)}")
+    # ========================================
+    # NOVO: INFORMAÇÕES DO IMÓVEL (se tiver)
+    # ========================================
+    if lead.custom_data and lead.custom_data.get("imovel_portal"):
+        imovel = lead.custom_data.get("imovel_portal", {})
+        
+        lines.append("")
+        lines.append("🏠 *IMÓVEL DE INTERESSE:*")
+        
+        # Código do imóvel (CRÍTICO!)
+        codigo = imovel.get("codigo")
+        if codigo:
+            lines.append(f"   📋 *Código:* [{codigo}]")
+        
+        # Tipo e características
+        tipo = imovel.get("tipo", "Imóvel")
+        quartos = imovel.get("quartos")
+        banheiros = imovel.get("banheiros")
+        
+        caracteristicas = []
+        if quartos:
+            caracteristicas.append(f"{quartos} quartos")
+        if banheiros:
+            caracteristicas.append(f"{banheiros} banheiros")
+        
+        if caracteristicas:
+            lines.append(f"   🏘️ {tipo} - {', '.join(caracteristicas)}")
+        else:
+            lines.append(f"   🏘️ {tipo}")
+        
+        # Endereço
+        endereco = imovel.get("endereco")
+        bairro = imovel.get("bairro")
+        cidade = imovel.get("cidade")
+        
+        if endereco or bairro:
+            loc_parts = []
+            if endereco:
+                loc_parts.append(endereco)
+            if bairro:
+                loc_parts.append(bairro)
+            if cidade:
+                loc_parts.append(cidade)
+            lines.append(f"   📍 {', '.join(loc_parts)}")
+        
+        # Valor
+        valor = imovel.get("valor")
+        if valor:
+            lines.append(f"   💰 *Valor:* R$ {valor:,.2f}".replace(",", "."))
+        
+        # Metragem
+        metragem = imovel.get("metragem")
+        if metragem:
+            lines.append(f"   📐 {metragem}m²")
 
-    # Informações coletadas (custom_data)
+    # ========================================
+    # NOVO: ORÇAMENTO DO LEAD
+    # ========================================
+    orcamento = None
+    if lead.custom_data:
+        # Tenta várias formas de capturar orçamento
+        orcamento = (
+            lead.custom_data.get("orcamento") or 
+            lead.custom_data.get("budget") or
+            lead.custom_data.get("budget_range") or
+            lead.custom_data.get("valor_disponivel")
+        )
+    
+    if orcamento:
+        lines.append("")
+        lines.append(f"💰 *Orçamento do Lead:* R$ {orcamento}")
+
+    # ========================================
+    # NOVO: PRAZO/URGÊNCIA
+    # ========================================
+    prazo = None
+    if lead.custom_data:
+        prazo = (
+            lead.custom_data.get("prazo") or
+            lead.custom_data.get("urgencia") or
+            lead.custom_data.get("urgency_level") or
+            lead.custom_data.get("prazo_mudanca")
+        )
+    
+    if prazo:
+        lines.append(f"⏰ *Urgência:* {prazo}")
+
+    # ========================================
+    # Outras informações coletadas
+    # ========================================
     if lead.custom_data:
         collected_info = []
 
-        # Mapeia campos comuns de qualquer nicho
+        # Mapeia campos importantes (mas ignora os que já mostramos acima)
         important_fields = {
             # Imobiliário
             "empreendimento_nome": "Empreendimento",
             "interesse": "Interesse",
             "tipologia": "Tipologia",
-            "budget_range": "Orçamento",
-            "prazo": "Prazo",
+            "finalidade": "Finalidade",
 
             # Saúde
             "procedimento": "Procedimento",
@@ -353,7 +438,6 @@ def build_seller_notification_message(
             # Genéricos
             "servico": "Serviço",
             "produto": "Produto",
-            "urgency_level": "Urgência",
         }
 
         for field, label in important_fields.items():
@@ -365,7 +449,7 @@ def build_seller_notification_message(
 
         if collected_info:
             lines.append("")
-            lines.append("📋 *Informações coletadas:*")
+            lines.append("📋 *Outras informações:*")
             lines.extend(collected_info)
 
     # Resumo da conversa (muito importante pro vendedor!)
@@ -399,9 +483,8 @@ def build_seller_notification_message(
 
     return "\n".join(lines)
 
-
 # =============================================================================
-# ENVIO WHATSAPP VIA Z-API
+# ENVIO WHATSAPP VIA Z-APIII
 # =============================================================================
 
 async def get_zapi_client_for_tenant(
