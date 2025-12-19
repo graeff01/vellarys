@@ -1406,54 +1406,6 @@ LEMBRE-SE: Respostas curtas (3-4 linhas), sem listas, sem formatação!
             "imovel_portal_codigo": imovel_portal.get("codigo") if imovel_portal else None,
         },
     )
-    # =========================================================================
-    # 24.5 ANÁLISE INTELIGENTE DO LEAD
-    # =========================================================================
-    try:
-        logger.info(f"🧠 Iniciando análise inteligente do lead {lead.id}")
-        
-        # Busca todas as mensagens da conversa
-        result = await db.execute(
-            select(Message)
-            .where(Message.lead_id == lead.id)
-            .order_by(Message.created_at.asc())
-        )
-        all_messages = result.scalars().all()
-        
-        # Analisa conversa (qualificação + resumo + notificações)
-        analysis = await analyze_lead_conversation(
-            db=db,
-            lead=lead,
-            messages=all_messages,
-            tenant=tenant
-        )
-        
-        # Logs de qualificação
-        if analysis["qualification_changed"]:
-            logger.info(
-                f"🔄 Lead {lead.id} qualificação: "
-                f"{analysis['old_qualification']} → {analysis['new_qualification']}"
-            )
-        
-        # Notificação de lead quente
-        if "hot_lead" in analysis["notifications_sent"]:
-            logger.info(f"🔥 Lead {lead.id} virou QUENTE! Gestor notificado via WhatsApp.")
-        
-        # Notificação de objeção
-        if "objection" in analysis["notifications_sent"]:
-            logger.warning(f"⚠️ Lead {lead.id} levantou objeção importante! Gestor notificado.")
-        
-        # Log de resumo atualizado
-        if analysis["summary_updated"]:
-            logger.info(f"📝 Resumo estruturado gerado para lead {lead.id}")
-        
-        logger.info(f"✅ Análise inteligente concluída para lead {lead.id}")
-        
-    except Exception as e:
-        # Não deixa análise quebrar o fluxo principal
-        logger.error(f"❌ Erro na análise inteligente do lead {lead.id}: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
     
     # =========================================================================
     # 25. HANDOFF FINAL
