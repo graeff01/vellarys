@@ -809,80 +809,6 @@ async def process_message(
     message_count = await count_lead_messages(db, lead.id)
     
     logger.info(f"📊 Lead {lead.id}: {message_count} mensagens no histórico")
-    
-
-    
-    # =========================================================================
-    # 23.5 QUALIFICAÇÃO DO LEAD
-    # =========================================================================
-    try:
-        logger.info(f"🎯 Qualificando lead {lead.id}...")
-        
-        # Busca mensagens para qualificação
-        result_msgs = await db.execute(
-            select(Message)
-            .where(Message.lead_id == lead.id)
-            .order_by(Message.created_at.asc())
-        )
-        all_messages = result_msgs.scalars().all()
-        
-        # Chama qualificador
-        qualification_result = qualify_lead(
-            lead=lead,
-            messages=all_messages,
-            conversation_text=None  # Vai construir do messages
-        )
-        
-        # Salva resultado
-        old_qualification = lead.qualification
-        lead.qualification = qualification_result["qualification"]
-        lead.qualification_score = qualification_result["score"]
-        lead.qualification_confidence = qualification_result["confidence"]
-        
-        # Atualiza custom_data com razões
-        if not lead.custom_data:
-            lead.custom_data = {}
-        lead.custom_data["qualification_reasons"] = qualification_result["reasons"]
-        lead.custom_data["qualification_signals"] = qualification_result["signals"]
-        flag_modified(lead, "custom_data")
-        
-        logger.info(
-            f"✅ Lead {lead.id} qualificado: {qualification_result['qualification'].upper()} "
-            f"(score: {qualification_result['score']}, confiança: {qualification_result['confidence']})"
-        )
-        
-        # Log de mudança de qualificação
-        if old_qualification != lead.qualification:
-            event = LeadEvent(
-                lead_id=lead.id,
-                event_type=EventType.QUALIFICATION_CHANGE.value,
-                old_value=old_qualification,
-                new_value=lead.qualification,
-                description=f"Qualificação alterada: {old_qualification} → {lead.qualification}"
-            )
-            db.add(event)
-            logger.info(f"📊 Qualificação mudou: {old_qualification} → {lead.qualification}")
-        
-        # Notifica gestor se virou QUENTE
-        if (lead.qualification in ["hot", "quente"] and 
-            old_qualification not in ["hot", "quente"] and 
-            not gestor_ja_notificado):
-            
-            await notify_gestor(
-                db=db,
-                tenant=tenant,
-                lead=lead,
-                notification_type="lead_hot",
-                empreendimento=empreendimento_detectado,
-            )
-            gestor_ja_notificado = True
-            logger.info(f"🔥 Gestor notificado: lead virou QUENTE!")
-        
-    except Exception as e:
-        logger.error(f"❌ Erro na qualificação: {e}")
-        logger.error(traceback.format_exc())
-        # Não falha o processo se qualificação der erro
-    
 
 
     # =========================================================================
@@ -1328,6 +1254,83 @@ Respostas curtas (3-4 linhas), sem listas, sem formatação!
             "imovel_portal_codigo": imovel_portal.get("codigo") if imovel_portal else None,
         },
     )
+
+
+
+    
+    # =========================================================================
+    # 23.5 QUALIFICAÇÃO DO LEAD
+    # =========================================================================
+    try:
+        logger.info(f"🎯 Qualificando lead {lead.id}...")
+        
+        # Busca mensagens para qualificação
+        result_msgs = await db.execute(
+            select(Message)
+            .where(Message.lead_id == lead.id)
+            .order_by(Message.created_at.asc())
+        )
+        all_messages = result_msgs.scalars().all()
+        
+        # Chama qualificador
+        qualification_result = qualify_lead(
+            lead=lead,
+            messages=all_messages,
+            conversation_text=None  # Vai construir do messages
+        )
+        
+        # Salva resultado
+        old_qualification = lead.qualification
+        lead.qualification = qualification_result["qualification"]
+        lead.qualification_score = qualification_result["score"]
+        lead.qualification_confidence = qualification_result["confidence"]
+        
+        # Atualiza custom_data com razões
+        if not lead.custom_data:
+            lead.custom_data = {}
+        lead.custom_data["qualification_reasons"] = qualification_result["reasons"]
+        lead.custom_data["qualification_signals"] = qualification_result["signals"]
+        flag_modified(lead, "custom_data")
+        
+        logger.info(
+            f"✅ Lead {lead.id} qualificado: {qualification_result['qualification'].upper()} "
+            f"(score: {qualification_result['score']}, confiança: {qualification_result['confidence']})"
+        )
+        
+        # Log de mudança de qualificação
+        if old_qualification != lead.qualification:
+            event = LeadEvent(
+                lead_id=lead.id,
+                event_type=EventType.QUALIFICATION_CHANGE.value,
+                old_value=old_qualification,
+                new_value=lead.qualification,
+                description=f"Qualificação alterada: {old_qualification} → {lead.qualification}"
+            )
+            db.add(event)
+            logger.info(f"📊 Qualificação mudou: {old_qualification} → {lead.qualification}")
+        
+        # Notifica gestor se virou QUENTE
+        if (lead.qualification in ["hot", "quente"] and 
+            old_qualification not in ["hot", "quente"] and 
+            not gestor_ja_notificado):
+            
+            await notify_gestor(
+                db=db,
+                tenant=tenant,
+                lead=lead,
+                notification_type="lead_hot",
+                empreendimento=empreendimento_detectado,
+            )
+            gestor_ja_notificado = True
+            logger.info(f"🔥 Gestor notificado: lead virou QUENTE!")
+        
+    except Exception as e:
+        logger.error(f"❌ Erro na qualificação: {e}")
+        logger.error(traceback.format_exc())
+        # Não falha o processo se qualificação der erro
+
+
+
 
     # =========================================================================
     # 24. HANDOFF FINAL
