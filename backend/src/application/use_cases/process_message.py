@@ -20,6 +20,7 @@ from src.infrastructure.services.property_lookup_service import (
 from src.domain.entities import (
     Tenant, Lead, Message, Channel, LeadEvent, Notification, Empreendimento
 )
+from src.domain.services.lead_qualifier import qualify_lead
 from src.domain.services.lead_intelligence import analyze_lead_conversation
 from src.domain.entities.enums import LeadStatus, EventType
 from src.domain.prompts import build_system_prompt, get_niche_config
