@@ -1,7 +1,7 @@
 """
-SISTEMA DE QUALIFICAÇÃO INTELIGENTE DE LEADS - VERSÃO CORRIGIDA
-=================================================================
-CORREÇÃO: Regex simplificados para detectar orçamento e prazo corretamente.
+SISTEMA DE QUALIFICAÇÃO INTELIGENTE DE LEADS - VERSÃO ULTRA GENÉRICA
+=====================================================================
+CORREÇÃO FINAL: Padrões que detectam QUALQUER variação!
 """
 
 import re
@@ -16,84 +16,123 @@ class LeadQualifier:
     """
     Qualifica leads baseado em análise contextual da conversa.
     
-    VERSÃO CORRIGIDA: Padrões simplificados que realmente funcionam!
+    VERSÃO ULTRA GENÉRICA: Pega qualquer variação de orçamento/urgência!
     """
     
     def __init__(self):
         # SINAIS DE LEAD QUENTE (cada um vale pontos)
         self.hot_patterns = {
-            # ✅ ORÇAMENTO DEFINIDO (25 pontos) - SIMPLIFICADO
-            r"tenho\s+\d+\s*k": 25,  # "tenho 550k"
-            r"tenho\s+\d+\s+mil": 25,  # "tenho 550 mil"
-            r"orçamento.*\d+\s*k": 20,  # "orçamento 550k"
-            r"orçamento.*\d+\s+mil": 20,  # "orçamento 550 mil"
-            r"orcamento.*\d+\s*k": 20,
-            r"orcamento.*\d+\s+mil": 20,
+            # ═══════════════════════════════════════════════════════════
+            # ORÇAMENTO DEFINIDO (30 pontos) - ULTRA GENÉRICO
+            # ═══════════════════════════════════════════════════════════
+            r"tenho\s+\d+": 30,  # "tenho 800", "tenho 600 mil", "tenho 550k"
+            r"\d+\s+mil.*guardado": 30,  # "800 mil guardado"
+            r"\d+\s+mil.*entrada": 30,  # "600 mil de entrada"
+            r"\d+\s+mil.*disponivel": 30,  # "500 mil disponível"
+            r"orcamento.*\d+": 25,  # "orçamento 550k", "orçamento de 600 mil"
             
-            # Aprovado (25 pontos)
-            r"aprovado.*banco": 25,
-            r"financiamento.*aprovado": 25,
-            r"nome saiu": 25,
+            # ═══════════════════════════════════════════════════════════
+            # APROVAÇÕES (30 pontos)
+            # ═══════════════════════════════════════════════════════════
+            r"financiamento.*aprovado": 30,
+            r"aprovado.*banco": 30,
+            r"aprovado.*caixa": 30,
+            r"pre.*aprovado": 30,
+            r"credito.*aprovado": 30,
+            r"nome\s+saiu": 30,
             
-            # ✅ URGÊNCIA COM PRAZO (25 pontos) - SIMPLIFICADO
-            r"preciso.*mudar.*\d+\s+mes": 25,  # "preciso mudar em 2 meses"
-            r"preciso.*me\s+mudar.*\d+\s+mes": 25,  # "preciso me mudar em 3 meses"
-            r"mudar.*em.*\d+\s+mes": 20,  # "mudar em 3 meses"
-            r"mudança.*\d+\s+mes": 20,  # "mudança em 3 meses"
-            r"prazo.*\d+\s+mes": 20,  # "prazo de 2 meses"
+            # ═══════════════════════════════════════════════════════════
+            # URGÊNCIA (30 pontos) - DIAS OU MESES
+            # ═══════════════════════════════════════════════════════════
+            r"urgente": 25,
+            r"urgencia": 25,
             
-            # Urgência extrema
-            r"urgente": 20,
-            r"preciso\s+(hoje|amanhã|logo|rapido|rápido)": 20,
+            # DIAS
+            r"em\s+\d+\s+dia": 30,  # "em 15 dias", "em 30 dias"
+            r"\d+\s+dia.*prazo": 30,  # "15 dias de prazo"
+            r"preciso.*\d+\s+dia": 30,  # "preciso em 15 dias"
             
-            # Quer avançar (20 pontos)
-            r"quando.*posso.*visitar": 20,
-            r"quero.*visitar": 20,
-            r"pode.*agendar": 15,
+            # MESES
+            r"em\s+\d+\s+mes": 25,  # "em 2 meses", "em 1 mes"
+            r"\d+\s+mes.*prazo": 25,  # "2 meses de prazo"
+            r"preciso.*\d+\s+mes": 25,  # "preciso em 2 meses"
+            r"mudar.*\d+\s+mes": 25,  # "mudar em 3 meses"
             
-            # Pergunta sobre processo (15 pontos)
-            r"que.*documentos.*preciso": 15,
+            # HOJE/AMANHÃ
+            r"preciso\s+(hoje|amanha|agora|ja)": 30,
+            r"quero\s+(hoje|amanha|agora|ja)": 25,
+            
+            # ═══════════════════════════════════════════════════════════
+            # VISITAS (25 pontos)
+            # ═══════════════════════════════════════════════════════════
+            r"agendar.*visita": 25,
+            r"visita.*amanha": 30,
+            r"visita.*hoje": 30,
+            r"posso.*visitar": 25,
+            r"quero.*visitar": 25,
+            r"quando.*visitar": 20,
+            r"marcar.*visita": 25,
+            
+            # ═══════════════════════════════════════════════════════════
+            # DECISÃO (20 pontos)
+            # ═══════════════════════════════════════════════════════════
+            r"quero\s+comprar": 25,
+            r"vou\s+comprar": 25,
+            r"ja.*decid": 25,
+            r"fecho.*negocio": 30,
+            r"aceito.*proposta": 25,
+            r"estou\s+pronto": 20,
+            
+            # ═══════════════════════════════════════════════════════════
+            # PROCESSO (15 pontos)
+            # ═══════════════════════════════════════════════════════════
+            r"quais.*documentos": 15,
+            r"que.*documentos": 15,
             r"como.*funciona.*(compra|financiamento)": 15,
+            r"como.*comprar": 15,
             
-            # Tem recurso (20 pontos)
-            r"tenho.*entrada": 20,
+            # ═══════════════════════════════════════════════════════════
+            # RECURSOS (20 pontos)
+            # ═══════════════════════════════════════════════════════════
+            r"tenho.*entrada": 25,
             r"vendendo.*imovel": 20,
-            r"vou\s+receber": 15,
-            
-            # Decisão tomada
-            r"já.*decid": 15,
-            r"tenho\s+certeza": 15,
+            r"vou.*receber.*fgts": 20,
+            r"tenho.*fgts": 20,
         }
         
         # SINAIS DE LEAD MORNO (cada um vale pontos)
         self.warm_patterns = {
-            # ✅ ORÇAMENTO MENCIONADO (15 pontos) - SIMPLIFICADO
-            r"até.*\d+\s*k": 15,  # "até 550k"
-            r"até.*\d+\s+mil": 15,  # "até 550 mil"
-            r"em\s+torno.*\d+\s+mil": 15,  # "em torno de 550 mil"
-            r"cerca\s+de.*\d+\s+mil": 15,  # "cerca de 550 mil"
+            # Orçamento vago
+            r"ate.*\d+": 15,  # "até 550k"
+            r"em\s+torno.*\d+": 15,  # "em torno de 550 mil"
+            r"cerca.*\d+": 15,  # "cerca de 500 mil"
+            r"mais.*menos.*\d+": 15,  # "mais ou menos 600 mil"
             
-            # ✅ PRAZO MENCIONADO (10 pontos) - SIMPLIFICADO  
-            r"mudar.*próximos.*\d+": 10,  # "mudar nos próximos 3 meses"
-            r"mudança.*\d+\s+a\s+\d+\s+mes": 10,  # "mudança em 3 a 6 meses"
+            # Prazo vago
+            r"proximos.*mes": 10,  # "próximos meses"
+            r"alguns.*mes": 10,  # "alguns meses"
             
             # Pesquisando
             r"pesquisando": 10,
             r"procurando": 10,
             r"comparando": 10,
+            r"analisando": 10,
             
             # Precisa alinhar
-            r"preciso.*conversar.*(esposa|marido|família)": 10,
+            r"conversar.*(esposa|marido|familia)": 10,
+            r"decidir.*(esposa|marido|familia)": 10,
             r"vou.*pensar": 5,
+            r"preciso.*analisar": 5,
         }
         
         # SINAIS DE LEAD FRIO (cada um REMOVE pontos)
         self.cold_patterns = {
-            r"só.*olhando": -20,
-            r"só.*curiosidade": -20,
+            r"so.*olhando": -20,
+            r"so.*curiosidade": -20,
             r"talvez.*um\s+dia": -20,
-            r"sem.*previsão": -15,
+            r"sem.*previsao": -15,
             r"muito\s+caro": -10,
+            r"nao.*tenho.*dinheiro": -25,
         }
     
     def qualify(
@@ -116,44 +155,62 @@ class LeadQualifier:
         # Remove acentos para facilitar match
         conversation_normalized = self._normalize_text(conversation_lower)
         
+        logger.info(f"🔍 Analisando texto (primeiros 200 chars): {conversation_normalized[:200]}")
+        
         # Análise de pontuação
         score = 0
         signals = {"hot": [], "warm": [], "cold": []}
         reasons = []
+        matched_patterns = []
         
         # 1. ANALISA PADRÕES QUENTES
         for pattern, points in self.hot_patterns.items():
-            if re.search(pattern, conversation_normalized, re.IGNORECASE):
+            matches = re.findall(pattern, conversation_normalized, re.IGNORECASE)
+            if matches:
                 score += points
-                signals["hot"].append(pattern[:30])
-                logger.info(f"✅ Hot pattern detectado: {pattern} (+{points})")
+                signals["hot"].append(pattern[:40])
+                matched_patterns.append(f"HOT: {pattern[:40]} → +{points}")
+                logger.info(f"🔥 HOT: {pattern[:50]} (+{points}) | Matches: {matches[:2]}")
         
         # 2. ANALISA PADRÕES MORNOS
         for pattern, points in self.warm_patterns.items():
-            if re.search(pattern, conversation_normalized, re.IGNORECASE):
+            matches = re.findall(pattern, conversation_normalized, re.IGNORECASE)
+            if matches:
                 score += points
-                signals["warm"].append(pattern[:30])
-                logger.info(f"✅ Warm pattern detectado: {pattern} (+{points})")
+                signals["warm"].append(pattern[:40])
+                matched_patterns.append(f"WARM: {pattern[:40]} → +{points}")
+                logger.info(f"🌡️ WARM: {pattern[:50]} (+{points}) | Matches: {matches[:2]}")
         
         # 3. ANALISA PADRÕES FRIOS
         for pattern, points in self.cold_patterns.items():
-            if re.search(pattern, conversation_normalized, re.IGNORECASE):
+            matches = re.findall(pattern, conversation_normalized, re.IGNORECASE)
+            if matches:
                 score += points
-                signals["cold"].append(pattern[:30])
-                logger.info(f"⚠️ Cold pattern detectado: {pattern} ({points})")
+                signals["cold"].append(pattern[:40])
+                matched_patterns.append(f"COLD: {pattern[:40]} → {points}")
+                logger.info(f"❄️ COLD: {pattern[:50]} ({points}) | Matches: {matches[:2]}")
         
-        # 4. ANÁLISE DE ENGAJAMENTO (CORRIGIDA)
+        # 4. ANÁLISE DE ENGAJAMENTO
         engagement_score, engagement_reason = self._analyze_engagement(messages, lead)
         score += engagement_score
         if engagement_reason:
             reasons.append(engagement_reason)
+            logger.info(f"💬 Engajamento: {engagement_reason} (+{engagement_score})")
         
-        # ✅ CLASSIFICAÇÃO FINAL (THRESHOLDS AJUSTADOS)
-        if score >= 35:  # ✅ REDUZIDO de 40 para 35
+        # Log de padrões detectados
+        if matched_patterns:
+            logger.info(f"📊 Padrões detectados ({len(matched_patterns)}):")
+            for p in matched_patterns[:10]:
+                logger.info(f"   {p}")
+        else:
+            logger.warning(f"⚠️ NENHUM padrão detectado!")
+        
+        # ✅ CLASSIFICAÇÃO FINAL
+        if score >= 40:  # Threshold para QUENTE
             qualification = "hot"
             confidence = min(score / 100, 1.0)
-            reasons.insert(0, "Lead com orçamento e prazo definidos")
-        elif score >= 15:  # ✅ REDUZIDO de 20 para 15
+            reasons.insert(0, "Lead pronto para comprar")
+        elif score >= 15:  # Threshold para MORNO
             qualification = "warm"
             confidence = min(score / 60, 0.9)
             reasons.insert(0, "Lead com interesse genuíno")
@@ -168,13 +225,16 @@ class LeadQualifier:
             "confidence": round(confidence, 2),
             "reasons": reasons[:3],
             "signals": {
-                "hot": signals["hot"][:3],
-                "warm": signals["warm"][:3],
+                "hot": signals["hot"][:5],
+                "warm": signals["warm"][:5],
                 "cold": signals["cold"][:3],
             }
         }
         
-        logger.info(f"🎯 Lead {lead.id} qualificado: {qualification.upper()} (score: {score}, confiança: {confidence:.2f})")
+        logger.info(
+            f"🎯 Lead {lead.id} qualificado: {qualification.upper()} "
+            f"(score: {score}, confiança: {confidence:.2f})"
+        )
         
         return result
     
@@ -182,10 +242,10 @@ class LeadQualifier:
         """Remove acentos para facilitar matching."""
         replacements = {
             'á': 'a', 'à': 'a', 'ã': 'a', 'â': 'a',
-            'é': 'e', 'ê': 'e',
-            'í': 'i',
-            'ó': 'o', 'ô': 'o', 'õ': 'o',
-            'ú': 'u', 'ü': 'u',
+            'é': 'e', 'ê': 'e', 'è': 'e',
+            'í': 'i', 'ì': 'i',
+            'ó': 'o', 'ô': 'o', 'õ': 'o', 'ò': 'o',
+            'ú': 'u', 'ü': 'u', 'ù': 'u',
             'ç': 'c',
         }
         for old, new in replacements.items():
@@ -199,25 +259,23 @@ class LeadQualifier:
         
         user_messages = [m for m in messages if m.role == "user"]
         
-        # ✅ REDUZIDO impacto negativo para leads novos
         if len(user_messages) >= 6:
             score += 10
-            reason = "Alto engajamento"
+            reason = "Alto engajamento (6+ mensagens)"
         elif len(user_messages) >= 4:
             score += 5
-            reason = "Bom engajamento"
+            reason = "Bom engajamento (4+ mensagens)"
         elif len(user_messages) >= 2:
-            score += 0  # Neutro
-            reason = None
-        else:
-            score -= 0  # ✅ NÃO penaliza mais leads novos!
+            score += 2
             reason = None
         
         # Tamanho médio das mensagens
         if user_messages:
             avg_length = sum(len(m.content) for m in user_messages) / len(user_messages)
             
-            if avg_length > 60:  # ✅ Mensagem longa = mais interessado
+            if avg_length > 80:
+                score += 10
+            elif avg_length > 60:
                 score += 5
         
         return score, reason
