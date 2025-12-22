@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { getToken, getUser, logout, User } from '@/lib/auth';
 import { NotificationBell } from '@/components/dashboard/notification-bell';
+import { ServiceWorkerRegistration } from '@/components/pwa/service-worker-registration';
 
 // Menus para GESTOR (cliente normal)
 const gestorMenuItems = [
@@ -187,6 +188,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen bg-gray-100">
+      <ServiceWorkerRegistration />
       {/* CORRIGIDO: Overlay para mobile - z-index 40 */}
       {sidebarOpen && (
         <div
