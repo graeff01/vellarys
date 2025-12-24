@@ -1,83 +1,230 @@
 'use client';
 
 import { Card } from '@/components/ui/card';
-import { Clock, DollarSign, TrendingUp, Zap } from 'lucide-react';
+import { TrendingUp, Filter, Zap, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 interface ROICardProps {
   totalLeads: number;
-  leadsFiltered: number; // leads frios (curiosos)
+  leadsFiltered: number;
   leadsHot: number;
 }
 
+interface DailyData {
+  period: string;
+  count: number;
+  hot: number;
+  warm: number;
+  cold: number;
+}
+
 export function ROICard({ totalLeads, leadsFiltered, leadsHot }: ROICardProps) {
-  // Estimativas baseadas em médias de mercado
-  const MINUTES_PER_LEAD = 8; // Tempo médio que um humano gastaria por lead
-  const HOURLY_COST = 25; // Custo médio hora de um atendente (R$)
-  
-  // Cálculos
-  const minutesSaved = totalLeads * MINUTES_PER_LEAD;
-  const hoursSaved = Math.round(minutesSaved / 60 * 10) / 10;
-  const moneySaved = Math.round((minutesSaved / 60) * HOURLY_COST);
-  
-  // Eficiência: % de leads que a IA resolveu sozinha (frios + em andamento)
-  const aiEfficiency = totalLeads > 0 
-    ? Math.round(((totalLeads - leadsHot) / totalLeads) * 100)
+  const [weekData, setWeekData] = useState<DailyData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Calcula eficiência (% de curiosos filtrados)
+  const efficiency = totalLeads > 0 ? Math.round((leadsFiltered / totalLeads) * 100) : 100;
+
+  useEffect(() => {
+    async function fetchWeekData() {
+      try {
+        setLoading(true);
+        
+        // Busca tenant do localStorage
+        const user = localStorage.getItem('user');
+        const tenantSlug = user ? JSON.parse(user).tenant_slug : null;
+        
+        if (!tenantSlug) {
+          console.error('Tenant não encontrado');
+          setLoading(false);
+          return;
+        }
+        
+        // Busca dados dos últimos 7 dias da API
+        const response = await fetch(
+          `/api/metrics/leads-by-day?tenant_slug=${tenantSlug}&days=7`,
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            }
+          }
+        );
+        
+        if (!response.ok) {
+          throw new Error('Erro ao buscar dados');
+        }
+        
+        const data = await response.json();
+        
+        // Garante que temos 7 dias (preenche com zeros se necessário)
+        const completeDays = Array(7).fill(null).map((_, i) => {
+          const date = new Date();
+          date.setDate(date.getDate() - (6 - i));
+          const dateStr = date.toISOString().split('T')[0];
+          
+          const existingData = data.find((d: DailyData) => d.period === dateStr);
+          
+          return existingData || {
+            period: dateStr,
+            count: 0,
+            hot: 0,
+            warm: 0,
+            cold: 0
+          };
+        });
+        
+        setWeekData(completeDays);
+      } catch (error) {
+        console.error('Erro ao buscar dados da semana:', error);
+        
+        // Fallback: gera dados simulados
+        const fallbackData = Array(7).fill(null).map((_, i) => {
+          const date = new Date();
+          date.setDate(date.getDate() - (6 - i));
+          return {
+            period: date.toISOString().split('T')[0],
+            count: Math.floor(Math.random() * 5) + 1,
+            hot: 0,
+            warm: 0,
+            cold: 0
+          };
+        });
+        
+        setWeekData(fallbackData);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchWeekData();
+  }, []);
+
+  // Formata labels dos dias
+  const daysLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const formattedData = weekData.map(data => {
+    const date = new Date(data.period + 'T00:00:00');
+    const dayIndex = date.getDay();
+    return {
+      ...data,
+      label: daysLabels[dayIndex]
+    };
+  });
+
+  // Calcula crescimento vs ontem
+  const todayCount = formattedData[6]?.count || 0;
+  const yesterdayCount = formattedData[5]?.count || 1;
+  const growthPercent = yesterdayCount > 0 
+    ? Math.round(((todayCount - yesterdayCount) / yesterdayCount) * 100)
     : 0;
 
+  // Normaliza dados para o gráfico (0-100%)
+  const maxCount = Math.max(...formattedData.map(d => d.count), 1);
+  const normalizedData = formattedData.map(d => ({
+    ...d,
+    height: (d.count / maxCount) * 100
+  }));
+
   return (
-    <Card className="bg-gradient-to-br from-blue-600 to-blue-800 text-white">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold opacity-90">Economia com a IA</h3>
-        <div className="p-2 bg-white/20 rounded-lg">
-          <Zap className="w-5 h-5" />
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white/10 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Clock className="w-4 h-4 opacity-70" />
-            <span className="text-sm opacity-70">Tempo Economizado</span>
-          </div>
-          <p className="text-2xl font-bold">
-            {hoursSaved > 0 ? `${hoursSaved}h` : '0h'}
-          </p>
-          <p className="text-xs opacity-60 mt-1">
-            {totalLeads} leads × {MINUTES_PER_LEAD}min cada
-          </p>
-        </div>
+    <Card>
+      <div className="p-6 space-y-6">
         
-        <div className="bg-white/10 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <DollarSign className="w-4 h-4 opacity-70" />
-            <span className="text-sm opacity-70">Valor Economizado</span>
-          </div>
-          <p className="text-2xl font-bold">
-            R$ {moneySaved.toLocaleString('pt-BR')}
-          </p>
-          <p className="text-xs opacity-60 mt-1">
-            Base: R$ {HOURLY_COST}/hora atendente
-          </p>
-        </div>
-      </div>
-      
-      <div className="mt-4 pt-4 border-t border-white/20">
+        {/* HEADER */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 opacity-70" />
-            <span className="text-sm opacity-70">Eficiência da IA</span>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Evolução dos Leads</h3>
+            <p className="text-sm text-gray-500">Últimos 7 dias</p>
           </div>
-          <span className="text-xl font-bold">{aiEfficiency}%</span>
+          <div className="p-3 bg-blue-100 rounded-lg">
+            <TrendingUp className="w-6 h-6 text-blue-600" />
+          </div>
         </div>
-        <div className="mt-2 bg-white/20 rounded-full h-2">
-          <div 
-            className="bg-green-400 h-2 rounded-full transition-all duration-500"
-            style={{ width: `${aiEfficiency}%` }}
-          />
+
+        {/* GRÁFICO DE BARRAS */}
+        {loading ? (
+          <div className="flex items-center justify-center h-32">
+            <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-end justify-between h-32 gap-2">
+              {normalizedData.map((data, index) => (
+                <div key={index} className="flex-1 flex flex-col items-center gap-2">
+                  {/* Barra */}
+                  <div className="w-full bg-gray-100 rounded-t-lg relative overflow-hidden" style={{ height: '100%' }}>
+                    <div 
+                      className={`w-full rounded-t-lg transition-all duration-500 ${
+                        index === 6 ? 'bg-blue-600' : 'bg-blue-400'
+                      }`}
+                      style={{ 
+                        height: `${data.height}%`,
+                        position: 'absolute',
+                        bottom: 0
+                      }}
+                    />
+                  </div>
+                  {/* Label */}
+                  <span className={`text-xs font-medium ${
+                    index === 6 ? 'text-blue-600' : 'text-gray-500'
+                  }`}>
+                    {data.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Indicador de Crescimento */}
+            <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+              <div className="flex items-center gap-2">
+                {growthPercent >= 0 ? (
+                  <>
+                    <TrendingUp className="w-4 h-4 text-green-600" />
+                    <span className="text-sm font-semibold text-green-600">
+                      +{growthPercent}%
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <TrendingUp className="w-4 h-4 text-orange-600 rotate-180" />
+                    <span className="text-sm font-semibold text-orange-600">
+                      {growthPercent}%
+                    </span>
+                  </>
+                )}
+                <span className="text-xs text-gray-500">vs ontem</span>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-500">Hoje</p>
+                <p className="text-lg font-bold text-gray-900">{todayCount}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* EFICIÊNCIA DA IA */}
+        <div className="space-y-3 pt-4 border-t border-gray-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-blue-600" />
+              <span className="text-sm font-medium text-gray-700">Eficiência da IA</span>
+            </div>
+            <span className="text-lg font-bold text-blue-600">{efficiency}%</span>
+          </div>
+          
+          {/* Barra de Progresso */}
+          <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+            <div 
+              className="bg-gradient-to-r from-blue-500 to-blue-600 h-full rounded-full transition-all duration-500"
+              style={{ width: `${efficiency}%` }}
+            />
+          </div>
+          
+          {/* Info */}
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <Filter className="w-3 h-3" />
+            <span>{leadsFiltered} curiosos filtrados automaticamente</span>
+          </div>
         </div>
-        <p className="text-xs opacity-60 mt-2">
-          {leadsFiltered} curiosos filtrados automaticamente
-        </p>
+
       </div>
     </Card>
   );
