@@ -3,6 +3,7 @@
 import { Card } from '@/components/ui/card';
 import { TrendingUp, Filter, Zap, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { getLeadsByDay } from '@/lib/api';
 
 interface ROICardProps {
   totalLeads: number;
@@ -30,31 +31,8 @@ export function ROICard({ totalLeads, leadsFiltered, leadsHot }: ROICardProps) {
       try {
         setLoading(true);
         
-        // Busca tenant do localStorage
-        const user = localStorage.getItem('user');
-        const tenantSlug = user ? JSON.parse(user).tenant_slug : null;
-        
-        if (!tenantSlug) {
-          console.error('Tenant não encontrado');
-          setLoading(false);
-          return;
-        }
-        
-        // Busca dados dos últimos 7 dias da API
-        const response = await fetch(
-          `/api/metrics/leads-by-day?tenant_slug=${tenantSlug}&days=7`,
-          {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            }
-          }
-        );
-        
-        if (!response.ok) {
-          throw new Error('Erro ao buscar dados');
-        }
-        
-        const data = await response.json();
+        // ✅ USA A FUNÇÃO DO API.TS (infraestrutura existente)
+        const data = await getLeadsByDay(7);
         
         // Garante que temos 7 dias (preenche com zeros se necessário)
         const completeDays = Array(7).fill(null).map((_, i) => {

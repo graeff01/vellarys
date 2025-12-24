@@ -48,6 +48,11 @@ export async function getMetrics() {
   return request(`/metrics?tenant_slug=${slug}`);
 }
 
+export async function getLeadsByDay(days: number = 7) {
+  const tenantSlug = getTenantSlug();
+  return request<any[]>(`/metrics/leads-by-day?tenant_slug=${tenantSlug}&days=${days}`);
+}
+
 // === LEADS ===
 export async function getLeads(params?: {
   page?: number;
