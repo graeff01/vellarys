@@ -1020,6 +1020,14 @@ async def process_message(
     # =========================================================================
     # 17.5 QUALIFICAÇÃO DO LEAD ← MOVER PRA CÁ!
     # =========================================================================
+    # ═════════════════════════════════════════════════════════════
+    # DEBUG: FORÇA LOG ANTES DE QUALIFICAR
+    # ═════════════════════════════════════════════════════════════
+    logger.warning(f"🔥 DEBUG: Vou qualificar lead {lead.id}")
+    logger.warning(f"🔥 DEBUG: Lead tem {len(all_messages)} mensagens")
+
+    # 17.5 QUALIFICAÇÃO DO LEAD ← MOVER PRA CÁ!
+
     try:
         logger.info(f"🎯 Qualificando lead {lead.id}...")
         
@@ -1148,10 +1156,11 @@ REGRAS:
                 logger.info(f"✅ Resumo estruturado gerado para lead {lead.id}")
                 
             except Exception as e:
-                logger.error(f"❌ Erro gerando resumo estruturado: {e}")
-                # Fallback: usa qualificação como resumo básico
-                lead.summary = f"Lead {lead.qualification} - {len(all_messages)} mensagens trocadas"
-        
+                logger.error(f"❌ Erro na qualificação: {e}")
+                logger.error(traceback.format_exc())  # ← ADICIONA TRACEBACK!
+                # Não falha o processo se qualificação der erro 
+                # 
+                  
         # Notifica gestor se virou QUENTE
         if (lead.qualification in ["hot", "quente"] and 
             old_qualification not in ["hot", "quente"] and 
