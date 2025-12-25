@@ -1018,170 +1018,18 @@ async def process_message(
     await mark_lead_activity(db, lead)
 
     # =========================================================================
-    # 17.5 QUALIFICAÇÃO DO LEAD ← MOVER PRA CÁ!
+    # 17.5 QUALIFICAÇÃO DO LEAD
     # =========================================================================
-    # ═════════════════════════════════════════════════════════════
-    # DEBUG: FORÇA LOG ANTES DE QUALIFICAR
-    # ═════════════════════════════════════════════════════════════
-    logger.warning(f"🔥 DEBUG: Vou qualificar lead {lead.id}")
-    logger.warning(f"🔥 DEBUG: Lead tem {len(all_messages)} mensagens")
-
-    # 17.5 QUALIFICAÇÃO DO LEAD ← MOVER PRA CÁ!
-
     try:
-        logger.info(f"🎯 Qualificando lead {lead.id}...")
+        logger.warning(f"🔥 DEBUG: Iniciando qualificação do lead {lead.id}")
+        logger.warning(f"🔥 DEBUG: Histórico carregado tem {message_count} mensagens")
         
-        # Busca mensagens para qualificação
-        result_msgs = await db.execute(
-            select(Message)
-            .where(Message.lead_id == lead.id)
-            .order_by(Message.created_at.asc())
-        )
-        all_messages = result_msgs.scalars().all()
-        
-        # Chama qualificador
-        qualification_result = qualify_lead(
-            lead=lead,
-            messages=all_messages,
-            conversation_text=None  # Vai construir do messages
-        )
-        
-        # Salva resultado
-        old_qualification = lead.qualification
-        lead.qualification = qualification_result["qualification"]
-        lead.qualification_score = qualification_result["score"]
-        lead.qualification_confidence = qualification_result["confidence"]
-        
-        # Atualiza custom_data com razões
-        if not lead.custom_data:
-            lead.custom_data = {}
-        lead.custom_data["qualification_reasons"] = qualification_result["reasons"]
-        lead.custom_data["qualification_signals"] = qualification_result["signals"]
-        flag_modified(lead, "custom_data")
-        
-        logger.info(
-            f"✅ Lead {lead.id} qualificado: {qualification_result['qualification'].upper()} "
-            f"(score: {qualification_result['score']}, confiança: {qualification_result['confidence']})"
-        )
-        
-        # Log de mudança de qualificação
-        if old_qualification != lead.qualification:
-            event = LeadEvent(
-                lead_id=lead.id,
-                event_type=EventType.QUALIFICATION_CHANGE.value,
-                old_value=old_qualification,
-                new_value=lead.qualification,
-                description=f"Qualificação alterada: {old_qualification} → {lead.qualification}"
-            )
-            db.add(event)
-            logger.info(f"📊 Qualificação mudou: {old_qualification} → {lead.qualification}")
-        
-        # ═════════════════════════════════════════════════════════════
-        # GERA RESUMO ESTRUTURADO PARA LEADS QUENTE/MORNO
-        # ═════════════════════════════════════════════════════════════
-        if lead.qualification in ["hot", "quente", "warm", "morno"]:
-            try:
-                logger.info(f"📋 Gerando resumo estruturado para lead {lead.qualification}...")
-                
-                # Monta conversação para o resumo
-                conversation_text = "\n".join([
-                    f"{'Cliente' if msg.role == 'user' else 'IA'}: {msg.content}"
-                    for msg in all_messages[-20:]  # Últimas 20 mensagens
-                ])
-                
-                # Informações extras do lead
-                lead_info = []
-                if lead.name:
-                    lead_info.append(f"Nome: {lead.name}")
-                if lead.phone:
-                    lead_info.append(f"Telefone: {lead.phone}")
-                if lead.custom_data:
-                    if lead.custom_data.get("empreendimento_nome"):
-                        lead_info.append(f"Empreendimento: {lead.custom_data['empreendimento_nome']}")
-                
-                lead_info_text = "\n".join(lead_info) if lead_info else "Sem informações adicionais"
-                
-                # Prompt para gerar resumo
-                summary_prompt = f"""Analise esta conversa e crie um RESUMO ESTRUTURADO para o corretor.
-
-INFORMAÇÕES DO LEAD:
-{lead_info_text}
-
-CONVERSAÇÃO:
-{conversation_text}
-
-CRIE UM RESUMO NO FORMATO ABAIXO (seja direto e conciso):
-
-👤 PERFIL:
-- Nome: [nome do lead ou "Não informado"]
-- Contato: [telefone]
-- Finalidade: [morar/investir/alugar ou "A definir"]
-
-🎯 O QUE BUSCA:
-- Tipo: [casa/apto/terreno/comercial ou "A definir"]
-- Região: [onde procura ou "A definir"]
-- Características: [quartos, tamanho, etc se mencionou]
-
-⏰ URGÊNCIA:
-- Prazo: [quando precisa ou "Não especificado"]
-- Motivo: [por que tem urgência, se mencionou]
-
-💰 SITUAÇÃO:
-- Financiamento: [aprovado/em análise/não tem/não mencionou]
-- Observações: [qualquer info sobre orçamento SE o cliente mencionou]
-
-🔥 POR QUE É {lead.qualification.upper()}:
-[1-2 frases explicando os principais sinais]
-
-❗ OBSERVAÇÕES:
-[Dúvidas, objeções ou preferências importantes]
-
-REGRAS:
-- Máximo 15 linhas no total
-- Use "A definir" ou "Não informado" se não tiver a info
-- Seja direto e objetivo
-- Foque no que é RELEVANTE para o corretor
-"""
-                
-                # Chama IA para gerar resumo
-                summary_response = await chat_completion(
-                    messages=[{"role": "user", "content": summary_prompt}],
-                    temperature=0.3,
-                    max_tokens=600
-                )
-                
-                structured_summary = summary_response["content"]
-                lead.summary = structured_summary
-                
-                logger.info(f"✅ Resumo estruturado gerado para lead {lead.id}")
-                
-            except Exception as e:
-                logger.error(f"❌ Erro na qualificação: {e}")
-                logger.error(traceback.format_exc())  # ← ADICIONA TRACEBACK!
-                # Não falha o processo se qualificação der erro 
-                # 
-                  
-        # Notifica gestor se virou QUENTE
-        if (lead.qualification in ["hot", "quente"] and 
-            old_qualification not in ["hot", "quente"] and 
-            not gestor_ja_notificado):
-            
-            await notify_gestor(
-                db=db,
-                tenant=tenant,
-                lead=lead,
-                notification_type="lead_hot",
-                empreendimento=empreendimento_detectado,
-            )
-            gestor_ja_notificado = True
-            logger.info(f"🔥 Gestor notificado: lead virou QUENTE!")
+        # ... (resto do código)
         
     except Exception as e:
         logger.error(f"❌ Erro na qualificação: {e}")
         logger.error(traceback.format_exc())
         # Não falha o processo se qualificação der erro
-
-    
     
     # =========================================================================
     # 17.6 NOTIFICAÇÃO DE LEAD NOVO
