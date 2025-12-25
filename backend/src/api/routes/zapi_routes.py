@@ -20,7 +20,35 @@ from src.infrastructure.services.zapi_service import get_zapi_client
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/zapi", tags=["Z-API Webhooks"])
+import asyncio
+from collections import defaultdict
+from datetime import timedelta
 
+# ════════════════════════════════════════════════════════════════
+# SISTEMA DE DEDUPLICAÇÃO E LOCKS
+# ════════════════════════════════════════════════════════════════
+
+# Cache de messageIds processados (últimos 10 minutos)
+_processed_messages = {}  # {messageId: timestamp}
+_message_cache_lock = asyncio.Lock()
+
+# Locks por telefone (previne race conditions)
+_phone_locks = defaultdict(asyncio.Lock)
+
+# Limpeza automática do cache (remove IDs antigos)
+async def _cleanup_message_cache():
+    """Remove messageIds processados há mais de 10 minutos."""
+    async with _message_cache_lock:
+        now = datetime.now(timezone.utc)
+        to_remove = [
+            msg_id for msg_id, timestamp in _processed_messages.items()
+            if (now - timestamp).total_seconds() > 600  # 10 minutos
+        ]
+        for msg_id in to_remove:
+            del _processed_messages[msg_id]
+        
+        if to_remove:
+            logger.debug(f"🧹 Cache limpo: {len(to_remove)} messageIds removidos")
 
 # ============================================
 # WEBHOOK: MENSAGEM RECEBIDA
@@ -54,6 +82,26 @@ async def zapi_receive_message(
         
         # Log para debug
         logger.info(f"Z-API Webhook recebido: {payload.get('phone', 'unknown')}")
+        
+        # ════════════════════════════════════════════════════════════════
+        # BUG FIX #1: DEDUPLICAÇÃO DE MENSAGENS
+        # ════════════════════════════════════════════════════════════════
+        message_id = payload.get("messageId")
+        
+        if message_id:
+            async with _message_cache_lock:
+                # Verifica se já processamos este messageId
+                if message_id in _processed_messages:
+                    logger.warning(f"⚠️ Webhook duplicado detectado: {message_id}")
+                    return {"status": "ok", "message": "already_processed"}
+                
+                # Marca como processado
+                _processed_messages[message_id] = datetime.now(timezone.utc)
+            
+            # Limpa cache antigo (async, não bloqueia)
+            asyncio.create_task(_cleanup_message_cache())
+        else:
+            logger.warning("⚠️ Webhook sem messageId - deduplicação desabilitada")
         
         # Ignora mensagens de grupo
         if payload.get("isGroup"):
@@ -148,34 +196,55 @@ async def zapi_receive_message(
         
         logger.info(f"Processando para tenant: {tenant.slug}")
         
-        # ==============================================
-        # PROCESSA A MENSAGEM
-        # ==============================================
+        # ════════════════════════════════════════════════════════════════
+        # BUG FIX #2: LOCK POR TELEFONE (Previne processamento paralelo)
+        # ════════════════════════════════════════════════════════════════
         
-        result = await process_message(
-            db=db,
-            tenant_slug=tenant.slug,
-            channel_type="whatsapp",
-            external_id=phone,
-            content=message_text,
-            sender_name=sender_name,
-            sender_phone=phone,
-        )
+        async with _phone_locks[phone]:
+            logger.info(f"🔒 Lock adquirido para {phone}")
+            
+            # ==============================================
+            # PROCESSA A MENSAGEM (com timeout de 30s)
+            # ==============================================
+            
+            try:
+                result = await asyncio.wait_for(
+                    process_message(
+                        db=db,
+                        tenant_slug=tenant.slug,
+                        channel_type="whatsapp",
+                        external_id=phone,
+                        content=message_text,
+                        sender_name=sender_name,
+                        sender_phone=phone,
+                    ),
+                    timeout=30.0  # Timeout de 30 segundos
+                )
+                
+                logger.info(f"✅ Processamento concluído para {phone}")
+                
+            except asyncio.TimeoutError:
+                logger.error(f"⏱️ Timeout processando mensagem de {phone}")
+                return {
+                    "status": "error",
+                    "reason": "processing_timeout",
+                    "message": "Processamento excedeu 30 segundos"
+                }
+            
+            finally:
+                logger.info(f"🔓 Lock liberado para {phone}")
+        
+        # (continua com o código de enviar resposta...)
         
         # ==============================================
         # ENVIA RESPOSTA
         # ==============================================
-        
         if result.get("reply"):
-            # Busca credenciais Z-API do canal ou usa as globais
-            zapi_instance = None
-            zapi_token = None
-            
-            if channel.config:
-                zapi_instance = channel.config.get("instance_id") or channel.config.get("zapi_instance_id")
-                zapi_token = channel.config.get("token") or channel.config.get("zapi_token")
-            
-            zapi = get_zapi_client(instance_id=zapi_instance, token=zapi_token)
+            # Delay baseado no typing_delay calculado
+            typing_delay = result.get("typing_delay", 2)
+            if typing_delay > 0:
+                logger.info(f"💬 Aguardando {typing_delay}s (simulando digitação)...")
+                await asyncio.sleep(min(typing_delay, 5))  # Max 5s
             
             # Envia resposta
             send_result = await zapi.send_text(
