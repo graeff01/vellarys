@@ -23,6 +23,38 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/zapi", tags=["Z-API Webhooks"])
 
+import hashlib
+from datetime import datetime, timedelta
+
+# Cache de mensagens processadas (em memória)
+processed_messages = {}
+
+def generate_message_hash(phone: str, content: str, timestamp: datetime) -> str:
+    """Gera hash único para deduplicação."""
+    # Arredonda timestamp para 5 segundos
+    rounded_ts = int(timestamp.timestamp() / 5) * 5
+    key = f"{phone}:{content}:{rounded_ts}"
+    return hashlib.md5(key.encode()).hexdigest()
+
+def is_duplicate_message(phone: str, content: str, timestamp: datetime) -> bool:
+    """Verifica se mensagem já foi processada."""
+    msg_hash = generate_message_hash(phone, content, timestamp)
+    
+    # Limpa mensagens antigas (mais de 1 minuto)
+    cutoff = datetime.now() - timedelta(minutes=1)
+    global processed_messages
+    processed_messages = {
+        k: v for k, v in processed_messages.items() 
+        if v > cutoff
+    }
+    
+    # Verifica duplicata
+    if msg_hash in processed_messages:
+        return True
+    
+    # Registra como processada
+    processed_messages[msg_hash] = datetime.now()
+    return False
 
 # ════════════════════════════════════════════════════════════════
 # SISTEMA DE DEDUPLICAÇÃO E LOCKS
@@ -161,7 +193,11 @@ async def zapi_receive_message(
         # Lista selecionada
         elif payload.get("listResponseMessage"):
             message_text = payload["listResponseMessage"].get("title") or "[Opcao selecionada]"
-        
+        # Deduplicação
+        if is_duplicate_message(phone, message_text, datetime.now()):
+            logger.warning(f"⚠️ Mensagem duplicada ignorada: {phone}")
+            return {"success": True, "message": "Duplicata ignorada"}
+                    
         if not phone or not message_text:
             logger.warning(f"Payload incompleto: phone={phone}, text={message_text}")
             return {"status": "ignored", "reason": "incomplete_payload"}

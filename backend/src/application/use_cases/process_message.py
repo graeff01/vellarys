@@ -887,7 +887,9 @@ async def process_message(
     # =========================================================================
     # 12. STATUS CHECK (lead já transferido)
     # =========================================================================
-    if lead.status == LeadStatus.HANDED_OFF.value:
+    if lead.status == LeadStatus.HANDED_OFF.value or lead.handed_off_at is not None:
+        logger.warning(f"⚠️ Lead {lead.id} já foi transferido! Ignorando mensagem.")
+        
         user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
         db.add(user_message)
         await db.commit()
