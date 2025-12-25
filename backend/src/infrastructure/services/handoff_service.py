@@ -7,14 +7,20 @@ Responsável por:
 2. Distribuir lead para vendedor apropriado
 3. Notificar vendedor/gestor via WhatsApp
 4. Registrar a transferência
+
+✅ CORREÇÃO: Suporta tenant como objeto, slug ou ID
 """
 
-from datetime import datetime
+import logging
+from datetime import datetime, timezone
 from typing import Optional, Tuple
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.entities import Lead, Tenant, Notification, Seller
 from .distribution_service import distribute_lead, assign_lead_to_seller
+
+logger = logging.getLogger(__name__)
 
 
 # ==========================================
@@ -130,7 +136,7 @@ def build_handoff_message_for_seller(
 
 ---
 ✅ Atribuído para: *{seller.name}*
-⏰ {datetime.now().strftime("%d/%m/%Y às %H:%M")}
+⏰ {datetime.now(timezone.utc).strftime("%d/%m/%Y às %H:%M")}
 
 💡 Entre em contato o mais rápido possível!"""
 
@@ -183,7 +189,7 @@ def build_handoff_message_for_manager(
     else:
         message += "⚠️ *Aguardando atribuição manual*\n"
     
-    message += f"⏰ {datetime.now().strftime('%d/%m/%Y às %H:%M')}"
+    message += f"⏰ {datetime.now(timezone.utc).strftime('%d/%m/%Y às %H:%M')}"
 
     return message
 
@@ -219,14 +225,71 @@ Foi um prazer atendê-lo! 😊"""
 
 
 # ==========================================
+# HELPER: GARANTE OBJETO TENANT
+# ==========================================
+
+async def _ensure_tenant_object(
+    tenant,
+    db: AsyncSession,
+) -> Optional[Tenant]:
+    """
+    Garante que tenant seja um objeto Tenant, não string ou int.
+    
+    Args:
+        tenant: Objeto Tenant, slug (str) ou ID (int)
+        db: Sessão do banco
+    
+    Returns:
+        Objeto Tenant ou None se não encontrado
+    """
+    # Já é objeto Tenant
+    if isinstance(tenant, Tenant):
+        return tenant
+    
+    # É slug (string)
+    if isinstance(tenant, str):
+        logger.info(f"🔄 Convertendo tenant slug '{tenant}' em objeto")
+        result = await db.execute(
+            select(Tenant)
+            .where(Tenant.slug == tenant)
+            .where(Tenant.active == True)
+        )
+        tenant_obj = result.scalar_one_or_none()
+        
+        if not tenant_obj:
+            logger.error(f"❌ Tenant não encontrado: {tenant}")
+        
+        return tenant_obj
+    
+    # É ID (int)
+    if isinstance(tenant, int):
+        logger.info(f"🔄 Convertendo tenant ID {tenant} em objeto")
+        result = await db.execute(
+            select(Tenant)
+            .where(Tenant.id == tenant)
+            .where(Tenant.active == True)
+        )
+        tenant_obj = result.scalar_one_or_none()
+        
+        if not tenant_obj:
+            logger.error(f"❌ Tenant não encontrado: {tenant}")
+        
+        return tenant_obj
+    
+    # Tipo desconhecido
+    logger.error(f"❌ Tipo de tenant inválido: {type(tenant)}")
+    return None
+
+
+# ==========================================
 # EXECUÇÃO DO HANDOFF
 # ==========================================
 
 async def execute_handoff(
-    db: AsyncSession,
     lead: Lead,
-    tenant: Tenant,
-    reason: str = "lead_hot",
+    tenant,  # Pode ser Tenant, slug (str) ou ID (int)
+    reason: str,
+    db: AsyncSession,
 ) -> dict:
     """
     Executa o processo completo de handoff:
@@ -235,6 +298,12 @@ async def execute_handoff(
     3. Atualiza o status do lead
     4. Registra a transferência
     
+    Args:
+        lead: Objeto Lead
+        tenant: Objeto Tenant, slug (str) ou ID (int)
+        reason: Motivo do handoff
+        db: Sessão do banco
+    
     Returns:
         {
             "success": bool,
@@ -242,114 +311,151 @@ async def execute_handoff(
             "method": str,
             "message_for_lead": str,
             "notifications_sent": list,
+            "error": str (se falhar)
         }
     """
     from .whatsapp_service import send_whatsapp_message
     
-    settings = tenant.settings or {}
+    # ════════════════════════════════════════════════════════════
+    # BUG FIX: Garante que tenant seja objeto, não string/int
+    # ════════════════════════════════════════════════════════════
+    tenant_obj = await _ensure_tenant_object(tenant, db)
+    
+    if not tenant_obj:
+        logger.error(f"❌ Handoff falhou: Tenant não encontrado")
+        return {
+            "success": False,
+            "error": "Tenant não encontrado",
+            "message_for_lead": "Ops! Houve um erro. Tente novamente em instantes.",
+        }
+    
+    # Agora tenant_obj é SEMPRE um objeto Tenant
+    settings = tenant_obj.settings or {}
     notifications_sent = []
     
-    # 1. Marca o lead como transferido
-    lead.handed_off_at = datetime.utcnow()
-    lead.status = "contacted"  # Muda status para "em contato"
-    
-    # 2. Distribui o lead
-    distribution_result = await distribute_lead(db, lead, tenant)
-    
-    seller = distribution_result.get("seller")
-    method = distribution_result.get("method", "unknown")
-    
-    # 3. Prepara mensagem para o lead
-    message_for_lead = build_handoff_message_for_lead(lead, tenant, seller)
-    
-    # 4. Notifica vendedor (se houver)
-    if seller and seller.whatsapp:
-        seller_message = build_handoff_message_for_seller(lead, seller, tenant)
+    try:
+        # 1. Marca o lead como transferido
+        lead.handed_off_at = datetime.now(timezone.utc)
+        lead.status = "contacted"  # Muda status para "em contato"
         
-        try:
-            await send_whatsapp_message(seller.whatsapp, seller_message)
-            notifications_sent.append({
-                "type": "seller",
-                "name": seller.name,
-                "phone": seller.whatsapp,
-                "status": "sent",
-            })
+        logger.info(f"🔄 Executando handoff para lead {lead.id} (razão: {reason})")
+        
+        # 2. Distribui o lead
+        distribution_result = await distribute_lead(db, lead, tenant_obj)
+        
+        seller = distribution_result.get("seller")
+        method = distribution_result.get("method", "unknown")
+        
+        logger.info(f"✅ Lead distribuído: método={method}, seller={seller.name if seller else 'None'}")
+        
+        # 3. Prepara mensagem para o lead
+        message_for_lead = build_handoff_message_for_lead(lead, tenant_obj, seller)
+        
+        # 4. Notifica vendedor (se houver)
+        if seller and seller.whatsapp:
+            seller_message = build_handoff_message_for_seller(lead, seller, tenant_obj)
             
-            # Atualiza assignment como notificado
-            if lead.assignments:
-                latest_assignment = lead.assignments[-1]
-                latest_assignment.notified_at = datetime.utcnow()
-                latest_assignment.status = "notified"
-        except Exception as e:
-            notifications_sent.append({
-                "type": "seller",
-                "name": seller.name,
-                "phone": seller.whatsapp,
-                "status": "failed",
-                "error": str(e),
-            })
-    
-    # 5. Notifica gestor (se necessário)
-    manager_whatsapp = settings.get("manager_whatsapp")
-    notify_manager = (
-        not seller or  # Nenhum vendedor atribuído
-        method == "manual" or  # Distribuição manual
-        settings.get("distribution", {}).get("notify_manager_copy", False)  # Cópia habilitada
-    )
-    
-    if manager_whatsapp and notify_manager:
-        manager_reason = "copy" if seller else (
-            "manual" if method == "manual" else "no_seller"
-        )
-        manager_message = build_handoff_message_for_manager(
-            lead, tenant, manager_reason, seller
+            try:
+                await send_whatsapp_message(seller.whatsapp, seller_message)
+                notifications_sent.append({
+                    "type": "seller",
+                    "name": seller.name,
+                    "phone": seller.whatsapp,
+                    "status": "sent",
+                })
+                
+                logger.info(f"📱 Notificação enviada para vendedor: {seller.name}")
+                
+                # Atualiza assignment como notificado
+                if lead.assignments:
+                    latest_assignment = lead.assignments[-1]
+                    latest_assignment.notified_at = datetime.now(timezone.utc)
+                    latest_assignment.status = "notified"
+            except Exception as e:
+                logger.error(f"❌ Erro notificando vendedor: {e}")
+                notifications_sent.append({
+                    "type": "seller",
+                    "name": seller.name,
+                    "phone": seller.whatsapp,
+                    "status": "failed",
+                    "error": str(e),
+                })
+        
+        # 5. Notifica gestor (se necessário)
+        manager_whatsapp = settings.get("manager_whatsapp")
+        notify_manager = (
+            not seller or  # Nenhum vendedor atribuído
+            method == "manual" or  # Distribuição manual
+            settings.get("distribution", {}).get("notify_manager_copy", False)  # Cópia habilitada
         )
         
-        try:
-            await send_whatsapp_message(manager_whatsapp, manager_message)
-            notifications_sent.append({
-                "type": "manager",
-                "phone": manager_whatsapp,
-                "status": "sent",
-            })
-        except Exception as e:
-            notifications_sent.append({
-                "type": "manager",
-                "phone": manager_whatsapp,
-                "status": "failed",
-                "error": str(e),
-            })
-    
-    # 6. Cria notificação no dashboard
-    notification = Notification(
-        tenant_id=tenant.id,
-        type="handoff",
-        title="🔥 Lead Transferido" if seller else "📊 Lead Aguardando Atribuição",
-        message=f"Lead {lead.name or 'Novo'} foi {'atribuído para ' + seller.name if seller else 'enviado para análise'}",
-        reference_type="lead",
-        reference_id=lead.id,
-        read=False,
-    )
-    db.add(notification)
-    
-    # 7. Commit das alterações
-    await db.commit()
-    
-    return {
-        "success": True,
-        "seller": seller,
-        "method": method,
-        "fallback_used": distribution_result.get("fallback_used", False),
-        "message_for_lead": message_for_lead,
-        "notifications_sent": notifications_sent,
-    }
+        if manager_whatsapp and notify_manager:
+            manager_reason = "copy" if seller else (
+                "manual" if method == "manual" else "no_seller"
+            )
+            manager_message = build_handoff_message_for_manager(
+                lead, tenant_obj, manager_reason, seller
+            )
+            
+            try:
+                await send_whatsapp_message(manager_whatsapp, manager_message)
+                notifications_sent.append({
+                    "type": "manager",
+                    "phone": manager_whatsapp,
+                    "status": "sent",
+                })
+                logger.info(f"📱 Notificação enviada para gestor")
+            except Exception as e:
+                logger.error(f"❌ Erro notificando gestor: {e}")
+                notifications_sent.append({
+                    "type": "manager",
+                    "phone": manager_whatsapp,
+                    "status": "failed",
+                    "error": str(e),
+                })
+        
+        # 6. Cria notificação no dashboard
+        notification = Notification(
+            tenant_id=tenant_obj.id,
+            type="handoff",
+            title="🔥 Lead Transferido" if seller else "📊 Lead Aguardando Atribuição",
+            message=f"Lead {lead.name or 'Novo'} foi {'atribuído para ' + seller.name if seller else 'enviado para análise'}",
+            reference_type="lead",
+            reference_id=lead.id,
+            read=False,
+        )
+        db.add(notification)
+        
+        # 7. Commit das alterações
+        await db.commit()
+        
+        logger.info(f"✅ Handoff concluído para lead {lead.id}")
+        
+        return {
+            "success": True,
+            "seller": seller,
+            "method": method,
+            "fallback_used": distribution_result.get("fallback_used", False),
+            "message_for_lead": message_for_lead,
+            "notifications_sent": notifications_sent,
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Erro no handoff: {e}", exc_info=True)
+        await db.rollback()
+        
+        return {
+            "success": False,
+            "error": str(e),
+            "message_for_lead": "Perfeito! Nossa equipe vai entrar em contato em breve. 😊",
+        }
 
 
 async def manual_assign_lead(
     db: AsyncSession,
     lead: Lead,
     seller: Seller,
-    tenant: Tenant,
+    tenant,  # Pode ser Tenant, slug (str) ou ID (int)
     assigned_by: str = "manager",
 ) -> dict:
     """
@@ -358,45 +464,70 @@ async def manual_assign_lead(
     """
     from .whatsapp_service import send_whatsapp_message
     
-    # Atribui o lead
-    assignment = await assign_lead_to_seller(
-        db=db,
-        lead=lead,
-        seller=seller,
-        tenant=tenant,
-        method="manual",
-        reason=f"Atribuído manualmente por {assigned_by}",
-    )
+    # ════════════════════════════════════════════════════════════
+    # BUG FIX: Garante que tenant seja objeto
+    # ════════════════════════════════════════════════════════════
+    tenant_obj = await _ensure_tenant_object(tenant, db)
     
-    # Notifica o vendedor
-    notifications_sent = []
+    if not tenant_obj:
+        logger.error(f"❌ Atribuição manual falhou: Tenant não encontrado")
+        return {
+            "success": False,
+            "error": "Tenant não encontrado",
+        }
     
-    if seller.whatsapp:
-        seller_message = build_handoff_message_for_seller(lead, seller, tenant)
+    try:
+        # Atribui o lead
+        assignment = await assign_lead_to_seller(
+            db=db,
+            lead=lead,
+            seller=seller,
+            tenant=tenant_obj,
+            method="manual",
+            reason=f"Atribuído manualmente por {assigned_by}",
+        )
         
-        try:
-            await send_whatsapp_message(seller.whatsapp, seller_message)
-            notifications_sent.append({
-                "type": "seller",
-                "name": seller.name,
-                "status": "sent",
-            })
+        # Notifica o vendedor
+        notifications_sent = []
+        
+        if seller.whatsapp:
+            seller_message = build_handoff_message_for_seller(lead, seller, tenant_obj)
             
-            assignment.notified_at = datetime.utcnow()
-            assignment.status = "notified"
-        except Exception as e:
-            notifications_sent.append({
-                "type": "seller",
-                "name": seller.name,
-                "status": "failed",
-                "error": str(e),
-            })
-    
-    await db.commit()
-    
-    return {
-        "success": True,
-        "seller": seller,
-        "assignment": assignment,
-        "notifications_sent": notifications_sent,
-    }
+            try:
+                await send_whatsapp_message(seller.whatsapp, seller_message)
+                notifications_sent.append({
+                    "type": "seller",
+                    "name": seller.name,
+                    "status": "sent",
+                })
+                
+                assignment.notified_at = datetime.now(timezone.utc)
+                assignment.status = "notified"
+                
+                logger.info(f"✅ Lead {lead.id} atribuído manualmente para {seller.name}")
+            except Exception as e:
+                logger.error(f"❌ Erro notificando vendedor: {e}")
+                notifications_sent.append({
+                    "type": "seller",
+                    "name": seller.name,
+                    "status": "failed",
+                    "error": str(e),
+                })
+        
+        await db.commit()
+        
+        return {
+            "success": True,
+            "seller": seller,
+            "assignment": assignment,
+            "notifications_sent": notifications_sent,
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Erro na atribuição manual: {e}", exc_info=True)
+        await db.rollback()
+        
+        return {
+            "success": False,
+            "error": str(e),
+        }
