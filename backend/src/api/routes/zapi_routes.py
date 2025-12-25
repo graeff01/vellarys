@@ -7,7 +7,9 @@ Documentacao: https://developer.z-api.io/webhooks/introduction
 """
 
 import logging
-from datetime import datetime, timezone
+import asyncio
+from datetime import datetime, timezone, timedelta
+from collections import defaultdict
 from fastapi import APIRouter, Request, Depends, BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,9 +22,7 @@ from src.infrastructure.services.zapi_service import get_zapi_client
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/zapi", tags=["Z-API Webhooks"])
-import asyncio
-from collections import defaultdict
-from datetime import timedelta
+
 
 # ════════════════════════════════════════════════════════════════
 # SISTEMA DE DEDUPLICAÇÃO E LOCKS
@@ -35,7 +35,7 @@ _message_cache_lock = asyncio.Lock()
 # Locks por telefone (previne race conditions)
 _phone_locks = defaultdict(asyncio.Lock)
 
-# Limpeza automática do cache (remove IDs antigos)
+
 async def _cleanup_message_cache():
     """Remove messageIds processados há mais de 10 minutos."""
     async with _message_cache_lock:
@@ -49,6 +49,7 @@ async def _cleanup_message_cache():
         
         if to_remove:
             logger.debug(f"🧹 Cache limpo: {len(to_remove)} messageIds removidos")
+
 
 # ============================================
 # WEBHOOK: MENSAGEM RECEBIDA
@@ -234,12 +235,22 @@ async def zapi_receive_message(
             finally:
                 logger.info(f"🔓 Lock liberado para {phone}")
         
-        # (continua com o código de enviar resposta...)
-        
         # ==============================================
         # ENVIA RESPOSTA
         # ==============================================
+        
         if result.get("reply"):
+            # Busca credenciais Z-API do canal ou usa as globais
+            zapi_instance = None
+            zapi_token = None
+            
+            if channel.config:
+                zapi_instance = channel.config.get("instance_id") or channel.config.get("zapi_instance_id")
+                zapi_token = channel.config.get("token") or channel.config.get("zapi_token")
+            
+            # Cria cliente Z-API
+            zapi = get_zapi_client(instance_id=zapi_instance, token=zapi_token)
+            
             # Delay baseado no typing_delay calculado
             typing_delay = result.get("typing_delay", 2)
             if typing_delay > 0:
