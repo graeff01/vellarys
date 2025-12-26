@@ -6,8 +6,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
-from src.infrastructure.scheduler import create_scheduler, start_scheduler, stop_scheduler
 
+from src.infrastructure.scheduler import create_scheduler, start_scheduler, stop_scheduler
+from src.api.routes.debug_portal import router as debug_portal_router
 from src.config import get_settings
 from src.infrastructure.database import init_db, async_session
 
@@ -30,7 +31,7 @@ from src.api.routes import (
     export_router,
     usage_router,
     simulator_router,
-    handoff_router,  # ← IMPORTADO
+    handoff_router,
     admin_dashboard_router,
     admin_tenants_router,
     admin_niches_router,
@@ -44,6 +45,7 @@ from src.domain.entities.enums import UserRole
 from src.infrastructure.services.auth_service import hash_password
 
 settings = get_settings()
+
 
 # ============================================================
 # 🚀 Criar superadmin automaticamente
@@ -82,6 +84,7 @@ async def create_superadmin():
         await session.commit()
         print("✅ Superadmin criado com sucesso!")
 
+
 # ============================================================
 # 🔁 LIFESPAN
 # ============================================================
@@ -94,15 +97,16 @@ async def lifespan(app: FastAPI):
 
     await create_superadmin()
 
-    # Inicia scheduler de jobs (se disponível)
     # Inicia scheduler de jobs
-        create_scheduler()
-        start_scheduler()
+    create_scheduler()
+    start_scheduler()
 
-        yield
+    yield
 
-        # Para scheduler
-        stop_scheduler()
+    # Para scheduler
+    stop_scheduler()
+
+
 # ============================================================
 # FASTAPI APP
 # ============================================================
@@ -150,8 +154,6 @@ app.include_router(export_router, prefix="/api/v1")
 app.include_router(usage_router, prefix="/api/v1")
 app.include_router(simulator_router, prefix="/api/v1")
 app.include_router(twilio_webhook_router, prefix="/api/v1")
-
-# ⭐ HANDOFF - FALTAVA ESTE!
 app.include_router(handoff_router, prefix="/api/v1")
 
 # Admin
@@ -174,4 +176,4 @@ async def health():
 
 @app.get("/api/v1/version")
 async def version():
-    return {"version": "2024-12-15-DEBUG-PORTAL", "timestamp": "03:30"}
+    return {"version": "2024-12-26-FOLLOW-UP", "timestamp": "20:30"}
