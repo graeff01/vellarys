@@ -6,6 +6,7 @@ Versão otimizada com correções de bugs e melhor organização.
 
 import logging
 import traceback
+
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, Tuple
 from sqlalchemy import select, func
@@ -15,6 +16,16 @@ from sqlalchemy.orm.attributes import flag_modified
 from src.infrastructure.services.property_lookup_service import (
     buscar_imovel_na_mensagem,
     extrair_codigo_imovel,
+)
+
+# Adiciona DEPOIS dos outros imports existentes
+from src.application.services.ai_context_builder import (
+    AIContext,
+    LeadContext,
+    build_complete_prompt,
+    empreendimento_to_context,
+    lead_to_context,
+    imovel_dict_to_context,
 )
 
 from src.domain.entities import (
@@ -1170,170 +1181,58 @@ async def process_message(
             "status": "transferido",
             "hot_signal_detected": True,
         }
-    
-
-        # =========================================================================
-    # 19.5 PRÉ-VALIDAÇÃO: DETECTA LEAD QUENTE ANTES DE RESPONDER
-    # =========================================================================
-    import re
-    
-    content_lower = content.lower()
-    
-    # Padrões de lead QUENTE (handoff imediato)
-    hot_signals = [
-        r"tenho.*dinheiro.*vista",
-        r"tenho.*valor.*vista",
-        r"dinheiro.*vista",
-        r"pagamento.*vista",
-        r"pagar.*vista",
-        r"tenho.*\d+.*mil.*vista",
-        r"tenho.*aprovado",
-        r"financiamento.*aprovado",
-        r"credito.*aprovado",
-        r"preciso.*urgente",
-        r"urgente.*mudar",
-        r"mudar.*urgente",
-        r"tenho.*entrada",
-    ]
-    
-    is_hot_lead = any(re.search(pattern, content_lower) for pattern in hot_signals)
-    
-    if is_hot_lead and lead.qualification not in ["quente", "hot"]:
-        logger.warning(f"🔥 LEAD QUENTE DETECTADO na mensagem: '{content[:50]}...'")
-        
-        # Força qualificação
-        lead.qualification = "quente"
-        lead.qualification_score = 95
-        lead.qualification_confidence = 0.95
-        
-        # Responde e faz handoff IMEDIATAMENTE
-        if lead.name:
-            first_name = lead.name.split()[0]
-            hot_response = f"Perfeito, {first_name}! Você está pronto. Vou te passar pro corretor agora!"
-        else:
-            hot_response = "Show! Você tá pronto. Qual seu nome pra eu passar pro corretor?"
-        
-        # Salva resposta
-        assistant_message = Message(
-            lead_id=lead.id,
-            role="assistant",
-            content=hot_response,
-            tokens_used=0
-        )
-        db.add(assistant_message)
-        
-        # Executa handoff
-        handoff_result = await execute_handoff(lead, tenant, "lead_hot_detected", db)
-        
-        transfer_message = Message(
-            lead_id=lead.id,
-            role="assistant",
-            content=handoff_result["message_for_lead"],
-            tokens_used=0
-        )
-        db.add(transfer_message)
-        
-        await db.commit()
-        
-        logger.info(f"🔥 Lead {lead.id} transferido por detecção automática de sinal quente")
-        
-        return {
-            "success": True,
-            "reply": hot_response + "\n\n" + handoff_result["message_for_lead"],
-            "lead_id": lead.id,
-            "is_new_lead": is_new,
-            "qualification": "quente",
-            "status": "transferido",
-            "hot_signal_detected": True,
-        }
 
     
     # =========================================================================
-    # 20. MONTA PROMPT
+    # 20. MONTA PROMPT (USANDO MÓDULO CENTRALIZADO - IGUAL AO SIMULADOR!)
     # =========================================================================
     logger.info(f"🔨 Montando prompt | Emp: {bool(empreendimento_detectado)} | Imóvel: {bool(imovel_portal)}")
-        
-    system_prompt = build_system_prompt(
-            niche_id=ai_context["niche_id"],
-            company_name=ai_context["company_name"],
-            tone=ai_context["tone"],
-            custom_questions=ai_context.get("custom_questions", []),
-            custom_rules=ai_context.get("custom_rules", []),
-            custom_prompt=ai_context.get("custom_prompt"),
-            faq_items=ai_context.get("faq_items", []),
-            scope_description=ai_context.get("scope_description", ""),
-            lead_context=lead_context,
-            identity=ai_context.get("identity"),
-            scope_config=ai_context.get("scope_config"),
-        )
-        
-    # ════════════════════════════════════════════════════════════════════════
-    # CONTEXTO DO LEAD (EVITA PERGUNTAS BURRAS)
-    # ════════════════════════════════════════════════════════════════════════
-    lead_info_context = f"""
 
-    ═══════════════════════════════════════════════════════════
-    🧠 INFORMAÇÕES QUE VOCÊ JÁ TEM SOBRE ESTE LEAD
-    ═══════════════════════════════════════════════════════════
+    # Converte para dataclasses do ai_context_builder
+    emp_context = None
+    if empreendimento_detectado:
+        emp_context = empreendimento_to_context(empreendimento_detectado)
 
-    👤 CONTATO:
-    - Nome: {lead.name or "❌ NÃO INFORMADO AINDA"}
-    - Telefone: {lead.phone} ← VOCÊ JÁ ESTÁ CONVERSANDO NO WHATSAPP!
-    - Conversa iniciada: {lead.created_at.strftime('%d/%m/%Y às %H:%M')}
+    imovel_context = None
+    if imovel_portal:
+        imovel_context = imovel_dict_to_context(imovel_portal)
 
-    📊 CONTEXTO DA CONVERSA:
-    - Total de mensagens trocadas: {message_count}
-    - Qualificação atual: {lead.qualification or "novo (ainda não qualificado)"}
-    - Status: {lead.status}
+    # Contexto do lead (CRÍTICO - evita perguntas burras como "qual seu WhatsApp?")
+    lead_ctx = lead_to_context(lead, message_count)
 
-    ⚠️ REGRAS CRÍTICAS - LEIA COM ATENÇÃO:
+    # Cria AIContext
+    ai_ctx = AIContext(
+        company_name=ai_context["company_name"],
+        niche_id=ai_context["niche_id"],
+        tone=ai_context["tone"],
+        identity=ai_context.get("identity"),
+        scope_config=ai_context.get("scope_config"),
+        faq_items=ai_context.get("faq_items", []),
+        custom_questions=ai_context.get("custom_questions", []),
+        custom_rules=ai_context.get("custom_rules", []),
+        scope_description=ai_context.get("scope_description", ""),
+        out_of_scope_message=ai_context.get("ai_out_of_scope_message", ""),
+        custom_prompt=ai_context.get("custom_prompt"),
+    )
 
-    ❌ NÃO PERGUNTE:
-    - Nome ({"já tem: " + lead.name if lead.name else "pode perguntar SE RELEVANTE"})
-    - WhatsApp/Telefone (VOCÊ JÁ ESTÁ NO WHATSAPP!)
-    - Perguntas que o cliente JÁ RESPONDEU no histórico
+    # Constrói prompt usando função centralizada (IGUAL AO SIMULADOR!)
+    prompt_result = build_complete_prompt(
+        ai_context=ai_ctx,
+        lead_context=lead_ctx,
+        empreendimento=emp_context,
+        imovel_portal=imovel_context,
+        include_security=True,
+        is_simulation=False,
+    )
 
-         ✅ PODE PERGUNTAR:
-    - O que ele busca
-    - Finalidade (morar/investir) SE ainda não perguntou
-    - Urgência/Prazo
-    - Preferências específicas
-    - Orçamento (de forma natural)
+    system_prompt = prompt_result.system_prompt
 
-    ⚠️ ATENÇÃO ESPECIAL:
+    logger.info(f"📝 Prompt: {prompt_result.prompt_length} chars | Identity: {prompt_result.has_identity}")
 
-    SE CLIENTE DISSER "TENHO DINHEIRO À VISTA":
-    ❌ NÃO pergunte sobre financiamento!
-    ❌ NÃO pergunte "você precisa de ajuda com isso?"
-    ✅ RESPONDA: "Perfeito! Vou te passar pro corretor"
-    ✅ É LEAD QUENTE = HANDOFF IMEDIATO!
-
-    SE CLIENTE DER MÚLTIPLAS INFORMAÇÕES NA MESMA RESPOSTA:
-    Exemplo: "breve possível + tenho dinheiro"
-    ✅ PROCESSE TODAS as informações
-    ✅ NÃO ignore nenhuma
-    ✅ NÃO peça pra repetir
-    ✅ Responda considerando TODAS
-
-
-    ═══════════════════════════════════════════════════════════
-    """
-        
-    system_prompt += lead_info_context
-
-        
     # =========================================================================
     # 21. PREPARA MENSAGENS E CHAMA IA
     # =========================================================================
     messages = [{"role": "system", "content": system_prompt}, *history]
-    
-    if ai_context.get("ai_scope_description") and not empreendimento_detectado and not imovel_portal:
-        security_instructions = build_security_instructions(
-            company_name=ai_context["company_name"],
-            scope_description=ai_context["ai_scope_description"],
-            out_of_scope_message=ai_context["ai_out_of_scope_message"]
-        )
-        messages[0]["content"] += f"\n\n{security_instructions}"
     
     if guards_result.get("reason") == "faq" and guards_result.get("response"):
         messages.append({
