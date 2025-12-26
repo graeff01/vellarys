@@ -123,6 +123,21 @@ def validate_ai_response(
     if asking_whatsapp:
         blocked = True
         corrections.append(f"❌ Tentou pedir WhatsApp mas já conversando!")
+
+    # Check 2.5: Perguntou financiamento quando cliente tem À VISTA?
+    cliente_tem_vista = any(phrase in " ".join([
+        msg.get("content", "").lower() 
+        for msg in history[-3:] 
+        if msg.get("role") == "user"
+    ]) for phrase in ["dinheiro a vista", "dinheiro à vista", "pagamento a vista", "pagar a vista"])
+    
+    asking_financing = any(phrase in response_lower for phrase in [
+        "financiamento", "financiar", "parcelar", "parcelas"
+    ])
+    
+    if cliente_tem_vista and asking_financing:
+        blocked = True
+        corrections.append("❌ Cliente tem À VISTA, não pergunte sobre financiamento!")
     
     # Check 3: Pergunta repetida no histórico?
     for msg in history[-3:]:  # Últimas 3 mensagens do assistente
