@@ -1095,13 +1095,165 @@ async def process_message(
         }.items() if v is not None}
         if not lead_context:
             lead_context = None
+
+    # =========================================================================
+    # 19.5 PRÉ-VALIDAÇÃO: DETECTA LEAD QUENTE ANTES DE RESPONDER
+    # =========================================================================
+    import re
     
-        # =========================================================================
-        # 20. MONTA PROMPT
-        # =========================================================================
-        logger.info(f"🔨 Montando prompt | Emp: {bool(empreendimento_detectado)} | Imóvel: {bool(imovel_portal)}")
+    content_lower = content.lower()
+    
+    # Padrões de lead QUENTE (handoff imediato)
+    hot_signals = [
+        r"tenho.*dinheiro.*vista",
+        r"tenho.*valor.*vista",
+        r"dinheiro.*vista",
+        r"pagamento.*vista",
+        r"pagar.*vista",
+        r"tenho.*\d+.*mil.*vista",
+        r"tenho.*aprovado",
+        r"financiamento.*aprovado",
+        r"credito.*aprovado",
+        r"preciso.*urgente",
+        r"urgente.*mudar",
+        r"mudar.*urgente",
+        r"tenho.*entrada",
+    ]
+    
+    is_hot_lead = any(re.search(pattern, content_lower) for pattern in hot_signals)
+    
+    if is_hot_lead and lead.qualification not in ["quente", "hot"]:
+        logger.warning(f"🔥 LEAD QUENTE DETECTADO na mensagem: '{content[:50]}...'")
         
-        system_prompt = build_system_prompt(
+        # Força qualificação
+        lead.qualification = "quente"
+        lead.qualification_score = 95
+        lead.qualification_confidence = 0.95
+        
+        # Responde e faz handoff IMEDIATAMENTE
+        if lead.name:
+            first_name = lead.name.split()[0]
+            hot_response = f"Perfeito, {first_name}! Você está pronto. Vou te passar pro corretor agora!"
+        else:
+            hot_response = "Show! Você tá pronto. Qual seu nome pra eu passar pro corretor?"
+        
+        # Salva resposta
+        assistant_message = Message(
+            lead_id=lead.id,
+            role="assistant",
+            content=hot_response,
+            tokens_used=0
+        )
+        db.add(assistant_message)
+        
+        # Executa handoff
+        handoff_result = await execute_handoff(lead, tenant, "lead_hot_detected", db)
+        
+        transfer_message = Message(
+            lead_id=lead.id,
+            role="assistant",
+            content=handoff_result["message_for_lead"],
+            tokens_used=0
+        )
+        db.add(transfer_message)
+        
+        await db.commit()
+        
+        logger.info(f"🔥 Lead {lead.id} transferido por detecção automática de sinal quente")
+        
+        return {
+            "success": True,
+            "reply": hot_response + "\n\n" + handoff_result["message_for_lead"],
+            "lead_id": lead.id,
+            "is_new_lead": is_new,
+            "qualification": "quente",
+            "status": "transferido",
+            "hot_signal_detected": True,
+        }
+    
+
+        # =========================================================================
+    # 19.5 PRÉ-VALIDAÇÃO: DETECTA LEAD QUENTE ANTES DE RESPONDER
+    # =========================================================================
+    import re
+    
+    content_lower = content.lower()
+    
+    # Padrões de lead QUENTE (handoff imediato)
+    hot_signals = [
+        r"tenho.*dinheiro.*vista",
+        r"tenho.*valor.*vista",
+        r"dinheiro.*vista",
+        r"pagamento.*vista",
+        r"pagar.*vista",
+        r"tenho.*\d+.*mil.*vista",
+        r"tenho.*aprovado",
+        r"financiamento.*aprovado",
+        r"credito.*aprovado",
+        r"preciso.*urgente",
+        r"urgente.*mudar",
+        r"mudar.*urgente",
+        r"tenho.*entrada",
+    ]
+    
+    is_hot_lead = any(re.search(pattern, content_lower) for pattern in hot_signals)
+    
+    if is_hot_lead and lead.qualification not in ["quente", "hot"]:
+        logger.warning(f"🔥 LEAD QUENTE DETECTADO na mensagem: '{content[:50]}...'")
+        
+        # Força qualificação
+        lead.qualification = "quente"
+        lead.qualification_score = 95
+        lead.qualification_confidence = 0.95
+        
+        # Responde e faz handoff IMEDIATAMENTE
+        if lead.name:
+            first_name = lead.name.split()[0]
+            hot_response = f"Perfeito, {first_name}! Você está pronto. Vou te passar pro corretor agora!"
+        else:
+            hot_response = "Show! Você tá pronto. Qual seu nome pra eu passar pro corretor?"
+        
+        # Salva resposta
+        assistant_message = Message(
+            lead_id=lead.id,
+            role="assistant",
+            content=hot_response,
+            tokens_used=0
+        )
+        db.add(assistant_message)
+        
+        # Executa handoff
+        handoff_result = await execute_handoff(lead, tenant, "lead_hot_detected", db)
+        
+        transfer_message = Message(
+            lead_id=lead.id,
+            role="assistant",
+            content=handoff_result["message_for_lead"],
+            tokens_used=0
+        )
+        db.add(transfer_message)
+        
+        await db.commit()
+        
+        logger.info(f"🔥 Lead {lead.id} transferido por detecção automática de sinal quente")
+        
+        return {
+            "success": True,
+            "reply": hot_response + "\n\n" + handoff_result["message_for_lead"],
+            "lead_id": lead.id,
+            "is_new_lead": is_new,
+            "qualification": "quente",
+            "status": "transferido",
+            "hot_signal_detected": True,
+        }
+
+    
+    # =========================================================================
+    # 20. MONTA PROMPT
+    # =========================================================================
+    logger.info(f"🔨 Montando prompt | Emp: {bool(empreendimento_detectado)} | Imóvel: {bool(imovel_portal)}")
+        
+    system_prompt = build_system_prompt(
             niche_id=ai_context["niche_id"],
             company_name=ai_context["company_name"],
             tone=ai_context["tone"],
@@ -1115,10 +1267,10 @@ async def process_message(
             scope_config=ai_context.get("scope_config"),
         )
         
-        # ════════════════════════════════════════════════════════════════════════
-        # CONTEXTO DO LEAD (EVITA PERGUNTAS BURRAS)
-        # ════════════════════════════════════════════════════════════════════════
-        lead_info_context = f"""
+    # ════════════════════════════════════════════════════════════════════════
+    # CONTEXTO DO LEAD (EVITA PERGUNTAS BURRAS)
+    # ════════════════════════════════════════════════════════════════════════
+    lead_info_context = f"""
 
     ═══════════════════════════════════════════════════════════
     🧠 INFORMAÇÕES QUE VOCÊ JÁ TEM SOBRE ESTE LEAD
@@ -1141,20 +1293,33 @@ async def process_message(
     - WhatsApp/Telefone (VOCÊ JÁ ESTÁ NO WHATSAPP!)
     - Perguntas que o cliente JÁ RESPONDEU no histórico
 
-    ✅ PODE PERGUNTAR:
+         ✅ PODE PERGUNTAR:
     - O que ele busca
     - Finalidade (morar/investir) SE ainda não perguntou
     - Urgência/Prazo
     - Preferências específicas
     - Orçamento (de forma natural)
 
-    Se você tem o nome do lead, USE-O na conversa naturalmente!
-    Exemplo: "Legal, {lead.name.split()[0] if lead.name else '[nome]'}! Me conta mais..."
+    ⚠️ ATENÇÃO ESPECIAL:
+
+    SE CLIENTE DISSER "TENHO DINHEIRO À VISTA":
+    ❌ NÃO pergunte sobre financiamento!
+    ❌ NÃO pergunte "você precisa de ajuda com isso?"
+    ✅ RESPONDA: "Perfeito! Vou te passar pro corretor"
+    ✅ É LEAD QUENTE = HANDOFF IMEDIATO!
+
+    SE CLIENTE DER MÚLTIPLAS INFORMAÇÕES NA MESMA RESPOSTA:
+    Exemplo: "breve possível + tenho dinheiro"
+    ✅ PROCESSE TODAS as informações
+    ✅ NÃO ignore nenhuma
+    ✅ NÃO peça pra repetir
+    ✅ Responda considerando TODAS
+
 
     ═══════════════════════════════════════════════════════════
     """
         
-        system_prompt += lead_info_context
+    system_prompt += lead_info_context
 
         
     # =========================================================================
