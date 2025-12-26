@@ -1,16 +1,19 @@
 """
-ROTAS: SIMULADOR DE CONVERSA (VERSÃO CORRIGIDA)
+ROTAS: SIMULADOR DE CONVERSA (VERSÃO UNIFICADA)
 =================================================
 
 Endpoint para testar a IA sem criar leads reais.
 Permite que gestores testem as configurações antes de ativar.
 
-CORREÇÕES:
-- Agora carrega a Identity completa (description, products, context)
-- Usa as mesmas funções de contexto do process_message
-- Suporta formato novo e antigo de settings
-- Injeta informações da empresa no prompt
+IMPORTANTE: Este simulador usa EXATAMENTE a mesma lógica de
+construção de prompt que o process_message em produção.
+
+Isso garante que o teste seja fiel ao comportamento real.
+
+ÚLTIMA ATUALIZAÇÃO: 2025-01-XX
+VERSÃO: 4.0 (Unificada com produção)
 """
+from src.application.services.ai_context_builder import (...)
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,14 +27,43 @@ from src.api.dependencies import get_current_user
 from src.domain.entities import User, Tenant, Empreendimento
 from src.infrastructure.services import (
     chat_completion,
-    detect_sentiment,
     calculate_typing_delay,
 )
-from src.domain.prompts import get_niche_config, build_system_prompt
+from src.infrastructure.services.openai_service import detect_sentiment
+
+# ============================================================================
+# IMPORTA O MÓDULO CENTRALIZADO - FONTE ÚNICA DE VERDADE
+# ============================================================================
+from src.application.services.ai_context_builder import (
+    AIContext,
+    LeadContext,
+    EmpreendimentoContext,
+    ImovelPortalContext,
+    migrate_settings_if_needed,
+    extract_ai_context,
+    build_complete_prompt,
+    empreendimento_to_context,
+    analyze_qualification_from_message,
+    detect_hot_lead_signals,
+)
+
+# Para detecção de imóvel de portal (se disponível)
+try:
+    from src.infrastructure.services.property_lookup_service import (
+        buscar_imovel_na_mensagem,
+        extrair_codigo_imovel,
+    )
+    HAS_PROPERTY_LOOKUP = True
+except ImportError:
+    HAS_PROPERTY_LOOKUP = False
+    buscar_imovel_na_mensagem = None
+    extrair_codigo_imovel = None
 
 logger = logging.getLogger(__name__)
+
 # Nichos que podem ter empreendimentos
 NICHOS_IMOBILIARIOS = ["realestate", "imobiliaria", "real_estate", "imobiliario"]
+
 router = APIRouter(prefix="/simulator", tags=["Simulador"])
 
 
@@ -48,6 +80,9 @@ class SimulatorChatRequest(BaseModel):
     message: str
     session_id: str
     history: Optional[List[SimulatorMessage]] = []
+    # Contexto simulado do lead (opcional)
+    simulated_lead_name: Optional[str] = None
+    simulated_lead_phone: Optional[str] = "5511999999999"
 
 
 class SimulatorChatResponse(BaseModel):
@@ -55,192 +90,32 @@ class SimulatorChatResponse(BaseModel):
     typing_delay: float
     sentiment: str
     qualification_hint: str
+    # Metadados do prompt (para debug)
+    prompt_length: int = 0
+    has_identity: bool = False
+    has_empreendimento: bool = False
+    has_imovel_portal: bool = False
+    hot_lead_detected: bool = False
+    hot_lead_signal: Optional[str] = None
+
+
+class SimulatorDebugResponse(BaseModel):
+    tenant_name: str
+    tenant_slug: str
+    company_name: str
+    niche: str
+    tone: str
+    has_identity: bool
+    identity_fields: dict
+    faq_count: int
+    scope_description: bool
+    empreendimentos_count: int = 0
+    prompt_preview: str = ""
 
 
 # =============================================================================
-# HELPERS - Migração e Extração de Contexto
+# HELPERS
 # =============================================================================
-
-def migrate_settings_if_needed(settings: dict) -> dict:
-    """Migra settings do formato antigo para o novo (com identity)."""
-    if not settings:
-        return {}
-    
-    if "identity" in settings:
-        return settings
-    
-    # Formato antigo - migra
-    migrated = dict(settings)
-    
-    migrated["identity"] = {
-        "description": settings.get("scope_description", ""),
-        "products_services": [],
-        "not_offered": [],
-        "tone_style": {
-            "tone": settings.get("tone", "cordial"),
-            "personality_traits": [],
-            "communication_style": "",
-            "avoid_phrases": [],
-            "use_phrases": [],
-        },
-        "target_audience": {"description": "", "segments": [], "pain_points": []},
-        "business_rules": settings.get("custom_rules", []),
-        "differentials": [],
-        "keywords": [],
-        "required_questions": settings.get("custom_questions", []),
-        "required_info": [],
-        "additional_context": "",
-    }
-    
-    migrated["basic"] = {
-        "niche": settings.get("niche", "services"),
-        "company_name": settings.get("company_name", ""),
-    }
-    
-    migrated["scope"] = {
-        "enabled": settings.get("scope_enabled", True),
-        "description": settings.get("scope_description", ""),
-        "allowed_topics": [],
-        "blocked_topics": [],
-        "out_of_scope_message": settings.get("out_of_scope_message", 
-            "Desculpe, não tenho informações sobre isso."),
-    }
-    
-    migrated["faq"] = {
-        "enabled": settings.get("faq_enabled", True),
-        "items": settings.get("faq_items", []),
-    }
-    
-    return migrated
-
-
-def extract_ai_context(tenant: Tenant, settings: dict) -> dict:
-    """Extrai contexto necessário para a IA."""
-    identity = settings.get("identity", {})
-    basic = settings.get("basic", {})
-    scope = settings.get("scope", {})
-    faq = settings.get("faq", {})
-    
-    # Valores com fallback para formato antigo
-    company_name = basic.get("company_name") or settings.get("company_name") or tenant.name
-    niche_id = basic.get("niche") or settings.get("niche") or "services"
-    tone = identity.get("tone_style", {}).get("tone") or settings.get("tone") or "cordial"
-    
-    # FAQ
-    faq_items = []
-    if faq.get("enabled", True):
-        faq_items = faq.get("items", []) or settings.get("faq_items", [])
-    
-    # Perguntas e regras
-    custom_questions = identity.get("required_questions", []) or settings.get("custom_questions", [])
-    custom_rules = identity.get("business_rules", []) or settings.get("custom_rules", [])
-    
-    # Escopo
-    scope_description = scope.get("description") or settings.get("scope_description", "")
-    out_of_scope_message = (
-        scope.get("out_of_scope_message") or 
-        settings.get("out_of_scope_message") or 
-        "Desculpe, não posso ajudá-lo com isso."
-    )
-    
-    return {
-        "company_name": company_name,
-        "niche_id": niche_id,
-        "tone": tone,
-        "identity": identity if identity else None,
-        "scope_config": scope if scope else None,
-        "faq_items": faq_items,
-        "custom_questions": custom_questions,
-        "custom_rules": custom_rules,
-        "scope_description": scope_description,
-        "out_of_scope_message": out_of_scope_message,
-        "custom_prompt": settings.get("custom_prompt"),
-    }
-
-
-def build_identity_section(identity: dict, company_name: str) -> str:
-    """Constrói a seção de identidade para o prompt."""
-    if not identity:
-        return ""
-    
-    sections = []
-    
-    # Descrição da empresa
-    if identity.get("description"):
-        sections.append(f"**Sobre a empresa:**\n{identity['description']}")
-    
-    # Produtos/Serviços
-    if identity.get("products_services"):
-        products = ", ".join(identity["products_services"])
-        sections.append(f"**Produtos/Serviços oferecidos:**\n{products}")
-    
-    # O que NÃO oferece
-    if identity.get("not_offered"):
-        not_offered = ", ".join(identity["not_offered"])
-        sections.append(f"**O que NÃO oferecemos (não mencione esses serviços):**\n{not_offered}")
-    
-    # Diferenciais
-    if identity.get("differentials"):
-        diffs = ", ".join(identity["differentials"])
-        sections.append(f"**Nossos diferenciais:**\n{diffs}")
-    
-    # Público-alvo
-    target = identity.get("target_audience", {})
-    if target.get("description"):
-        sections.append(f"**Público-alvo:**\n{target['description']}")
-    
-    # Tom de voz
-    tone_style = identity.get("tone_style", {})
-    if tone_style.get("personality_traits"):
-        traits = ", ".join(tone_style["personality_traits"])
-        sections.append(f"**Personalidade no atendimento:**\n{traits}")
-    
-    if tone_style.get("communication_style"):
-        sections.append(f"**Estilo de comunicação:**\n{tone_style['communication_style']}")
-    
-    if tone_style.get("use_phrases"):
-        phrases = ", ".join(tone_style["use_phrases"][:5])
-        sections.append(f"**Expressões preferidas:**\n{phrases}")
-    
-    if tone_style.get("avoid_phrases"):
-        avoid = ", ".join(tone_style["avoid_phrases"][:5])
-        sections.append(f"**Expressões a evitar:**\n{avoid}")
-    
-    # Contexto adicional (IMPORTANTE!)
-    if identity.get("additional_context"):
-        sections.append(f"**Informações importantes:**\n{identity['additional_context']}")
-    
-    # Regras de negócio
-    if identity.get("business_rules"):
-        rules = "\n".join([f"- {r}" for r in identity["business_rules"]])
-        sections.append(f"**Regras de atendimento:**\n{rules}")
-    
-    # Perguntas obrigatórias
-    if identity.get("required_questions"):
-        questions = "\n".join([f"- {q}" for q in identity["required_questions"]])
-        sections.append(f"**Perguntas que você deve fazer:**\n{questions}")
-    
-    # Informações a coletar
-    if identity.get("required_info"):
-        info_map = {
-            "nome": "Nome do cliente",
-            "telefone": "Telefone",
-            "email": "E-mail",
-            "cidade": "Cidade",
-            "bairro": "Bairro",
-            "data_preferencia": "Data preferida",
-            "horario_preferencia": "Horário preferido",
-            "orcamento": "Orçamento",
-            "como_conheceu": "Como conheceu a empresa",
-        }
-        info_list = [info_map.get(i, i) for i in identity["required_info"]]
-        sections.append(f"**Informações que você deve coletar:**\n{', '.join(info_list)}")
-    
-    if sections:
-        return "\n\n".join(sections)
-    
-    return ""
-
 
 async def detect_empreendimento_for_simulator(
     db: AsyncSession,
@@ -249,9 +124,11 @@ async def detect_empreendimento_for_simulator(
     history: List[SimulatorMessage],
     niche_id: str,
 ) -> Optional[Empreendimento]:
-    """Detecta empreendimento na mensagem atual OU no histórico."""
-    from sqlalchemy import select
+    """
+    Detecta empreendimento na mensagem atual OU no histórico.
     
+    NOTA: Esta função é idêntica à do process_message.
+    """
     if niche_id.lower() not in NICHOS_IMOBILIARIOS:
         return None
     
@@ -276,7 +153,7 @@ async def detect_empreendimento_for_simulator(
                         logger.info(f"🏢 Simulador - Empreendimento detectado: {emp.nome}")
                         return emp
         
-        # Verifica no histórico (caso já tenha mencionado antes)
+        # Verifica no histórico
         for msg in history:
             msg_lower = msg.content.lower()
             for emp in empreendimentos:
@@ -292,97 +169,37 @@ async def detect_empreendimento_for_simulator(
         return None
 
 
-def build_empreendimento_context(emp: Empreendimento) -> str:
-    """Constrói contexto do empreendimento para o prompt."""
-    sections = []
+def detect_imovel_portal_for_simulator(
+    message: str,
+    history: List[SimulatorMessage],
+) -> Optional[dict]:
+    """
+    Detecta imóvel de portal na mensagem ou histórico.
     
-    sections.append(f"\n{'=' * 50}")
-    sections.append(f"🏢 EMPREENDIMENTO: {emp.nome.upper()}")
-    sections.append(f"{'=' * 50}")
+    NOTA: Usa a mesma função do process_message.
+    """
+    if not HAS_PROPERTY_LOOKUP or not buscar_imovel_na_mensagem:
+        return None
     
-    if emp.descricao:
-        sections.append(f"\n**Descrição:** {emp.descricao}")
-    
-    # Localização
-    loc = []
-    if emp.endereco:
-        loc.append(f"Endereço: {emp.endereco}")
-    if emp.bairro:
-        loc.append(f"Bairro: {emp.bairro}")
-    if emp.cidade:
-        cidade_estado = emp.cidade
-        if emp.estado:
-            cidade_estado += f"/{emp.estado}"
-        loc.append(f"Cidade: {cidade_estado}")
-    if loc:
-        sections.append(f"\n**Localização:**\n" + "\n".join(loc))
-    
-    if emp.descricao_localizacao:
-        sections.append(f"\n**Sobre a região:** {emp.descricao_localizacao}")
-    
-    # Características
-    if emp.tipologias:
-        sections.append(f"\n**Tipologias:** {', '.join(emp.tipologias)}")
-    
-    if emp.metragem_minima or emp.metragem_maxima:
-        if emp.metragem_minima and emp.metragem_maxima:
-            sections.append(f"**Metragem:** {emp.metragem_minima}m² a {emp.metragem_maxima}m²")
-        elif emp.metragem_minima:
-            sections.append(f"**Metragem:** A partir de {emp.metragem_minima}m²")
-    
-    if emp.vagas_minima or emp.vagas_maxima:
-        if emp.vagas_minima and emp.vagas_maxima:
-            sections.append(f"**Vagas:** {emp.vagas_minima} a {emp.vagas_maxima}")
-        elif emp.vagas_minima:
-            sections.append(f"**Vagas:** {emp.vagas_minima}+")
-    
-    if emp.previsao_entrega:
-        sections.append(f"**Previsão de entrega:** {emp.previsao_entrega}")
-    
-    # Valores
-    if emp.preco_minimo or emp.preco_maximo:
-        if emp.preco_minimo and emp.preco_maximo:
-            preco = f"R$ {emp.preco_minimo:,.0f} a R$ {emp.preco_maximo:,.0f}".replace(",", ".")
-        elif emp.preco_minimo:
-            preco = f"A partir de R$ {emp.preco_minimo:,.0f}".replace(",", ".")
-        else:
-            preco = f"Até R$ {emp.preco_maximo:,.0f}".replace(",", ".")
-        sections.append(f"\n**Investimento:** {preco}")
-    
-    # Condições
-    condicoes = []
-    if emp.aceita_financiamento:
-        condicoes.append("Financiamento")
-    if emp.aceita_fgts:
-        condicoes.append("FGTS")
-    if emp.aceita_permuta:
-        condicoes.append("Permuta")
-    if emp.aceita_consorcio:
-        condicoes.append("Consórcio")
-    if condicoes:
-        sections.append(f"**Aceita:** {', '.join(condicoes)}")
-    
-    if emp.condicoes_especiais:
-        sections.append(f"**Condições especiais:** {emp.condicoes_especiais}")
-    
-    # Lazer e diferenciais
-    if emp.itens_lazer:
-        sections.append(f"\n**Lazer:** {', '.join(emp.itens_lazer)}")
-    
-    if emp.diferenciais:
-        sections.append(f"**Diferenciais:** {', '.join(emp.diferenciais)}")
-    
-    # Instruções para IA
-    if emp.instrucoes_ia:
-        sections.append(f"\n**Instruções especiais:** {emp.instrucoes_ia}")
-    
-    # Perguntas de qualificação
-    if emp.perguntas_qualificacao:
-        sections.append(f"\n**Perguntas que você DEVE fazer:**")
-        for p in emp.perguntas_qualificacao:
-            sections.append(f"- {p}")
-    
-    return "\n".join(sections)
+    try:
+        # Tenta na mensagem atual
+        imovel = buscar_imovel_na_mensagem(message)
+        if imovel:
+            logger.info(f"🏠 Simulador - Imóvel detectado: {imovel.get('codigo')}")
+            return imovel
+        
+        # Tenta no histórico
+        for msg in reversed(history):
+            if msg.role == "user":
+                imovel = buscar_imovel_na_mensagem(msg.content)
+                if imovel:
+                    logger.info(f"🏠 Simulador - Imóvel no histórico: {imovel.get('codigo')}")
+                    return imovel
+        
+        return None
+    except Exception as e:
+        logger.error(f"Erro detectando imóvel no simulador: {e}")
+        return None
 
 
 # =============================================================================
@@ -398,12 +215,16 @@ async def simulator_chat(
     """
     Simula uma conversa com a IA usando as configurações do tenant.
     
-    Não cria leads nem salva mensagens - apenas para teste.
+    IMPORTANTE: Usa EXATAMENTE a mesma lógica de construção de prompt
+    que o process_message em produção. Isso garante que o teste seja
+    fiel ao comportamento real.
     
-    CORREÇÃO: Agora carrega a Identity completa!
+    Não cria leads nem salva mensagens - apenas para teste.
     """
     
-    # Buscar tenant do usuário
+    # =========================================================================
+    # 1. BUSCA TENANT
+    # =========================================================================
     tenant_result = await db.execute(
         select(Tenant).where(Tenant.id == current_user.tenant_id)
     )
@@ -413,34 +234,69 @@ async def simulator_chat(
         raise HTTPException(status_code=404, detail="Tenant não encontrado")
     
     # =========================================================================
-    # CARREGA SETTINGS COM MIGRAÇÃO
+    # 2. EXTRAI CONTEXTO (MESMA LÓGICA DO PROCESS_MESSAGE)
     # =========================================================================
     raw_settings = tenant.settings or {}
     settings = migrate_settings_if_needed(raw_settings)
-    ai_context = extract_ai_context(tenant, settings)
+    ai_context = extract_ai_context(tenant.name, settings)
     
-
-    logger.info(f"Simulador - Tenant: {tenant.slug}, Company: {ai_context['company_name']}")
-    logger.info(f"Identity loaded: {bool(ai_context.get('identity'))}")
+    logger.info(f"📱 Simulador - Tenant: {tenant.slug} | Company: {ai_context.company_name}")
+    logger.info(f"📱 Simulador - Identity: {bool(ai_context.identity)} | Nicho: {ai_context.niche_id}")
     
     # =========================================================================
-    # DETECTA EMPREENDIMENTO
+    # 3. DETECTA EMPREENDIMENTO (MESMA LÓGICA DO PROCESS_MESSAGE)
     # =========================================================================
     empreendimento = await detect_empreendimento_for_simulator(
         db=db,
         tenant_id=tenant.id,
         message=payload.message,
         history=payload.history or [],
-        niche_id=ai_context["niche_id"],
+        niche_id=ai_context.niche_id,
     )
     
-    empreendimento_context = ""
+    empreendimento_context = None
     if empreendimento:
-        logger.info(f"🏢 Empreendimento ativo no simulador: {empreendimento.nome}")
-        empreendimento_context = build_empreendimento_context(empreendimento)
-
+        logger.info(f"🏢 Simulador - Empreendimento ativo: {empreendimento.nome}")
+        empreendimento_context = empreendimento_to_context(empreendimento)
+        
+        # Adiciona perguntas de qualificação do empreendimento
+        if empreendimento.perguntas_qualificacao:
+            ai_context.custom_questions = (
+                ai_context.custom_questions + 
+                empreendimento.perguntas_qualificacao
+            )
+    
     # =========================================================================
-    # DETECTA SENTIMENTO
+    # 4. DETECTA IMÓVEL DE PORTAL (MESMA LÓGICA DO PROCESS_MESSAGE)
+    # =========================================================================
+    imovel_portal_context = None
+    imovel_dict = detect_imovel_portal_for_simulator(
+        message=payload.message,
+        history=payload.history or [],
+    )
+    
+    if imovel_dict:
+        from src.application.services.ai_context_builder import imovel_dict_to_context
+        imovel_portal_context = imovel_dict_to_context(imovel_dict)
+        logger.info(f"🏠 Simulador - Imóvel portal: {imovel_portal_context.codigo}")
+    
+    # =========================================================================
+    # 5. CRIA CONTEXTO SIMULADO DO LEAD
+    # =========================================================================
+    from datetime import datetime, timezone
+    
+    simulated_lead = LeadContext(
+        lead_id=0,  # ID fictício
+        name=payload.simulated_lead_name,
+        phone=payload.simulated_lead_phone or "5511999999999",
+        created_at=datetime.now(timezone.utc),
+        message_count=len(payload.history or []) + 1,
+        qualification="novo",
+        status="em_atendimento",
+    )
+    
+    # =========================================================================
+    # 6. DETECTA SENTIMENTO
     # =========================================================================
     sentiment = "neutral"
     try:
@@ -448,160 +304,88 @@ async def simulator_chat(
         sentiment = sentiment_result.get("sentiment", "neutral")
     except Exception as e:
         logger.error(f"Erro detectando sentimento: {e}")
-
-    # =========================================================================
-    # BUSCA CONFIG DO NICHO
-    # =========================================================================
-    niche_config = get_niche_config(ai_context["niche_id"])
     
     # =========================================================================
-    # MONTA HISTÓRICO
+    # 7. DETECTA LEAD QUENTE (MESMA LÓGICA DO PROCESS_MESSAGE)
     # =========================================================================
-    messages_for_ai = []
-    for msg in payload.history:
+    is_hot, hot_signal = detect_hot_lead_signals(payload.message)
+    
+    if is_hot:
+        logger.warning(f"🔥 Simulador - Lead QUENTE detectado: {hot_signal}")
+        simulated_lead.qualification = "quente"
+    
+    # =========================================================================
+    # 8. CONSTRÓI PROMPT COMPLETO (USANDO FUNÇÃO CENTRALIZADA!)
+    # =========================================================================
+    prompt_result = build_complete_prompt(
+        ai_context=ai_context,
+        lead_context=simulated_lead,
+        empreendimento=empreendimento_context,
+        imovel_portal=imovel_portal_context,
+        include_security=True,
+        is_simulation=True,  # Adiciona aviso de simulação
+    )
+    
+    logger.info(f"📝 Simulador - Prompt: {prompt_result.prompt_length} chars")
+    if prompt_result.warnings:
+        for warning in prompt_result.warnings:
+            logger.warning(f"⚠️ Simulador - {warning}")
+    
+    # =========================================================================
+    # 9. MONTA HISTÓRICO PARA A IA
+    # =========================================================================
+    messages_for_ai = [
+        {"role": "system", "content": prompt_result.system_prompt}
+    ]
+    
+    for msg in (payload.history or []):
         messages_for_ai.append({
             "role": msg.role,
             "content": msg.content
         })
     
-    # Adiciona mensagem atual
     messages_for_ai.append({
         "role": "user",
         "content": payload.message
     })
     
     # =========================================================================
-    # CONSTRÓI PROMPT COMPLETO COM IDENTITY
+    # 10. CHAMA A IA
     # =========================================================================
-    company_name = ai_context["company_name"]
-    tone = ai_context["tone"]
-    identity = ai_context.get("identity", {})
-    
-    # Seção de identidade
-    identity_section = build_identity_section(identity, company_name)
-    
-    # Template do nicho
-    niche_prompt = ""
-    if niche_config:
-        niche_prompt = niche_config.prompt_template
-    else:
-        niche_prompt = "Atenda o cliente de forma profissional e ajude-o com suas dúvidas."
-    
-    # FAQ
-    faq_text = ""
-    faq_items = ai_context.get("faq_items", [])
-    if faq_items:
-        faq_text = "\n\n**Perguntas Frequentes (FAQ) - Use estas respostas quando aplicável:**\n"
-        for item in faq_items:
-            faq_text += f"P: {item.get('question', '')}\nR: {item.get('answer', '')}\n\n"
-    
-    # Escopo
-    scope_text = ""
-    if ai_context.get("scope_description"):
-        scope_text = f"\n\n**Escopo do atendimento:**\n{ai_context['scope_description']}"
-        if ai_context.get("out_of_scope_message"):
-            scope_text += f"\n\nSe perguntarem sobre assuntos fora do escopo, responda:\n\"{ai_context['out_of_scope_message']}\""
-    
-    # Perguntas personalizadas (se não estiver na identity)
-    questions_text = ""
-    custom_questions = ai_context.get("custom_questions", [])
-    if custom_questions and not identity.get("required_questions"):
-        questions_text = "\n\n**Perguntas que você deve fazer durante a conversa:**\n"
-        for q in custom_questions:
-            questions_text += f"- {q}\n"
-    
-    # Regras personalizadas (se não estiver na identity)
-    rules_text = ""
-    custom_rules = ai_context.get("custom_rules", [])
-    if custom_rules and not identity.get("business_rules"):
-        rules_text = "\n\n**Regras importantes:**\n"
-        for r in custom_rules:
-            rules_text += f"- {r}\n"
-    
-    # Ajuste de tom baseado em sentimento
-    sentiment_instruction = ""
-    if sentiment == "frustrated":
-        sentiment_instruction = "\n\n⚠️ O cliente parece frustrado. Seja empático, peça desculpas se necessário e tente resolver rapidamente."
-    elif sentiment == "urgent":
-        sentiment_instruction = "\n\n⚡ O cliente parece com urgência. Seja direto e objetivo."
-    elif sentiment == "excited":
-        sentiment_instruction = "\n\n🎉 O cliente parece animado/interessado. Aproveite o momento para avançar na qualificação."
-    
-    # =========================================================================
-    # MONTA SYSTEM PROMPT FINAL
-    # =========================================================================
-    system_prompt = f"""Você é um assistente de atendimento da empresa **{company_name}**.
-
-{niche_prompt}
-
-Tom de voz: {tone}
-
-{'=' * 50}
-IDENTIDADE DA EMPRESA
-{'=' * 50}
-
-{identity_section if identity_section else 'Atenda de forma profissional e prestativa.'}
-
-{faq_text}
-{scope_text}
-{questions_text}
-{rules_text}
-{sentiment_instruction}
-
-{'=' * 50}
-INSTRUÇÕES IMPORTANTES
-{'=' * 50}
-
-- Esta é uma simulação de teste. Responda como faria com um cliente real.
-- Use emojis moderadamente se o tom for cordial ou informal.
-- Seja natural e humano na conversa.
-- Faça perguntas para qualificar o lead.
-- NUNCA invente informações que não foram fornecidas acima.
-- Se não souber algo específico (como endereço, preço), diga que vai verificar ou encaminhar para um especialista.
-- Responda APENAS sobre o que a empresa oferece.
-"""
-
-    # Adiciona contexto do empreendimento se detectado
-    if empreendimento_context:
-        system_prompt += f"""
-
-{empreendimento_context}
-
-⚠️ IMPORTANTE: O cliente demonstrou interesse no empreendimento **{empreendimento.nome}**.
-- USE as informações acima para responder (endereço, preço, características)
-- NÃO diga "não tenho essa informação" se ela estiver acima
-- Faça as perguntas de qualificação listadas
-- Seja especialista neste empreendimento
-"""
-
-    logger.info(f"Prompt construído - Tamanho: {len(system_prompt)} chars")
-    
     try:
-        # =====================================================================
-        # CHAMA A IA
-        # =====================================================================
-        ai_messages = [
-            {"role": "system", "content": system_prompt}
-        ] + messages_for_ai
-        
         result = await chat_completion(
-            messages=ai_messages,
+            messages=messages_for_ai,
             max_tokens=500,
+            temperature=0.7,
         )
         
         ai_response = result["content"]
         
-        # Calcular delay de digitação
+        # Calcula delay de digitação (mesma função do process_message)
         typing_delay = calculate_typing_delay(len(ai_response))
         
-        # Determinar hint de qualificação
-        qualification_hint = analyze_qualification(payload.message, ai_response, payload.history)
+        # Analisa qualificação (para feedback visual)
+        qualification_hint = analyze_qualification_from_message(
+            user_message=payload.message,
+            ai_response=ai_response,
+            history=[{"role": m.role, "content": m.content} for m in (payload.history or [])]
+        )
+        
+        # Se detectou lead quente, ajusta o hint
+        if is_hot:
+            qualification_hint = f"🔥 Lead QUENTE detectado! Sinal: {hot_signal}"
         
         return SimulatorChatResponse(
             reply=ai_response,
             typing_delay=typing_delay,
             sentiment=sentiment,
             qualification_hint=qualification_hint,
+            prompt_length=prompt_result.prompt_length,
+            has_identity=prompt_result.has_identity,
+            has_empreendimento=prompt_result.has_empreendimento,
+            has_imovel_portal=prompt_result.has_imovel_portal,
+            hot_lead_detected=is_hot,
+            hot_lead_signal=hot_signal,
         )
         
     except Exception as e:
@@ -612,124 +396,19 @@ INSTRUÇÕES IMPORTANTES
         )
 
 
-def analyze_qualification(user_message: str, ai_response: str, history: List[SimulatorMessage]) -> str:
-    """
-    Analisa a conversa e dá uma dica de como o lead seria qualificado.
-    """
-    message_lower = user_message.lower()
-    
-    # Sinais de lead quente
-    hot_signals = [
-        "quero comprar", "quero fechar", "como faço para", "qual o valor",
-        "aceita cartão", "posso pagar", "tem disponível", "quando posso",
-        "vou querer", "pode reservar", "fecha negócio", "quero agendar",
-        "visitar", "conhecer pessoalmente", "quero alugar", "quero ver",
-        "posso ir hoje", "agenda pra mim"
-    ]
-    
-    # Sinais de lead morno
-    warm_signals = [
-        "quanto custa", "qual o preço", "tem financiamento", "como funciona",
-        "quais as opções", "me interessei", "gostaria de saber", "pode me explicar",
-        "estou pesquisando", "estou procurando", "qual o endereço", "onde fica",
-        "horário de funcionamento", "vocês trabalham com"
-    ]
-    
-    # Verificar sinais
-    for signal in hot_signals:
-        if signal in message_lower:
-            return "🔥 Lead QUENTE - Cliente demonstra intenção de compra/ação"
-    
-    for signal in warm_signals:
-        if signal in message_lower:
-            return "🟡 Lead MORNO - Cliente demonstra interesse"
-    
-    # Verificar histórico
-    total_messages = len(history) + 1
-    if total_messages >= 5:
-        return "🟡 Lead MORNO - Conversa em andamento"
-    
-    return "🔵 Lead FRIO - Início da conversa"
-
-
 # =============================================================================
-# SUGESTÕES DE TESTE
+# ENDPOINT DE DEBUG
 # =============================================================================
 
-@router.get("/suggestions")
-async def get_simulator_suggestions():
-    """
-    Retorna sugestões de mensagens para testar o simulador.
-    """
-    return {
-        "suggestions": [
-            {
-                "category": "Primeira mensagem",
-                "messages": [
-                    "Oi, vi o anúncio de vocês",
-                    "Olá, gostaria de informações",
-                    "Boa tarde! Vocês trabalham com o quê?",
-                ]
-            },
-            {
-                "category": "Informações básicas",
-                "messages": [
-                    "Qual o endereço de vocês?",
-                    "Qual o horário de funcionamento?",
-                    "Qual o telefone para contato?",
-                ]
-            },
-            {
-                "category": "Interesse",
-                "messages": [
-                    "Quanto custa?",
-                    "Quais as formas de pagamento?",
-                    "Vocês fazem financiamento?",
-                    "Tem disponibilidade para essa semana?",
-                ]
-            },
-            {
-                "category": "Objeções",
-                "messages": [
-                    "Tá muito caro",
-                    "Vou pensar e depois te falo",
-                    "Preciso falar com meu marido/esposa primeiro",
-                    "Achei o concorrente de vocês mais barato",
-                ]
-            },
-            {
-                "category": "Lead Quente",
-                "messages": [
-                    "Quero fechar! Como faço?",
-                    "Aceita cartão de crédito?",
-                    "Posso visitar hoje?",
-                    "Pode reservar pra mim?",
-                ]
-            },
-            {
-                "category": "Fora do escopo",
-                "messages": [
-                    "Qual a capital da França?",
-                    "Me ajuda com meu dever de casa",
-                    "Conta uma piada",
-                    "Vocês fazem limpeza de sofá?",
-                ]
-            },
-        ]
-    }
-
-
-# =============================================================================
-# DEBUG ENDPOINT
-# =============================================================================
-
-@router.get("/debug-settings")
+@router.get("/debug-settings", response_model=SimulatorDebugResponse)
 async def debug_settings(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Endpoint de debug para verificar se as configurações estão sendo carregadas.
+    
+    Mostra exatamente o que será usado para construir o prompt.
     """
     tenant_result = await db.execute(
         select(Tenant).where(Tenant.id == current_user.tenant_id)
@@ -739,20 +418,44 @@ async def debug_settings(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant não encontrado")
     
+    # Extrai contexto
     raw_settings = tenant.settings or {}
     settings = migrate_settings_if_needed(raw_settings)
-    ai_context = extract_ai_context(tenant, settings)
+    ai_context = extract_ai_context(tenant.name, settings)
     
-    identity = ai_context.get("identity", {})
+    identity = ai_context.identity or {}
     
-    return {
-        "tenant_name": tenant.name,
-        "tenant_slug": tenant.slug,
-        "company_name": ai_context.get("company_name"),
-        "niche": ai_context.get("niche_id"),
-        "tone": ai_context.get("tone"),
-        "has_identity": bool(identity),
-        "identity_fields": {
+    # Conta empreendimentos
+    emp_count = 0
+    if ai_context.niche_id.lower() in NICHOS_IMOBILIARIOS:
+        emp_result = await db.execute(
+            select(Empreendimento)
+            .where(Empreendimento.tenant_id == tenant.id)
+            .where(Empreendimento.ativo == True)
+        )
+        emp_count = len(emp_result.scalars().all())
+    
+    # Gera preview do prompt
+    prompt_result = build_complete_prompt(
+        ai_context=ai_context,
+        lead_context=None,
+        empreendimento=None,
+        imovel_portal=None,
+        include_security=False,
+        is_simulation=True,
+    )
+    
+    # Pega só os primeiros 500 chars como preview
+    prompt_preview = prompt_result.system_prompt[:500] + "..."
+    
+    return SimulatorDebugResponse(
+        tenant_name=tenant.name,
+        tenant_slug=tenant.slug,
+        company_name=ai_context.company_name,
+        niche=ai_context.niche_id,
+        tone=ai_context.tone,
+        has_identity=bool(identity),
+        identity_fields={
             "description": bool(identity.get("description")),
             "products_services": len(identity.get("products_services", [])),
             "not_offered": len(identity.get("not_offered", [])),
@@ -761,6 +464,214 @@ async def debug_settings(
             "differentials": len(identity.get("differentials", [])),
             "personality_traits": len(identity.get("tone_style", {}).get("personality_traits", [])),
         },
-        "faq_count": len(ai_context.get("faq_items", [])),
-        "scope_description": bool(ai_context.get("scope_description")),
+        faq_count=len(ai_context.faq_items),
+        scope_description=bool(ai_context.scope_description),
+        empreendimentos_count=emp_count,
+        prompt_preview=prompt_preview,
+    )
+
+
+# =============================================================================
+# SUGESTÕES DE TESTE
+# =============================================================================
+
+@router.get("/suggestions")
+async def get_simulator_suggestions(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Retorna sugestões de mensagens para testar o simulador.
+    
+    Inclui sugestões específicas baseadas no nicho do tenant.
+    """
+    # Busca tenant para personalizar sugestões
+    tenant_result = await db.execute(
+        select(Tenant).where(Tenant.id == current_user.tenant_id)
+    )
+    tenant = tenant_result.scalar_one_or_none()
+    
+    niche_id = "services"
+    if tenant and tenant.settings:
+        settings = migrate_settings_if_needed(tenant.settings)
+        basic = settings.get("basic", {})
+        niche_id = basic.get("niche") or settings.get("niche") or "services"
+    
+    # Sugestões base
+    suggestions = [
+        {
+            "category": "Primeira mensagem",
+            "messages": [
+                "Oi, vi o anúncio de vocês",
+                "Olá, gostaria de informações",
+                "Boa tarde! Vocês trabalham com o quê?",
+            ]
+        },
+        {
+            "category": "Informações básicas",
+            "messages": [
+                "Qual o endereço de vocês?",
+                "Qual o horário de funcionamento?",
+                "Qual o telefone para contato?",
+            ]
+        },
+        {
+            "category": "Objeções",
+            "messages": [
+                "Tá muito caro",
+                "Vou pensar e depois te falo",
+                "Preciso falar com meu marido/esposa primeiro",
+                "Achei o concorrente de vocês mais barato",
+            ]
+        },
+        {
+            "category": "Fora do escopo",
+            "messages": [
+                "Qual a capital da França?",
+                "Me ajuda com meu dever de casa",
+                "Conta uma piada",
+            ]
+        },
+    ]
+    
+    # Sugestões específicas para nicho imobiliário
+    if niche_id.lower() in NICHOS_IMOBILIARIOS:
+        suggestions.insert(1, {
+            "category": "🏠 Imobiliário - Interesse",
+            "messages": [
+                "Código 442025",
+                "Quanto custa esse apartamento?",
+                "Quero pra morar",
+                "Quero pra investir",
+                "Tem financiamento?",
+                "Aceita FGTS?",
+            ]
+        })
+        suggestions.insert(2, {
+            "category": "🔥 Lead Quente (imobiliário)",
+            "messages": [
+                "Tenho dinheiro à vista",
+                "Meu financiamento já foi aprovado",
+                "Preciso mudar urgente, em 2 meses",
+                "Quando posso visitar?",
+                "Tenho 100 mil de entrada",
+                "Quero fechar negócio",
+            ]
+        })
+        
+        # Busca empreendimentos para sugerir gatilhos
+        if tenant:
+            emp_result = await db.execute(
+                select(Empreendimento)
+                .where(Empreendimento.tenant_id == tenant.id)
+                .where(Empreendimento.ativo == True)
+                .limit(5)
+            )
+            empreendimentos = emp_result.scalars().all()
+            
+            if empreendimentos:
+                emp_messages = []
+                for emp in empreendimentos:
+                    emp_messages.append(f"Interesse no {emp.nome}")
+                    if emp.gatilhos:
+                        emp_messages.append(emp.gatilhos[0])
+                
+                suggestions.insert(3, {
+                    "category": "🏢 Empreendimentos",
+                    "messages": emp_messages[:6]
+                })
+    else:
+        # Sugestões genéricas para outros nichos
+        suggestions.insert(1, {
+            "category": "Interesse",
+            "messages": [
+                "Quanto custa?",
+                "Quais as formas de pagamento?",
+                "Tem disponibilidade para essa semana?",
+            ]
+        })
+        suggestions.insert(2, {
+            "category": "🔥 Lead Quente",
+            "messages": [
+                "Quero fechar! Como faço?",
+                "Aceita cartão de crédito?",
+                "Pode reservar pra mim?",
+                "Posso ir aí hoje?",
+            ]
+        })
+    
+    return {"suggestions": suggestions, "niche": niche_id}
+
+
+# =============================================================================
+# ENDPOINT DE COMPARAÇÃO
+# =============================================================================
+
+@router.get("/prompt-comparison")
+async def compare_prompts(
+    test_message: str = "Oi, quero informações",
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Endpoint para comparar o prompt gerado pelo simulador.
+    
+    Útil para debug e para garantir que está igual ao de produção.
+    """
+    tenant_result = await db.execute(
+        select(Tenant).where(Tenant.id == current_user.tenant_id)
+    )
+    tenant = tenant_result.scalar_one_or_none()
+    
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant não encontrado")
+    
+    # Extrai contexto
+    settings = migrate_settings_if_needed(tenant.settings or {})
+    ai_context = extract_ai_context(tenant.name, settings)
+    
+    # Lead simulado
+    from datetime import datetime, timezone
+    simulated_lead = LeadContext(
+        lead_id=0,
+        name=None,
+        phone="5511999999999",
+        created_at=datetime.now(timezone.utc),
+        message_count=1,
+        qualification="novo",
+        status="em_atendimento",
+    )
+    
+    # Detecta empreendimento
+    empreendimento = await detect_empreendimento_for_simulator(
+        db=db,
+        tenant_id=tenant.id,
+        message=test_message,
+        history=[],
+        niche_id=ai_context.niche_id,
+    )
+    
+    emp_context = None
+    if empreendimento:
+        emp_context = empreendimento_to_context(empreendimento)
+    
+    # Constrói prompt
+    prompt_result = build_complete_prompt(
+        ai_context=ai_context,
+        lead_context=simulated_lead,
+        empreendimento=emp_context,
+        imovel_portal=None,
+        include_security=True,
+        is_simulation=True,
+    )
+    
+    return {
+        "test_message": test_message,
+        "prompt_length": prompt_result.prompt_length,
+        "has_identity": prompt_result.has_identity,
+        "has_empreendimento": prompt_result.has_empreendimento,
+        "has_imovel_portal": prompt_result.has_imovel_portal,
+        "has_lead_context": prompt_result.has_lead_context,
+        "warnings": prompt_result.warnings,
+        "full_prompt": prompt_result.system_prompt,
     }
