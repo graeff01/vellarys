@@ -11,7 +11,7 @@ Não precisa do APScheduler!
 import asyncio
 import threading
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Callable, Optional
 import pytz
 
@@ -45,19 +45,19 @@ class SimpleScheduler:
             "last_run": None,
             "run_immediately": run_immediately,
         }
-        logger.info(f"📅 Job registrado: {job_id} (a cada {interval_minutes} minutos)")
+        print(f"📅 Job registrado: {job_id} (a cada {interval_minutes} minutos)")
     
     def start(self):
         """Inicia o scheduler em uma thread separada."""
         if self.running:
-            logger.warning("⚠️ Scheduler já está rodando")
+            print("⚠️ Scheduler já está rodando")
             return
         
         self.running = True
         self._stop_event.clear()
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
         self.thread.start()
-        logger.info("🚀 Scheduler nativo iniciado!")
+        print("🚀 Scheduler nativo iniciado!")
     
     def stop(self):
         """Para o scheduler."""
@@ -70,11 +70,11 @@ class SimpleScheduler:
         if self.thread and self.thread.is_alive():
             self.thread.join(timeout=5)
         
-        logger.info("🛑 Scheduler parado")
+        print("🛑 Scheduler parado")
     
     def _run_loop(self):
         """Loop principal do scheduler."""
-        logger.info("🔄 Loop do scheduler iniciado")
+        print("🔄 Loop do scheduler iniciado")
         
         while not self._stop_event.is_set():
             try:
@@ -97,7 +97,7 @@ class SimpleScheduler:
                             should_run = True
                     
                     if should_run:
-                        logger.info(f"⏰ Executando job: {job_id}")
+                        print(f"⏰ Executando job: {job_id}")
                         job["last_run"] = now
                         
                         try:
@@ -114,25 +114,25 @@ class SimpleScheduler:
                             else:
                                 func()
                             
-                            logger.info(f"✅ Job {job_id} executado com sucesso")
+                            print(f"✅ Job {job_id} executado com sucesso")
                         except Exception as e:
-                            logger.error(f"❌ Erro no job {job_id}: {e}")
+                            print(f"❌ Erro no job {job_id}: {e}")
                 
                 # Aguarda 60 segundos antes de verificar novamente
                 self._stop_event.wait(60)
                 
             except Exception as e:
-                logger.error(f"❌ Erro no loop do scheduler: {e}")
+                print(f"❌ Erro no loop do scheduler: {e}")
                 self._stop_event.wait(60)
     
     def run_job_now(self, job_id: str) -> bool:
         """Executa um job imediatamente."""
         if job_id not in self.jobs:
-            logger.error(f"❌ Job não encontrado: {job_id}")
+            print(f"❌ Job não encontrado: {job_id}")
             return False
         
         job = self.jobs[job_id]
-        logger.info(f"🚀 Executando job manualmente: {job_id}")
+        print(f"🚀 Executando job manualmente: {job_id}")
         
         try:
             func = job["func"]
@@ -147,10 +147,10 @@ class SimpleScheduler:
                 func()
             
             job["last_run"] = datetime.now(self.timezone)
-            logger.info(f"✅ Job {job_id} executado manualmente com sucesso")
+            print(f"✅ Job {job_id} executado manualmente com sucesso")
             return True
         except Exception as e:
-            logger.error(f"❌ Erro ao executar job {job_id}: {e}")
+            print(f"❌ Erro ao executar job {job_id}: {e}")
             return False
     
     def get_status(self) -> dict:
@@ -188,7 +188,7 @@ def create_scheduler():
     """Cria e configura o scheduler."""
     from src.infrastructure.jobs.follow_up_service import run_follow_up_job
     
-    logger.info("🔧 Criando scheduler nativo...")
+    print("🔧 Criando scheduler nativo...")
     
     scheduler = get_scheduler()
     
@@ -197,10 +197,10 @@ def create_scheduler():
         job_id="follow_up_job",
         func=run_follow_up_job,
         interval_minutes=60,
-        run_immediately=False,  # Não executa imediatamente ao iniciar
+        run_immediately=False,
     )
     
-    logger.info("✅ Scheduler configurado!")
+    print("✅ Scheduler configurado!")
     return scheduler
 
 

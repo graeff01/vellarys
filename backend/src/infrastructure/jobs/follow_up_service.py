@@ -1,5 +1,5 @@
 """
-SERVIÇO DE FOLLOW-UP AUTOMÁTICO - VERSÃO 2.0
+SERVIÇO DE FOLLOW-UP AUTOMÁTICO - follow_up_service.py
 =============================================
 
 Envia mensagens automáticas para leads que pararam de responder.
@@ -18,7 +18,7 @@ CAMPOS DO LEAD UTILIZADOS:
 - reengagement_status: Status do reengajamento
 
 ÚLTIMA ATUALIZAÇÃO: 2024-12-26
-VERSÃO: 2.0
+VERSÃO: 2.1
 """
 
 import logging
@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.infrastructure.database import async_session
-from src.domain.entities import Lead, Message, Tenant, Channel
+from src.domain.entities import Lead, Message, Tenant
 from src.infrastructure.services.whatsapp_service import send_whatsapp_message
 
 logger = logging.getLogger(__name__)
@@ -89,9 +89,9 @@ class FollowUpService:
         
         CHAMADO PELO: Scheduler (a cada hora)
         """
-        logger.info("=" * 60)
-        logger.info("🔄 INICIANDO JOB DE FOLLOW-UP AUTOMÁTICO")
-        logger.info("=" * 60)
+        print("=" * 60)
+        print("🔄 INICIANDO JOB DE FOLLOW-UP AUTOMÁTICO")
+        print("=" * 60)
         
         self.processed_count = 0
         self.sent_count = 0
@@ -106,7 +106,7 @@ class FollowUpService:
                 )
                 tenants = result.scalars().all()
                 
-                logger.info(f"📊 Encontrados {len(tenants)} tenants ativos")
+                print(f"📊 Encontrados {len(tenants)} tenants ativos")
                 
                 for tenant in tenants:
                     await self._process_tenant(session, tenant)
@@ -114,16 +114,17 @@ class FollowUpService:
                 await session.commit()
                 
         except Exception as e:
+            print(f"❌ Erro crítico no job de follow-up: {e}")
             logger.error(f"❌ Erro crítico no job de follow-up: {e}", exc_info=True)
         
         # Log final
-        logger.info("=" * 60)
-        logger.info(f"✅ JOB FINALIZADO")
-        logger.info(f"   Processados: {self.processed_count}")
-        logger.info(f"   Enviados: {self.sent_count}")
-        logger.info(f"   Pulados: {self.skipped_count}")
-        logger.info(f"   Erros: {self.error_count}")
-        logger.info("=" * 60)
+        print("=" * 60)
+        print(f"✅ JOB FINALIZADO")
+        print(f"   Processados: {self.processed_count}")
+        print(f"   Enviados: {self.sent_count}")
+        print(f"   Pulados: {self.skipped_count}")
+        print(f"   Erros: {self.error_count}")
+        print("=" * 60)
         
         return {
             "processed": self.processed_count,
@@ -145,26 +146,27 @@ class FollowUpService:
             
             # Verifica se follow-up está habilitado
             if not config.get("enabled", False):
-                logger.debug(f"⏭️ Tenant {tenant.slug}: Follow-up desabilitado")
+                print(f"⏭️ Tenant {tenant.slug}: Follow-up desabilitado")
                 return
             
-            logger.info(f"🏢 Processando tenant: {tenant.name} ({tenant.slug})")
+            print(f"🏢 Processando tenant: {tenant.name} ({tenant.slug})")
             
             # Verifica se está em horário permitido
             if not self._is_allowed_time(tenant, config):
-                logger.info(f"⏰ Tenant {tenant.slug}: Fora do horário permitido")
+                print(f"⏰ Tenant {tenant.slug}: Fora do horário permitido")
                 return
             
             # Busca leads elegíveis para follow-up
             leads = await self._get_eligible_leads(session, tenant, config)
             
-            logger.info(f"📋 Tenant {tenant.slug}: {len(leads)} leads elegíveis")
+            print(f"📋 Tenant {tenant.slug}: {len(leads)} leads elegíveis")
             
             for lead in leads:
                 self.processed_count += 1
                 await self._process_lead(session, tenant, lead, config)
                 
         except Exception as e:
+            print(f"❌ Erro ao processar tenant {tenant.slug}: {e}")
             logger.error(f"❌ Erro ao processar tenant {tenant.slug}: {e}", exc_info=True)
             self.error_count += 1
     
@@ -311,12 +313,12 @@ class FollowUpService:
             message = self._get_personalized_message(lead, attempt, config)
             
             if not message:
-                logger.warning(f"⚠️ Lead {lead.id}: Sem mensagem para tentativa {attempt}")
+                print(f"⚠️ Lead {lead.id}: Sem mensagem para tentativa {attempt}")
                 self.skipped_count += 1
                 return
             
             # Envia mensagem via WhatsApp
-            logger.info(f"📤 Enviando follow-up #{attempt} para lead {lead.id} ({lead.name or 'Sem nome'})")
+            print(f"📤 Enviando follow-up #{attempt} para lead {lead.id} ({lead.name or 'Sem nome'})")
             
             result = await send_whatsapp_message(
                 to=lead.phone,
@@ -343,14 +345,15 @@ class FollowUpService:
                     lead.reengagement_status = "exhausted"
                 
                 self.sent_count += 1
-                logger.info(f"✅ Follow-up #{attempt} enviado para lead {lead.id}")
+                print(f"✅ Follow-up #{attempt} enviado para lead {lead.id}")
                 
             else:
                 error = result.get("error", "Erro desconhecido")
-                logger.error(f"❌ Falha ao enviar follow-up para lead {lead.id}: {error}")
+                print(f"❌ Falha ao enviar follow-up para lead {lead.id}: {error}")
                 self.error_count += 1
                 
         except Exception as e:
+            print(f"❌ Erro ao processar lead {lead.id}: {e}")
             logger.error(f"❌ Erro ao processar lead {lead.id}: {e}", exc_info=True)
             self.error_count += 1
     
@@ -416,7 +419,7 @@ class FollowUpService:
             return open_time <= current_time <= close_time
             
         except Exception as e:
-            logger.warning(f"Erro ao verificar horário comercial: {e}")
+            print(f"Erro ao verificar horário comercial: {e}")
             return True  # Na dúvida, permite
     
     def _is_within_allowed_hours(self, allowed_hours: dict, settings: dict) -> bool:
@@ -440,7 +443,7 @@ class FollowUpService:
             return start_time <= current_time <= end_time
             
         except Exception as e:
-            logger.warning(f"Erro ao verificar horário permitido: {e}")
+            print(f"Erro ao verificar horário permitido: {e}")
             return True
     
     def _get_personalized_message(self, lead: Lead, attempt: int, config: dict) -> str:
@@ -599,6 +602,7 @@ follow_up_service = FollowUpService()
 
 async def run_follow_up_job():
     """Função que o scheduler vai chamar a cada hora."""
+    print("⏰ Scheduler chamou run_follow_up_job()")
     return await follow_up_service.process_all_tenants()
 
 
