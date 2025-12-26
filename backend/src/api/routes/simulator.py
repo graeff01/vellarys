@@ -13,7 +13,6 @@ Isso garante que o teste seja fiel ao comportamento real.
 ÚLTIMA ATUALIZAÇÃO: 2025-01-XX
 VERSÃO: 4.0 (Unificada com produção)
 """
-from src.application.services.ai_context_builder import (...)
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +33,7 @@ from src.infrastructure.services.openai_service import detect_sentiment
 # ============================================================================
 # IMPORTA O MÓDULO CENTRALIZADO - FONTE ÚNICA DE VERDADE
 # ============================================================================
+# ✅ CORRETO - imports reais
 from src.application.services.ai_context_builder import (
     AIContext,
     LeadContext,
