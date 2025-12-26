@@ -86,6 +86,78 @@ async def chat_completion(
             "content": "Desculpe, tive um problema técnico. Pode repetir?",
             "tokens_used": 0
         }
+    
+def validate_ai_response(
+    response: str,
+    lead_name: str,
+    lead_phone: str,
+    history: list
+) -> tuple[str, bool]:
+    """
+    Valida resposta da IA antes de enviar.
+    Bloqueia perguntas burras (nome/WhatsApp/repetidas).
+    Retorna (resposta_corrigida, foi_bloqueada)
+    """
+    
+    blocked = False
+    corrections = []
+    
+    response_lower = response.lower()
+    
+    # Check 1: Pediu nome mas já tem?
+    asking_name = any(phrase in response_lower for phrase in [
+        "seu nome", "como posso te chamar", "qual seu nome",
+        "me diz seu nome", "qual o seu nome"
+    ])
+    
+    if lead_name and asking_name:
+        blocked = True
+        corrections.append(f"❌ Tentou pedir nome mas já tem: {lead_name}")
+    
+    # Check 2: Pediu WhatsApp?
+    asking_whatsapp = any(phrase in response_lower for phrase in [
+        "seu whatsapp", "numero de whatsapp", "me passa seu contato",
+        "qual seu telefone", "me passa seu numero"
+    ])
+    
+    if asking_whatsapp:
+        blocked = True
+        corrections.append(f"❌ Tentou pedir WhatsApp mas já conversando!")
+    
+    # Check 3: Pergunta repetida no histórico?
+    for msg in history[-3:]:  # Últimas 3 mensagens do assistente
+        if msg.get("role") == "assistant":
+            msg_lower = msg.get("content", "").lower()
+            
+            # Mesma pergunta sobre finalidade?
+            finalidade_phrases = ["morar ou investir", "pra morar ou pra investir"]
+            if any(p in response_lower and p in msg_lower for p in finalidade_phrases):
+                blocked = True
+                corrections.append("❌ Perguntou 'morar ou investir' novamente")
+                break
+            
+            # Mesma pergunta sobre financiamento?
+            financiamento_phrases = ["financiamento aprovado", "ja tem financiamento"]
+            if any(p in response_lower and p in msg_lower for p in financiamento_phrases):
+                blocked = True
+                corrections.append("❌ Perguntou financiamento novamente")
+                break
+    
+    # Se bloqueou, retorna fallback inteligente
+    if blocked:
+        for c in corrections:
+            logger.warning(c)
+        
+        # Resposta genérica mas natural
+        if lead_name:
+            first_name = lead_name.split()[0]
+            fallback = f"Me diz mais, {first_name}! O que você procura exatamente?"
+        else:
+            fallback = "Me conta mais! O que você tá buscando?"
+        
+        return fallback, True
+    
+    return response, False
 
 
 async def detect_sentiment(message: str) -> dict:

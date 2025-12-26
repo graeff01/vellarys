@@ -1096,90 +1096,67 @@ async def process_message(
         if not lead_context:
             lead_context = None
     
-    # =========================================================================
-    # 20. MONTA PROMPT
-    # =========================================================================
-    logger.info(f"🔨 Montando prompt | Emp: {bool(empreendimento_detectado)} | Imóvel: {bool(imovel_portal)}")
-    
-    system_prompt = build_system_prompt(
-        niche_id=ai_context["niche_id"],
-        company_name=ai_context["company_name"],
-        tone=ai_context["tone"],
-        custom_questions=ai_context.get("custom_questions", []),
-        custom_rules=ai_context.get("custom_rules", []),
-        custom_prompt=ai_context.get("custom_prompt"),
-        faq_items=ai_context.get("faq_items", []),
-        scope_description=ai_context.get("scope_description", ""),
-        lead_context=lead_context,
-        identity=ai_context.get("identity"),
-        scope_config=ai_context.get("scope_config"),
-    )
-    
-    # Instrução global para nicho imobiliário
-    if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
-        system_prompt += """
-
-🚨 VOCÊ É UM CORRETOR HUMANO no WhatsApp, NÃO UM ROBÔ!
-
-REGRAS:
-✅ SEMPRE responda perguntas sobre imóveis, preços, financiamento
-✅ SEMPRE colete: orçamento, urgência, preferências
-✅ Máximo 3-4 linhas por resposta
-✅ Tom casual e amigável
-✅ Dar informação + fazer pergunta
-
-🚫 PROIBIDO:
-❌ Formatação markdown (**, -, *)
-❌ Listas numeradas
-❌ Tom formal
-❌ Respostas longas
-❌ Dizer "não tenho informações"
-"""
-    
-    # Adiciona contexto específico
-    if empreendimento_detectado:
-        logger.info(f"🏢 Injetando: {empreendimento_detectado.nome}")
-        empreendimento_context = build_empreendimento_context(empreendimento_detectado)
-        system_prompt += f"\n\n{empreendimento_context}"
-        system_prompt += f"\n\nCliente interessado no {empreendimento_detectado.nome}. Responda como corretor amigo!"
-    
-    elif imovel_portal:
-        logger.info(f"🏠 Injetando: código {imovel_portal.get('codigo')}")
-        property_context = build_property_prompt_context(imovel_portal, content)
-        system_prompt += property_context
-    
-    elif ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
-        codigo_mencionado = extrair_codigo_imovel(content)
+        # =========================================================================
+        # 20. MONTA PROMPT
+        # =========================================================================
+        logger.info(f"🔨 Montando prompt | Emp: {bool(empreendimento_detectado)} | Imóvel: {bool(imovel_portal)}")
         
-        if codigo_mencionado:
-            logger.warning(f"⚠️ Código {codigo_mencionado} não encontrado")
-            system_prompt += f"""
+        system_prompt = build_system_prompt(
+            niche_id=ai_context["niche_id"],
+            company_name=ai_context["company_name"],
+            tone=ai_context["tone"],
+            custom_questions=ai_context.get("custom_questions", []),
+            custom_rules=ai_context.get("custom_rules", []),
+            custom_prompt=ai_context.get("custom_prompt"),
+            faq_items=ai_context.get("faq_items", []),
+            scope_description=ai_context.get("scope_description", ""),
+            lead_context=lead_context,
+            identity=ai_context.get("identity"),
+            scope_config=ai_context.get("scope_config"),
+        )
+        
+        # ════════════════════════════════════════════════════════════════════════
+        # CONTEXTO DO LEAD (EVITA PERGUNTAS BURRAS)
+        # ════════════════════════════════════════════════════════════════════════
+        lead_info_context = f"""
 
-Cliente mencionou código {codigo_mencionado} mas não temos dados.
+    ═══════════════════════════════════════════════════════════
+    🧠 INFORMAÇÕES QUE VOCÊ JÁ TEM SOBRE ESTE LEAD
+    ═══════════════════════════════════════════════════════════
 
-RESPONDA (sem formatação):
-"Oi! Vi seu interesse no imóvel {codigo_mencionado}! Vou verificar os detalhes. Me conta: você tá buscando pra morar ou investir?"
+    👤 CONTATO:
+    - Nome: {lead.name or "❌ NÃO INFORMADO AINDA"}
+    - Telefone: {lead.phone} ← VOCÊ JÁ ESTÁ CONVERSANDO NO WHATSAPP!
+    - Conversa iniciada: {lead.created_at.strftime('%d/%m/%Y às %H:%M')}
 
-🚫 NUNCA DIGA: "Não tenho informações", "Código não encontrado"
-"""
-        else:
-            system_prompt += f"""
+    📊 CONTEXTO DA CONVERSA:
+    - Total de mensagens trocadas: {message_count}
+    - Qualificação atual: {lead.qualification or "novo (ainda não qualificado)"}
+    - Status: {lead.status}
 
-Você é corretor da {ai_context['company_name']}.
-Cliente ainda não mencionou imóvel específico.
+    ⚠️ REGRAS CRÍTICAS - LEIA COM ATENÇÃO:
 
-OBJETIVO: Entender o que procura, fazer perguntas (uma por vez).
+    ❌ NÃO PERGUNTE:
+    - Nome ({"já tem: " + lead.name if lead.name else "pode perguntar SE RELEVANTE"})
+    - WhatsApp/Telefone (VOCÊ JÁ ESTÁ NO WHATSAPP!)
+    - Perguntas que o cliente JÁ RESPONDEU no histórico
 
-EXEMPLOS:
-- "Você tá buscando pra morar ou investir?"
-- "Qual região você prefere?"
-- "Quantos quartos você precisa?"
+    ✅ PODE PERGUNTAR:
+    - O que ele busca
+    - Finalidade (morar/investir) SE ainda não perguntou
+    - Urgência/Prazo
+    - Preferências específicas
+    - Orçamento (de forma natural)
 
-Respostas curtas (3-4 linhas), sem listas, sem formatação!
-"""
-    
-    logger.info(f"✅ Prompt montado")
-    
+    Se você tem o nome do lead, USE-O na conversa naturalmente!
+    Exemplo: "Legal, {lead.name.split()[0] if lead.name else '[nome]'}! Me conta mais..."
+
+    ═══════════════════════════════════════════════════════════
+    """
+        
+        system_prompt += lead_info_context
+
+        
     # =========================================================================
     # 21. PREPARA MENSAGENS E CHAMA IA
     # =========================================================================
@@ -1210,11 +1187,26 @@ Respostas curtas (3-4 linhas), sem listas, sem formatação!
             max_tokens=500,
         )
         
-        # Nicho imobiliário: sem sanitização
+        # VALIDAÇÃO INTELIGENTE (antes de aceitar resposta)
+        from src.infrastructure.services.openai_service import validate_ai_response
+        
+        ai_response_raw = ai_response["content"]
+        
+        # Valida resposta (bloqueia perguntas burras)
+        final_response, was_corrected = validate_ai_response(
+            response=ai_response_raw,
+            lead_name=lead.name,
+            lead_phone=lead.phone,
+            history=history
+        )
+        
+        if was_corrected:
+            logger.warning(f"🔧 Resposta da IA foi corrigida (pergunta burra bloqueada) - Lead {lead.id}")
+        
+        # Nicho imobiliário: sem sanitização adicional
         if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
-            final_response = ai_response["content"]
             was_blocked = False
-            logger.info("🏠 Sanitização desabilitada")
+            logger.info("🏠 Sanitização de escopo desabilitada (nicho imobiliário)")
         else:
             final_response, was_blocked = sanitize_response(
                 ai_response["content"],
