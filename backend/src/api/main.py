@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
+from src.infrastructure.scheduler import create_scheduler, start_scheduler, stop_scheduler
 
 from src.api.routes.debug_portal import router as debug_portal_router
 
@@ -95,11 +96,16 @@ async def lifespan(app: FastAPI):
 
     await create_superadmin()
 
+    # Inicia scheduler de jobs
+    create_scheduler()
+    start_scheduler()
+
     yield
 
+    # Para scheduler
+    stop_scheduler()
     print("👋 Encerrando Velaris API...")
-
-
+    
 # ============================================================
 # FASTAPI APP
 # ============================================================

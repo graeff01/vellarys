@@ -187,6 +187,44 @@ DEFAULT_SETTINGS = {
             "escalate_after": True,
         },
     },
+
+    # =========================================================================
+    # FOLLOW-UP AUTOMÁTICO (NOVO)
+    # =========================================================================
+    "follow_up": {
+        "enabled": False,  # Desabilitado por padrão (gestor ativa)
+        
+        # Tempo de inatividade para disparar follow-up (em horas)
+        "inactivity_hours": 24,
+        
+        # Máximo de tentativas de follow-up
+        "max_attempts": 3,
+        
+        # Intervalo entre follow-ups (em horas)
+        "interval_hours": 24,
+        
+        # Respeitar horário comercial?
+        "respect_business_hours": True,
+        
+        # Mensagens personalizadas por tentativa
+        "messages": {
+            "attempt_1": "Oi {nome}! Vi que você se interessou por {interesse}. Posso te ajudar com mais alguma informação? 😊",
+            "attempt_2": "Oi {nome}! Ainda está procurando {interesse}? Estou aqui se precisar!",
+            "attempt_3": "{nome}, vou encerrar nosso atendimento por aqui. Se precisar, é só chamar novamente! 👋",
+        },
+        
+        # Status de lead que NÃO recebem follow-up
+        "exclude_statuses": ["converted", "lost", "handed_off"],
+        
+        # Qualificações que NÃO recebem follow-up
+        "exclude_qualifications": [],
+        
+        # Horário permitido para envio (se não respeitar business_hours)
+        "allowed_hours": {
+            "start": "08:00",
+            "end": "20:00",
+        },
+    },
     
     # =========================================================================
     # MENSAGENS PADRÃO PERSONALIZÁVEIS (novo)
@@ -545,6 +583,7 @@ async def update_settings(
             "scope",
             "distribution",
             "guardrails",
+            "follow_up",
             "messages",
         ]
         

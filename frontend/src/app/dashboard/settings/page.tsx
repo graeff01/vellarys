@@ -191,8 +191,20 @@ export default function SettingsPage() {
   const [scopeGuardEnabled, setScopeGuardEnabled] = useState(true);
   const [scopeGuardStrictness, setScopeGuardStrictness] = useState<'low' | 'medium' | 'high'>('medium');
   
+  // FOLLOW-UP
+  const [followUpEnabled, setFollowUpEnabled] = useState(false);
+  const [followUpInactivityHours, setFollowUpInactivityHours] = useState(24);
+  const [followUpMaxAttempts, setFollowUpMaxAttempts] = useState(3);
+  const [followUpIntervalHours, setFollowUpIntervalHours] = useState(24);
+  const [followUpRespectBusinessHours, setFollowUpRespectBusinessHours] = useState(true);
+  const [followUpMessages, setFollowUpMessages] = useState({
+    attempt_1: "Oi {nome}! Vi que você se interessou por {interesse}. Posso te ajudar com mais alguma informação? 😊",
+    attempt_2: "Oi {nome}! Ainda está procurando {interesse}? Estou aqui se precisar!",
+    attempt_3: "{nome}, vou encerrar nosso atendimento por aqui. Se precisar, é só chamar novamente! 👋",
+  });
+  const [followUpExcludeStatuses, setFollowUpExcludeStatuses] = useState<string[]>(['converted', 'lost', 'handed_off']);
 
-    // Após os outros estados, adicionar:
+  // Após os outros estados, adicionar:
   const [hasEmpreendimentosAccess, setHasEmpreendimentosAccess] = useState(false);
   const [sellers, setSellers] = useState<Array<{ id: number; name: string }>>([]);
 
@@ -281,22 +293,22 @@ export default function SettingsPage() {
         setData(response);
         const s = response.settings;
 
-      try {
-        const accessResponse = await checkEmpreendimentosAccess();
-        setHasEmpreendimentosAccess(accessResponse.has_access);
-        
-        // Se tem acesso, busca os vendedores
-        if (accessResponse.has_access) {
-          try {
-        const sellersResponse = await getSellers(true, false); // activeOnly=true, availableOnly=false
-        setSellers(sellersResponse.sellers || []);
-          } catch {
-            console.error('Erro ao carregar vendedores');
+        try {
+          const accessResponse = await checkEmpreendimentosAccess();
+          setHasEmpreendimentosAccess(accessResponse.has_access);
+          
+          // Se tem acesso, busca os vendedores
+          if (accessResponse.has_access) {
+            try {
+              const sellersResponse = await getSellers(true, false); // activeOnly=true, availableOnly=false
+              setSellers(sellersResponse.sellers || []);
+            } catch {
+              console.error('Erro ao carregar vendedores');
+            }
           }
+        } catch {
+          setHasEmpreendimentosAccess(false);
         }
-      } catch {
-        setHasEmpreendimentosAccess(false);
-      }
         
         // Basic
         setCompanyName(s.basic?.company_name || response.tenant.name);
@@ -364,6 +376,16 @@ export default function SettingsPage() {
         setPriceGuardMessage(guards.price_guard?.message || '');
         setScopeGuardEnabled(guards.scope_guard?.enabled ?? true);
         setScopeGuardStrictness(guards.scope_guard?.strictness || 'medium');
+
+        // Follow-up
+        const followUp = s.follow_up || {};
+        setFollowUpEnabled(followUp.enabled ?? false);
+        setFollowUpInactivityHours(followUp.inactivity_hours ?? 24);
+        setFollowUpMaxAttempts(followUp.max_attempts ?? 3);
+        setFollowUpIntervalHours(followUp.interval_hours ?? 24);
+        setFollowUpRespectBusinessHours(followUp.respect_business_hours ?? true);
+        if (followUp.messages) setFollowUpMessages(followUp.messages);
+        if (followUp.exclude_statuses) setFollowUpExcludeStatuses(followUp.exclude_statuses);
         
         // Options - sobrescreve com dados da API se existirem
         const opts = response.options || {};
@@ -406,6 +428,17 @@ export default function SettingsPage() {
           competitor_guard: { enabled: false, competitors: [], behavior: 'neutral' },
           scope_guard: { enabled: scopeGuardEnabled, strictness: scopeGuardStrictness },
           insist_guard: { enabled: true, max_attempts: 3, escalate_after: true },
+        },
+        follow_up: {
+          enabled: followUpEnabled,
+          inactivity_hours: followUpInactivityHours,
+          max_attempts: followUpMaxAttempts,
+          interval_hours: followUpIntervalHours,
+          respect_business_hours: followUpRespectBusinessHours,
+          messages: followUpMessages,
+          exclude_statuses: followUpExcludeStatuses,
+          exclude_qualifications: [],
+          allowed_hours: { start: "08:00", end: "20:00" },
         },
         ai_behavior: { custom_questions: [], custom_rules: [], greeting_message: '', farewell_message: '' },
         messages: { greeting: '', farewell: '', out_of_hours: outOfHoursMessage, out_of_scope: outOfScopeMessage, handoff_notice: '', qualification_complete: '', waiting_response: '' },
@@ -453,48 +486,49 @@ export default function SettingsPage() {
     { id: 'faq', label: 'FAQ', icon: HelpCircle },
     { id: 'escopo', label: 'Escopo', icon: Shield },
     { id: 'guardrails', label: 'Proteções', icon: AlertTriangle },
+    { id: 'followup', label: 'Follow-up', icon: RefreshCw },
   ];
 
   async function handleEnableNotifications() {
-  const granted = await requestNotificationPermission();
+    const granted = await requestNotificationPermission();
 
-  if (!granted) {
-    alert('Permissão de notificações negada');
-    return;
+    if (!granted) {
+      alert('Permissão de notificações negada');
+      return;
+    }
+
+    const subscription = await subscribeToPush();
+    console.log('PUSH SUBSCRIPTION:', subscription);
+
+    alert('Notificações ativadas com sucesso!');
   }
-
-  const subscription = await subscribeToPush();
-  console.log('PUSH SUBSCRIPTION:', subscription);
-
-  alert('Notificações ativadas com sucesso!');
-}
 
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-      <div>
-  <h1 className="text-3xl font-bold text-gray-900">Configurações da IA</h1>
-  <p className="text-gray-500">
-    Configure a identidade e comportamento da sua IA atendente
-  </p>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Configurações da IA</h1>
+          <p className="text-gray-500">
+            Configure a identidade e comportamento da sua IA atendente
+          </p>
 
-  <button
-    onClick={handleEnableNotifications}
-    className="mt-3 inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
-  >
-    🔔 Ativar notificações
-  </button>
-</div>
+          <button
+            onClick={handleEnableNotifications}
+            className="mt-3 inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
+          >
+            🔔 Ativar notificações
+          </button>
+        </div>
 
       
-      {activeTab !== 'empreendimentos' && (
-        <button onClick={handleSave} disabled={saving} className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50">
-          {saving ? <><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>Salvando...</> : <><Save className="w-5 h-5" />Salvar</>}
-        </button>
-      )}
-    </div>
+        {activeTab !== 'empreendimentos' && (
+          <button onClick={handleSave} disabled={saving} className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+            {saving ? <><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>Salvando...</> : <><Save className="w-5 h-5" />Salvar</>}
+          </button>
+        )}
+      </div>
 
       {success && <div className="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 p-4 rounded-lg"><CheckCircle2 className="w-5 h-5" />Configurações salvas!</div>}
 
@@ -906,6 +940,190 @@ export default function SettingsPage() {
               )}
             </div>
           </Card>
+        </div>
+      )}
+
+      {/* TAB: FOLLOW-UP */}
+      {activeTab === 'followup' && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100 rounded-xl p-6">
+            <div className="flex items-start gap-4">
+              <div className="bg-green-100 rounded-lg p-3"><RefreshCw className="w-6 h-6 text-green-600" /></div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">Follow-up Automático</h2>
+                <p className="text-gray-600">Reengaje leads que pararam de responder com mensagens automáticas personalizadas.</p>
+              </div>
+            </div>
+          </div>
+
+          <Card>
+            <CardHeader title="Configuração Geral" subtitle="Ative e configure o comportamento do follow-up" />
+            <div className="space-y-4">
+              <ToggleSwitch 
+                checked={followUpEnabled} 
+                onChange={setFollowUpEnabled} 
+                label="Follow-up automático ativo" 
+                description="Envia mensagens automáticas para leads inativos" 
+              />
+              
+              {followUpEnabled && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Tempo de inatividade (horas)</label>
+                      <input 
+                        type="number" 
+                        value={followUpInactivityHours} 
+                        onChange={(e) => setFollowUpInactivityHours(parseInt(e.target.value) || 24)} 
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" 
+                        min={1} 
+                        max={168} 
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Após quantas horas sem resposta enviar follow-up</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Máximo de tentativas</label>
+                      <input 
+                        type="number" 
+                        value={followUpMaxAttempts} 
+                        onChange={(e) => setFollowUpMaxAttempts(parseInt(e.target.value) || 3)} 
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" 
+                        min={1} 
+                        max={5} 
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Quantos follow-ups enviar antes de desistir</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Intervalo entre tentativas (horas)</label>
+                      <input 
+                        type="number" 
+                        value={followUpIntervalHours} 
+                        onChange={(e) => setFollowUpIntervalHours(parseInt(e.target.value) || 24)} 
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" 
+                        min={1} 
+                        max={168} 
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Tempo entre cada tentativa de follow-up</p>
+                    </div>
+                  </div>
+
+                  <ToggleSwitch 
+                    checked={followUpRespectBusinessHours} 
+                    onChange={setFollowUpRespectBusinessHours} 
+                    label="Respeitar horário comercial" 
+                    description="Só envia follow-up durante o horário de atendimento configurado" 
+                  />
+                </>
+              )}
+            </div>
+          </Card>
+
+          {followUpEnabled && (
+            <Card>
+              <CardHeader title="Mensagens de Follow-up" subtitle="Personalize as mensagens para cada tentativa" />
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <div className="flex gap-3">
+                    <Info className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                    <div className="text-sm text-blue-800">
+                      <p className="font-medium mb-1">Variáveis disponíveis:</p>
+                      <ul className="list-disc list-inside text-blue-700">
+                        <li><code className="bg-blue-100 px-1 rounded">{'{nome}'}</code> - Nome do lead</li>
+                        <li><code className="bg-blue-100 px-1 rounded">{'{interesse}'}</code> - Interesse detectado do lead</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">1ª</span>
+                      Primeira tentativa
+                    </span>
+                  </label>
+                  <textarea 
+                    value={followUpMessages.attempt_1} 
+                    onChange={(e) => setFollowUpMessages({...followUpMessages, attempt_1: e.target.value})} 
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" 
+                    rows={2} 
+                    placeholder="Oi {nome}! Vi que você se interessou..." 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs font-bold">2ª</span>
+                      Segunda tentativa
+                    </span>
+                  </label>
+                  <textarea 
+                    value={followUpMessages.attempt_2} 
+                    onChange={(e) => setFollowUpMessages({...followUpMessages, attempt_2: e.target.value})} 
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" 
+                    rows={2} 
+                    placeholder="Oi {nome}! Ainda está procurando..." 
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-bold">3ª</span>
+                      Terceira tentativa (final)
+                    </span>
+                  </label>
+                  <textarea 
+                    value={followUpMessages.attempt_3} 
+                    onChange={(e) => setFollowUpMessages({...followUpMessages, attempt_3: e.target.value})} 
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" 
+                    rows={2} 
+                    placeholder="{nome}, vou encerrar nosso atendimento..." 
+                  />
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {followUpEnabled && (
+            <Card>
+              <CardHeader title="Exclusões" subtitle="Leads que NÃO devem receber follow-up" />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">Status excluídos</label>
+                  <div className="flex flex-wrap gap-2">
+                    {['new', 'in_conversation', 'qualified', 'converted', 'lost', 'handed_off'].map((status) => (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => {
+                          if (followUpExcludeStatuses.includes(status)) {
+                            setFollowUpExcludeStatuses(followUpExcludeStatuses.filter(s => s !== status));
+                          } else {
+                            setFollowUpExcludeStatuses([...followUpExcludeStatuses, status]);
+                          }
+                        }}
+                        className={`px-4 py-2 rounded-full text-sm font-medium ${
+                          followUpExcludeStatuses.includes(status) 
+                            ? 'bg-red-100 text-red-700 border-2 border-red-300' 
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {status === 'new' && '🆕 Novo'}
+                        {status === 'in_conversation' && '💬 Em conversa'}
+                        {status === 'qualified' && '⭐ Qualificado'}
+                        {status === 'converted' && '✅ Convertido'}
+                        {status === 'lost' && '❌ Perdido'}
+                        {status === 'handed_off' && '🤝 Transferido'}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">Leads com estes status NÃO receberão follow-up automático</p>
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
       )}
 

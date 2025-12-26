@@ -141,6 +141,33 @@ export interface MessagesSettings {
 }
 
 // =============================================================================
+// TYPES - FOLLOW-UP AUTOMÁTICO (NOVO)
+// =============================================================================
+
+export interface FollowUpMessages {
+  attempt_1: string;
+  attempt_2: string;
+  attempt_3: string;
+}
+
+export interface FollowUpAllowedHours {
+  start: string;
+  end: string;
+}
+
+export interface FollowUpSettings {
+  enabled: boolean;
+  inactivity_hours: number;
+  max_attempts: number;
+  interval_hours: number;
+  respect_business_hours: boolean;
+  messages: FollowUpMessages;
+  exclude_statuses: string[];
+  exclude_qualifications: string[];
+  allowed_hours: FollowUpAllowedHours;
+}
+
+// =============================================================================
 // TYPES - SETTINGS COMPLETO
 // =============================================================================
 
@@ -155,6 +182,7 @@ export interface TenantSettings {
   distribution: DistributionSettings;
   guardrails: GuardrailsSettings;
   messages: MessagesSettings;
+  follow_up: FollowUpSettings;  // NOVO
 }
 
 // =============================================================================
@@ -425,4 +453,23 @@ export const DEFAULT_IDENTITY: IdentitySettings = {
 export const DEFAULT_BASIC: BasicSettings = {
   niche: 'services',
   company_name: '',
+};
+
+export const DEFAULT_FOLLOW_UP: FollowUpSettings = {
+  enabled: false,
+  inactivity_hours: 24,
+  max_attempts: 3,
+  interval_hours: 24,
+  respect_business_hours: true,
+  messages: {
+    attempt_1: "Oi {nome}! Vi que você se interessou por {interesse}. Posso te ajudar com mais alguma informação? 😊",
+    attempt_2: "Oi {nome}! Ainda está procurando {interesse}? Estou aqui se precisar!",
+    attempt_3: "{nome}, vou encerrar nosso atendimento por aqui. Se precisar, é só chamar novamente! 👋",
+  },
+  exclude_statuses: ['converted', 'lost', 'handed_off'],
+  exclude_qualifications: [],
+  allowed_hours: {
+    start: "08:00",
+    end: "20:00",
+  },
 };
