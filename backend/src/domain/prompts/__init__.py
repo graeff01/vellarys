@@ -7,7 +7,7 @@ from .niche_templates import (
     build_system_prompt,
 )
 
-# Alias para compatibilidade
+# Alias para compatibilidade atualizado 
 NICHE_TEMPLATES = NICHE_SPECIFIC_TEMPLATES
 
 __all__ = [
