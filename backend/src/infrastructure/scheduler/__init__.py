@@ -1,8 +1,10 @@
 """
-Scheduler de jobs periódicos.
+Scheduler de Jobs - Versão Nativa (sem APScheduler)
 """
 
 from .scheduler import (
+    SimpleScheduler,
+    get_scheduler,
     create_scheduler,
     start_scheduler,
     stop_scheduler,
@@ -11,6 +13,8 @@ from .scheduler import (
 )
 
 __all__ = [
+    "SimpleScheduler",
+    "get_scheduler",
     "create_scheduler",
     "start_scheduler",
     "stop_scheduler",

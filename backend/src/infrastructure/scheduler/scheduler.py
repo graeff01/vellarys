@@ -1,180 +1,228 @@
 """
-SCHEDULER DE JOBS PERIÓDICOS
-=============================
+SCHEDULER NATIVO - SEM DEPENDÊNCIAS EXTERNAS
+=============================================
 
-Gerencia a execução de tarefas agendadas.
+Usa apenas threading e asyncio do Python.
+Não precisa do APScheduler!
 
-JOBS CONFIGURADOS:
-- Follow-up automático: A cada hora
-
-TECNOLOGIA: APScheduler (AsyncIOScheduler)
-
-ÚLTIMA ATUALIZAÇÃO: 2024-12-26
+ÚLTIMA ATUALIZAÇÃO: 2025-12-26
 """
 
+import asyncio
+import threading
 import logging
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.interval import IntervalTrigger
+from datetime import datetime, timedelta
+from typing import Callable, Optional
+import pytz
 
 logger = logging.getLogger(__name__)
 
-# Instância global do scheduler
-scheduler: AsyncIOScheduler = None
+# ============================================
+# SCHEDULER SIMPLES
+# ============================================
 
-
-def create_scheduler() -> AsyncIOScheduler:
-    """
-    Cria e configura o scheduler.
+class SimpleScheduler:
+    """Scheduler simples usando threading nativo."""
     
-    CHAMADO POR: main.py no startup
-    """
-    global scheduler
+    def __init__(self, timezone: str = "America/Sao_Paulo"):
+        self.timezone = pytz.timezone(timezone)
+        self.running = False
+        self.thread: Optional[threading.Thread] = None
+        self.jobs: dict[str, dict] = {}
+        self._stop_event = threading.Event()
     
-    if scheduler is not None:
-        logger.warning("⚠️ Scheduler já existe, retornando instância existente")
-        return scheduler
-    
-    logger.info("🔧 Criando scheduler...")
-    
-    scheduler = AsyncIOScheduler(
-        timezone="America/Sao_Paulo",
-        job_defaults={
-            "coalesce": True,  # Agrupa execuções perdidas
-            "max_instances": 1,  # Só uma instância por vez
-            "misfire_grace_time": 60 * 5,  # 5 minutos de tolerância
+    def add_job(
+        self,
+        job_id: str,
+        func: Callable,
+        interval_minutes: int = 60,
+        run_immediately: bool = False
+    ):
+        """Adiciona um job ao scheduler."""
+        self.jobs[job_id] = {
+            "func": func,
+            "interval_minutes": interval_minutes,
+            "last_run": None,
+            "run_immediately": run_immediately,
         }
+        logger.info(f"📅 Job registrado: {job_id} (a cada {interval_minutes} minutos)")
+    
+    def start(self):
+        """Inicia o scheduler em uma thread separada."""
+        if self.running:
+            logger.warning("⚠️ Scheduler já está rodando")
+            return
+        
+        self.running = True
+        self._stop_event.clear()
+        self.thread = threading.Thread(target=self._run_loop, daemon=True)
+        self.thread.start()
+        logger.info("🚀 Scheduler nativo iniciado!")
+    
+    def stop(self):
+        """Para o scheduler."""
+        if not self.running:
+            return
+        
+        self.running = False
+        self._stop_event.set()
+        
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=5)
+        
+        logger.info("🛑 Scheduler parado")
+    
+    def _run_loop(self):
+        """Loop principal do scheduler."""
+        logger.info("🔄 Loop do scheduler iniciado")
+        
+        while not self._stop_event.is_set():
+            try:
+                now = datetime.now(self.timezone)
+                
+                for job_id, job in self.jobs.items():
+                    should_run = False
+                    
+                    # Primeira execução
+                    if job["last_run"] is None:
+                        if job["run_immediately"]:
+                            should_run = True
+                        else:
+                            # Agenda para o próximo intervalo
+                            job["last_run"] = now
+                    else:
+                        # Verifica se passou o intervalo
+                        elapsed = (now - job["last_run"]).total_seconds() / 60
+                        if elapsed >= job["interval_minutes"]:
+                            should_run = True
+                    
+                    if should_run:
+                        logger.info(f"⏰ Executando job: {job_id}")
+                        job["last_run"] = now
+                        
+                        try:
+                            # Executa a função (pode ser async ou sync)
+                            func = job["func"]
+                            if asyncio.iscoroutinefunction(func):
+                                # Cria novo event loop para executar async
+                                loop = asyncio.new_event_loop()
+                                asyncio.set_event_loop(loop)
+                                try:
+                                    loop.run_until_complete(func())
+                                finally:
+                                    loop.close()
+                            else:
+                                func()
+                            
+                            logger.info(f"✅ Job {job_id} executado com sucesso")
+                        except Exception as e:
+                            logger.error(f"❌ Erro no job {job_id}: {e}")
+                
+                # Aguarda 60 segundos antes de verificar novamente
+                self._stop_event.wait(60)
+                
+            except Exception as e:
+                logger.error(f"❌ Erro no loop do scheduler: {e}")
+                self._stop_event.wait(60)
+    
+    def run_job_now(self, job_id: str) -> bool:
+        """Executa um job imediatamente."""
+        if job_id not in self.jobs:
+            logger.error(f"❌ Job não encontrado: {job_id}")
+            return False
+        
+        job = self.jobs[job_id]
+        logger.info(f"🚀 Executando job manualmente: {job_id}")
+        
+        try:
+            func = job["func"]
+            if asyncio.iscoroutinefunction(func):
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(func())
+                finally:
+                    loop.close()
+            else:
+                func()
+            
+            job["last_run"] = datetime.now(self.timezone)
+            logger.info(f"✅ Job {job_id} executado manualmente com sucesso")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Erro ao executar job {job_id}: {e}")
+            return False
+    
+    def get_status(self) -> dict:
+        """Retorna status do scheduler."""
+        jobs_status = {}
+        for job_id, job in self.jobs.items():
+            jobs_status[job_id] = {
+                "interval_minutes": job["interval_minutes"],
+                "last_run": job["last_run"].isoformat() if job["last_run"] else None,
+            }
+        
+        return {
+            "running": self.running,
+            "timezone": str(self.timezone),
+            "jobs": jobs_status,
+        }
+
+
+# ============================================
+# INSTÂNCIA GLOBAL
+# ============================================
+
+_scheduler: Optional[SimpleScheduler] = None
+
+
+def get_scheduler() -> SimpleScheduler:
+    """Retorna a instância do scheduler."""
+    global _scheduler
+    if _scheduler is None:
+        _scheduler = SimpleScheduler()
+    return _scheduler
+
+
+def create_scheduler():
+    """Cria e configura o scheduler."""
+    from src.infrastructure.jobs.follow_up_service import run_follow_up_job
+    
+    logger.info("🔧 Criando scheduler nativo...")
+    
+    scheduler = get_scheduler()
+    
+    # Registra o job de follow-up (a cada 60 minutos)
+    scheduler.add_job(
+        job_id="follow_up_job",
+        func=run_follow_up_job,
+        interval_minutes=60,
+        run_immediately=False,  # Não executa imediatamente ao iniciar
     )
     
-    # =========================================================================
-    # REGISTRA OS JOBS
-    # =========================================================================
-    
-    _register_follow_up_job(scheduler)
-    
-    logger.info("✅ Scheduler criado com sucesso")
-    
+    logger.info("✅ Scheduler configurado!")
     return scheduler
 
 
-def _register_follow_up_job(sched: AsyncIOScheduler):
-    """
-    Registra o job de follow-up automático.
-    
-    EXECUTA: A cada hora, no minuto 30
-    EXEMPLO: 08:30, 09:30, 10:30, ...
-    """
-    from src.infrastructure.jobs.follow_up_service import run_follow_up_job
-    
-    sched.add_job(
-        run_follow_up_job,
-        trigger=CronTrigger(minute=30),  # A cada hora no minuto 30
-        id="follow_up_job",
-        name="Follow-up Automático",
-        replace_existing=True,
-    )
-    
-    logger.info("📅 Job registrado: Follow-up Automático (a cada hora, minuto 30)")
-
-
 def start_scheduler():
-    """
-    Inicia o scheduler.
-    
-    CHAMADO POR: main.py no startup (depois de create_scheduler)
-    """
-    global scheduler
-    
-    if scheduler is None:
-        logger.error("❌ Scheduler não foi criado. Chame create_scheduler() primeiro.")
-        return
-    
-    if scheduler.running:
-        logger.warning("⚠️ Scheduler já está rodando")
-        return
-    
+    """Inicia o scheduler."""
+    scheduler = get_scheduler()
     scheduler.start()
-    logger.info("🚀 Scheduler iniciado!")
-    
-    # Lista jobs registrados
-    jobs = scheduler.get_jobs()
-    logger.info(f"📋 Jobs ativos: {len(jobs)}")
-    for job in jobs:
-        logger.info(f"   - {job.name} (próxima execução: {job.next_run_time})")
 
 
 def stop_scheduler():
-    """
-    Para o scheduler.
-    
-    CHAMADO POR: main.py no shutdown
-    """
-    global scheduler
-    
-    if scheduler is None:
-        return
-    
-    if not scheduler.running:
-        return
-    
-    scheduler.shutdown(wait=False)
-    logger.info("🛑 Scheduler parado")
+    """Para o scheduler."""
+    scheduler = get_scheduler()
+    scheduler.stop()
 
 
 def get_scheduler_status() -> dict:
-    """
-    Retorna status do scheduler.
-    
-    Útil para endpoint de health check.
-    """
-    global scheduler
-    
-    if scheduler is None:
-        return {
-            "running": False,
-            "jobs": [],
-            "error": "Scheduler não inicializado",
-        }
-    
-    jobs_info = []
-    for job in scheduler.get_jobs():
-        jobs_info.append({
-            "id": job.id,
-            "name": job.name,
-            "next_run": str(job.next_run_time) if job.next_run_time else None,
-        })
-    
-    return {
-        "running": scheduler.running,
-        "jobs": jobs_info,
-    }
+    """Retorna status do scheduler."""
+    scheduler = get_scheduler()
+    return scheduler.get_status()
 
 
-async def run_job_now(job_id: str) -> dict:
-    """
-    Executa um job imediatamente (fora do agendamento).
-    
-    Útil para testes ou execução manual pelo admin.
-    """
-    global scheduler
-    
-    if scheduler is None:
-        return {"success": False, "error": "Scheduler não inicializado"}
-    
-    job = scheduler.get_job(job_id)
-    
-    if job is None:
-        return {"success": False, "error": f"Job '{job_id}' não encontrado"}
-    
-    try:
-        # Executa o job imediatamente
-        if job_id == "follow_up_job":
-            from src.infrastructure.jobs.follow_up_service import run_follow_up_job
-            result = await run_follow_up_job()
-            return {"success": True, "result": result}
-        
-        return {"success": False, "error": "Job não suporta execução manual"}
-        
-    except Exception as e:
-        logger.error(f"❌ Erro ao executar job {job_id}: {e}", exc_info=True)
-        return {"success": False, "error": str(e)}
+async def run_job_now(job_id: str) -> bool:
+    """Executa um job manualmente."""
+    scheduler = get_scheduler()
+    return scheduler.run_job_now(job_id)
