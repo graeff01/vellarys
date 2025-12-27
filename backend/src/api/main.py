@@ -85,29 +85,6 @@ async def create_superadmin():
         await session.commit()
         print("✅ Superadmin criado com sucesso!")
 
-
-# ============================================================
-# 🔁 LIFESPAN
-# ============================================================
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("🚀 Iniciando Velaris API...")
-
-    await init_db()
-    print("✅ Tabelas criadas!")
-
-    await create_superadmin()
-
-    # Inicia scheduler de jobs
-    create_scheduler()
-    start_scheduler()
-
-    yield
-
-    # Para scheduler
-    stop_scheduler()
-
-
 # ============================================================
 # FASTAPI APP
 # ============================================================
@@ -119,7 +96,7 @@ app = FastAPI(
 )
 
 # ============================================================
-# ⭐ CORS
+# ⭐ CORSSSS
 # ============================================================
 app.add_middleware(
     CORSMiddleware,
@@ -163,7 +140,7 @@ app.include_router(admin_tenants_router, prefix="/api/v1")
 app.include_router(admin_niches_router, prefix="/api/v1")
 app.include_router(admin_logs_router, prefix="/api/v1")
 app.include_router(admin_plans_router, prefix="/api/v1")
-app.include_router(admin_ceo_router, prefix="/api/v1")  # ← ADICIONAR
+app.include_router(admin_ceo_router, prefix="/api/v1")  
 
 
 @app.get("/")
