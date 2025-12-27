@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { getToken } from '@/lib/auth';
 
 // =============================================================================
 // TIPOS
