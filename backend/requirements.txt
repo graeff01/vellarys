@@ -13,5 +13,4 @@ alembic
 redis
 pywebpush==1.14.1
 apscheduler>=3.10.0
-
-# force rebuild novo
+pywebpush>=1.14.0
