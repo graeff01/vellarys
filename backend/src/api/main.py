@@ -16,6 +16,7 @@ from src.infrastructure.database import init_db, async_session
 from src.api.routes.messages import router as messages_router
 from src.api.routes.zapi_routes import router as zapi_router
 from src.api.routes import (
+    admin_ceo_router,
     empreendimentos_router,
     dialog360_webhook_router,
     twilio_webhook_router,
@@ -162,6 +163,7 @@ app.include_router(admin_tenants_router, prefix="/api/v1")
 app.include_router(admin_niches_router, prefix="/api/v1")
 app.include_router(admin_logs_router, prefix="/api/v1")
 app.include_router(admin_plans_router, prefix="/api/v1")
+app.include_router(admin_ceo_router, prefix="/api/v1")  # ← ADICIONAR
 
 
 @app.get("/")

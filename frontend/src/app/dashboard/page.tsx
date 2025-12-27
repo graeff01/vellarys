@@ -8,13 +8,13 @@ import { QualificationDonut } from '@/components/dashboard/qualification-donut';
 import { ROICard } from '@/components/dashboard/roi-card';
 import { LeadsTable } from '@/components/dashboard/leads-table';
 import { PlanUsageCard } from '@/components/dashboard/plan-usage-card';
+import { CEODashboard } from '@/components/ceo/ceo-dashboard';
 import { getMetrics, getLeads } from '@/lib/api';
 import { getSellers } from '@/lib/sellers';
 import { getUser } from '@/lib/auth';
-import { 
-  Flame, 
-  TrendingUp, 
-  Target,
+import {
+  Flame,
+  TrendingUp,
   Clock,
   DollarSign,
   Moon,
@@ -64,22 +64,22 @@ interface Seller {
   active: boolean;
 }
 
-export default function DashboardPage() {
+// =============================================================================
+// DASHBOARD DO GESTOR (cliente normal)
+// =============================================================================
+
+function GestorDashboard() {
   const router = useRouter();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   useEffect(() => {
-    const user = getUser();
-    setIsSuperAdmin(user?.role === 'superadmin');
-
     async function loadData() {
       try {
         setLoading(true);
-        
+
         const [metricsData, leadsData, sellersData] = await Promise.all([
           getMetrics().catch(e => {
             console.error('❌ Erro ao carregar métricas:', e);
@@ -94,9 +94,7 @@ export default function DashboardPage() {
             return { sellers: [] };
           }),
         ]);
-        
-        console.log('✅ Métricas carregadas:', metricsData);
-        
+
         setMetrics(metricsData as Metrics);
         setLeads((leadsData as { items: Lead[] }).items);
         setSellers((sellersData as any).sellers || []);
@@ -106,7 +104,7 @@ export default function DashboardPage() {
         setLoading(false);
       }
     }
-    
+
     loadData();
   }, []);
 
@@ -124,7 +122,7 @@ export default function DashboardPage() {
   // Calcula métricas para os cards
   const leadsHot = metrics?.by_qualification?.quente || 0;
   const leadsCold = metrics?.by_qualification?.frio || 0;
-  
+
   // Valores com fallback seguro
   const timeSaved = metrics?.time_saved || { hours_saved: 0, cost_saved_brl: 0, leads_handled: 0 };
   const afterHoursLeads = metrics?.after_hours_leads || 0;
@@ -144,9 +142,9 @@ export default function DashboardPage() {
       {/* Cards principais */}
       {metrics && <MetricsCards metrics={metrics} />}
 
-      {/* CARDS DE VALOR AGREGADO - NOVOS! */}
+      {/* CARDS DE VALOR AGREGADO */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        
+
         {/* 1. Economia de Tempo */}
         <Card>
           <div className="p-6">
@@ -267,70 +265,59 @@ export default function DashboardPage() {
 
         {/* Card de Qualificação */}
         <Card>
-          <CardHeader 
-            title="Qualificação dos Leads" 
+          <CardHeader
+            title="Qualificação dos Leads"
             subtitle="Distribuição por temperatura"
           />
           {metrics && <QualificationDonut data={metrics.by_qualification} />}
         </Card>
 
-        {/* Card de Uso do Plano OU Destaques da IA */}
-        {!isSuperAdmin ? (
-          <PlanUsageCard />
-        ) : (
-          <Card>
-            <CardHeader 
-              title="Destaques da IA" 
-              subtitle="Performance do atendimento"
-            />
-            <div className="space-y-4">
-              <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-100">
-                <div className="p-3 bg-red-100 rounded-full">
-                  <Flame className="w-6 h-6 text-red-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Leads Quentes este mês</p>
-                  <p className="text-2xl font-bold text-red-600">{leadsHot}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-100">
-                <div className="p-3 bg-green-100 rounded-full">
-                  <TrendingUp className="w-6 h-6 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Taxa de Qualificação</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {metrics?.total_leads ? Math.round((leadsHot / metrics.total_leads) * 100) : 0}%
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
-                <div className="p-3 bg-blue-100 rounded-full">
-                  <MessageCircle className="w-6 h-6 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Taxa de Engajamento</p>
-                  <p className="text-2xl font-bold text-blue-600">{engagementRate.toFixed(0)}%</p>
-                </div>
-              </div>
-            </div>
-          </Card>
-        )}
+        {/* Card de Uso do Plano */}
+        <PlanUsageCard />
       </div>
 
       {/* Leads Recentes */}
       <Card overflow>
-        <CardHeader 
-          title="Leads Recentes" 
+        <CardHeader
+          title="Leads Recentes"
           subtitle="Últimos leads que entraram em contato"
         />
-        <LeadsTable 
-          leads={leads.slice(0, 5)} 
+        <LeadsTable
+          leads={leads.slice(0, 5)}
           sellers={sellers}
         />
       </Card>
     </div>
   );
+}
+
+// =============================================================================
+// PÁGINA PRINCIPAL - DETECTA ROLE
+// =============================================================================
+
+export default function DashboardPage() {
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const user = getUser();
+    setIsSuperAdmin(user?.role === 'superadmin');
+    setLoading(false);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Se for SUPERADMIN, mostra o Dashboard CEO
+  if (isSuperAdmin) {
+    return <CEODashboard />;
+  }
+
+  // Se for gestor normal, mostra o Dashboard padrão
+  return <GestorDashboard />;
 }
