@@ -85,6 +85,29 @@ async def create_superadmin():
         await session.commit()
         print("✅ Superadmin criado com sucesso!")
 
+
+# ============================================================
+# 🔁 LIFESPAN
+# ============================================================
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("🚀 Iniciando Velaris API...")
+
+    await init_db()
+    print("✅ Tabelas criadas!")
+
+    await create_superadmin()
+
+    # Inicia scheduler de jobs
+    create_scheduler()
+    start_scheduler()
+
+    yield
+
+    # Para scheduler
+    stop_scheduler()
+
+
 # ============================================================
 # FASTAPI APP
 # ============================================================
@@ -96,20 +119,20 @@ app = FastAPI(
 )
 
 # ============================================================
-# ⭐ CORSSSS
+# ⭐ CORS
 # ============================================================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://vellarys-production.up.railway.app",
-        "https://hopeful-purpose-production-3a2b.up.railway.app",
         "http://localhost:3000",
-        "http://localhost:8000",
+        "http://localhost:5173",
     ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
 
 # ============================================================
 # ROTAS
