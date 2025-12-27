@@ -1,21 +1,15 @@
 """
-NOTIFICATION SERVICE (Z-API)
-============================
+NOTIFICATION SERVICE (Z-API + PUSH)
+===================================
 
 Serviço centralizado de notificações do Velaris.
-ATUALIZADO: Usa Z-API para enviar WhatsApp (não 360Dialog)
+✅ ATUALIZADO: Agora inclui Push Notifications!
 
-✅ VERSÃO MELHORADA - Com trechos REAIS da conversa
+Canais de notificação:
+1. Painel (banco de dados)
+2. WhatsApp (Z-API)
+3. Push Notification (Web Push) ← NOVO!
 
-Responsabilidades:
-- Notificar gestor via WhatsApp quando lead quente
-- Notificar gestor via WhatsApp quando lead fora do horário
-- Notificar vendedor via WhatsApp quando receber lead atribuído
-- Criar notificações no painel (Notification entity)
-- Evitar spam (não repetir notificações)
-- NOVO: Mostrar trechos REAIS da conversa (não só resumo abstrato)
-
-Funciona para TODOS os nichos (imobiliário, saúde, fitness, educação, etc).
 """
 
 import logging
@@ -25,6 +19,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.entities import Tenant, Lead, Notification, Seller, Message, Channel
+
+# ✅ NOVO: Import do push_service
+from src.infrastructure.services.push_service import (
+    send_push_to_tenant,
+    send_push_to_user,
+    PushNotificationPayload,
+)
+
 from src.infrastructure.services.zapi_service import ZAPIService, get_zapi_client
 
 logger = logging.getLogger(__name__)
@@ -70,10 +72,8 @@ def format_phone_display(phone: str) -> str:
     if not phone:
         return "Não informado"
 
-    # Remove caracteres não numéricos
     digits = ''.join(filter(str.isdigit, phone))
 
-    # Formato brasileiro: (XX) XXXXX-XXXX
     if len(digits) == 11:
         return f"({digits[:2]}) {digits[2:7]}-{digits[7:]}"
     elif len(digits) == 13 and digits.startswith("55"):
@@ -89,7 +89,6 @@ def format_phone_whatsapp(phone: str) -> str:
 
     digits = ''.join(filter(str.isdigit, phone))
 
-    # Adiciona 55 se não tiver
     if len(digits) == 11:
         digits = "55" + digits
 
@@ -104,7 +103,6 @@ def format_datetime_br(dt: datetime) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
 
-    # Converte para horário de Brasília (UTC-3)
     dt_br = dt - timedelta(hours=3)
 
     return dt_br.strftime("%d/%m/%Y às %H:%M")
@@ -119,7 +117,7 @@ def get_qualification_display(qualification: str) -> str:
 
 
 # =============================================================================
-# ✨ NOVA FUNÇÃO - TRECHOS REAIS DA CONVERSA
+# TRECHOS REAIS DA CONVERSA
 # =============================================================================
 
 async def build_conversation_excerpt(
@@ -128,23 +126,8 @@ async def build_conversation_excerpt(
     max_messages: int = 6,
     max_length_per_message: int = 200,
 ) -> str:
-    """
-    Busca e formata trechos REAIS da conversa.
-    
-    Mostra as últimas mensagens exatamente como foram escritas.
-    Muito mais útil que resumos abstratos!
-    
-    Args:
-        db: Sessão do banco
-        lead_id: ID do lead
-        max_messages: Quantas mensagens mostrar (padrão: 6)
-        max_length_per_message: Tamanho máximo de cada mensagem
-        
-    Returns:
-        String formatada com trechos da conversa
-    """
+    """Busca e formata trechos REAIS da conversa."""
     try:
-        # Busca últimas mensagens
         result = await db.execute(
             select(Message)
             .where(Message.lead_id == lead_id)
@@ -159,12 +142,10 @@ async def build_conversation_excerpt(
         lines = []
         
         for msg in messages:
-            # Limita tamanho da mensagem
             content = msg.content or ""
             if len(content) > max_length_per_message:
                 content = content[:max_length_per_message] + "..."
             
-            # Formata com emoji apropriado
             if msg.role == "user":
                 lines.append(f"👤 *Cliente:* \"{content}\"")
             elif msg.role == "assistant":
@@ -180,7 +161,7 @@ async def build_conversation_excerpt(
 
 
 # =============================================================================
-# BUILD LEAD SUMMARY (UNIVERSAL - TODOS OS NICHOS)
+# BUILD LEAD SUMMARY (UNIVERSAL)
 # =============================================================================
 
 def build_lead_summary_text(
@@ -188,14 +169,9 @@ def build_lead_summary_text(
     include_conversation: bool = False,
     max_summary_length: int = 500,
 ) -> str:
-    """
-    Constrói texto resumido do lead para notificações.
-
-    Funciona para qualquer nicho - extrai dados genéricos do custom_data.
-    """
+    """Constrói texto resumido do lead para notificações."""
     lines = []
 
-    # Dados básicos (universais)
     if lead.name:
         lines.append(f"👤 *Nome:* {lead.name}")
 
@@ -208,57 +184,33 @@ def build_lead_summary_text(
     if lead.city:
         lines.append(f"📍 *Cidade:* {lead.city}")
 
-    # Qualificação
     if lead.qualification:
         lines.append(f"📊 *Qualificação:* {get_qualification_display(lead.qualification)}")
 
-    # Fonte/Campanha
     if lead.source and lead.source != "organico":
         lines.append(f"📢 *Origem:* {lead.source}")
 
     if lead.campaign:
         lines.append(f"🎯 *Campanha:* {lead.campaign}")
 
-    # Custom data (dados específicos do nicho - extraídos dinamicamente)
     if lead.custom_data:
         custom_lines = []
 
-        # Campos comuns que podem existir em qualquer nicho
         field_mappings = {
-            # Imobiliário
             "empreendimento_nome": ("🏢", "Empreendimento"),
             "interesse": ("🏠", "Interesse"),
             "tipologia": ("🛏️", "Tipologia"),
             "budget_range": ("💰", "Orçamento"),
             "urgency_level": ("⏰", "Urgência"),
             "prazo": ("📅", "Prazo"),
-
-            # Saúde
             "procedimento": ("🏥", "Procedimento"),
             "especialidade": ("👨‍⚕️", "Especialidade"),
             "convenio": ("📋", "Convênio"),
-            "sintomas": ("🩺", "Sintomas"),
-
-            # Fitness
             "objetivo": ("🎯", "Objetivo"),
             "plano_interesse": ("💪", "Plano"),
-            "horario_preferido": ("🕐", "Horário"),
-            "experiencia": ("📈", "Experiência"),
-
-            # Educação
             "curso": ("📚", "Curso"),
-            "turma": ("👥", "Turma"),
-            "nivel": ("🎓", "Nível"),
-            "modalidade": ("💻", "Modalidade"),
-
-            # Genéricos
             "servico": ("🔧", "Serviço"),
             "produto": ("📦", "Produto"),
-            "observacoes": ("📝", "Observações"),
-            "preferencias": ("⭐", "Preferências"),
-            "pain_points": ("😟", "Dores"),
-            "objections": ("🤔", "Objeções"),
-            "buying_signals": ("💡", "Sinais de Compra"),
         }
 
         for field, (emoji, label) in field_mappings.items():
@@ -269,11 +221,10 @@ def build_lead_summary_text(
                 custom_lines.append(f"{emoji} *{label}:* {value}")
 
         if custom_lines:
-            lines.append("")  # Linha em branco
+            lines.append("")
             lines.append("📋 *Informações coletadas:*")
             lines.extend(custom_lines)
 
-    # Summary da IA (se existir)
     if lead.summary and include_conversation:
         summary_text = lead.summary[:max_summary_length]
         if len(lead.summary) > max_summary_length:
@@ -286,7 +237,7 @@ def build_lead_summary_text(
 
 
 # =============================================================================
-# ✨ BUILD WHATSAPP MESSAGES MELHORADO (COM CONVERSA REAL)
+# BUILD WHATSAPP MESSAGES
 # =============================================================================
 
 async def build_whatsapp_notification_message(
@@ -297,16 +248,9 @@ async def build_whatsapp_notification_message(
     empreendimento: Any = None,
     extra_context: Dict[str, Any] = None,
 ) -> str:
-    """
-    Constrói mensagem de notificação WhatsApp.
-    
-    ✅ MELHORADO: Agora inclui trechos REAIS da conversa!
-
-    Funciona para qualquer nicho.
-    """
+    """Constrói mensagem de notificação WhatsApp."""
     extra_context = extra_context or {}
 
-    # Header baseado no tipo
     headers = {
         "lead_hot": "🔥 *Lead Quente!*",
         "lead_new": "🔥 *Novo Lead!*",
@@ -317,8 +261,6 @@ async def build_whatsapp_notification_message(
     }
 
     header = headers.get(notification_type, "📢 *Notificação*")
-
-    # Nome da empresa
     company_name = tenant.name or "Empresa"
 
     lines = [
@@ -327,17 +269,14 @@ async def build_whatsapp_notification_message(
         "━━━━━━━━━━━━━━━━━━━━",
     ]
 
-    # Dados do lead
     lines.append(build_lead_summary_text(lead, include_conversation=False))
 
-    # Info do empreendimento (se tiver - específico imobiliário)
     if empreendimento:
         lines.append("")
         lines.append(f"🏢 *Empreendimento:* {empreendimento.nome}")
         if hasattr(empreendimento, 'bairro') and empreendimento.bairro:
             lines.append(f"📍 *Bairro:* {empreendimento.bairro}")
 
-    # ✨ NOVA SEÇÃO - TRECHOS REAIS DA CONVERSA
     lines.append("")
     lines.append("💬 *O QUE O CLIENTE DISSE:*")
     lines.append("─────────────────")
@@ -347,14 +286,11 @@ async def build_whatsapp_notification_message(
     
     lines.append("─────────────────")
 
-    # Timestamp
     lines.append("")
     lines.append(f"🕐 *Recebido:* {format_datetime_br(lead.created_at)}")
 
-    # Footer
     lines.append("━━━━━━━━━━━━━━━━━━━━")
 
-    # Call to action baseado no tipo
     if notification_type == "lead_assigned":
         lines.append("_Clique no número acima para iniciar atendimento_")
     else:
@@ -371,14 +307,7 @@ async def build_seller_notification_message(
     assigned_by: str = "Gestor",
     notes: str = None,
 ) -> str:
-    """
-    Constrói mensagem de notificação para o VENDEDOR quando recebe um lead.
-
-    ✅ MELHORADO: Agora inclui trechos REAIS da conversa!
-    ✅ Inclui código do imóvel, orçamento e prazo
-
-    Funciona para qualquer nicho.
-    """
+    """Constrói mensagem de notificação para o VENDEDOR."""
     company_name = tenant.name or "Empresa"
 
     lines = [
@@ -388,7 +317,6 @@ async def build_seller_notification_message(
         "",
     ]
 
-    # Dados principais do lead
     lines.append(f"👤 *Nome:* {lead.name or 'Não informado'}")
     lines.append(f"📱 *WhatsApp:* {format_phone_display(lead.phone)}")
 
@@ -398,21 +326,17 @@ async def build_seller_notification_message(
     if lead.city:
         lines.append(f"📍 *Cidade:* {lead.city}")
 
-    # ========================================
-    # INFORMAÇÕES DO IMÓVEL (se tiver)
-    # ========================================
+    # Imóvel de interesse
     if lead.custom_data and lead.custom_data.get("imovel_portal"):
         imovel = lead.custom_data.get("imovel_portal", {})
 
         lines.append("")
         lines.append("🏠 *IMÓVEL DE INTERESSE:*")
 
-        # Código do imóvel (CRÍTICO!)
         codigo = imovel.get("codigo")
         if codigo:
             lines.append(f"   📋 *Código:* [{codigo}]")
 
-        # Tipo e características
         tipo = imovel.get("tipo", "Imóvel")
         quartos = imovel.get("quartos")
         banheiros = imovel.get("banheiros")
@@ -428,107 +352,30 @@ async def build_seller_notification_message(
         else:
             lines.append(f"   🏘️ {tipo}")
 
-        # Endereço
-        endereco = imovel.get("endereco")
-        bairro = imovel.get("bairro")
-        cidade = imovel.get("cidade")
-
-        if endereco or bairro:
-            loc_parts = []
-            if endereco:
-                loc_parts.append(endereco)
-            if bairro:
-                loc_parts.append(bairro)
-            if cidade:
-                loc_parts.append(cidade)
-            lines.append(f"   📍 {', '.join(loc_parts)}")
-
-        # Valor
         valor = imovel.get("valor")
         if valor:
             lines.append(f"   💰 *Valor:* R$ {valor:,.2f}".replace(",", "."))
 
-        # Metragem
-        metragem = imovel.get("metragem")
-        if metragem:
-            lines.append(f"   📐 {metragem}m²")
-
-    # ========================================
-    # ORÇAMENTO DO LEAD
-    # ========================================
-    orcamento = None
+    # Orçamento
     if lead.custom_data:
-        # Tenta várias formas de capturar orçamento
         orcamento = (
             lead.custom_data.get("orcamento") or
             lead.custom_data.get("budget") or
-            lead.custom_data.get("budget_range") or
-            lead.custom_data.get("valor_disponivel")
+            lead.custom_data.get("budget_range")
         )
+        if orcamento:
+            lines.append("")
+            lines.append(f"💰 *Orçamento do Lead:* R$ {orcamento}")
 
-    if orcamento:
-        lines.append("")
-        lines.append(f"💰 *Orçamento do Lead:* R$ {orcamento}")
-
-    # ========================================
-    # PRAZO/URGÊNCIA
-    # ========================================
-    prazo = None
-    if lead.custom_data:
         prazo = (
             lead.custom_data.get("prazo") or
             lead.custom_data.get("urgencia") or
-            lead.custom_data.get("urgency_level") or
-            lead.custom_data.get("prazo_mudanca")
+            lead.custom_data.get("urgency_level")
         )
+        if prazo:
+            lines.append(f"⏰ *Urgência:* {prazo}")
 
-    if prazo:
-        lines.append(f"⏰ *Urgência:* {prazo}")
-
-    # ========================================
-    # Outras informações coletadas
-    # ========================================
-    if lead.custom_data:
-        collected_info = []
-
-        # Mapeia campos importantes (mas ignora os que já mostramos acima)
-        important_fields = {
-            # Imobiliário
-            "empreendimento_nome": "Empreendimento",
-            "interesse": "Interesse",
-            "tipologia": "Tipologia",
-            "finalidade": "Finalidade",
-
-            # Saúde
-            "procedimento": "Procedimento",
-            "especialidade": "Especialidade",
-            "convenio": "Convênio",
-
-            # Fitness
-            "objetivo": "Objetivo",
-            "plano_interesse": "Plano",
-
-            # Educação
-            "curso": "Curso",
-
-            # Genéricos
-            "servico": "Serviço",
-            "produto": "Produto",
-        }
-
-        for field, label in important_fields.items():
-            value = lead.custom_data.get(field)
-            if value:
-                if isinstance(value, list):
-                    value = ", ".join(str(v) for v in value)
-                collected_info.append(f"• *{label}:* {value}")
-
-        if collected_info:
-            lines.append("")
-            lines.append("📋 *Outras informações:*")
-            lines.extend(collected_info)
-
-    # ✨ NOVA SEÇÃO - TRECHOS REAIS DA CONVERSA
+    # Conversa
     lines.append("")
     lines.append("💬 *CONVERSA COM O CLIENTE:*")
     lines.append("─────────────────")
@@ -538,7 +385,6 @@ async def build_seller_notification_message(
     
     lines.append("─────────────────")
 
-    # Notas do gestor (se tiver)
     if notes:
         lines.append("")
         lines.append(f"📌 *Observação do gestor:*")
@@ -551,7 +397,6 @@ async def build_seller_notification_message(
     lines.append("")
     lines.append("_Clique no link abaixo para iniciar o atendimento!_")
 
-    # Link direto do WhatsApp do lead
     if lead.phone:
         whatsapp_number = format_phone_whatsapp(lead.phone)
         lines.append("")
@@ -568,16 +413,8 @@ async def get_zapi_client_for_tenant(
     db: AsyncSession,
     tenant: Tenant,
 ) -> Optional[ZAPIService]:
-    """
-    Obtém cliente Z-API configurado para o tenant.
+    """Obtém cliente Z-API configurado para o tenant."""
 
-    Busca credenciais em:
-    1. Canal WhatsApp do tenant (channel.config)
-    2. Settings do tenant (tenant.settings)
-    3. Variáveis de ambiente (fallback global)
-    """
-
-    # 1. Tenta buscar do canal WhatsApp do tenant
     result = await db.execute(
         select(Channel)
         .where(Channel.tenant_id == tenant.id)
@@ -595,7 +432,6 @@ async def get_zapi_client_for_tenant(
             logger.info(f"Z-API: Usando credenciais do canal {channel.id}")
             return ZAPIService(instance_id=instance_id, token=token, client_token=client_token)
 
-    # 2. Tenta buscar dos settings do tenant
     settings = tenant.settings or {}
     zapi_config = settings.get("zapi", {}) or settings.get("whatsapp", {})
 
@@ -607,7 +443,6 @@ async def get_zapi_client_for_tenant(
         logger.info(f"Z-API: Usando credenciais dos settings do tenant {tenant.slug}")
         return ZAPIService(instance_id=instance_id, token=token, client_token=client_token)
 
-    # 3. Fallback: usa credenciais globais das variáveis de ambiente
     logger.info(f"Z-API: Usando credenciais globais (env vars)")
     return get_zapi_client()
 
@@ -618,29 +453,22 @@ async def send_whatsapp_zapi(
     message: str,
     tenant: Tenant,
 ) -> Dict[str, Any]:
-    """
-    Envia mensagem WhatsApp via Z-API.
-
-    Retorna: {"success": bool, "message_id": str, "error": str}
-    """
+    """Envia mensagem WhatsApp via Z-API."""
     try:
-        # Obtém cliente Z-API configurado
         zapi = await get_zapi_client_for_tenant(db, tenant)
 
         if not zapi or not zapi.is_configured():
             logger.warning(f"Z-API não configurado para tenant {tenant.slug}")
             return {"success": False, "error": "Z-API não configurado"}
 
-        # Formata número destino
         to_number = format_phone_whatsapp(to_phone)
         if not to_number:
             return {"success": False, "error": "Número de destino inválido"}
 
-        # Envia mensagem
         result = await zapi.send_text(
             phone=to_number,
             message=message,
-            delay_message=2  # Pequeno delay para parecer mais natural
+            delay_message=2
         )
 
         if result.get("success"):
@@ -658,7 +486,7 @@ async def send_whatsapp_zapi(
 
 
 # =============================================================================
-# FUNÇÕES PRINCIPAIS DE NOTIFICAÇÃO (ATUALIZADAS COM DB)
+# FUNÇÕES PRINCIPAIS DE NOTIFICAÇÃO
 # =============================================================================
 
 async def create_panel_notification(
@@ -672,7 +500,6 @@ async def create_panel_notification(
 ) -> Notification:
     """Cria notificação no painel (banco de dados)."""
 
-    # Títulos padrão por tipo
     default_titles = {
         "lead_hot": "🔥 Lead Quente!",
         "lead_new": "🔥 Novo Lead",
@@ -683,7 +510,6 @@ async def create_panel_notification(
         "lead_assigned": "👤 Lead Atribuído",
     }
 
-    # Mensagens padrão por tipo
     default_messages = {
         "lead_hot": f"{lead.name or 'Lead'} está muito interessado!",
         "lead_new": f"Novo lead: {lead.name or lead.phone or 'Não identificado'}",
@@ -718,24 +544,13 @@ async def notify_gestor_whatsapp(
     empreendimento: Any = None,
     extra_context: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
-    """
-    Envia notificação WhatsApp para o gestor via Z-API.
-    
-    ✅ MELHORADO: Agora passa o db para buscar conversa real
+    """Envia notificação WhatsApp para o gestor via Z-API."""
 
-    Busca WhatsApp do gestor em:
-    1. empreendimento.whatsapp_notificacao (se tiver empreendimento)
-    2. tenant.settings.handoff.manager_whatsapp
-    """
-
-    # Determina número do gestor
     manager_whatsapp = None
 
-    # Prioridade 1: WhatsApp específico do empreendimento
     if empreendimento and hasattr(empreendimento, 'whatsapp_notificacao'):
         manager_whatsapp = empreendimento.whatsapp_notificacao
 
-    # Prioridade 2: WhatsApp do gestor no settings
     if not manager_whatsapp:
         settings = tenant.settings or {}
         handoff_config = settings.get("handoff", {})
@@ -745,9 +560,8 @@ async def notify_gestor_whatsapp(
         logger.warning(f"WhatsApp do gestor não configurado para tenant {tenant.slug}")
         return {"success": False, "error": "WhatsApp do gestor não configurado"}
 
-    # Monta mensagem (AGORA COM DB!)
     message = await build_whatsapp_notification_message(
-        db=db,  # ✅ PASSA DB
+        db=db,
         lead=lead,
         notification_type=notification_type,
         tenant=tenant,
@@ -755,7 +569,6 @@ async def notify_gestor_whatsapp(
         extra_context=extra_context,
     )
 
-    # Envia via Z-API
     result = await send_whatsapp_zapi(db, manager_whatsapp, message, tenant)
 
     if result["success"]:
@@ -772,24 +585,8 @@ async def notify_seller_whatsapp(
     assigned_by: str = "Gestor",
     notes: str = None,
 ) -> Dict[str, Any]:
-    """
-    Envia notificação WhatsApp para o VENDEDOR quando recebe um lead via Z-API.
-    
-    ✅ MELHORADO: Agora passa o db para buscar conversa real
+    """Envia notificação WhatsApp para o VENDEDOR."""
 
-    Args:
-        db: Sessão do banco
-        tenant: Tenant do lead
-        lead: Lead atribuído
-        seller: Vendedor que vai receber
-        assigned_by: Nome de quem atribuiu
-        notes: Observações do gestor
-
-    Returns:
-        {"success": bool, "message_id": str, "error": str}
-    """
-
-    # Verifica se vendedor tem WhatsApp
     seller_phone = None
     if hasattr(seller, 'whatsapp') and seller.whatsapp:
         seller_phone = seller.whatsapp
@@ -800,9 +597,8 @@ async def notify_seller_whatsapp(
         logger.warning(f"Vendedor {seller.name} (ID: {seller.id}) não tem WhatsApp cadastrado")
         return {"success": False, "error": "Vendedor sem WhatsApp cadastrado"}
 
-    # Monta mensagem personalizada para o vendedor (AGORA COM DB!)
     message = await build_seller_notification_message(
-        db=db,  # ✅ PASSA DB
+        db=db,
         lead=lead,
         seller=seller,
         tenant=tenant,
@@ -810,7 +606,6 @@ async def notify_seller_whatsapp(
         notes=notes,
     )
 
-    # Envia via Z-API
     result = await send_whatsapp_zapi(db, seller_phone, message, tenant)
 
     if result["success"]:
@@ -822,7 +617,7 @@ async def notify_seller_whatsapp(
 
 
 # =============================================================================
-# FUNÇÕES DE CONVENIÊNCIA (ATALHOS)
+# ✅ FUNÇÕES COM PUSH NOTIFICATION INTEGRADO
 # =============================================================================
 
 async def notify_gestor(
@@ -834,11 +629,12 @@ async def notify_gestor(
     extra_context: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
     """
-    Notifica o gestor via painel + WhatsApp.
-
-    Esta é a função principal que deve ser usada.
+    Notifica o gestor via:
+    1. Painel (banco de dados)
+    2. WhatsApp (Z-API)
+    3. Push Notification (Web Push) ← NOVO!
     """
-    results = {"panel": False, "whatsapp": False}
+    results = {"panel": False, "whatsapp": False, "push": False}
 
     try:
         # 1. Cria notificação no painel
@@ -862,6 +658,52 @@ async def notify_gestor(
         )
         results["whatsapp"] = whatsapp_result.get("success", False)
 
+        # 3. ✅ NOVO: Envia Push Notification
+        try:
+            push_titles = {
+                "lead_hot": "🔥 Lead Quente!",
+                "lead_new": "🔔 Novo Lead!",
+                "lead_empreendimento": f"🏢 Lead do {empreendimento.nome if empreendimento else 'Empreendimento'}",
+                "lead_out_of_hours": "🌙 Lead Fora do Horário!",
+                "handoff_requested": "🙋 Lead Pediu Atendente!",
+            }
+
+            push_bodies = {
+                "lead_hot": f"{lead.name or 'Lead'} está muito interessado!",
+                "lead_new": f"Novo lead: {lead.name or lead.phone or 'Não identificado'}",
+                "lead_empreendimento": f"{lead.name or 'Lead'} interessado no {empreendimento.nome if empreendimento else 'empreendimento'}",
+                "lead_out_of_hours": f"{lead.name or 'Lead'} entrou em contato fora do horário",
+                "handoff_requested": f"{lead.name or 'Lead'} quer falar com atendente",
+            }
+
+            push_payload = PushNotificationPayload(
+                title=push_titles.get(notification_type, "🔔 Nova Notificação"),
+                body=push_bodies.get(notification_type, f"Lead: {lead.name or lead.phone}"),
+                tag=f"{notification_type}-{lead.id}",
+                url=f"/dashboard/leads?lead={lead.id}",
+                require_interaction=notification_type in ["lead_hot", "handoff_requested"],
+                data={
+                    "lead_id": lead.id,
+                    "type": notification_type,
+                    "tenant_id": tenant.id,
+                },
+            )
+
+            push_result = await send_push_to_tenant(
+                db=db,
+                tenant_id=tenant.id,
+                payload=push_payload,
+            )
+
+            results["push"] = push_result.get("sent", 0) > 0
+            
+            if results["push"]:
+                logger.info(f"📲 Push enviado: {push_result.get('sent')} dispositivos")
+
+        except Exception as push_error:
+            logger.warning(f"⚠️ Erro ao enviar push (não crítico): {push_error}")
+            results["push"] = False
+
     except Exception as e:
         logger.error(f"Erro notificando gestor: {e}")
 
@@ -877,20 +719,12 @@ async def notify_seller(
     notes: str = None,
 ) -> Dict[str, Any]:
     """
-    Notifica o vendedor via painel + WhatsApp quando recebe um lead.
-
-    Args:
-        db: Sessão do banco
-        tenant: Tenant
-        lead: Lead atribuído
-        seller: Vendedor que vai receber
-        assigned_by: Nome de quem atribuiu
-        notes: Observações do gestor
-
-    Returns:
-        {"panel": bool, "whatsapp": bool, "whatsapp_error": str}
+    Notifica o vendedor via:
+    1. Painel (banco de dados)
+    2. WhatsApp (Z-API)
+    3. Push Notification (Web Push) ← NOVO!
     """
-    results = {"panel": False, "whatsapp": False, "whatsapp_error": None}
+    results = {"panel": False, "whatsapp": False, "push": False, "whatsapp_error": None}
 
     try:
         # 1. Cria notificação no painel
@@ -917,12 +751,47 @@ async def notify_seller(
         if not results["whatsapp"]:
             results["whatsapp_error"] = whatsapp_result.get("error")
 
+        # 3. ✅ NOVO: Envia Push Notification para o vendedor
+        try:
+            if hasattr(seller, 'user_id') and seller.user_id:
+                push_payload = PushNotificationPayload(
+                    title="👋 Novo Lead para você!",
+                    body=f"Você recebeu o lead: {lead.name or lead.phone or 'Não identificado'}",
+                    tag=f"lead-assigned-{lead.id}",
+                    url=f"/dashboard/leads?lead={lead.id}",
+                    require_interaction=True,
+                    data={
+                        "lead_id": lead.id,
+                        "type": "lead_assigned",
+                        "seller_id": seller.id,
+                    },
+                )
+
+                push_result = await send_push_to_user(
+                    db=db,
+                    user_id=seller.user_id,
+                    payload=push_payload,
+                )
+
+                results["push"] = push_result.get("sent", 0) > 0
+                
+                if results["push"]:
+                    logger.info(f"📲 Push enviado para vendedor {seller.name}")
+
+        except Exception as push_error:
+            logger.warning(f"⚠️ Erro ao enviar push para vendedor (não crítico): {push_error}")
+            results["push"] = False
+
     except Exception as e:
         logger.error(f"Erro notificando vendedor: {e}")
         results["whatsapp_error"] = str(e)
 
     return results
 
+
+# =============================================================================
+# ATALHOS (MANTIDOS PARA COMPATIBILIDADE)
+# =============================================================================
 
 async def notify_lead_hot(
     db: AsyncSession,
