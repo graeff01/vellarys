@@ -25,7 +25,9 @@ from .admin import (
     admin_niches_router,
     admin_logs_router,
     admin_plans_router,
+    admin_ceo_router,
 )
+
 
 __all__ = [
     "dialog360_webhook_router",
@@ -44,11 +46,12 @@ __all__ = [
     "usage_router",
     "simulator_router",
     "empreendimentos_router",
-    "handoff_router",  # ← NOVO
+    "handoff_router",
     # Admin
     "admin_dashboard_router",
     "admin_tenants_router",
     "admin_niches_router",
     "admin_logs_router",
     "admin_plans_router",
+    "admin_ceo_router",
 ]
