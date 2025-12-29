@@ -5,10 +5,10 @@ ADMIN: Dashboard CEO
 Métricas avançadas para visão executiva do negócio.
 Endpoints específicos para o SUPERADMIN/CEO.
 
-ÚLTIMA ATUALIZAÇÃO: 2024-12-26
+ÚLTIMA ATUALIZAÇÃO: 2024-12-29
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy import select, func, and_, or_, case
@@ -20,6 +20,24 @@ from src.domain.entities import Tenant, Lead, Message, User
 from src.api.routes.admin.deps import get_current_superadmin
 
 router = APIRouter(prefix="/admin/ceo", tags=["Admin - CEO Dashboard"])
+
+
+# =============================================================================
+# HELPERS
+# =============================================================================
+
+def get_utc_now():
+    """Retorna datetime UTC timezone-aware."""
+    return datetime.now(timezone.utc)
+
+
+def make_aware(dt: datetime) -> datetime:
+    """Converte datetime naive para aware (UTC)."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 # =============================================================================
@@ -91,7 +109,7 @@ async def get_ceo_metrics(
     """
     Retorna métricas executivas agregadas de todo o sistema.
     """
-    now = datetime.utcnow()
+    now = get_utc_now()
     week_ago = now - timedelta(days=7)
     month_ago = now - timedelta(days=30)
     two_months_ago = now - timedelta(days=60)
@@ -163,10 +181,6 @@ async def get_ceo_metrics(
     total_handoffs = handoffs_result.scalar() or 0
     
     # Contar clientes por saúde
-    # Healthy: atividade nos últimos 3 dias
-    # Warning: atividade entre 3-7 dias
-    # Critical: sem atividade há mais de 7 dias
-    
     three_days_ago = now - timedelta(days=3)
     
     # Busca última atividade de cada tenant
@@ -194,12 +208,15 @@ async def get_ceo_metrics(
         
         if last_activity is None:
             clients_critical += 1
-        elif last_activity >= three_days_ago:
-            clients_healthy += 1
-        elif last_activity >= week_ago:
-            clients_warning += 1
         else:
-            clients_critical += 1
+            # Converte para timezone-aware se necessário
+            last_activity = make_aware(last_activity)
+            if last_activity >= three_days_ago:
+                clients_healthy += 1
+            elif last_activity >= week_ago:
+                clients_warning += 1
+            else:
+                clients_critical += 1
     
     return CEOMetrics(
         total_clients=total_clients,
@@ -227,7 +244,7 @@ async def get_clients_health(
     """
     Retorna a saúde de cada cliente com métricas detalhadas.
     """
-    now = datetime.utcnow()
+    now = get_utc_now()
     week_ago = now - timedelta(days=7)
     month_ago = now - timedelta(days=30)
     three_days_ago = now - timedelta(days=3)
@@ -284,6 +301,10 @@ async def get_clients_health(
             .where(Lead.tenant_id == tenant.id)
         )
         last_activity = last_activity_result.scalar()
+        
+        # Converte para timezone-aware se necessário
+        if last_activity:
+            last_activity = make_aware(last_activity)
         
         # Dias desde última atividade
         if last_activity:
@@ -343,7 +364,7 @@ async def get_alerts(
     """
     Retorna alertas automáticos do sistema.
     """
-    now = datetime.utcnow()
+    now = get_utc_now()
     week_ago = now - timedelta(days=7)
     three_days_ago = now - timedelta(days=3)
     
@@ -363,6 +384,10 @@ async def get_alerts(
             .where(Lead.tenant_id == tenant.id)
         )
         last_activity = last_activity_result.scalar()
+        
+        # Converte para timezone-aware se necessário
+        if last_activity:
+            last_activity = make_aware(last_activity)
         
         if last_activity is None:
             alerts.append(Alert(
@@ -410,7 +435,7 @@ async def get_weekly_growth(
     """
     Retorna dados de crescimento semanal para gráfico.
     """
-    now = datetime.utcnow()
+    now = get_utc_now()
     growth_data = []
     
     for i in range(weeks - 1, -1, -1):
