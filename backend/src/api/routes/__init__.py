@@ -17,6 +17,7 @@ from .simulator import router as simulator_router
 from .dialog360_webhook import router as dialog360_webhook_router
 from .empreendimentos import router as empreendimentos_router
 from .handoff_routes import router as handoff_router  # ← NOVO
+from src.api.routes.health import router as health_router  # ← ADICIONADO
 
 # Admin routes
 from .admin import (

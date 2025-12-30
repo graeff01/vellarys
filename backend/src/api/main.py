@@ -38,6 +38,7 @@ from src.api.routes import (
     admin_niches_router,
     admin_logs_router,
     admin_plans_router,
+    health_router,  # ← ADICIONE ESTA LINHA
 )
 
 # Domain
@@ -134,6 +135,7 @@ app.add_middleware(
 # ============================================================
 # ROTAS
 # ============================================================
+app.include_router(health_router)  # ← ADICIONE ESTA LINHA (SEM PREFIX!)
 app.include_router(zapi_router, prefix="/api")
 app.include_router(debug_portal_router, prefix="/api/v1/debug", tags=["debug"])
 app.include_router(empreendimentos_router, prefix="/api/v1")
@@ -166,6 +168,11 @@ app.include_router(admin_ceo_router, prefix="/api/v1")
 @app.get("/")
 async def root():
     return {"name": "Velaris API", "status": "running"}
+
+
+@app.get("/api/v1/version")
+async def version():
+    return {"version": "2024-12-26-FOLLOW-UP", "timestamp": "20:30"}
 
 
 @app.get("/health")
