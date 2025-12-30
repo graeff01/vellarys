@@ -135,7 +135,7 @@ app.add_middleware(
 # ============================================================
 # ROTAS
 # ============================================================
-app.include_router(health_router)  # ← ADICIONE ESTA LINHA (SEM PREFIX!)
+app.include_router(health_router, prefix="/api") # ← ADICIONE ESTA LINHA (SEM PREFIX!)
 app.include_router(zapi_router, prefix="/api")
 app.include_router(debug_portal_router, prefix="/api/v1/debug", tags=["debug"])
 app.include_router(empreendimentos_router, prefix="/api/v1")
