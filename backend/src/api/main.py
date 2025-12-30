@@ -172,14 +172,4 @@ async def root():
 
 @app.get("/api/v1/version")
 async def version():
-    return {"version": "2024-12-26-FOLLOW-UP", "timestamp": "20:30"}
-
-
-@app.get("/health")
-async def health():
-    return {"status": "healthy"}
-
-
-@app.get("/api/v1/version")
-async def version():
-    return {"version": "2024-12-26-FOLLOW-UP", "timestamp": "20:30"}
+    return {"version": "2024-12-30-HEALTH-CHECK", "timestamp": "18:30"}
