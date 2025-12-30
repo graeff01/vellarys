@@ -48,6 +48,7 @@ __all__ = [
     "simulator_router",
     "empreendimentos_router",
     "handoff_router",
+    "health_router",  # ← ADICIONE ESTA LINHA
     # Admin
     "admin_dashboard_router",
     "admin_tenants_router",
