@@ -597,14 +597,28 @@ async def notify_seller_whatsapp(
         logger.warning(f"Vendedor {seller.name} (ID: {seller.id}) não tem WhatsApp cadastrado")
         return {"success": False, "error": "Vendedor sem WhatsApp cadastrado"}
 
-    message = await build_seller_notification_message(
-        db=db,
-        lead=lead,
-        seller=seller,
-        tenant=tenant,
-        assigned_by=assigned_by,
-        notes=notes,
-    )
+    # ✨ NOVO: Suporta formato conciso OU formato completo
+    settings = tenant.settings or {}
+    use_concise_format = settings.get("notifications", {}).get("use_concise_format", True)  # Default = True (novo formato)
+    
+    if use_concise_format:
+        message = await build_concise_seller_notification(
+            db=db,
+            lead=lead,
+            seller=seller,
+            tenant=tenant,
+            assigned_by=assigned_by,
+            notes=notes,
+        )
+    else:
+        message = await build_seller_notification_message(
+            db=db,
+            lead=lead,
+            seller=seller,
+            tenant=tenant,
+            assigned_by=assigned_by,
+            notes=notes,
+        )
 
     result = await send_whatsapp_zapi(db, seller_phone, message, tenant)
 
@@ -614,6 +628,215 @@ async def notify_seller_whatsapp(
         logger.error(f"❌ Falha ao enviar WhatsApp para vendedor {seller.name}: {result.get('error')}")
 
     return result
+
+
+# =============================================================================
+# ✨ NOVA VERSÃO CONCISA DE NOTIFICAÇÕES
+# =============================================================================
+
+async def extract_conversation_insights(
+    db: AsyncSession,
+    lead_id: int,
+) -> dict:
+    """
+    Extrai INSIGHTS da conversa ao invés de transcrição completa.
+    
+    Returns:
+        {
+            "origem": "Portal de Investimento",
+            "pediu": "Mais detalhes sobre o imóvel",
+            "pendentes": ["finalidade (morar/investir)", "timing de mudança"],
+            "follow_ups_enviados": 1
+        }
+    """
+    try:
+        result = await db.execute(
+            select(Message)
+            .where(Message.lead_id == lead_id)
+            .order_by(Message.created_at.asc())
+        )
+        messages = result.scalars().all()
+        
+        if not messages:
+            return {
+                "origem": "Desconhecida",
+                "pediu": "Informações não disponíveis",
+                "pendentes": [],
+                "follow_ups_enviados": 0
+            }
+        
+        # Conta follow-ups automáticos
+        follow_ups = sum(1 for m in messages if m.role == "assistant" and "[FOLLOW-UP" in (m.content or ""))
+        
+        # Primeira mensagem do usuário (origem do contato)
+        first_user_msg = next((m.content for m in messages if m.role == "user"), "")
+        origem = "Contato direto"
+        
+        if "portal" in first_user_msg.lower():
+            origem = "Portal de Investimento"
+        elif "site" in first_user_msg.lower() or "website" in first_user_msg.lower():
+            origem = "Website"
+        elif "instagram" in first_user_msg.lower() or "insta" in first_user_msg.lower():
+            origem = "Instagram"
+        elif "facebook" in first_user_msg.lower():
+            origem = "Facebook"
+        elif "indicação" in first_user_msg.lower():
+            origem = "Indicação"
+        
+        # O que o lead pediu/quis (primeira mensagem resumida)
+        pediu = "Informações gerais"
+        if len(first_user_msg) > 0:
+            # Extrai intent principal
+            if "detalhes" in first_user_msg.lower() or "informações" in first_user_msg.lower():
+                pediu = "Mais detalhes sobre o imóvel"
+            elif "visita" in first_user_msg.lower():
+                pediu = "Agendar visita"
+            elif "disponível" in first_user_msg.lower() or "disponibilidade" in first_user_msg.lower():
+                pediu = "Verificar disponibilidade"
+            elif "valor" in first_user_msg.lower() or "preço" in first_user_msg.lower():
+                pediu = "Informações sobre valor"
+            elif "financiamento" in first_user_msg.lower():
+                pediu = "Informações sobre financiamento"
+            else:
+                # Pega primeiras palavras relevantes
+                palavras = first_user_msg.split()[:15]
+                pediu = " ".join(palavras)
+                if len(first_user_msg.split()) > 15:
+                    pediu += "..."
+        
+        # Identifica informações pendentes (perguntas da IA não respondidas)
+        pendentes = []
+        
+        # Analisa últimas mensagens da IA buscando perguntas não respondidas
+        ia_messages = [m for m in messages if m.role == "assistant"]
+        if ia_messages:
+            last_ia_msg = ia_messages[-1].content.lower()
+            
+            # Detecta perguntas comuns não respondidas
+            if "?" in last_ia_msg:
+                if "morar" in last_ia_msg or "investir" in last_ia_msg:
+                    pendentes.append("finalidade (morar/investir)")
+                if "mudar" in last_ia_msg or "quando" in last_ia_msg:
+                    pendentes.append("timing de mudança")
+                if "orçamento" in last_ia_msg or "quanto" in last_ia_msg:
+                    pendentes.append("orçamento disponível")
+                if "financiamento" in last_ia_msg:
+                    pendentes.append("necessidade de financiamento")
+                if "visita" in last_ia_msg:
+                    pendentes.append("interesse em visitar")
+        
+        return {
+            "origem": origem,
+            "pediu": pediu,
+            "pendentes": pendentes,
+            "follow_ups_enviados": follow_ups
+        }
+        
+    except Exception as e:
+        logger.error(f"Erro ao extrair insights da conversa: {e}")
+        return {
+            "origem": "Erro ao processar",
+            "pediu": "Informações não disponíveis",
+            "pendentes": [],
+            "follow_ups_enviados": 0
+        }
+
+
+async def build_concise_seller_notification(
+    db: AsyncSession,
+    lead: Lead,
+    seller: Seller,
+    tenant: Tenant,
+    assigned_by: str = "Gestor",
+    notes: str = None,
+) -> str:
+    """
+    ✨ VERSÃO CONCISA E OTIMIZADA
+    
+    Formato: Conciso, escaneável, orientado à ação.
+    Reduz de ~15 linhas para ~10 linhas, mantendo todas as informações críticas.
+    """
+    company_name = tenant.name or "Empresa"
+    
+    # Extrai insights ao invés de transcrição completa
+    insights = await extract_conversation_insights(db, lead.id)
+    
+    # Header
+    lines = [
+        "🔥 NOVO LEAD - " + company_name,
+        "",
+    ]
+    
+    # Dados principais do lead
+    lines.append(f"👤 {lead.name or 'Não informado'} | 📱 {format_phone_display(lead.phone)}")
+    
+    # Seção: INTERESSE (imóvel ou serviço)
+    if lead.custom_data and lead.custom_data.get("imovel_portal"):
+        imovel = lead.custom_data.get("imovel_portal", {})
+        
+        lines.append("")
+        lines.append("🏠 INTERESSE")
+        
+        # Monta descrição compacta do imóvel
+        tipo = imovel.get("tipo", "Imóvel")
+        quartos = imovel.get("quartos")
+        banheiros = imovel.get("banheiros")
+        codigo = imovel.get("codigo")
+        valor = imovel.get("valor")
+        
+        caracteristicas = []
+        if quartos:
+            caracteristicas.append(f"{quartos}Q")
+        if banheiros:
+            caracteristicas.append(f"{banheiros}B")
+        
+        desc_imovel = tipo
+        if caracteristicas:
+            desc_imovel += " " + "/".join(caracteristicas)
+        
+        if codigo:
+            lines.append(f"{desc_imovel} | Cód. [{codigo}]")
+        else:
+            lines.append(desc_imovel)
+        
+        if valor:
+            lines.append(f"💰 R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        
+        # Localização
+        if imovel.get("endereco"):
+            lines.append(f"📍 {imovel.get('endereco')}")
+        elif lead.city:
+            lines.append(f"📍 {lead.city}")
+    
+    # Seção: CONTEXTO DO LEAD
+    lines.append("")
+    lines.append("⚡ CONTEXTO DO LEAD")
+    lines.append(f"• Origem: {insights['origem']}")
+    lines.append(f"• {insights['pediu']}")
+    
+    # Informações pendentes
+    if insights['pendentes']:
+        pendentes_text = ", ".join(insights['pendentes'])
+        lines.append(f"• ⚠️ Não informou: {pendentes_text}")
+    
+    # Follow-ups enviados
+    if insights['follow_ups_enviados'] > 0:
+        lines.append(f"• 🔁 Follow-ups automáticos enviados: {insights['follow_ups_enviados']}")
+    
+    # Observações do gestor
+    if notes:
+        lines.append(f"• 🔴 Observação: {notes}")
+    
+    # Footer
+    lines.append("")
+    lines.append(f"📅 Atribuído por {assigned_by} em {format_datetime_br(datetime.now(timezone.utc))}")
+    
+    # Link WhatsApp
+    if lead.phone:
+        whatsapp_number = format_phone_whatsapp(lead.phone)
+        lines.append(f"👉 https://wa.me/{whatsapp_number}")
+    
+    return "\n".join(lines)
 
 
 # =============================================================================
