@@ -19,8 +19,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.database import get_db
 from src.domain.entities import Lead, Tenant, Message
-from src.config import settings
+from src.config import get_settings
 
+settings = get_settings()
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/health", tags=["Health"])
