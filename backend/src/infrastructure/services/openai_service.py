@@ -95,7 +95,7 @@ def validate_ai_response(
 ) -> tuple[str, bool]:
     """
     Valida resposta da IA antes de enviar.
-    Bloqueia perguntas burras (nome/WhatsApp/repetidas).
+    VERSÃO OTIMIZADA: Bloqueia apenas perguntas EXPLÍCITAS e REPETIDAS.
     Retorna (resposta_corrigida, foi_bloqueada)
     """
     
@@ -104,61 +104,82 @@ def validate_ai_response(
     
     response_lower = response.lower()
     
-    # Check 1: Pediu nome mas já tem?
-    asking_name = any(phrase in response_lower for phrase in [
-        "seu nome", "como posso te chamar", "qual seu nome",
-        "me diz seu nome", "qual o seu nome"
+    # ═══════════════════════════════════════════════════════════════
+    # Check 1: Pediu nome MAS já tem E está PERGUNTANDO explicitamente?
+    # ═══════════════════════════════════════════════════════════════
+    asking_name_explicitly = any(phrase in response_lower for phrase in [
+        "qual seu nome?", "qual o seu nome?", "me diz seu nome?",
+        "como posso te chamar?", "qual é seu nome?"
     ])
     
-    if lead_name and asking_name:
+    # Permite menções casuais como "Oi, {nome}! Prazer!"
+    if lead_name and asking_name_explicitly:
         blocked = True
         corrections.append(f"❌ Tentou pedir nome mas já tem: {lead_name}")
     
-    # Check 2: Pediu WhatsApp?
+    # ═══════════════════════════════════════════════════════════════
+    # Check 2: Pediu WhatsApp? (SEMPRE bloqueado - já está no WhatsApp!)
+    # ═══════════════════════════════════════════════════════════════
     asking_whatsapp = any(phrase in response_lower for phrase in [
         "seu whatsapp", "numero de whatsapp", "me passa seu contato",
-        "qual seu telefone", "me passa seu numero"
+        "qual seu telefone?", "me passa seu numero?"
     ])
     
     if asking_whatsapp:
         blocked = True
         corrections.append(f"❌ Tentou pedir WhatsApp mas já conversando!")
 
-    # Check 2.5: Perguntou financiamento quando cliente tem À VISTA?
+    # ═══════════════════════════════════════════════════════════════
+    # Check 3: Perguntou financiamento quando cliente tem À VISTA?
+    # OTIMIZADO: Só bloqueia se estiver PERGUNTANDO, não oferecendo
+    # ═══════════════════════════════════════════════════════════════
     cliente_tem_vista = any(phrase in " ".join([
         msg.get("content", "").lower() 
         for msg in history[-3:] 
         if msg.get("role") == "user"
-    ]) for phrase in ["dinheiro a vista", "dinheiro à vista", "pagamento a vista", "pagar a vista"])
+    ]) for phrase in ["dinheiro a vista", "dinheiro à vista", "pagamento a vista", "pagar a vista", "tenho o valor"])
     
+    # Identifica se está PERGUNTANDO sobre financiamento (não só mencionando)
     asking_financing = any(phrase in response_lower for phrase in [
-        "financiamento", "financiar", "parcelar", "parcelas"
+        "vai financiar?", "precisa financiar?", "pensa em financiar?",
+        "quer financiar?", "tem financiamento aprovado?"
     ])
     
     if cliente_tem_vista and asking_financing:
         blocked = True
         corrections.append("❌ Cliente tem À VISTA, não pergunte sobre financiamento!")
     
-    # Check 3: Pergunta repetida no histórico?
+    # ═══════════════════════════════════════════════════════════════
+    # Check 4: Pergunta IDÊNTICA repetida no histórico?
+    # OTIMIZADO: Só bloqueia se for EXATAMENTE a mesma pergunta
+    # ═══════════════════════════════════════════════════════════════
     for msg in history[-3:]:  # Últimas 3 mensagens do assistente
         if msg.get("role") == "assistant":
             msg_lower = msg.get("content", "").lower()
             
-            # Mesma pergunta sobre finalidade?
-            finalidade_phrases = ["morar ou investir", "pra morar ou pra investir"]
-            if any(p in response_lower and p in msg_lower for p in finalidade_phrases):
-                blocked = True
-                corrections.append("❌ Perguntou 'morar ou investir' novamente")
-                break
+            # Define perguntas-chave específicas
+            key_questions = [
+                "morar ou investir",
+                "pra morar ou pra investir",
+                "financiamento aprovado",
+                "já tem financiamento",
+                "quando você pensa em se mudar",
+                "qual seu orçamento",
+            ]
             
-            # Mesma pergunta sobre financiamento?
-            financiamento_phrases = ["financiamento aprovado", "ja tem financiamento"]
-            if any(p in response_lower and p in msg_lower for p in financiamento_phrases):
-                blocked = True
-                corrections.append("❌ Perguntou financiamento novamente")
+            # Verifica se a MESMA pergunta aparece na resposta atual E na mensagem anterior
+            for question in key_questions:
+                if question in response_lower and question in msg_lower:
+                    blocked = True
+                    corrections.append(f"❌ Perguntou '{question}' novamente")
+                    break
+            
+            if blocked:
                 break
     
+    # ═══════════════════════════════════════════════════════════════
     # Se bloqueou, retorna fallback inteligente
+    # ═══════════════════════════════════════════════════════════════
     if blocked:
         for c in corrections:
             logger.warning(c)
@@ -166,9 +187,9 @@ def validate_ai_response(
         # Resposta genérica mas natural
         if lead_name:
             first_name = lead_name.split()[0]
-            fallback = f"Me diz mais, {first_name}! O que você procura exatamente?"
+            fallback = f"Me conta mais, {first_name}! O que você tá buscando?"
         else:
-            fallback = "Me conta mais! O que você tá buscando?"
+            fallback = "Me conta mais! O que você procura?"
         
         return fallback, True
     

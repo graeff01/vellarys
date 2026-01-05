@@ -484,19 +484,27 @@ def build_complete_prompt(
         if last_newline > available_for_base - 500:
             base_prompt = base_prompt[:last_newline]
     
+    # PASSO 4: Monta prompt final (CONTEXTOS DINÂMICOS VÊM PRIMEIRO!)
     # =========================================================================
-    # PASSO 4: Monta prompt final (CONTEXTOS DINÂMICOS VÊM DEPOIS!)
-    # =========================================================================
-    # Ordem: Base + Dinâmicos
-    # Os dinâmicos vêm DEPOIS para que a IA veja por último (mais fresco na "memória")
-    
-    prompt_parts = [base_prompt]
-    
+    # CORREÇÃO CRÍTICA: Contextos dinâmicos ANTES do prompt base!
+    # GPT models dão mais peso ao INÍCIO do prompt.
+    # Ordem: Dinâmicos → Base → Segurança
+
+    prompt_parts = []
+
+    # 1. CONTEXTOS DINÂMICOS PRIMEIRO (maior prioridade na atenção da IA)
     if dynamic_context:
-        prompt_parts.append("\n" + "=" * 60)
-        prompt_parts.append("📋 CONTEXTO ESPECÍFICO DESTA CONVERSA (PRIORIDADE MÁXIMA!)")
-        prompt_parts.append("=" * 60)
+        prompt_parts.append("=" * 80)
+        prompt_parts.append("🔥 CONTEXTO ESPECÍFICO DESTA CONVERSA - LEIA PRIMEIRO!")
+        prompt_parts.append("=" * 80)
         prompt_parts.append(dynamic_context)
+        prompt_parts.append("\n" + "=" * 80)
+        prompt_parts.append("⚠️ USE AS INFORMAÇÕES ACIMA PARA RESPONDER!")
+        prompt_parts.append("=" * 80)
+        prompt_parts.append("\n")
+
+    # 2. PROMPT BASE (regras gerais)
+    prompt_parts.append(base_prompt)
     
     # Instruções de segurança (compactas)
     if include_security and ai_context.scope_description:

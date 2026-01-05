@@ -1245,10 +1245,11 @@ async def process_message(
     tokens_used = 0
     
     try:
+        # CORREÇÃO: Parâmetros otimizados para respostas curtas e consistentes
         ai_response = await chat_completion(
             messages=messages,
-            temperature=0.7,
-            max_tokens=500,
+            temperature=0.4,   # ✅ Mais determinístico e consistente
+            max_tokens=150,    # ✅ Força respostas curtas (2-3 linhas = ~100-120 tokens)
         )
         
         # VALIDAÇÃO INTELIGENTE (antes de aceitar resposta)
