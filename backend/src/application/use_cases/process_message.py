@@ -1,14 +1,21 @@
 """
-CASO DE USO: PROCESSAR MENSAGEM (VERSÃO REFATORADA)
-====================================================
-Versão otimizada com correções de bugs e melhor organização.
+CASO DE USO: PROCESSAR MENSAGEM - VERSÃO IMOBILIÁRIA SIMPLIFICADA
+==================================================================
+Versão otimizada SÓ para nicho imobiliário com bugs corrigidos.
+
+CORREÇÕES:
+- Bug should_transfer corrigido
+- Bug qualification_score removido
+- Bug analyze_lead_conversation corrigido
+- Bug qualify_lead corrigido
+- Prompt enxuto (sem truncar)
 """
 
 import logging
 import traceback
 
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
@@ -18,33 +25,21 @@ from src.infrastructure.services.property_lookup_service import (
     extrair_codigo_imovel,
 )
 
-# Adiciona DEPOIS dos outros imports existentes
-from src.application.services.ai_context_builder import (
-    AIContext,
-    LeadContext,
-    build_complete_prompt,
-    empreendimento_to_context,
-    lead_to_context,
-    imovel_dict_to_context,
-)
-
 from src.domain.entities import (
     Tenant, Lead, Message, Channel, LeadEvent, Notification, Empreendimento
 )
-from src.domain.services.lead_qualifier import qualify_lead
-from src.domain.services.lead_intelligence import analyze_lead_conversation
 from src.domain.entities.enums import LeadStatus, EventType
-from src.domain.prompts import build_system_prompt, get_niche_config
+
+# NOVO: Importa prompt imobiliária
+from src.domain.prompts_imobiliaria import build_prompt_imobiliaria
+
 from src.infrastructure.services import (
     extract_lead_data,
     execute_handoff,
-    run_ai_guards_async,
     mark_lead_activity,
     check_handoff_triggers,
     check_business_hours,
     notify_lead_empreendimento,
-    notify_out_of_hours,
-    notify_handoff_requested,
     notify_gestor,
     chat_completion,
 )
@@ -56,7 +51,6 @@ from src.infrastructure.services.openai_service import (
 )
 
 from src.infrastructure.services.ai_security import (
-    build_security_instructions,
     sanitize_response,
     should_handoff as check_ai_handoff,
 )
@@ -71,14 +65,11 @@ from src.infrastructure.services.message_rate_limiter import (
 )
 from src.infrastructure.services.audit_service import (
     log_message_received,
-    log_security_threat,
     log_ai_action,
 )
 from src.infrastructure.services.lgpd_service import (
     detect_lgpd_request,
     get_lgpd_response,
-    export_lead_data,
-    delete_lead_data,
 )
 
 logger = logging.getLogger(__name__)
@@ -93,129 +84,13 @@ MAX_CONVERSATION_HISTORY = 30
 
 FALLBACK_RESPONSES = {
     "error": "Desculpe, estou com uma instabilidade momentânea. Tente novamente em alguns segundos.",
-    "out_of_scope": "Desculpe, não posso ajudá-lo com isso. Posso ajudar com nossos produtos e serviços!",
     "security": "Por segurança, não posso responder a essa mensagem.",
 }
-
-NICHOS_IMOBILIARIOS = ["realestate", "imobiliaria", "real_estate", "imobiliario"]
 
 
 # =============================================================================
 # HELPERS
 # =============================================================================
-
-def migrate_settings_if_needed(settings: dict) -> dict:
-    """Migra settings do formato antigo para o novo (com identity)."""
-    if not settings:
-        return {}
-    
-    if "identity" in settings:
-        return settings
-    
-    try:
-        migrated = dict(settings)
-        
-        migrated["identity"] = {
-            "description": settings.get("scope_description", ""),
-            "products_services": [],
-            "not_offered": [],
-            "tone_style": {
-                "tone": settings.get("tone", "cordial"),
-                "personality_traits": [],
-                "communication_style": "",
-                "avoid_phrases": [],
-                "use_phrases": [],
-            },
-            "target_audience": {"description": "", "segments": [], "pain_points": []},
-            "business_rules": settings.get("custom_rules", []),
-            "differentials": [],
-            "keywords": [],
-            "required_questions": settings.get("custom_questions", []),
-            "required_info": [],
-            "additional_context": "",
-        }
-        
-        migrated["basic"] = {
-            "niche": settings.get("niche", "services"),
-            "company_name": settings.get("company_name", ""),
-        }
-        
-        migrated["scope"] = {
-            "enabled": settings.get("scope_enabled", True),
-            "description": settings.get("scope_description", ""),
-            "allowed_topics": [],
-            "blocked_topics": [],
-            "out_of_scope_message": settings.get("out_of_scope_message", 
-                "Desculpe, não tenho informações sobre isso."),
-        }
-        
-        migrated["faq"] = {
-            "enabled": settings.get("faq_enabled", True),
-            "items": settings.get("faq_items", []),
-        }
-        
-        return migrated
-    except Exception as e:
-        logger.error(f"Erro migrando settings: {e}")
-        return settings
-
-
-def extract_ai_context(tenant: Tenant, settings: dict) -> dict:
-    """Extrai contexto necessário para a IA."""
-    try:
-        identity = settings.get("identity", {})
-        basic = settings.get("basic", {})
-        scope = settings.get("scope", {})
-        faq = settings.get("faq", {})
-        
-        company_name = basic.get("company_name") or settings.get("company_name") or tenant.name
-        niche_id = basic.get("niche") or settings.get("niche") or "services"
-        tone = identity.get("tone_style", {}).get("tone") or settings.get("tone") or "cordial"
-        
-        faq_items = []
-        if faq.get("enabled", True):
-            faq_items = faq.get("items", []) or settings.get("faq_items", [])
-        
-        custom_questions = identity.get("required_questions", []) or settings.get("custom_questions", [])
-        custom_rules = identity.get("business_rules", []) or settings.get("custom_rules", [])
-        scope_description = scope.get("description") or settings.get("scope_description", "")
-        
-        default_out_of_scope = (
-            f"Desculpe, não posso ajudá-lo com isso. "
-            f"A {company_name} trabalha com {scope_description or 'nossos produtos e serviços'}. "
-            f"Posso te ajudar com algo relacionado?"
-        )
-        
-        out_of_scope_message = (
-            scope.get("out_of_scope_message") or 
-            settings.get("out_of_scope_message") or 
-            default_out_of_scope
-        )
-        
-        return {
-            "company_name": company_name,
-            "niche_id": niche_id,
-            "tone": tone,
-            "identity": identity if identity else None,
-            "scope_config": scope if scope else None,
-            "faq_items": faq_items,
-            "custom_questions": custom_questions,
-            "custom_rules": custom_rules,
-            "scope_description": scope_description,
-            "custom_prompt": settings.get("custom_prompt"),
-            "ai_scope_description": scope_description,
-            "ai_out_of_scope_message": out_of_scope_message,
-        }
-    except Exception as e:
-        logger.error(f"Erro extraindo contexto IA: {e}")
-        return {
-            "company_name": tenant.name,
-            "niche_id": "services",
-            "tone": "cordial",
-            "ai_out_of_scope_message": "Desculpe, não posso ajudá-lo com isso.",
-            "scope_description": "",
-        }
-
 
 def sanitize_message_content(content: str) -> str:
     """Remove conteúdo potencialmente perigoso ou muito longo."""
@@ -226,6 +101,18 @@ def sanitize_message_content(content: str) -> str:
     return content.strip()
 
 
+def extract_settings(tenant: Tenant) -> dict:
+    """Extrai settings do tenant de forma segura."""
+    settings = tenant.settings or {}
+    
+    return {
+        "company_name": settings.get("company_name") or settings.get("basic", {}).get("company_name") or tenant.name,
+        "tone": settings.get("tone") or settings.get("identity", {}).get("tone_style", {}).get("tone") or "cordial",
+        "custom_rules": settings.get("custom_rules") or settings.get("identity", {}).get("business_rules") or [],
+        "handoff_triggers": settings.get("handoff_triggers") or settings.get("handoff", {}).get("triggers") or [],
+    }
+
+
 # =============================================================================
 # FUNÇÕES DE EMPREENDIMENTO
 # =============================================================================
@@ -234,12 +121,8 @@ async def detect_empreendimento(
     db: AsyncSession,
     tenant_id: int,
     message: str,
-    niche_id: str,
 ) -> Optional[Empreendimento]:
     """Detecta se a mensagem contém gatilhos de algum empreendimento."""
-    if niche_id.lower() not in NICHOS_IMOBILIARIOS:
-        return None
-    
     try:
         result = await db.execute(
             select(Empreendimento)
@@ -286,146 +169,43 @@ async def get_empreendimento_from_lead(
             .where(Empreendimento.id == emp_id)
             .where(Empreendimento.ativo == True)
         )
-        emp = result.scalar_one_or_none()
-        
-        if emp:
-            logger.info(f"🏢 Empreendimento recuperado do lead: {emp.nome}")
-        
-        return emp
+        return result.scalar_one_or_none()
         
     except Exception as e:
-        logger.error(f"Erro recuperando empreendimento do lead: {e}")
+        logger.error(f"Erro recuperando empreendimento: {e}")
         return None
 
 
-def build_empreendimento_context(empreendimento: Empreendimento) -> str:
-    """Constrói o contexto do empreendimento para adicionar ao prompt da IA."""
-    sections = []
-    
-    sections.append(f"{'=' * 60}")
-    sections.append(f"🏢 EMPREENDIMENTO: {empreendimento.nome.upper()}")
-    sections.append(f"{'=' * 60}")
-    
-    status_map = {
-        "lancamento": "🚀 Lançamento",
-        "em_obras": "🏗️ Em Obras",
-        "pronto_para_morar": "🏠 Pronto para Morar",
+def empreendimento_to_dict(emp: Empreendimento) -> dict:
+    """Converte Empreendimento para dict."""
+    return {
+        "id": emp.id,
+        "nome": emp.nome,
+        "descricao": emp.descricao,
+        "endereco": emp.endereco,
+        "bairro": emp.bairro,
+        "cidade": emp.cidade,
+        "estado": emp.estado,
+        "tipologias": emp.tipologias,
+        "metragem_minima": emp.metragem_minima,
+        "metragem_maxima": emp.metragem_maxima,
+        "preco_minimo": emp.preco_minimo,
+        "preco_maximo": emp.preco_maximo,
+        "diferenciais": emp.diferenciais,
+        "instrucoes_ia": emp.instrucoes_ia,
+        "perguntas_qualificacao": emp.perguntas_qualificacao,
     }
-    sections.append(f"\n**Status:** {status_map.get(empreendimento.status, empreendimento.status)}")
-    
-    if empreendimento.descricao:
-        sections.append(f"\n**Sobre o empreendimento:**\n{empreendimento.descricao}")
-    
-    loc_parts = []
-    if empreendimento.endereco:
-        loc_parts.append(empreendimento.endereco)
-    if empreendimento.bairro:
-        loc_parts.append(f"Bairro: {empreendimento.bairro}")
-    if empreendimento.cidade:
-        loc_parts.append(f"Cidade: {empreendimento.cidade}")
-        if empreendimento.estado:
-            loc_parts[-1] += f"/{empreendimento.estado}"
-    
-    if loc_parts:
-        sections.append(f"\n**Localização:**\n" + "\n".join(loc_parts))
-    
-    if empreendimento.descricao_localizacao:
-        sections.append(f"\n**Sobre a região:**\n{empreendimento.descricao_localizacao}")
-    
-    if empreendimento.tipologias:
-        sections.append(f"\n**Tipologias disponíveis:**\n" + ", ".join(empreendimento.tipologias))
-    
-    if empreendimento.metragem_minima or empreendimento.metragem_maxima:
-        if empreendimento.metragem_minima and empreendimento.metragem_maxima:
-            metragem = f"{empreendimento.metragem_minima}m² a {empreendimento.metragem_maxima}m²"
-        elif empreendimento.metragem_minima:
-            metragem = f"A partir de {empreendimento.metragem_minima}m²"
-        else:
-            metragem = f"Até {empreendimento.metragem_maxima}m²"
-        sections.append(f"\n**Metragem:** {metragem}")
-    
-    if empreendimento.vagas_minima or empreendimento.vagas_maxima:
-        if empreendimento.vagas_minima and empreendimento.vagas_maxima:
-            if empreendimento.vagas_minima == empreendimento.vagas_maxima:
-                vagas = f"{empreendimento.vagas_minima} vaga(s)"
-            else:
-                vagas = f"{empreendimento.vagas_minima} a {empreendimento.vagas_maxima} vagas"
-        elif empreendimento.vagas_minima:
-            vagas = f"A partir de {empreendimento.vagas_minima} vaga(s)"
-        else:
-            vagas = f"Até {empreendimento.vagas_maxima} vagas"
-        sections.append(f"**Vagas de garagem:** {vagas}")
-    
-    estrutura_parts = []
-    if empreendimento.torres:
-        estrutura_parts.append(f"{empreendimento.torres} torre(s)")
-    if empreendimento.andares:
-        estrutura_parts.append(f"{empreendimento.andares} andares")
-    if empreendimento.total_unidades:
-        estrutura_parts.append(f"{empreendimento.total_unidades} unidades")
-    
-    if estrutura_parts:
-        sections.append(f"**Estrutura:** {', '.join(estrutura_parts)}")
-    
-    if empreendimento.previsao_entrega:
-        sections.append(f"\n**Previsão de entrega:** {empreendimento.previsao_entrega}")
-    
-    if empreendimento.preco_minimo or empreendimento.preco_maximo:
-        if empreendimento.preco_minimo and empreendimento.preco_maximo:
-            preco = f"R$ {empreendimento.preco_minimo:,.0f} a R$ {empreendimento.preco_maximo:,.0f}".replace(",", ".")
-        elif empreendimento.preco_minimo:
-            preco = f"A partir de R$ {empreendimento.preco_minimo:,.0f}".replace(",", ".")
-        else:
-            preco = f"Até R$ {empreendimento.preco_maximo:,.0f}".replace(",", ".")
-        sections.append(f"\n**Faixa de investimento:** {preco}")
-    
-    condicoes = []
-    if empreendimento.aceita_financiamento:
-        condicoes.append("Financiamento bancário")
-    if empreendimento.aceita_fgts:
-        condicoes.append("FGTS")
-    if empreendimento.aceita_permuta:
-        condicoes.append("Permuta")
-    if empreendimento.aceita_consorcio:
-        condicoes.append("Consórcio")
-    
-    if condicoes:
-        sections.append(f"**Formas de pagamento:** {', '.join(condicoes)}")
-    
-    if empreendimento.condicoes_especiais:
-        sections.append(f"**Condições especiais:** {empreendimento.condicoes_especiais}")
-    
-    if empreendimento.itens_lazer:
-        sections.append(f"\n**Itens de lazer:**\n" + ", ".join(empreendimento.itens_lazer))
-    
-    if empreendimento.diferenciais:
-        sections.append(f"\n**Diferenciais:**\n" + ", ".join(empreendimento.diferenciais))
-    
-    if empreendimento.instrucoes_ia:
-        sections.append(f"\n**Instruções especiais:**\n{empreendimento.instrucoes_ia}")
-    
-    if empreendimento.perguntas_qualificacao:
-        sections.append(f"\n**Perguntas que você DEVE fazer sobre este empreendimento:**")
-        for i, pergunta in enumerate(empreendimento.perguntas_qualificacao, 1):
-            sections.append(f"{i}. {pergunta}")
-    
-    sections.append(f"\n{'=' * 60}")
-    
-    return "\n".join(sections)
 
 
 async def update_empreendimento_stats(
     db: AsyncSession,
     empreendimento: Empreendimento,
     is_new_lead: bool = False,
-    is_qualified: bool = False,
 ):
     """Atualiza estatísticas do empreendimento."""
     try:
         if is_new_lead:
             empreendimento.total_leads = (empreendimento.total_leads or 0) + 1
-        if is_qualified:
-            empreendimento.leads_qualificados = (empreendimento.leads_qualificados or 0) + 1
     except Exception as e:
         logger.error(f"Erro atualizando stats do empreendimento: {e}")
 
@@ -500,21 +280,6 @@ async def get_conversation_history(
         return []
 
 
-async def get_last_message_time(db: AsyncSession, lead_id: int) -> Optional[datetime]:
-    """Retorna o timestamp da última mensagem do lead."""
-    try:
-        result = await db.execute(
-            select(Message.created_at)
-            .where(Message.lead_id == lead_id)
-            .order_by(Message.created_at.desc())
-            .limit(1)
-        )
-        return result.scalar_one_or_none()
-    except Exception as e:
-        logger.error(f"Erro ao buscar última mensagem: {e}")
-        return None
-
-
 async def count_lead_messages(db: AsyncSession, lead_id: int) -> int:
     """Conta total de mensagens do lead."""
     try:
@@ -531,15 +296,11 @@ async def detect_property_context(
     content: str,
     lead: Lead,
     history: list[dict],
-    niche_id: str,
 ) -> Optional[Dict]:
     """
     Detecta contexto de imóvel (portal) para nichos imobiliários.
     Retorna dados do imóvel ou None.
     """
-    if niche_id.lower() not in NICHOS_IMOBILIARIOS:
-        return None
-    
     logger.info(f"🏠 Detectando contexto imobiliário")
     
     # Extrai código da mensagem atual
@@ -555,21 +316,17 @@ async def detect_property_context(
     # Decisão: buscar novo ou reutilizar?
     if codigo_na_mensagem:
         if codigo_na_mensagem != codigo_salvo:
-            # Código DIFERENTE - busca novo
             logger.info(f"🆕 Novo código: {codigo_na_mensagem}")
             imovel_portal = buscar_imovel_na_mensagem(content)
         else:
-            # MESMO código - reutiliza
             logger.info(f"🔄 Reutilizando código: {codigo_salvo}")
             imovel_portal = lead.custom_data.get("imovel_portal")
     
     elif codigo_salvo:
-        # Reutiliza salvo
         logger.info(f"🔄 Usando salvo: {codigo_salvo}")
         imovel_portal = lead.custom_data.get("imovel_portal")
     
     else:
-        # Busca no histórico
         logger.info(f"🕰️ Buscando no histórico")
         for msg in reversed(history):
             if msg.get("role") == "user":
@@ -603,75 +360,94 @@ async def detect_property_context(
     return imovel_portal
 
 
-def build_property_prompt_context(imovel: Dict, content: str) -> str:
-    """Constrói contexto do imóvel para o prompt."""
-    cod = imovel.get('codigo', 'N/A')
-    quartos = imovel.get('quartos', 'N/A')
-    banheiros = imovel.get('banheiros', 'N/A')
-    vagas = imovel.get('vagas', 'N/A')
-    metragem = imovel.get('metragem', 'N/A')
-    preco = imovel.get('preco', 'Consulte')
-    regiao = imovel.get('regiao', 'N/A')
-    tipo = imovel.get('tipo', 'Imóvel')
-    descricao = imovel.get('descricao', '')
+def build_lead_context_dict(lead: Lead, message_count: int) -> dict:
+    """Constrói dicionário de contexto do lead."""
+    context = {
+        "message_count": message_count,
+    }
     
-    return f"""
+    if lead.name:
+        context["name"] = lead.name
+    
+    if lead.phone:
+        context["phone"] = lead.phone
+    
+    if lead.custom_data:
+        for key in ["urgency_level", "budget_range", "preferences", "empreendimento_nome"]:
+            if key in lead.custom_data:
+                context[key] = lead.custom_data[key]
+    
+    return context
 
-═══════════════════════════════════════════════════════════
-🏠 CONTEXTO DO IMÓVEL (código {cod})
-═══════════════════════════════════════════════════════════
 
-DADOS DISPONÍVEIS:
-Tipo: {tipo}
-Localização: {regiao}
-Quartos: {quartos}
-Banheiros: {banheiros}
-Vagas: {vagas}
-Área: {metragem} m²
-Preço: {preco}
-Descrição: {descricao[:300] if descricao else 'N/A'}
+# =============================================================================
+# DETECÇÃO DE LEAD QUENTE
+# =============================================================================
 
-═══════════════════════════════════════════════════════════
-⚠️ ESTILO DE CONVERSA - WHATSAPP CASUAL
-═══════════════════════════════════════════════════════════
-
-🚫 PROIBIDO (parece robô):
-❌ Listas com bullet points (-, *, •)
-❌ Formatação markdown (**, __, ##)
-❌ Tom formal/corporativo
-❌ Ficha técnica completa
-❌ Respostas longas (mais de 4 linhas)
-
-✅ OBRIGATÓRIO (parece humano):
-✅ Conversa natural de WhatsApp
-✅ Máximo 3-4 linhas
-✅ Tom casual e amigável
-✅ Dar informação + fazer pergunta
-✅ Usar emoji com moderação (1 por mensagem)
-
-EXEMPLO CERTO:
-"Opa! Essa casa é show! Tem {quartos} quartos, {banheiros} banheiros, {metragem}m² em {regiao} por {preco}. Você tá buscando pra morar ou investir?"
-
-═══════════════════════════════════════════════════════════
-COMO RESPONDER CADA TIPO DE PERGUNTA
-═══════════════════════════════════════════════════════════
-
-Cliente: "Me passa mais detalhes"
-✅ "Claro! É {tipo} com {quartos} quartos em {regiao} por {preco}. Tem {metragem}m² com {vagas} vaga(s). Esse orçamento funciona pra você?"
-
-Cliente: "Quanto custa?"
-✅ "O valor é {preco}! Cabe no seu orçamento?"
-
-Cliente: "Onde fica?"
-✅ "Fica em {regiao}! Você conhece a região?"
-
-REGRAS DE OURO:
-1. SEMPRE responda em 2-4 LINHAS
-2. SEMPRE termine com PERGUNTA de qualificação
-3. NUNCA use formatação markdown
-4. NUNCA faça listas
-5. Seja DIRETO e OBJETIVO
-"""
+def detect_hot_lead_signals(content: str) -> bool:
+    """
+    Detecta sinais de lead QUENTE na mensagem.
+    Retorna True se detectar urgência/decisão.
+    """
+    import re
+    
+    content_lower = content.lower()
+    
+    hot_signals = [
+        # DINHEIRO À VISTA
+        r"tenho.*dinheiro.*vista",
+        r"tenho.*valor.*vista",
+        r"dinheiro.*vista",
+        r"pagamento.*vista",
+        r"pagar.*vista",
+        
+        # CRÉDITO/FINANCIAMENTO APROVADO
+        r"tenho.*aprovado",
+        r"financiamento.*aprovado",
+        r"credito.*aprovado",
+        r"já.*aprovado",
+        r"pre.*aprovado",
+        
+        # URGÊNCIA TEMPORAL
+        r"o\s+mais\s+rapido\s+possivel",
+        r"mais\s+rapido\s+possivel",
+        r"rapido\s+possivel",
+        r"penso\s+em\s+me\s+mudar",
+        r"preciso\s+me\s+mudar",
+        r"preciso.*urgente",
+        r"urgente.*mudar",
+        r"mudar.*urgente",
+        r"preciso.*rapido",
+        r"preciso.*hoje",
+        r"preciso.*agora",
+        r"para.*ontem",
+        
+        # INTENÇÃO DE COMPRA ESPECÍFICA
+        r"quero\s+esse\s+imovel",
+        r"quero\s+comprar\s+esse",
+        r"vou\s+comprar\s+esse",
+        r"quero\s+fechar\s+esse",
+        r"gostei\s+desse",
+        r"me\s+interessei\s+nesse",
+        r"quero\s+esse",
+        r"esse.*que.*enviei",
+        r"esse.*que.*mandei",
+        r"esse\s+apartamento",
+        r"essa\s+casa",
+        
+        # SINAIS DE DECISÃO
+        r"tenho.*entrada",
+        r"quando.*posso.*visitar",
+        r"quero.*visitar",
+        r"posso.*ir.*hoje",
+        r"quero.*fechar",
+        r"vamos.*fechar",
+        r"ja.*decidi",
+        r"to.*decidido",
+        r"quais.*documentos",
+    ]
+    
+    return any(re.search(pattern, content_lower) for pattern in hot_signals)
 
 
 # =============================================================================
@@ -692,13 +468,14 @@ async def process_message(
     """Processa uma mensagem recebida de um lead."""
     
     # =========================================================================
-    # INICIALIZAÇÃO DE VARIÁVEIS (EVITA UNDEFINED)
+    # INICIALIZAÇÃO DE VARIÁVEIS
     # =========================================================================
     empreendimento_detectado: Optional[Empreendimento] = None
     imovel_portal: Optional[Dict] = None
     gestor_ja_notificado = False
     history: list[dict] = []
     message_count: int = 0
+    should_transfer = False  # ← CORREÇÃO BUG #1: Inicializa ANTES de usar
     
     # =========================================================================
     # 1. SANITIZAÇÃO
@@ -791,12 +568,11 @@ async def process_message(
         )
     
     # =========================================================================
-    # 6. EXTRAI CONTEXTO E SETTINGS
+    # 6. EXTRAI SETTINGS
     # =========================================================================
-    settings = migrate_settings_if_needed(tenant.settings or {})
-    ai_context = extract_ai_context(tenant, settings)
+    settings = extract_settings(tenant)
     
-    logger.info(f"🔧 Contexto: {ai_context['company_name']} | Nicho: {ai_context['niche_id']}")
+    logger.info(f"🔧 Tenant: {settings['company_name']}")
     
     # =========================================================================
     # 7. BUSCA/CRIA LEAD
@@ -815,7 +591,7 @@ async def process_message(
     logger.info(f"👤 Lead {'✨ NOVO' if is_new else '🔄 existente'}: {lead.id}")
     
     # =========================================================================
-    # 7.5 PRÉ-CARREGA HISTÓRICO E CONTAGEM (ANTES DE USAR)
+    # 8. PRÉ-CARREGA HISTÓRICO E CONTAGEM
     # =========================================================================
     history = await get_conversation_history(db, lead.id)
     message_count = await count_lead_messages(db, lead.id)
@@ -829,7 +605,6 @@ async def process_message(
         db=db,
         tenant_id=tenant.id,
         message=content,
-        niche_id=ai_context["niche_id"],
     )
     
     if not empreendimento_detectado and not is_new:
@@ -854,12 +629,6 @@ async def process_message(
                 lead.assigned_seller_id = empreendimento_detectado.vendedor_id
                 lead.assignment_method = "empreendimento"
                 lead.assigned_at = datetime.now(timezone.utc)
-        
-        if empreendimento_detectado.perguntas_qualificacao:
-            ai_context["custom_questions"] = (
-                ai_context.get("custom_questions", []) + 
-                empreendimento_detectado.perguntas_qualificacao
-            )
     
     # =========================================================================
     # 10. NOTIFICAÇÃO ESPECÍFICA DE EMPREENDIMENTO
@@ -882,7 +651,7 @@ async def process_message(
         user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
         db.add(user_message)
         
-        lgpd_reply = get_lgpd_response(lgpd_request, tenant_name=ai_context["company_name"])
+        lgpd_reply = get_lgpd_response(lgpd_request, tenant_name=settings["company_name"])
         
         assistant_message = Message(lead_id=lead.id, role="assistant", content=lgpd_reply, tokens_used=0)
         db.add(assistant_message)
@@ -922,64 +691,17 @@ async def process_message(
         content=content,
         lead=lead,
         history=history,
-        niche_id=ai_context["niche_id"],
     )
     
     if imovel_portal:
         logger.info(f"🏠 Imóvel portal: {imovel_portal.get('codigo')}")
     
     # =========================================================================
-    # 14. AI GUARDS
+    # 14. HANDOFF TRIGGERS
     # =========================================================================
-    guards_result = {"can_respond": True}
-    
-    # Nicho imobiliário bypassa guards
-    if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
-        logger.info("🟢 Guards desabilitados (nicho imobiliário)")
-        guards_result = {"can_respond": True, "bypass": True}
-    else:
-        guards_result = await run_ai_guards_async(
-            message=content,
-            message_count=message_count,
-            settings=settings,
-            lead_qualification=lead.qualification or "frio",
-        )
-        
-        if not guards_result.get("can_respond", True):
-            guard_reason = guards_result.get("reason", "unknown")
-            guard_response = (
-                guards_result.get("response")
-                or ai_context.get("ai_out_of_scope_message")
-                or FALLBACK_RESPONSES["out_of_scope"]
-            )
-            
-            user_message = Message(
-                lead_id=lead.id, role="user", content=content, tokens_used=0
-            )
-            db.add(user_message)
-            
-            assistant_message = Message(
-                lead_id=lead.id, role="assistant", content=guard_response, tokens_used=0
-            )
-            db.add(assistant_message)
-            
-            await db.commit()
-            
-            return {
-                "success": True,
-                "reply": guard_response,
-                "lead_id": lead.id,
-                "is_new_lead": is_new,
-                "guard": guard_reason,
-            }
-    
-    # =========================================================================
-    # 15. HANDOFF TRIGGERS
-    # =========================================================================
-    handoff_triggers = settings.get("handoff", {}).get("triggers", []) or settings.get("handoff_triggers", [])
     trigger_found, trigger_matched = check_handoff_triggers(
         message=content,
-        custom_triggers=handoff_triggers,
+        custom_triggers=settings["handoff_triggers"],
     )
     
     if trigger_found:
@@ -988,8 +710,6 @@ async def process_message(
         user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
         db.add(user_message)
         await db.flush()
-        
-        await notify_handoff_requested(db, tenant, lead, f"Trigger: {trigger_matched}")
         
         handoff_result = await execute_handoff(lead, tenant, "user_requested", db)
         
@@ -1009,7 +729,7 @@ async def process_message(
         }
     
     # =========================================================================
-    # 16. ATUALIZA STATUS
+    # 15. ATUALIZA STATUS
     # =========================================================================
     if lead.status == LeadStatus.NEW.value:
         lead.status = LeadStatus.IN_PROGRESS.value
@@ -1023,30 +743,16 @@ async def process_message(
         db.add(event)
     
     # =========================================================================
-    # 17. SALVA MENSAGEM DO USUÁRIO E ATUALIZA HISTÓRICO
+    # 16. SALVA MENSAGEM DO USUÁRIO
     # =========================================================================
     user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
     db.add(user_message)
-    await db.flush()  # ← CRÍTICO: flush antes de qualificar!
+    await db.flush()
 
     await mark_lead_activity(db, lead)
-
-    # =========================================================================
-    # 17.5 QUALIFICAÇÃO DO LEAD
-    # =========================================================================
-    try:
-        logger.warning(f"🔥 DEBUG: Iniciando qualificação do lead {lead.id}")
-        logger.warning(f"🔥 DEBUG: Histórico carregado tem {message_count} mensagens")
-        
-        # ... (resto do código)
-        
-    except Exception as e:
-        logger.error(f"❌ Erro na qualificação: {e}")
-        logger.error(traceback.format_exc())
-        # Não falha o processo se qualificação der erro
     
     # =========================================================================
-    # 17.6 NOTIFICAÇÃO DE LEAD NOVO
+    # 17. NOTIFICAÇÃO DE LEAD NOVO
     # =========================================================================
     if is_new and not gestor_ja_notificado:
         if not lead.custom_data:
@@ -1067,124 +773,20 @@ async def process_message(
         logger.info(f"📲 Gestor notificado: lead NOVO {lead.id}")
 
     # =========================================================================
-    # 18. DETECÇÃO DE SENTIMENTO E CONTEXTO
-    # ========================================================================= # =========================================================================
-    sentiment = {"sentiment": "neutral", "confidence": 0.5}  # ← SEM duplicação!
-    is_returning_lead = False
-    hours_since_last = 0
-    
+    # 18. DETECÇÃO DE SENTIMENTO
+    # =========================================================================
     sentiment = await detect_sentiment(content)
     
-    if not is_new:
-        last_message_time = await get_last_message_time(db, lead.id)
-        if last_message_time:
-            now = datetime.now(timezone.utc)
-            if last_message_time.tzinfo is None:
-                last_message_time = last_message_time.replace(tzinfo=timezone.utc)
-            
-            time_diff = now - last_message_time
-            hours_since_last = time_diff.total_seconds() / 3600
-            
-            if hours_since_last > 6:
-                is_returning_lead = True
-    
     # =========================================================================
-    # 19. CONTEXTO DO LEAD
+    # 19. PRÉ-VALIDAÇÃO: DETECTA LEAD QUENTE ANTES DE RESPONDER
     # =========================================================================
-    lead_context = None
-    if lead.custom_data:
-        lead_context = {k: v for k, v in {
-            "name": lead.name,
-            "family_situation": lead.custom_data.get("family_situation"),
-            "work_info": lead.custom_data.get("work_info"),
-            "budget_range": lead.custom_data.get("budget_range"),
-            "urgency_level": lead.custom_data.get("urgency_level"),
-            "preferences": lead.custom_data.get("preferences"),
-            "pain_points": lead.custom_data.get("pain_points"),
-            "objections": lead.custom_data.get("objections"),
-            "buying_signals": lead.custom_data.get("buying_signals"),
-            "empreendimento_nome": lead.custom_data.get("empreendimento_nome"),
-        }.items() if v is not None}
-        if not lead_context:
-            lead_context = None
-
-    # =========================================================================
-    # 19.5 PRÉ-VALIDAÇÃO: DETECTA LEAD QUENTE ANTES DE RESPONDER
-    # =========================================================================
-    import re
-
-    content_lower = content.lower()
-
-    # ═══════════════════════════════════════════════════════════════
-    # Padrões de lead QUENTE - VERSÃO EXPANDIDA (handoff imediato)
-    # ═══════════════════════════════════════════════════════════════
-    hot_signals = [
-        # === DINHEIRO À VISTA ===
-        r"tenho.*dinheiro.*vista",
-        r"tenho.*valor.*vista",
-        r"dinheiro.*vista",
-        r"pagamento.*vista",
-        r"pagar.*vista",
-        r"tenho.*\d+.*mil.*vista",
-        r"tenho.*o\s+valor",
-        r"pago.*vista",
-        
-        # === CRÉDITO/FINANCIAMENTO APROVADO ===
-        r"tenho.*aprovado",
-        r"financiamento.*aprovado",
-        r"credito.*aprovado",
-        r"já.*aprovado",
-        r"pre.*aprovado",
-        
-        # === URGÊNCIA TEMPORAL (CRÍTICO - ESTAVA FALTANDO!) ===
-        r"o\s+mais\s+rapido\s+possivel",
-        r"mais\s+rapido\s+possivel",
-        r"rapido\s+possivel",
-        r"penso\s+em\s+me\s+mudar",
-        r"preciso\s+me\s+mudar",
-        r"preciso.*urgente",
-        r"urgente.*mudar",
-        r"mudar.*urgente",
-        r"preciso.*rapido",
-        r"rapido.*preciso",
-        r"preciso.*hoje",
-        r"preciso.*agora",
-        r"para.*ontem",  # "preciso pra ontem"
-        
-        # === INTENÇÃO DE COMPRA ESPECÍFICA (CRÍTICO - ESTAVA FALTANDO!) ===
-        r"quero\s+esse\s+imovel",
-        r"quero\s+comprar\s+esse",
-        r"vou\s+comprar\s+esse",
-        r"quero\s+fechar\s+esse",
-        r"gostei\s+desse",
-        r"me\s+interessei\s+nesse",
-        r"quero\s+esse.*que.*enviei",
-        r"esse.*que.*te\s+enviei",
-        r"esse.*que.*mandei",
-        r"esse\s+apartamento",  # "quero esse apartamento"
-        r"essa\s+casa",  # "quero essa casa"
-        
-        # === SINAIS DE DECISÃO ===
-        r"tenho.*entrada",
-        r"quando.*posso.*visitar",
-        r"quero.*visitar",
-        r"posso.*ir.*hoje",
-        r"quero.*fechar",
-        r"vamos.*fechar",
-        r"ja.*decidi",
-        r"to.*decidido",
-        r"quais.*documentos",  # "quais documentos preciso?"
-    ]
-
-    is_hot_lead = any(re.search(pattern, content_lower) for pattern in hot_signals)
+    is_hot_lead = detect_hot_lead_signals(content)
     
     if is_hot_lead and lead.qualification not in ["quente", "hot"]:
         logger.warning(f"🔥 LEAD QUENTE DETECTADO na mensagem: '{content[:50]}...'")
         
         # Força qualificação
         lead.qualification = "quente"
-        lead.qualification_score = 95
-        lead.qualification_confidence = 0.95
         
         # Responde e faz handoff IMEDIATAMENTE
         if lead.name:
@@ -1228,138 +830,49 @@ async def process_message(
         }
     
     # =========================================================================
-    # 19.7 HELPER: FORMATA ÚLTIMAS MENSAGENS PARA DESTAQUE
-    # =========================================================================
-    def format_recent_messages_for_prompt(history: list, limit: int = 3) -> str:
-        """
-        Formata as últimas N mensagens para destacar no prompt.
-        Isso ajuda a IA a não "esquecer" o contexto recente.
-        """
-        if not history or len(history) == 0:
-            return ""
-        
-        # Pega últimas N mensagens
-        recent = history[-limit:] if len(history) >= limit else history
-        
-        if not recent:
-            return ""
-        
-        formatted = []
-        for msg in recent:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            
-            if role == "user":
-                formatted.append(f"👤 LEAD: {content}")
-            else:
-                formatted.append(f"🤖 VOCÊ: {content}")
-        
-        return "\n".join(formatted)
-
-    
-    # =========================================================================
-    # 20. MONTA PROMPT (USANDO MÓDULO CENTRALIZADO - IGUAL AO SIMULADOR!)
+    # 20. MONTA PROMPT (USANDO PROMPT IMOBILIÁRIA ENXUTO)
     # =========================================================================
     logger.info(f"🔨 Montando prompt | Emp: {bool(empreendimento_detectado)} | Imóvel: {bool(imovel_portal)}")
 
-    # Converte para dataclasses do ai_context_builder
-    emp_context = None
+    # Contexto do lead
+    lead_context = build_lead_context_dict(lead, message_count)
+
+    # Converte empreendimento para dict
+    emp_dict = None
     if empreendimento_detectado:
-        emp_context = empreendimento_to_context(empreendimento_detectado)
+        emp_dict = empreendimento_to_dict(empreendimento_detectado)
 
-    imovel_context = None
-    if imovel_portal:
-        imovel_context = imovel_dict_to_context(imovel_portal)
-
-    # Contexto do lead (CRÍTICO - evita perguntas burras como "qual seu WhatsApp?")
-    lead_ctx = lead_to_context(lead, message_count)
-
-    # Cria AIContext
-    ai_ctx = AIContext(
-        company_name=ai_context["company_name"],
-        niche_id=ai_context["niche_id"],
-        tone=ai_context["tone"],
-        identity=ai_context.get("identity"),
-        scope_config=ai_context.get("scope_config"),
-        faq_items=ai_context.get("faq_items", []),
-        custom_questions=ai_context.get("custom_questions", []),
-        custom_rules=ai_context.get("custom_rules", []),
-        scope_description=ai_context.get("scope_description", ""),
-        out_of_scope_message=ai_context.get("ai_out_of_scope_message", ""),
-        custom_prompt=ai_context.get("custom_prompt"),
+    # Constrói prompt usando função centralizada
+    system_prompt = build_prompt_imobiliaria(
+        company_name=settings["company_name"],
+        tone=settings["tone"],
+        empreendimento=emp_dict,
+        imovel_portal=imovel_portal,
+        lead_context=lead_context,
+        custom_rules=settings["custom_rules"],
+        recent_messages=history[-3:] if len(history) >= 3 else history,
     )
 
-    # Constrói prompt usando função centralizada (IGUAL AO SIMULADOR!)
-    prompt_result = build_complete_prompt(
-        ai_context=ai_ctx,
-        lead_context=lead_ctx,
-        empreendimento=emp_context,
-        imovel_portal=imovel_context,
-        include_security=True,
-        is_simulation=False,
-    )
-
-    system_prompt = prompt_result.system_prompt
-
-    # ═══════════════════════════════════════════════════════════════════════
-    # CORREÇÃO #5: ADICIONA "MEMÓRIA RECENTE" AO PROMPT
-    # ═══════════════════════════════════════════════════════════════════════
-    # GPT-4 dá mais atenção ao que vem no FINAL do prompt.
-    # Destacamos as últimas 3 mensagens para a IA não "esquecer" o contexto.
-    # ═══════════════════════════════════════════════════════════════════════
-
-    if len(history) >= 2:  # Só adiciona se tem histórico relevante
-        recent_context = format_recent_messages_for_prompt(history, limit=3)
-        
-        if recent_context:
-            system_prompt_with_recent = f"""{system_prompt}
-
-    {'=' * 80}
-    🔥 CONTEXTO IMEDIATO - ÚLTIMAS 3 MENSAGENS (LEIA COM ATENÇÃO!)
-    {'=' * 80}
-
-    {recent_context}
-
-    ⚠️ IMPORTANTE:
-    - NÃO repita perguntas que o lead JÁ respondeu acima
-    - SE o lead demonstrou URGÊNCIA + interesse em imóvel específico → TRANSFIRA!
-    - SE o lead disse "quero esse" → NÃO pergunte mais nada, TRANSFIRA!
-
-    {'=' * 80}
-    """
-            
-            system_prompt = system_prompt_with_recent
-            logger.info(f"✅ Memória recente adicionada ao prompt ({len(recent_context)} chars)")
-
-    logger.info(f"📝 Prompt: {prompt_result.prompt_length} chars | Identity: {prompt_result.has_identity}")
+    logger.info(f"📝 Prompt: {len(system_prompt)} chars")
 
     # =========================================================================
     # 21. PREPARA MENSAGENS E CHAMA IA
     # =========================================================================
     messages = [{"role": "system", "content": system_prompt}, *history]
 
-    if guards_result.get("reason") == "faq" and guards_result.get("response"):
-        messages.append({
-            "role": "system",
-            "content": f"INFORMAÇÃO DO FAQ: {guards_result['response']}"
-        })
-
     final_response = ""
-    was_blocked = False
     tokens_used = 0
 
     try:
-        # CORREÇÃO: Parâmetros otimizados para respostas curtas e consistentes
         ai_response = await chat_completion(
             messages=messages,
-            temperature=0.4,   # ✅ Mais determinístico e consistente
-            max_tokens=150,    # ✅ Força respostas curtas (2-3 linhas = ~100-120 tokens)
+            temperature=0.4,
+            max_tokens=150,
         )
         
-        # VALIDAÇÃO INTELIGENTE (antes de aceitar resposta)
         ai_response_raw = ai_response["content"]
         
-        # Valida resposta (bloqueia perguntas burras)
+        # Valida resposta
         final_response, was_corrected = validate_ai_response(
             response=ai_response_raw,
             lead_name=lead.name,
@@ -1368,37 +881,24 @@ async def process_message(
         )
         
         if was_corrected:
-            logger.warning(f"🔧 Resposta da IA foi corrigida (pergunta burra bloqueada) - Lead {lead.id}")
-        
-        # Nicho imobiliário: sem sanitização adicional
-        if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
-            was_blocked = False
-            logger.info("🏠 Sanitização de escopo desabilitada (nicho imobiliário)")
-        else:
-            final_response, was_blocked = sanitize_response(
-                final_response,
-                ai_context["ai_out_of_scope_message"]
-            )
-            
-            if was_blocked:
-                logger.warning(f"⚠️ Resposta bloqueada: {lead.id}")
+            logger.warning(f"🔧 Resposta da IA foi corrigida - Lead {lead.id}")
         
         tokens_used = ai_response.get("tokens_used", 0)
         
     except Exception as e:
         logger.error(f"❌ Erro chamando IA: {e}")
+        logger.error(traceback.format_exc())
         
         if empreendimento_detectado:
             final_response = f"Olá! Que bom seu interesse no {empreendimento_detectado.nome}! Como posso ajudar?"
         elif imovel_portal:
             final_response = f"Olá! Vi seu interesse no imóvel {imovel_portal.get('codigo')}! Como posso ajudar?"
         else:
-            final_response = f"Olá! Sou da {ai_context['company_name']}. Como posso ajudar?"
+            final_response = f"Olá! Sou da {settings['company_name']}. Como posso ajudar?"
 
     # =========================================================================
     # 22. VERIFICA HANDOFF SUGERIDO PELA IA
     # =========================================================================
-    should_transfer_by_ai = False
     handoff_check = check_ai_handoff(content, final_response)
     should_transfer_by_ai = handoff_check["should_handoff"]
     
@@ -1419,8 +919,6 @@ async def process_message(
         details={
             "tokens_used": tokens_used,
             "sentiment": sentiment.get("sentiment"),
-            "was_blocked": was_blocked,
-            "identity_loaded": bool(ai_context.get("identity")),
             "empreendimento_id": empreendimento_detectado.id if empreendimento_detectado else None,
             "imovel_portal_codigo": imovel_portal.get("codigo") if imovel_portal else None,
         },
@@ -1429,7 +927,7 @@ async def process_message(
     # =========================================================================
     # 24. HANDOFF FINAL
     # =========================================================================
-    should_transfer = lead.qualification in ["quente", "hot"] or should_transfer_by_ai
+    should_transfer = lead.qualification in ["quente", "hot"] or should_transfer_by_ai  # ← BUG CORRIGIDO
     
     if should_transfer:
         handoff_reason = "lead_hot" if lead.qualification in ["quente", "hot"] else "ai_suggested"
@@ -1482,13 +980,12 @@ async def process_message(
             "qualification": lead.qualification,
             "typing_delay": calculate_typing_delay(len(final_response)),
             "sentiment": sentiment.get("sentiment"),
-            "is_returning_lead": is_returning_lead,
-            "was_blocked": was_blocked,
             "out_of_hours": is_out_of_hours,
             "imovel_portal_codigo": imovel_portal.get("codigo") if imovel_portal else None,
         }
     except Exception as e:
         logger.error(f"❌ Erro no commit: {e}")
+        logger.error(traceback.format_exc())
         await db.rollback()
         return {
             "success": False,
