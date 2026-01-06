@@ -1112,26 +1112,70 @@ async def process_message(
     # 19.5 PRÉ-VALIDAÇÃO: DETECTA LEAD QUENTE ANTES DE RESPONDER
     # =========================================================================
     import re
-    
+
     content_lower = content.lower()
-    
-    # Padrões de lead QUENTE (handoff imediato)
+
+    # ═══════════════════════════════════════════════════════════════
+    # Padrões de lead QUENTE - VERSÃO EXPANDIDA (handoff imediato)
+    # ═══════════════════════════════════════════════════════════════
     hot_signals = [
+        # === DINHEIRO À VISTA ===
         r"tenho.*dinheiro.*vista",
         r"tenho.*valor.*vista",
         r"dinheiro.*vista",
         r"pagamento.*vista",
         r"pagar.*vista",
         r"tenho.*\d+.*mil.*vista",
+        r"tenho.*o\s+valor",
+        r"pago.*vista",
+        
+        # === CRÉDITO/FINANCIAMENTO APROVADO ===
         r"tenho.*aprovado",
         r"financiamento.*aprovado",
         r"credito.*aprovado",
+        r"já.*aprovado",
+        r"pre.*aprovado",
+        
+        # === URGÊNCIA TEMPORAL (CRÍTICO - ESTAVA FALTANDO!) ===
+        r"o\s+mais\s+rapido\s+possivel",
+        r"mais\s+rapido\s+possivel",
+        r"rapido\s+possivel",
+        r"penso\s+em\s+me\s+mudar",
+        r"preciso\s+me\s+mudar",
         r"preciso.*urgente",
         r"urgente.*mudar",
         r"mudar.*urgente",
+        r"preciso.*rapido",
+        r"rapido.*preciso",
+        r"preciso.*hoje",
+        r"preciso.*agora",
+        r"para.*ontem",  # "preciso pra ontem"
+        
+        # === INTENÇÃO DE COMPRA ESPECÍFICA (CRÍTICO - ESTAVA FALTANDO!) ===
+        r"quero\s+esse\s+imovel",
+        r"quero\s+comprar\s+esse",
+        r"vou\s+comprar\s+esse",
+        r"quero\s+fechar\s+esse",
+        r"gostei\s+desse",
+        r"me\s+interessei\s+nesse",
+        r"quero\s+esse.*que.*enviei",
+        r"esse.*que.*te\s+enviei",
+        r"esse.*que.*mandei",
+        r"esse\s+apartamento",  # "quero esse apartamento"
+        r"essa\s+casa",  # "quero essa casa"
+        
+        # === SINAIS DE DECISÃO ===
         r"tenho.*entrada",
+        r"quando.*posso.*visitar",
+        r"quero.*visitar",
+        r"posso.*ir.*hoje",
+        r"quero.*fechar",
+        r"vamos.*fechar",
+        r"ja.*decidi",
+        r"to.*decidido",
+        r"quais.*documentos",  # "quais documentos preciso?"
     ]
-    
+
     is_hot_lead = any(re.search(pattern, content_lower) for pattern in hot_signals)
     
     if is_hot_lead and lead.qualification not in ["quente", "hot"]:
@@ -1293,78 +1337,64 @@ async def process_message(
     # 21. PREPARA MENSAGENS E CHAMA IA
     # =========================================================================
     messages = [{"role": "system", "content": system_prompt}, *history]
-    
+
     if guards_result.get("reason") == "faq" and guards_result.get("response"):
         messages.append({
             "role": "system",
             "content": f"INFORMAÇÃO DO FAQ: {guards_result['response']}"
         })
-    
+
     final_response = ""
     was_blocked = False
     tokens_used = 0
 
-    # ═══════════════════════════════════════════════════════════════
-    # Padrões de lead QUENTE - VERSÃO EXPANDIDA (handoff imediato)
-    # ═══════════════════════════════════════════════════════════════
-    hot_signals = [
-        # === DINHEIRO À VISTA ===
-        r"tenho.*dinheiro.*vista",
-        r"tenho.*valor.*vista",
-        r"dinheiro.*vista",
-        r"pagamento.*vista",
-        r"pagar.*vista",
-        r"tenho.*\d+.*mil.*vista",
-        r"tenho.*o\s+valor",
-        r"pago.*vista",
+    try:
+        # CORREÇÃO: Parâmetros otimizados para respostas curtas e consistentes
+        ai_response = await chat_completion(
+            messages=messages,
+            temperature=0.4,   # ✅ Mais determinístico e consistente
+            max_tokens=150,    # ✅ Força respostas curtas (2-3 linhas = ~100-120 tokens)
+        )
         
-        # === CRÉDITO/FINANCIAMENTO APROVADO ===
-        r"tenho.*aprovado",
-        r"financiamento.*aprovado",
-        r"credito.*aprovado",
-        r"já.*aprovado",
-        r"pre.*aprovado",
+        # VALIDAÇÃO INTELIGENTE (antes de aceitar resposta)
+        ai_response_raw = ai_response["content"]
         
-        # === URGÊNCIA TEMPORAL (CRÍTICO - ESTAVA FALTANDO!) ===
-        r"o\s+mais\s+rapido\s+possivel",
-        r"mais\s+rapido\s+possivel",
-        r"rapido\s+possivel",
-        r"penso\s+em\s+me\s+mudar",
-        r"preciso\s+me\s+mudar",
-        r"preciso.*urgente",
-        r"urgente.*mudar",
-        r"mudar.*urgente",
-        r"preciso.*rapido",
-        r"rapido.*preciso",
-        r"preciso.*hoje",
-        r"preciso.*agora",
-        r"para.*ontem",  # "preciso pra ontem"
+        # Valida resposta (bloqueia perguntas burras)
+        final_response, was_corrected = validate_ai_response(
+            response=ai_response_raw,
+            lead_name=lead.name,
+            lead_phone=lead.phone,
+            history=history
+        )
         
-        # === INTENÇÃO DE COMPRA ESPECÍFICA (CRÍTICO - ESTAVA FALTANDO!) ===
-        r"quero\s+esse\s+imovel",
-        r"quero\s+comprar\s+esse",
-        r"vou\s+comprar\s+esse",
-        r"quero\s+fechar\s+esse",
-        r"gostei\s+desse",
-        r"me\s+interessei\s+nesse",
-        r"quero\s+esse.*que.*enviei",
-        r"esse.*que.*te\s+enviei",
-        r"esse.*que.*mandei",
-        r"esse\s+apartamento",  # "quero esse apartamento"
-        r"essa\s+casa",  # "quero essa casa"
+        if was_corrected:
+            logger.warning(f"🔧 Resposta da IA foi corrigida (pergunta burra bloqueada) - Lead {lead.id}")
         
-        # === SINAIS DE DECISÃO ===
-        r"tenho.*entrada",
-        r"quando.*posso.*visitar",
-        r"quero.*visitar",
-        r"posso.*ir.*hoje",
-        r"quero.*fechar",
-        r"vamos.*fechar",
-        r"ja.*decidi",
-        r"to.*decidido",
-        r"quais.*documentos",  # "quais documentos preciso?"
-    ]
-    
+        # Nicho imobiliário: sem sanitização adicional
+        if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
+            was_blocked = False
+            logger.info("🏠 Sanitização de escopo desabilitada (nicho imobiliário)")
+        else:
+            final_response, was_blocked = sanitize_response(
+                final_response,
+                ai_context["ai_out_of_scope_message"]
+            )
+            
+            if was_blocked:
+                logger.warning(f"⚠️ Resposta bloqueada: {lead.id}")
+        
+        tokens_used = ai_response.get("tokens_used", 0)
+        
+    except Exception as e:
+        logger.error(f"❌ Erro chamando IA: {e}")
+        
+        if empreendimento_detectado:
+            final_response = f"Olá! Que bom seu interesse no {empreendimento_detectado.nome}! Como posso ajudar?"
+        elif imovel_portal:
+            final_response = f"Olá! Vi seu interesse no imóvel {imovel_portal.get('codigo')}! Como posso ajudar?"
+        else:
+            final_response = f"Olá! Sou da {ai_context['company_name']}. Como posso ajudar?"
+
     # =========================================================================
     # 22. VERIFICA HANDOFF SUGERIDO PELA IA
     # =========================================================================
