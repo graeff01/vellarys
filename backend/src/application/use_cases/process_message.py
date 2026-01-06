@@ -52,6 +52,7 @@ from src.infrastructure.services import (
 from src.infrastructure.services.openai_service import (
     detect_sentiment,
     calculate_typing_delay,
+    validate_ai_response,
 )
 
 from src.infrastructure.services.ai_security import (
@@ -1181,6 +1182,35 @@ async def process_message(
             "status": "transferido",
             "hot_signal_detected": True,
         }
+    
+    # =========================================================================
+    # 19.7 HELPER: FORMATA ÚLTIMAS MENSAGENS PARA DESTAQUE
+    # =========================================================================
+    def format_recent_messages_for_prompt(history: list, limit: int = 3) -> str:
+        """
+        Formata as últimas N mensagens para destacar no prompt.
+        Isso ajuda a IA a não "esquecer" o contexto recente.
+        """
+        if not history or len(history) == 0:
+            return ""
+        
+        # Pega últimas N mensagens
+        recent = history[-limit:] if len(history) >= limit else history
+        
+        if not recent:
+            return ""
+        
+        formatted = []
+        for msg in recent:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            
+            if role == "user":
+                formatted.append(f"👤 LEAD: {content}")
+            else:
+                formatted.append(f"🤖 VOCÊ: {content}")
+        
+        return "\n".join(formatted)
 
     
     # =========================================================================
@@ -1227,6 +1257,36 @@ async def process_message(
 
     system_prompt = prompt_result.system_prompt
 
+    # ═══════════════════════════════════════════════════════════════════════
+    # CORREÇÃO #5: ADICIONA "MEMÓRIA RECENTE" AO PROMPT
+    # ═══════════════════════════════════════════════════════════════════════
+    # GPT-4 dá mais atenção ao que vem no FINAL do prompt.
+    # Destacamos as últimas 3 mensagens para a IA não "esquecer" o contexto.
+    # ═══════════════════════════════════════════════════════════════════════
+
+    if len(history) >= 2:  # Só adiciona se tem histórico relevante
+        recent_context = format_recent_messages_for_prompt(history, limit=3)
+        
+        if recent_context:
+            system_prompt_with_recent = f"""{system_prompt}
+
+    {'=' * 80}
+    🔥 CONTEXTO IMEDIATO - ÚLTIMAS 3 MENSAGENS (LEIA COM ATENÇÃO!)
+    {'=' * 80}
+
+    {recent_context}
+
+    ⚠️ IMPORTANTE:
+    - NÃO repita perguntas que o lead JÁ respondeu acima
+    - SE o lead demonstrou URGÊNCIA + interesse em imóvel específico → TRANSFIRA!
+    - SE o lead disse "quero esse" → NÃO pergunte mais nada, TRANSFIRA!
+
+    {'=' * 80}
+    """
+            
+            system_prompt = system_prompt_with_recent
+            logger.info(f"✅ Memória recente adicionada ao prompt ({len(recent_context)} chars)")
+
     logger.info(f"📝 Prompt: {prompt_result.prompt_length} chars | Identity: {prompt_result.has_identity}")
 
     # =========================================================================
@@ -1243,55 +1303,67 @@ async def process_message(
     final_response = ""
     was_blocked = False
     tokens_used = 0
-    
-    try:
-        # CORREÇÃO: Parâmetros otimizados para respostas curtas e consistentes
-        ai_response = await chat_completion(
-            messages=messages,
-            temperature=0.4,   # ✅ Mais determinístico e consistente
-            max_tokens=150,    # ✅ Força respostas curtas (2-3 linhas = ~100-120 tokens)
-        )
+
+    # ═══════════════════════════════════════════════════════════════
+    # Padrões de lead QUENTE - VERSÃO EXPANDIDA (handoff imediato)
+    # ═══════════════════════════════════════════════════════════════
+    hot_signals = [
+        # === DINHEIRO À VISTA ===
+        r"tenho.*dinheiro.*vista",
+        r"tenho.*valor.*vista",
+        r"dinheiro.*vista",
+        r"pagamento.*vista",
+        r"pagar.*vista",
+        r"tenho.*\d+.*mil.*vista",
+        r"tenho.*o\s+valor",
+        r"pago.*vista",
         
-        # VALIDAÇÃO INTELIGENTE (antes de aceitar resposta)
-        from src.infrastructure.services.openai_service import validate_ai_response
+        # === CRÉDITO/FINANCIAMENTO APROVADO ===
+        r"tenho.*aprovado",
+        r"financiamento.*aprovado",
+        r"credito.*aprovado",
+        r"já.*aprovado",
+        r"pre.*aprovado",
         
-        ai_response_raw = ai_response["content"]
+        # === URGÊNCIA TEMPORAL (CRÍTICO - ESTAVA FALTANDO!) ===
+        r"o\s+mais\s+rapido\s+possivel",
+        r"mais\s+rapido\s+possivel",
+        r"rapido\s+possivel",
+        r"penso\s+em\s+me\s+mudar",
+        r"preciso\s+me\s+mudar",
+        r"preciso.*urgente",
+        r"urgente.*mudar",
+        r"mudar.*urgente",
+        r"preciso.*rapido",
+        r"rapido.*preciso",
+        r"preciso.*hoje",
+        r"preciso.*agora",
+        r"para.*ontem",  # "preciso pra ontem"
         
-        # Valida resposta (bloqueia perguntas burras)
-        final_response, was_corrected = validate_ai_response(
-            response=ai_response_raw,
-            lead_name=lead.name,
-            lead_phone=lead.phone,
-            history=history
-        )
+        # === INTENÇÃO DE COMPRA ESPECÍFICA (CRÍTICO - ESTAVA FALTANDO!) ===
+        r"quero\s+esse\s+imovel",
+        r"quero\s+comprar\s+esse",
+        r"vou\s+comprar\s+esse",
+        r"quero\s+fechar\s+esse",
+        r"gostei\s+desse",
+        r"me\s+interessei\s+nesse",
+        r"quero\s+esse.*que.*enviei",
+        r"esse.*que.*te\s+enviei",
+        r"esse.*que.*mandei",
+        r"esse\s+apartamento",  # "quero esse apartamento"
+        r"essa\s+casa",  # "quero essa casa"
         
-        if was_corrected:
-            logger.warning(f"🔧 Resposta da IA foi corrigida (pergunta burra bloqueada) - Lead {lead.id}")
-        
-        # Nicho imobiliário: sem sanitização adicional
-        if ai_context["niche_id"].lower() in NICHOS_IMOBILIARIOS:
-            was_blocked = False
-            logger.info("🏠 Sanitização de escopo desabilitada (nicho imobiliário)")
-        else:
-            final_response, was_blocked = sanitize_response(
-                ai_response["content"],
-                ai_context["ai_out_of_scope_message"]
-            )
-            
-            if was_blocked:
-                logger.warning(f"⚠️ Resposta bloqueada: {lead.id}")
-        
-        tokens_used = ai_response.get("tokens_used", 0)
-        
-    except Exception as e:
-        logger.error(f"❌ Erro chamando IA: {e}")
-        
-        if empreendimento_detectado:
-            final_response = f"Olá! Que bom seu interesse no {empreendimento_detectado.nome}! Como posso ajudar?"
-        elif imovel_portal:
-            final_response = f"Olá! Vi seu interesse no imóvel {imovel_portal.get('codigo')}! Como posso ajudar?"
-        else:
-            final_response = f"Olá! Sou da {ai_context['company_name']}. Como posso ajudar?"
+        # === SINAIS DE DECISÃO ===
+        r"tenho.*entrada",
+        r"quando.*posso.*visitar",
+        r"quero.*visitar",
+        r"posso.*ir.*hoje",
+        r"quero.*fechar",
+        r"vamos.*fechar",
+        r"ja.*decidi",
+        r"to.*decidido",
+        r"quais.*documentos",  # "quais documentos preciso?"
+    ]
     
     # =========================================================================
     # 22. VERIFICA HANDOFF SUGERIDO PELA IA
