@@ -14,6 +14,7 @@ from sqlalchemy import String, Boolean, ForeignKey, Text, Integer, DateTime, Tab
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.mutable import MutableDict  # ← ADICIONADO!
+from .empreendimento import Empreendimento  
 
 from .base import Base, TimestampMixin
 from .enums import LeadStatus, LeadQualification, LeadSource, UserRole
