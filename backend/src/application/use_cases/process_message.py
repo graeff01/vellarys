@@ -12,10 +12,8 @@ CORREÇÕES:
 """
 
 import logging
+logging.warning("PROCESS_MESSAGE CORRETO CARREGADO")
 import traceback
-
-raise RuntimeError("🚨 PROCESS_MESSAGE CORRETO CARREGADO")
-
 
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
