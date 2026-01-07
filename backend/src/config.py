@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     # OPENAI
     # ===========================================
     openai_api_key: str
-    openai_model: str = "gpt-4o-mini"
+    openai_model = "gpt-4o"
     
     # ===========================================
     # GUPSHUP (WhatsApp)

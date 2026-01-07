@@ -865,10 +865,10 @@ async def process_message(
 
     try:
         ai_response = await chat_completion(
-            messages=messages,
-            temperature=0.4,
-            max_tokens=150,
-        )
+                messages=messages,
+                temperature=0.6,  # ← Otimizado para GPT-4o
+                max_tokens=300,   # ← Aumentado
+            )
         
         ai_response_raw = ai_response["content"]
         
