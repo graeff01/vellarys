@@ -187,6 +187,10 @@ class TenantSettings(BaseModel):
         default=None,
         description="Segredo usado para validar assinatura HMAC."
     )
+    webhook_api_key: Optional[str] = Field(
+        default=None,
+        description="API Key para autenticar webhooks recebidos"
+    )
 
 
 class TenantCreate(BaseModel):

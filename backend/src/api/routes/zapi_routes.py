@@ -1,13 +1,20 @@
 """
-ROTAS Z-API - Webhooks
-======================
+ROTAS Z-API - Webhooks (VERSÃO CORRIGIDA - SEM DUPLICAÇÃO)
+============================================================
 Recebe eventos do Z-API (mensagens, status, conexao)
+
+CORREÇÕES:
+- Deduplicação robusta por messageId
+- Fallback para mensagens sem messageId
+- Locks por telefone para prevenir race conditions
+- Código limpo e organizado
 
 Documentacao: https://developer.z-api.io/webhooks/introduction
 """
 
 import logging
 import asyncio
+import hashlib
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 from fastapi import APIRouter, Request, Depends, BackgroundTasks
@@ -23,46 +30,18 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/zapi", tags=["Z-API Webhooks"])
 
-import hashlib
-from datetime import datetime, timedelta
-
-# Cache de mensagens processadas (em memória)
-processed_messages = {}
-
-def generate_message_hash(phone: str, content: str, timestamp: datetime) -> str:
-    """Gera hash único para deduplicação."""
-    # Arredonda timestamp para 5 segundos
-    rounded_ts = int(timestamp.timestamp() / 5) * 5
-    key = f"{phone}:{content}:{rounded_ts}"
-    return hashlib.md5(key.encode()).hexdigest()
-
-def is_duplicate_message(phone: str, content: str, timestamp: datetime) -> bool:
-    """Verifica se mensagem já foi processada."""
-    msg_hash = generate_message_hash(phone, content, timestamp)
-    
-    # Limpa mensagens antigas (mais de 1 minuto)
-    cutoff = datetime.now() - timedelta(minutes=1)
-    global processed_messages
-    processed_messages = {
-        k: v for k, v in processed_messages.items() 
-        if v > cutoff
-    }
-    
-    # Verifica duplicata
-    if msg_hash in processed_messages:
-        return True
-    
-    # Registra como processada
-    processed_messages[msg_hash] = datetime.now()
-    return False
 
 # ════════════════════════════════════════════════════════════════
-# SISTEMA DE DEDUPLICAÇÃO E LOCKS
+# SISTEMA DE DEDUPLICAÇÃO (SIMPLIFICADO E ROBUSTO)
 # ════════════════════════════════════════════════════════════════
 
 # Cache de messageIds processados (últimos 10 minutos)
 _processed_messages = {}  # {messageId: timestamp}
 _message_cache_lock = asyncio.Lock()
+
+# Cache de mensagens sem messageId (fallback - últimos 2 minutos)
+_fallback_cache = {}  # {phone:content_hash: timestamp}
+_fallback_cache_lock = asyncio.Lock()
 
 # Locks por telefone (previne race conditions)
 _phone_locks = defaultdict(asyncio.Lock)
@@ -81,6 +60,48 @@ async def _cleanup_message_cache():
         
         if to_remove:
             logger.debug(f"🧹 Cache limpo: {len(to_remove)} messageIds removidos")
+
+
+async def _cleanup_fallback_cache():
+    """Remove mensagens do fallback cache após 2 minutos."""
+    async with _fallback_cache_lock:
+        now = datetime.now(timezone.utc)
+        to_remove = [
+            key for key, timestamp in _fallback_cache.items()
+            if (now - timestamp).total_seconds() > 120  # 2 minutos
+        ]
+        for key in to_remove:
+            del _fallback_cache[key]
+        
+        if to_remove:
+            logger.debug(f"🧹 Fallback cache limpo: {len(to_remove)} entradas removidas")
+
+
+def _generate_fallback_key(phone: str, content: str) -> str:
+    """Gera chave única para mensagens sem messageId."""
+    # Hash simples: phone + primeiros 100 chars da mensagem
+    key_data = f"{phone}:{content[:100]}"
+    return hashlib.md5(key_data.encode()).hexdigest()
+
+
+async def _is_duplicate_fallback(phone: str, content: str) -> bool:
+    """
+    Verifica duplicação para mensagens sem messageId (fallback).
+    Usa hash de phone + conteúdo (sem timestamp).
+    """
+    async with _fallback_cache_lock:
+        key = _generate_fallback_key(phone, content)
+        
+        if key in _fallback_cache:
+            return True
+        
+        # Registra como processado
+        _fallback_cache[key] = datetime.now(timezone.utc)
+        
+        # Limpa cache antigo (async)
+        asyncio.create_task(_cleanup_fallback_cache())
+        
+        return False
 
 
 # ============================================
@@ -114,18 +135,66 @@ async def zapi_receive_message(
         payload = await request.json()
         
         # Log para debug
-        logger.info(f"Z-API Webhook recebido: {payload.get('phone', 'unknown')}")
+        logger.info(f"📥 Z-API Webhook recebido: {payload.get('phone', 'unknown')}")
         
         # ════════════════════════════════════════════════════════════════
-        # BUG FIX #1: DEDUPLICAÇÃO DE MENSAGENS
+        # PASSO 1: IGNORA MENSAGENS DE GRUPO E FROM_ME
         # ════════════════════════════════════════════════════════════════
+        
+        if payload.get("isGroup"):
+            logger.debug("Ignorando mensagem de grupo")
+            return {"status": "ignored", "reason": "group_message"}
+        
+        if payload.get("fromMe"):
+            logger.debug("Ignorando mensagem enviada por mim")
+            return {"status": "ignored", "reason": "from_me"}
+        
+        # ════════════════════════════════════════════════════════════════
+        # PASSO 2: EXTRAI DADOS DA MENSAGEM
+        # ════════════════════════════════════════════════════════════════
+        
+        phone = payload.get("phone")
+        sender_name = payload.get("pushName") or payload.get("senderName")
+        instance_id = payload.get("instanceId")
         message_id = payload.get("messageId")
         
+        # Extrai texto da mensagem (pode vir em diferentes formatos)
+        message_text = None
+        
+        if payload.get("text"):
+            message_text = payload["text"].get("message")
+        elif payload.get("image"):
+            message_text = payload["image"].get("caption") or "[Imagem recebida]"
+        elif payload.get("audio"):
+            message_text = "[Audio recebido]"
+        elif payload.get("document"):
+            message_text = payload["document"].get("caption") or "[Documento recebido]"
+        elif payload.get("video"):
+            message_text = payload["video"].get("caption") or "[Video recebido]"
+        elif payload.get("sticker"):
+            message_text = "[Sticker recebido]"
+        elif payload.get("location"):
+            message_text = "[Localizacao recebida]"
+        elif payload.get("contact"):
+            message_text = "[Contato recebido]"
+        elif payload.get("buttonsResponseMessage"):
+            message_text = payload["buttonsResponseMessage"].get("selectedButtonId") or "[Botao clicado]"
+        elif payload.get("listResponseMessage"):
+            message_text = payload["listResponseMessage"].get("title") or "[Opcao selecionada]"
+        
+        if not phone or not message_text:
+            logger.warning(f"Payload incompleto: phone={phone}, text={message_text}")
+            return {"status": "ignored", "reason": "incomplete_payload"}
+        
+        # ════════════════════════════════════════════════════════════════
+        # PASSO 3: DEDUPLICAÇÃO (PRIORIDADE: messageId)
+        # ════════════════════════════════════════════════════════════════
+        
         if message_id:
+            # Usa messageId (método confiável)
             async with _message_cache_lock:
-                # Verifica se já processamos este messageId
                 if message_id in _processed_messages:
-                    logger.warning(f"⚠️ Webhook duplicado detectado: {message_id}")
+                    logger.warning(f"⚠️ Webhook duplicado detectado (messageId): {message_id}")
                     return {"status": "ok", "message": "already_processed"}
                 
                 # Marca como processado
@@ -133,80 +202,19 @@ async def zapi_receive_message(
             
             # Limpa cache antigo (async, não bloqueia)
             asyncio.create_task(_cleanup_message_cache())
+        
         else:
-            logger.warning("⚠️ Webhook sem messageId - deduplicação desabilitada")
+            # Fallback: usa hash de phone + conteúdo (sem messageId)
+            logger.warning("⚠️ Webhook sem messageId - usando fallback")
+            
+            is_duplicate = await _is_duplicate_fallback(phone, message_text)
+            if is_duplicate:
+                logger.warning(f"⚠️ Webhook duplicado detectado (fallback): {phone}")
+                return {"status": "ok", "message": "already_processed_fallback"}
         
-        # Ignora mensagens de grupo
-        if payload.get("isGroup"):
-            logger.debug("Ignorando mensagem de grupo")
-            return {"status": "ignored", "reason": "group_message"}
-        
-        # Ignora mensagens enviadas por mim
-        if payload.get("fromMe"):
-            logger.debug("Ignorando mensagem enviada por mim")
-            return {"status": "ignored", "reason": "from_me"}
-        
-        # Extrai dados da mensagem
-        phone = payload.get("phone")
-        sender_name = payload.get("pushName") or payload.get("senderName")
-        instance_id = payload.get("instanceId")
-        
-        # Extrai texto da mensagem (pode vir em diferentes formatos)
-        message_text = None
-        
-        # Texto simples
-        if payload.get("text"):
-            message_text = payload["text"].get("message")
-        
-        # Imagem com legenda
-        elif payload.get("image"):
-            message_text = payload["image"].get("caption") or "[Imagem recebida]"
-        
-        # Audio
-        elif payload.get("audio"):
-            message_text = "[Audio recebido]"
-        
-        # Documento
-        elif payload.get("document"):
-            message_text = payload["document"].get("caption") or "[Documento recebido]"
-        
-        # Video
-        elif payload.get("video"):
-            message_text = payload["video"].get("caption") or "[Video recebido]"
-        
-        # Sticker
-        elif payload.get("sticker"):
-            message_text = "[Sticker recebido]"
-        
-        # Localizacao
-        elif payload.get("location"):
-            message_text = "[Localizacao recebida]"
-        
-        # Contato
-        elif payload.get("contact"):
-            message_text = "[Contato recebido]"
-        
-        # Botao clicado
-        elif payload.get("buttonsResponseMessage"):
-            message_text = payload["buttonsResponseMessage"].get("selectedButtonId") or "[Botao clicado]"
-        
-        # Lista selecionada
-        elif payload.get("listResponseMessage"):
-            message_text = payload["listResponseMessage"].get("title") or "[Opcao selecionada]"
-        # Deduplicação
-        if is_duplicate_message(phone, message_text, datetime.now()):
-            logger.warning(f"⚠️ Mensagem duplicada ignorada: {phone}")
-            return {"success": True, "message": "Duplicata ignorada"}
-                    
-        if not phone or not message_text:
-            logger.warning(f"Payload incompleto: phone={phone}, text={message_text}")
-            return {"status": "ignored", "reason": "incomplete_payload"}
-        
-        # ==============================================
-        # BUSCA TENANT PELO INSTANCE_ID
-        # ==============================================
-        # Por enquanto, busca o primeiro tenant ativo com canal whatsapp
-        # TODO: Mapear instance_id para tenant (tabela ou campo)
+        # ════════════════════════════════════════════════════════════════
+        # PASSO 4: BUSCA TENANT
+        # ════════════════════════════════════════════════════════════════
         
         result = await db.execute(
             select(Channel)
@@ -219,7 +227,6 @@ async def zapi_receive_message(
             logger.error("Nenhum canal WhatsApp ativo encontrado")
             return {"status": "error", "reason": "no_channel"}
         
-        # Busca tenant do canal
         result = await db.execute(
             select(Tenant)
             .where(Tenant.id == channel.tenant_id)
@@ -231,18 +238,14 @@ async def zapi_receive_message(
             logger.error(f"Tenant nao encontrado para channel {channel.id}")
             return {"status": "error", "reason": "no_tenant"}
         
-        logger.info(f"Processando para tenant: {tenant.slug}")
+        logger.info(f"🏢 Processando para tenant: {tenant.slug}")
         
         # ════════════════════════════════════════════════════════════════
-        # BUG FIX #2: LOCK POR TELEFONE (Previne processamento paralelo)
+        # PASSO 5: LOCK POR TELEFONE + PROCESSA MENSAGEM
         # ════════════════════════════════════════════════════════════════
         
         async with _phone_locks[phone]:
             logger.info(f"🔒 Lock adquirido para {phone}")
-            
-            # ==============================================
-            # PROCESSA A MENSAGEM (com timeout de 30s)
-            # ==============================================
             
             try:
                 result = await asyncio.wait_for(
@@ -255,7 +258,7 @@ async def zapi_receive_message(
                         sender_name=sender_name,
                         sender_phone=phone,
                     ),
-                    timeout=30.0  # Timeout de 30 segundos
+                    timeout=30.0
                 )
                 
                 logger.info(f"✅ Processamento concluído para {phone}")
@@ -271,12 +274,11 @@ async def zapi_receive_message(
             finally:
                 logger.info(f"🔓 Lock liberado para {phone}")
         
-        # ==============================================
-        # ENVIA RESPOSTA
-        # ==============================================
+        # ════════════════════════════════════════════════════════════════
+        # PASSO 6: ENVIA RESPOSTA
+        # ════════════════════════════════════════════════════════════════
         
         if result.get("reply"):
-            # Busca credenciais Z-API do canal ou usa as globais
             zapi_instance = None
             zapi_token = None
             
@@ -284,24 +286,21 @@ async def zapi_receive_message(
                 zapi_instance = channel.config.get("instance_id") or channel.config.get("zapi_instance_id")
                 zapi_token = channel.config.get("token") or channel.config.get("zapi_token")
             
-            # Cria cliente Z-API
             zapi = get_zapi_client(instance_id=zapi_instance, token=zapi_token)
             
-            # Delay baseado no typing_delay calculado
             typing_delay = result.get("typing_delay", 2)
             if typing_delay > 0:
                 logger.info(f"💬 Aguardando {typing_delay}s (simulando digitação)...")
-                await asyncio.sleep(min(typing_delay, 5))  # Max 5s
+                await asyncio.sleep(min(typing_delay, 5))
             
-            # Envia resposta
             send_result = await zapi.send_text(
                 phone=phone, 
                 message=result["reply"],
-                delay_message=2  # Simula digitacao
+                delay_message=2
             )
             
             if not send_result.get("success"):
-                logger.error(f"Erro enviando resposta: {send_result.get('error')}")
+                logger.error(f"❌ Erro enviando resposta: {send_result.get('error')}")
         
         return {
             "status": "processed",
@@ -311,7 +310,7 @@ async def zapi_receive_message(
         }
         
     except Exception as e:
-        logger.error(f"Erro no webhook Z-API receive: {e}", exc_info=True)
+        logger.error(f"❌ Erro no webhook Z-API receive: {e}", exc_info=True)
         return {"status": "error", "message": str(e)}
 
 
@@ -366,7 +365,7 @@ async def zapi_connected(request: Request):
         instance_id = payload.get("instanceId")
         phone = payload.get("phone")
         
-        logger.info(f"Z-API Conectado! Instance: {instance_id}, Phone: {phone}")
+        logger.info(f"✅ Z-API Conectado! Instance: {instance_id}, Phone: {phone}")
         
         # Aqui voce pode:
         # - Atualizar status do canal no banco
@@ -395,7 +394,7 @@ async def zapi_disconnected(request: Request):
         instance_id = payload.get("instanceId")
         reason = payload.get("reason")
         
-        logger.warning(f"Z-API Desconectado! Instance: {instance_id}, Reason: {reason}")
+        logger.warning(f"⚠️ Z-API Desconectado! Instance: {instance_id}, Reason: {reason}")
         
         # Aqui voce pode:
         # - Atualizar status do canal no banco
