@@ -1,13 +1,26 @@
 """
-CASO DE USO: PROCESSAR MENSAGEM - VERSÃO IMOBILIÁRIA SIMPLIFICADA
+CASO DE USO: PROCESSAR MENSAGEM - VERSÃO IMOBILIÁRIA V2.0
 ==================================================================
-Versão MINIMALISTA - Confia no GPT-4o-mini para responder naturalmente.
-Apenas regras de segurança e dados do imóvel.
+Versão MINIMALISTA + SEGURANÇA + INTELIGÊNCIA
+
+MELHORIAS V2.0:
+✅ Validação de preços (anti-injection)
+✅ Proteção anti-spam (repetição)
+✅ Validação de código segura
+✅ Retry logic OpenAI (3 tentativas)
+✅ Timeout de 30s
+✅ Extração automática de nome
+✅ Formatação de preço BR
+✅ Logging estruturado
+✅ Métricas de performance
 """
 
 import logging
-logging.warning("PROCESS_MESSAGE MINIMALISTA CARREGADO")
+logging.warning("PROCESS_MESSAGE V2.0 CARREGADO - COM MELHORIAS!")
 import traceback
+import asyncio
+import time
+import re
 
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
@@ -72,6 +85,8 @@ logger = logging.getLogger(__name__)
 
 MAX_MESSAGE_LENGTH = 2000
 MAX_CONVERSATION_HISTORY = 30
+OPENAI_TIMEOUT_SECONDS = 30
+OPENAI_MAX_RETRIES = 2
 
 FALLBACK_RESPONSES = {
     "error": "Desculpe, estou com uma instabilidade momentânea. Tente novamente em alguns segundos.",
@@ -79,7 +94,7 @@ FALLBACK_RESPONSES = {
 }
 
 # =============================================================================
-# HELPERS
+# HELPERS DE SEGURANÇA
 # =============================================================================
 
 def sanitize_message_content(content: str) -> str:
@@ -89,6 +104,135 @@ def sanitize_message_content(content: str) -> str:
     content = content[:MAX_MESSAGE_LENGTH]
     content = content.replace('\0', '').replace('\r', '')
     return content.strip()
+
+
+def sanitize_imovel_data(imovel: Dict) -> Dict:
+    """
+    🛡️ SEGURANÇA: Sanitiza dados do imóvel do portal (anti-injection).
+    Valida preços, remove caracteres perigosos, valida números.
+    """
+    if not imovel:
+        return imovel
+    
+    # Valida preço
+    if imovel.get("preco"):
+        preco_str = str(imovel["preco"])
+        apenas_numeros = re.sub(r'[^\d]', '', preco_str)
+        
+        if apenas_numeros:
+            try:
+                preco_int = int(apenas_numeros)
+                
+                # Preços razoáveis: R$ 50.000 até R$ 50.000.000
+                if 50_000 <= preco_int <= 50_000_000:
+                    imovel["preco"] = preco_int
+                else:
+                    logger.warning(f"⚠️ Preço suspeito: {preco_str}")
+                    imovel["preco"] = "Consulte"
+            except:
+                imovel["preco"] = "Consulte"
+        else:
+            imovel["preco"] = "Consulte"
+    
+    # Sanitiza campos de texto (remove caracteres perigosos)
+    text_fields = ["titulo", "tipo", "regiao", "descricao"]
+    for field in text_fields:
+        if imovel.get(field):
+            # Remove caracteres especiais perigosos
+            sanitized = re.sub(r'[<>{}[\]\\]', '', str(imovel[field]))
+            imovel[field] = sanitized[:500]  # Limita tamanho
+    
+    # Valida números (quartos, banheiros, vagas)
+    for field in ["quartos", "banheiros", "vagas"]:
+        if imovel.get(field):
+            try:
+                num = int(imovel[field])
+                if 0 <= num <= 50:  # Valores razoáveis
+                    imovel[field] = num
+                else:
+                    imovel[field] = 0
+            except:
+                imovel[field] = 0
+    
+    # Valida metragem
+    if imovel.get("metragem"):
+        try:
+            metragem = int(imovel["metragem"])
+            if 10 <= metragem <= 10000:  # 10m² até 10.000m²
+                imovel["metragem"] = metragem
+            else:
+                imovel["metragem"] = 0
+        except:
+            imovel["metragem"] = 0
+    
+    return imovel
+
+
+def formatar_preco_br(preco: Any) -> str:
+    """
+    💰 Formata preço no padrão brasileiro.
+    Entrada: 680000 ou "680000" ou "R$ 680000"
+    Saída: "R$ 680.000"
+    """
+    if not preco:
+        return "Consulte"
+    
+    # Remove tudo exceto números
+    apenas_numeros = re.sub(r'[^\d]', '', str(preco))
+    
+    if not apenas_numeros:
+        return "Consulte"
+    
+    try:
+        valor = int(apenas_numeros)
+        
+        if valor < 10_000:  # Muito baixo
+            return "Consulte"
+        
+        # Formata: R$ 680.000
+        return f"R$ {valor:,.0f}".replace(",", ".")
+    except:
+        return "Consulte"
+
+
+def extrair_nome_simples(mensagem: str) -> Optional[str]:
+    """
+    📝 Extrai nome do cliente usando padrões simples.
+    Retorna None se não encontrar ou se for palavra inválida.
+    """
+    if not mensagem or len(mensagem) < 2:
+        return None
+    
+    msg_lower = mensagem.lower().strip()
+    
+    # Padrões comuns
+    patterns = [
+        r'meu nome (?:é|eh) (\w+)',
+        r'me chamo (\w+)',
+        r'sou (?:o|a) (\w+)',
+        r'^(\w+)$',  # Mensagem de 1 palavra = nome
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, msg_lower)
+        if match:
+            nome = match.group(1).strip().capitalize()
+            
+            # Valida: mínimo 2 letras, máximo 30, só letras
+            if not (2 <= len(nome) <= 30 and nome.isalpha()):
+                continue
+            
+            # Palavras inválidas (não são nomes)
+            palavras_invalidas = {
+                'oi', 'olá', 'ola', 'sim', 'nao', 'não', 'ok', 'obrigado', 'obrigada',
+                'bom', 'dia', 'tarde', 'noite', 'tchau', 'legal', 'boa', 'tudo', 'bem',
+                'opa', 'eai', 'fala', 'salve', 'valeu', 'entendi', 'certo', 'blz'
+            }
+            
+            if nome.lower() not in palavras_invalidas:
+                return nome
+    
+    return None
 
 
 def extract_settings(tenant: Tenant) -> dict:
@@ -281,6 +425,10 @@ async def detect_property_context(
         if codigo_na_mensagem != codigo_salvo:
             logger.info(f"🆕 Novo código: {codigo_na_mensagem}")
             imovel_portal = buscar_imovel_na_mensagem(content)
+            
+            # 🛡️ SANITIZA DADOS DO PORTAL!
+            if imovel_portal:
+                imovel_portal = sanitize_imovel_data(imovel_portal)
         else:
             logger.info(f"🔄 Reutilizando código: {codigo_salvo}")
             imovel_portal = lead.custom_data.get("imovel_portal")
@@ -295,6 +443,8 @@ async def detect_property_context(
             if msg.get("role") == "user":
                 imovel_portal = buscar_imovel_na_mensagem(msg.get("content", ""))
                 if imovel_portal:
+                    # 🛡️ SANITIZA DADOS DO PORTAL!
+                    imovel_portal = sanitize_imovel_data(imovel_portal)
                     logger.info(f"✅ Encontrado no histórico: {imovel_portal.get('codigo')}")
                     break
     
@@ -324,8 +474,6 @@ async def detect_property_context(
 
 def detect_hot_lead_signals(content: str) -> bool:
     """Detecta sinais de lead QUENTE na mensagem."""
-    import re
-    
     content_lower = content.lower()
     
     hot_signals = [
@@ -353,6 +501,57 @@ def detect_hot_lead_signals(content: str) -> bool:
 
 
 # =============================================================================
+# FUNÇÕES DE IA COM RETRY E TIMEOUT
+# =============================================================================
+
+async def chat_completion_com_retry(
+    messages: list,
+    temperature: float,
+    max_tokens: int,
+    max_retries: int = OPENAI_MAX_RETRIES,
+    timeout: float = OPENAI_TIMEOUT_SECONDS,
+) -> dict:
+    """
+    🔄 Chama OpenAI com retry automático e timeout.
+    
+    - Timeout de 30s por tentativa
+    - 3 tentativas com exponential backoff (2s, 4s)
+    - Lança exceção se todas falharem
+    """
+    for tentativa in range(max_retries + 1):
+        try:
+            # Timeout de 30s
+            ai_response = await asyncio.wait_for(
+                chat_completion(
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                ),
+                timeout=timeout
+            )
+            
+            return ai_response
+            
+        except asyncio.TimeoutError:
+            if tentativa < max_retries:
+                wait_time = 2 ** tentativa  # 2s, 4s
+                logger.warning(f"⏱️ OpenAI timeout (tentativa {tentativa + 1}/{max_retries + 1}), aguardando {wait_time}s...")
+                await asyncio.sleep(wait_time)
+            else:
+                logger.error(f"❌ OpenAI timeout após {max_retries + 1} tentativas!")
+                raise
+                
+        except Exception as e:
+            if tentativa < max_retries:
+                wait_time = 2 ** tentativa  # 2s, 4s
+                logger.warning(f"⚠️ OpenAI erro (tentativa {tentativa + 1}/{max_retries + 1}): {e}, aguardando {wait_time}s...")
+                await asyncio.sleep(wait_time)
+            else:
+                logger.error(f"❌ OpenAI falhou após {max_retries + 1} tentativas: {e}")
+                raise
+
+
+# =============================================================================
 # FUNÇÃO PRINCIPAL
 # =============================================================================
 
@@ -368,6 +567,9 @@ async def process_message(
     campaign: str = None,
 ) -> dict:
     """Processa uma mensagem recebida de um lead."""
+    
+    # ⏱️ MÉTRICA: Marca início
+    start_time = time.time()
     
     # =========================================================================
     # INICIALIZAÇÃO DE VARIÁVEIS
@@ -498,7 +700,18 @@ async def process_message(
     history = await get_conversation_history(db, lead.id)
     message_count = await count_lead_messages(db, lead.id)
     
-    logger.info(f"📊 Lead {lead.id}: {message_count} mensagens no histórico")
+    # 📊 LOGGING ESTRUTURADO
+    logger.info(f"""
+╔═══════════════════════════════════════════════════════════════
+║ 📊 CONTEXTO - Lead {lead.id}
+╠═══════════════════════════════════════════════════════════════
+║ Mensagem: {content[:70]}...
+║ Histórico: {len(history)} mensagens
+║ Total msgs: {message_count}
+║ Nome: {lead.name or 'N/A'}
+║ Qualif.: {lead.qualification or 'N/A'}
+╚═══════════════════════════════════════════════════════════════
+""")
         
     # =========================================================================
     # 9. DETECÇÃO DE EMPREENDIMENTO
@@ -680,6 +893,49 @@ async def process_message(
     sentiment = await detect_sentiment(content)
     
     # =========================================================================
+    # 18.5. EXTRAÇÃO AUTOMÁTICA DE NOME
+    # =========================================================================
+    if not lead.name and message_count < 10:  # Só tenta nas primeiras 10 msgs
+        nome_extraido = extrair_nome_simples(content)
+        if nome_extraido:
+            lead.name = nome_extraido
+            logger.info(f"✨ Nome extraído: {nome_extraido}")
+    
+    # =========================================================================
+    # 18.6. PROTEÇÃO ANTI-SPAM (REPETIÇÃO)
+    # =========================================================================
+    if message_count > 3:
+        # Pega últimas 3 mensagens do usuário
+        recent_user_msgs = [
+            msg.get("content", "") for msg in history[-6:] 
+            if msg.get("role") == "user"
+        ][-3:]
+        
+        # Verifica se está repetindo a mesma coisa 3x
+        if len(recent_user_msgs) == 3:
+            if recent_user_msgs[0] == recent_user_msgs[1] == recent_user_msgs[2]:
+                logger.warning(f"⚠️ Lead {lead.id} repetindo mensagem 3x!")
+                
+                spam_response = "Percebi que você está repetindo a mesma mensagem. Posso te ajudar com algo específico?"
+                
+                assistant_message = Message(
+                    lead_id=lead.id,
+                    role="assistant",
+                    content=spam_response,
+                    tokens_used=0
+                )
+                db.add(assistant_message)
+                await db.commit()
+                
+                return {
+                    "success": True,
+                    "reply": spam_response,
+                    "lead_id": lead.id,
+                    "is_new_lead": False,
+                    "spam_detected": True,
+                }
+    
+    # =========================================================================
     # 19. DETECÇÃO DE LEAD QUENTE
     # =========================================================================
     is_hot_lead = detect_hot_lead_signals(content)
@@ -727,7 +983,7 @@ async def process_message(
             "hot_signal_detected": True,
         }
     
-# =========================================================================
+    # =========================================================================
     # 20. MONTA PROMPT MINIMALISTA
     # =========================================================================
     logger.info(f"🤖 Chamando GPT-4o-mini | Imóvel: {bool(imovel_portal)}")
@@ -736,15 +992,17 @@ async def process_message(
 
 Responda naturalmente as perguntas do cliente sobre imóveis."""
 
-    # Adiciona dados do imóvel se houver
+    # Adiciona dados do imóvel se houver (com formatação melhorada)
     if imovel_portal:
+        preco_formatado = formatar_preco_br(imovel_portal.get('preco'))
+        
         system_prompt += f"""
 
 Imóvel código {imovel_portal.get('codigo')}:
 - {imovel_portal.get('tipo')} em {imovel_portal.get('regiao')}, Canoas
 - {imovel_portal.get('quartos')} quartos, {imovel_portal.get('banheiros')} banheiros, {imovel_portal.get('vagas')} vagas
 - {imovel_portal.get('metragem')}m²
-- R$ {imovel_portal.get('preco')}"""
+- {preco_formatado}"""
     
     # Conhecimento local
     system_prompt += """
@@ -764,6 +1022,7 @@ Seja breve e amigável."""
     
     # ═══════════════════════════════════════════════════════════════
     # ⚠️ CRITICAL FIX: ADICIONA MENSAGEM ATUAL AO HISTÓRICO!
+    # (NÃO MEXER NISSO - CORREÇÃO DO BUG DE ATRASO!)
     # ═══════════════════════════════════════════════════════════════
     history.append({"role": "user", "content": content})
     
@@ -773,7 +1032,8 @@ Seja breve e amigável."""
     tokens_used = 0
 
     try:
-        ai_response = await chat_completion(
+        # 🔄 CHAMA COM RETRY E TIMEOUT!
+        ai_response = await chat_completion_com_retry(
             messages=messages,
             temperature=0.7,
             max_tokens=200,
@@ -783,9 +1043,10 @@ Seja breve e amigável."""
         tokens_used = ai_response.get("tokens_used", 0)
         
     except Exception as e:
-        logger.error(f"❌ Erro chamando IA: {e}")
+        logger.error(f"❌ Erro chamando IA (após {OPENAI_MAX_RETRIES + 1} tentativas): {e}")
         logger.error(traceback.format_exc())
         
+        # Fallback responses
         if empreendimento_detectado:
             final_response = f"Olá! Interesse no {empreendimento_detectado.nome}! Como posso ajudar?"
         elif imovel_portal:
@@ -845,6 +1106,10 @@ Seja breve e amigável."""
         
         await db.commit()
         
+        # ⏱️ MÉTRICA: Calcula tempo total
+        elapsed = time.time() - start_time
+        logger.info(f"⏱️ Processamento concluído em {elapsed:.2f}s (com handoff)")
+        
         return {
             "success": True,
             "reply": reply_with_handoff,
@@ -854,6 +1119,7 @@ Seja breve e amigável."""
             "status": "transferido",
             "typing_delay": calculate_typing_delay(len(final_response)),
             "out_of_hours": is_out_of_hours,
+            "processing_time_seconds": f"{elapsed:.2f}",
         }
     
     # =========================================================================
@@ -869,6 +1135,10 @@ Seja breve e amigável."""
     try:
         await db.commit()
         
+        # ⏱️ MÉTRICA: Calcula tempo total
+        elapsed = time.time() - start_time
+        logger.info(f"⏱️ Processamento concluído em {elapsed:.2f}s")
+        
         return {
             "success": True,
             "reply": final_response,
@@ -879,6 +1149,7 @@ Seja breve e amigável."""
             "sentiment": sentiment.get("sentiment"),
             "out_of_hours": is_out_of_hours,
             "imovel_portal_codigo": imovel_portal.get("codigo") if imovel_portal else None,
+            "processing_time_seconds": f"{elapsed:.2f}",
         }
     except Exception as e:
         logger.error(f"❌ Erro no commit: {e}")
