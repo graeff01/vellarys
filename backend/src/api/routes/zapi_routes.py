@@ -194,7 +194,7 @@ async def zapi_receive_message(
             # Usa messageId (método confiável)
             async with _message_cache_lock:
                 if message_id in _processed_messages:
-                    logger.warning(f"⚠️ Webhook duplicado detectado (messageId): {message_id}")
+                    logger.info(f"✅ Webhook duplicado bloqueado (messageId): {message_id}")
                     return {"status": "ok", "message": "already_processed"}
                 
                 # Marca como processado
