@@ -64,8 +64,8 @@ def get_random_greeting(tone: str = "cordial") -> str:
 async def chat_completion(
     messages: list[dict],
     model: str = None,
-    temperature: float = 0.6,  # ← Otimizado para GPT-4o
-    max_tokens: int = 400,     # ← Aumentado (GPT-4o gera respostas melhores)
+    temperature: float = 0.65,  # ← Otimizado para GPT-4o (natural mas consistente)
+    max_tokens: int = 350,      # ← Respostas completas mas não prolixas
 ) -> dict:
     """Envia mensagens para OpenAI e retorna resposta."""
     try:
