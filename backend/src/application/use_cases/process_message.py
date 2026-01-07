@@ -1,18 +1,12 @@
 """
 CASO DE USO: PROCESSAR MENSAGEM - VERSÃO IMOBILIÁRIA SIMPLIFICADA
 ==================================================================
-Versão otimizada SÓ para nicho imobiliário com bugs corrigidos.
-
-CORREÇÕES:
-- Bug should_transfer corrigido
-- Bug qualification_score removido
-- Bug analyze_lead_conversation corrigido
-- Bug qualify_lead corrigido
-- Prompt enxuto (sem truncar)
+Versão MINIMALISTA - Confia no GPT-4o-mini para responder naturalmente.
+Apenas regras de segurança e dados do imóvel.
 """
 
 import logging
-logging.warning("PROCESS_MESSAGE CORRETO CARREGADO")
+logging.warning("PROCESS_MESSAGE MINIMALISTA CARREGADO")
 import traceback
 
 from datetime import datetime, timezone
@@ -30,7 +24,6 @@ from src.domain.entities import (
     Tenant, Lead, Message, Channel, LeadEvent, Notification, Empreendimento
 )
 from src.domain.entities.enums import LeadStatus, EventType
-
 
 from src.infrastructure.services import (
     extract_lead_data,
@@ -71,10 +64,7 @@ from src.infrastructure.services.lgpd_service import (
     get_lgpd_response,
 )
 
-
-
 logger = logging.getLogger(__name__)
-
 
 # =============================================================================
 # CONSTANTES
@@ -87,7 +77,6 @@ FALLBACK_RESPONSES = {
     "error": "Desculpe, estou com uma instabilidade momentânea. Tente novamente em alguns segundos.",
     "security": "Por segurança, não posso responder a essa mensagem.",
 }
-
 
 # =============================================================================
 # HELPERS
@@ -175,27 +164,6 @@ async def get_empreendimento_from_lead(
     except Exception as e:
         logger.error(f"Erro recuperando empreendimento: {e}")
         return None
-
-
-def empreendimento_to_dict(emp: Empreendimento) -> dict:
-    """Converte Empreendimento para dict."""
-    return {
-        "id": emp.id,
-        "nome": emp.nome,
-        "descricao": emp.descricao,
-        "endereco": emp.endereco,
-        "bairro": emp.bairro,
-        "cidade": emp.cidade,
-        "estado": emp.estado,
-        "tipologias": emp.tipologias,
-        "metragem_minima": emp.metragem_minima,
-        "metragem_maxima": emp.metragem_maxima,
-        "preco_minimo": emp.preco_minimo,
-        "preco_maximo": emp.preco_maximo,
-        "diferenciais": emp.diferenciais,
-        "instrucoes_ia": emp.instrucoes_ia,
-        "perguntas_qualificacao": emp.perguntas_qualificacao,
-    }
 
 
 async def update_empreendimento_stats(
@@ -298,23 +266,17 @@ async def detect_property_context(
     lead: Lead,
     history: list[dict],
 ) -> Optional[Dict]:
-    """
-    Detecta contexto de imóvel (portal) para nichos imobiliários.
-    Retorna dados do imóvel ou None.
-    """
+    """Detecta contexto de imóvel (portal) para nichos imobiliários."""
     logger.info(f"🏠 Detectando contexto imobiliário")
     
-    # Extrai código da mensagem atual
     codigo_na_mensagem = extrair_codigo_imovel(content)
     
-    # Pega código salvo (se houver)
     codigo_salvo = None
     if lead.custom_data and lead.custom_data.get("imovel_portal"):
         codigo_salvo = lead.custom_data["imovel_portal"].get("codigo")
     
     imovel_portal = None
     
-    # Decisão: buscar novo ou reutilizar?
     if codigo_na_mensagem:
         if codigo_na_mensagem != codigo_salvo:
             logger.info(f"🆕 Novo código: {codigo_na_mensagem}")
@@ -336,7 +298,6 @@ async def detect_property_context(
                     logger.info(f"✅ Encontrado no histórico: {imovel_portal.get('codigo')}")
                     break
     
-    # Salva no lead se encontrou
     if imovel_portal:
         logger.info(f"💾 Salvando imóvel: {imovel_portal.get('codigo')}")
         
@@ -361,100 +322,35 @@ async def detect_property_context(
     return imovel_portal
 
 
-def build_lead_context_dict(lead: Lead, message_count: int) -> dict:
-    """Constrói dicionário de contexto do lead."""
-    context = {
-        "message_count": message_count,
-    }
-    
-    if lead.name:
-        context["name"] = lead.name
-    
-    if lead.phone:
-        context["phone"] = lead.phone
-    
-    if lead.custom_data:
-        for key in ["urgency_level", "budget_range", "preferences", "empreendimento_nome"]:
-            if key in lead.custom_data:
-                context[key] = lead.custom_data[key]
-    
-    return context
-
 def detect_hot_lead_signals(content: str) -> bool:
-    """
-    Detecta sinais de lead QUENTE na mensagem.
-    Versão MELHORADA com regex simplificada.
-    """
+    """Detecta sinais de lead QUENTE na mensagem."""
     import re
     
     content_lower = content.lower()
     
     hot_signals = [
-        # INTENÇÃO DE COMPRA (SIMPLIFICADO)
         r"\bquero\s+comprar\b",
         r"\bvou\s+comprar\b",
         r"\bquero\s+fechar\b",
         r"\bvou\s+fechar\b",
-        r"\bquero\s+esse\b",
-        r"\bquero\s+essa\b",
         r"\bquero\s+visitar\b",
-        r"\bgostei\s+desse\b",
-        r"\bgostei\s+dessa\b",
-        r"\bme\s+interessei\b",
-        
-        # DINHEIRO À VISTA
         r"\btenho.*\bdinheiro\b",
-        r"\btenho.*\bvalor\b.*\bvista\b",
         r"\bdinheiro.*\bvista\b",
-        r"\bpagamento.*\bvista\b",
-        r"\bpagar.*\bvista\b",
-        r"\btenho\s+\d+\s*mil\b",  # "tenho 50 mil"
-        
-        # CRÉDITO/FINANCIAMENTO APROVADO
         r"\btenho.*\baprovado\b",
         r"\bfinanciamento.*\baprovado\b",
-        r"\bcredito.*\baprovado\b",
-        r"\bja.*\baprovado\b",
-        r"\bpre.*\baprovado\b",
-        
-        # URGÊNCIA TEMPORAL
-        r"\bmais\s+rapido\b",
-        r"\bo\s+mais\s+rapido\b",
-        r"\brapido\s+possivel\b",
-        r"\bmais\s+rapido\s+possivel\b",
-        r"\bpreciso.*\bmudar\b",
-        r"\bpreciso.*\burgente\b",
         r"\burgente\b",
-        r"\bpreciso.*\brapido\b",
-        r"\bpreciso.*\bhoje\b",
-        r"\bpreciso.*\bagora\b",
-        r"\bpara.*\bontem\b",
-        r"\bcom\s+urgencia\b",
-        
-        # PERGUNTAS DE DECISÃO
         r"\bquando.*\bposso.*\bvisitar\b",
-        r"\bquando.*\bpodemos.*\bver\b",
-        r"\bposso.*\bir.*\bhoje\b",
-        r"\bposso.*\bver.*\bagora\b",
-        r"\bquais.*\bdocumentos\b",
-        r"\bquando.*\bpodemos.*\bfechar\b",
-        
-        # SINAIS DE ENTRADA/FINANCIAMENTO
-        r"\btenho.*\bentrada\b",
-        r"\btenho\s+entrada\b",
         r"\bquero\s+ir\s+a[ií]\b",
         r"\bendere[çc]o.*\bimobili[aá]ria\b",
-        r"\bquero.*\bpresencial\b",
-        r"\bposso.*\bir.*\ba[ií]\b",
-        r"\bvisita.*\bpresencial\b",
     ]
     
     for pattern in hot_signals:
         if re.search(pattern, content_lower):
-            logger.info(f"🔥 Sinal quente detectado: '{pattern}' em '{content[:50]}...'")
+            logger.info(f"🔥 Sinal quente detectado: '{pattern}'")
             return True
     
     return False
+
 
 # =============================================================================
 # FUNÇÃO PRINCIPAL
@@ -481,7 +377,7 @@ async def process_message(
     gestor_ja_notificado = False
     history: list[dict] = []
     message_count: int = 0
-    should_transfer = False  # ← CORREÇÃO BUG #1: Inicializa ANTES de usar
+    should_transfer = False
     
     # =========================================================================
     # 1. SANITIZAÇÃO
@@ -784,24 +680,21 @@ async def process_message(
     sentiment = await detect_sentiment(content)
     
     # =========================================================================
-    # 19. PRÉ-VALIDAÇÃO: DETECTA LEAD QUENTE ANTES DE RESPONDER
+    # 19. DETECÇÃO DE LEAD QUENTE
     # =========================================================================
     is_hot_lead = detect_hot_lead_signals(content)
     
     if is_hot_lead and lead.qualification not in ["quente", "hot"]:
-        logger.warning(f"🔥 LEAD QUENTE DETECTADO na mensagem: '{content[:50]}...'")
+        logger.warning(f"🔥 LEAD QUENTE DETECTADO: '{content[:50]}...'")
         
-        # Força qualificação
         lead.qualification = "quente"
         
-        # Responde e faz handoff IMEDIATAMENTE
         if lead.name:
             first_name = lead.name.split()[0]
-            hot_response = f"Perfeito, {first_name}! Você está pronto. Vou te passar pro corretor agora!"
+            hot_response = f"Perfeito, {first_name}! Vou te passar pro corretor agora!"
         else:
-            hot_response = "Show! Você tá pronto. Qual seu nome pra eu passar pro corretor?"
+            hot_response = "Show! Vou te passar pro corretor. Qual seu nome?"
         
-        # Salva resposta
         assistant_message = Message(
             lead_id=lead.id,
             role="assistant",
@@ -810,7 +703,6 @@ async def process_message(
         )
         db.add(assistant_message)
         
-        # Executa handoff
         handoff_result = await execute_handoff(lead, tenant, "lead_hot_detected", db)
         
         transfer_message = Message(
@@ -823,7 +715,7 @@ async def process_message(
         
         await db.commit()
         
-        logger.info(f"🔥 Lead {lead.id} transferido por detecção automática de sinal quente")
+        logger.info(f"🔥 Lead {lead.id} transferido por sinal quente")
         
         return {
             "success": True,
@@ -836,135 +728,40 @@ async def process_message(
         }
     
     # =========================================================================
-    # 20. MONTA PROMPT (USANDO PROMPT IMOBILIÁRIA ENXUTO)
+    # 20. MONTA PROMPT MINIMALISTA
     # =========================================================================
-    logger.info(f"🔨 Montando prompt | Emp: {bool(empreendimento_detectado)} | Imóvel: {bool(imovel_portal)}")
-
-    # Contexto do lead
-    lead_context = build_lead_context_dict(lead, message_count)
-
-    # Converte empreendimento para dict
-    emp_dict = None
-    if empreendimento_detectado:
-        emp_dict = empreendimento_to_dict(empreendimento_detectado)
-
-    # ═══════════════════════════════════════════════════════════════
-    # MONTA PROMPT INLINE - IA QUALIFICADORA IMOBILIÁRIA
-    # ═══════════════════════════════════════════════════════════════
+    logger.info(f"🤖 Chamando GPT-4o-mini | Imóvel: {bool(imovel_portal)}")
     
-    # Seção de dados do imóvel
-    imovel_section = ""
+    system_prompt = f"""Você é assistente virtual da {settings['company_name']}, imobiliária em Canoas/RS.
+
+Responda naturalmente as perguntas do cliente sobre imóveis."""
+
+    # Adiciona dados do imóvel se houver
     if imovel_portal:
-        imovel_section = f"""
-═══════════════════════════════════════════════════════════════
-📍 IMÓVEL DISPONÍVEL - CÓDIGO {imovel_portal.get('codigo', 'N/A')}
-═══════════════════════════════════════════════════════════════
+        system_prompt += f"""
 
-{imovel_portal.get('tipo', 'Imóvel')} em {imovel_portal.get('regiao', 'N/A')}, Canoas
-- {imovel_portal.get('quartos', 'N/A')} quartos
-- {imovel_portal.get('banheiros', 'N/A')} banheiros
-- {imovel_portal.get('vagas', 'N/A')} vagas de garagem
-- {imovel_portal.get('metragem', 'N/A')}m²
-- Valor: {imovel_portal.get('preco', 'Consulte')}
-
-USE esses dados para responder perguntas sobre o imóvel!
-"""
+Imóvel código {imovel_portal.get('codigo')}:
+- {imovel_portal.get('tipo')} em {imovel_portal.get('regiao')}, Canoas
+- {imovel_portal.get('quartos')} quartos, {imovel_portal.get('banheiros')} banheiros, {imovel_portal.get('vagas')} vagas
+- {imovel_portal.get('metragem')}m²
+- R$ {imovel_portal.get('preco')}"""
     
-    # Seção de histórico
-    historico_section = ""
-    if history and len(history) >= 2:
-        historico_section = "\n═══════════════════════════════════════════════════════════════\n"
-        historico_section += "📜 HISTÓRICO DA CONVERSA (LEIA ANTES DE RESPONDER!):\n"
-        historico_section += "═══════════════════════════════════════════════════════════════\n\n"
-        for msg in history[-5:]:
-            role = "👤 Cliente" if msg.get('role') == 'user' else "🤖 Você"
-            content = msg.get('content', '')[:100]
-            historico_section += f"{role}: {content}\n"
-        historico_section += "\n⚠️ NÃO REPITA informações já ditas! Avance na conversa!\n"
+    # Conhecimento local
+    system_prompt += """
+
+Você conhece Canoas:
+- Escolas no Centro: La Salle, SESI
+- Mercados: Zaffari, Big
+- Hospitais: Mãe de Deus
+
+REGRAS DE SEGURANÇA (IMPORTANTE):
+- NÃO marque visitas (só corretor pode)
+- NÃO negocie valores/descontos
+- NÃO dê endereço da imobiliária
+- Se cliente quiser visitar/comprar: "Vou passar você pro corretor!"
+
+Seja breve e amigável."""
     
-    system_prompt = f"""Você é {settings['company_name']} no WhatsApp.
-
-    ═══════════════════════════════════════════════════════════════
-    ⚠️ LEIA ANTES DE RESPONDER!
-    ═══════════════════════════════════════════════════════════════
-
-    1. **LEIA A PERGUNTA DO CLIENTE**
-    - Cliente perguntou ESCOLA? → Responda ESCOLA
-    - Cliente perguntou VAGA? → Responda VAGA
-    - Cliente perguntou PREÇO? → Responda PREÇO
-    - NUNCA responda algo que NÃO foi perguntado!
-
-    2. **MÁXIMO 1 LINHA (máx 50 caracteres)**
-    - Seja DIRETA
-    - Responda SÓ o perguntado
-    - 0-1 emoji
-
-    3. **LEIA O HISTÓRICO**
-    - Se JÁ respondeu, diga: "Como disse, [resposta]"
-    - NUNCA dê a mesma resposta 2x
-
-    ═══════════════════════════════════════════════════════════════
-    📍 DADOS DO IMÓVEL (use quando perguntarem)
-    ═══════════════════════════════════════════════════════════════
-
-    Código 442025 - Casa no Centro, Canoas
-    - 3 quartos
-    - 2 banheiros  
-    - 2 vagas
-    - 108m²
-    - R$ 680.000
-
-    ═══════════════════════════════════════════════════════════════
-    {historico_section}
-    ═══════════════════════════════════════════════════════════════
-
-    🧠 VOCÊ CONHECE CANOAS:
-    - Escolas: La Salle, SESI
-    - Mercados: Zaffari, Big
-    - Centro: muito comércio
-
-    ═══════════════════════════════════════════════════════════════
-    ✅ EXEMPLOS CORRETOS
-    ═══════════════════════════════════════════════════════════════
-
-    Cliente: "tem vaga?"
-    Você: "Tem! 2 vagas."
-
-    Cliente: "tem escola?"
-    Você: "Sim! La Salle e SESI próximos."
-
-    Cliente: "quanto custa?"
-    Você: "R$ 680.000."
-
-    ═══════════════════════════════════════════════════════════════
-    ❌ NUNCA FAÇA
-    ═══════════════════════════════════════════════════════════════
-
-    ❌ Responder tudo de uma vez: "3 quartos, 2 banheiros..."
-    ❌ Responder coisa não perguntada
-    ❌ Repetir informação
-    ❌ Dizer "fazendo busca"
-
-    ═══════════════════════════════════════════════════════════════
-    🔥 TRANSFERIR SE DISSER:
-    ═══════════════════════════════════════════════════════════════
-
-    - "Quero visitar"
-    - "Quero ir aí"
-    - "Tenho dinheiro"
-    - "Endereço da imobiliária"
-
-    → "Perfeito! Te passo pro corretor!"
-
-    ═══════════════════════════════════════════════════════════════
-    """
-    
-    logger.info(f"📝 Prompt inline: {len(system_prompt)} chars")
-
-
-    # =========================================================================
-    # 21. PREPARA MENSAGENS E CHAMA IA
-    # =========================================================================
     messages = [{"role": "system", "content": system_prompt}, *history]
 
     final_response = ""
@@ -972,110 +769,12 @@ USE esses dados para responder perguntas sobre o imóvel!
 
     try:
         ai_response = await chat_completion(
-        messages=messages,
-        temperature=0.4,  # ← Aumenta um pouco
-        max_tokens=120,   # ← Aumenta um pouco
-    )
-        
-        ai_response_raw = ai_response["content"]
-        
-        # ═══════════════════════════════════════════════════════════════
-        # PÓS-PROCESSAMENTO: TRUNCA E LIMPA
-        # ═══════════════════════════════════════════════════════════════
-        
-        # 1. Trunca se muito longo (máx 2 linhas)
-        lines = ai_response_raw.split('\n')
-        if len(lines) > 2:
-            ai_response_raw = '\n'.join(lines[:2])
-            logger.warning(f"⚠️ Resposta truncada de {len(lines)} para 2 linhas")
-        
-        # 2. Remove menções a "busca/pesquisa"
-        if 'fazendo uma busca' in ai_response_raw.lower() or 'pesquisando' in ai_response_raw.lower():
-            ai_response_raw = ai_response_raw.replace('Fazendo uma busca específica', 'Pelo que sei')
-            ai_response_raw = ai_response_raw.replace('fazendo uma busca', 'verificando')
-            ai_response_raw = ai_response_raw.replace('pesquisando', 'checando')
-            ai_response_raw = ai_response_raw.replace('Pesquisei', 'Verifiquei')
-            logger.warning(f"⚠️ Menção a 'busca' removida")
-        
-        # 3. Valida resposta
-        final_response, was_corrected = validate_ai_response(
-            response=ai_response_raw,
-            lead_name=lead.name,
-            lead_phone=lead.phone,
-            history=history
+            messages=messages,
+            temperature=0.7,
+            max_tokens=200,
         )
         
-        # ═══════════════════════════════════════════════════════════════
-        # 4. ANTI-REPETIÇÃO: VERIFICA SE JÁ DISSE ISSO ANTES
-        # ═══════════════════════════════════════════════════════════════
-        
-        if history:
-            # Pega últimas 3 mensagens da IA
-            assistant_messages = [msg.get("content", "") for msg in history[-6:] if msg.get("role") == "assistant"]
-            
-            # Verifica se a resposta atual é muito similar às anteriores
-            for prev_msg in assistant_messages:
-                # Se mais de 50% do conteúdo é igual, é repetição
-                if len(final_response) > 20 and len(prev_msg) > 20:
-                    # Remove pontuação e espaços para comparar
-                    import re
-                    clean_final = re.sub(r'[^\w\s]', '', final_response.lower())
-                    clean_prev = re.sub(r'[^\w\s]', '', prev_msg.lower())
-                    
-                    # Conta palavras em comum
-                    words_final = set(clean_final.split())
-                    words_prev = set(clean_prev.split())
-                    
-                    if words_final and words_prev:
-                        common_words = words_final.intersection(words_prev)
-                        similarity = len(common_words) / len(words_final)
-                        
-                        if similarity > 0.6:  # Mais de 60% igual
-                            logger.warning(f"⚠️ REPETIÇÃO DETECTADA! Similaridade: {similarity:.0%}")
-                            
-                            # Pega a última mensagem do cliente
-                            last_user_msg = ""
-                            for msg in reversed(history):
-                                if msg.get("role") == "user":
-                                    last_user_msg = msg.get("content", "")
-                                    break
-                            
-                            # Regenera resposta com prompt anti-repetição
-                            retry_prompt = f"""ATENÇÃO: Você ACABOU DE REPETIR informação!
-
-Mensagem anterior sua: "{prev_msg}"
-
-Pergunta do cliente AGORA: "{last_user_msg}"
-
-RESPONDA DIFERENTE! Seja DIRETA e responda SÓ o que foi perguntado!
-NÃO REPITA O QUE JÁ DISSE!
-
-Resposta:"""
-                            
-                            # Adiciona ao contexto e tenta de novo
-                            retry_messages = messages + [
-                                {"role": "assistant", "content": final_response},
-                                {"role": "user", "content": retry_prompt}
-                            ]
-                            
-                            try:
-                                retry_response = await chat_completion(
-                                    messages=retry_messages,
-                                    temperature=0.3,
-                                    max_tokens=100,
-                                )
-                                
-                                final_response = retry_response["content"].strip()
-                                logger.info(f"✅ Resposta regenerada: '{final_response}'")
-                                break
-                                
-                            except Exception as e:
-                                logger.error(f"❌ Erro ao regenerar: {e}")
-                                # Mantém resposta original se falhar
-        
-        if was_corrected:
-            logger.warning(f"🔧 Resposta da IA foi corrigida - Lead {lead.id}")
-        
+        final_response = ai_response["content"]
         tokens_used = ai_response.get("tokens_used", 0)
         
     except Exception as e:
@@ -1083,22 +782,20 @@ Resposta:"""
         logger.error(traceback.format_exc())
         
         if empreendimento_detectado:
-            final_response = f"Olá! Que bom seu interesse no {empreendimento_detectado.nome}! Como posso ajudar?"
+            final_response = f"Olá! Interesse no {empreendimento_detectado.nome}! Como posso ajudar?"
         elif imovel_portal:
             final_response = f"Olá! Vi seu interesse no imóvel {imovel_portal.get('codigo')}! Como posso ajudar?"
         else:
             final_response = f"Olá! Sou da {settings['company_name']}. Como posso ajudar?"
 
-
-
     # =========================================================================
-    # 22. VERIFICA HANDOFF SUGERIDO PELA IA
+    # 21. VERIFICA HANDOFF SUGERIDO PELA IA
     # =========================================================================
     handoff_check = check_ai_handoff(content, final_response)
     should_transfer_by_ai = handoff_check["should_handoff"]
     
     # =========================================================================
-    # 23. SALVA RESPOSTA
+    # 22. SALVA RESPOSTA
     # =========================================================================
     assistant_message = Message(
         lead_id=lead.id,
@@ -1120,9 +817,9 @@ Resposta:"""
     )
 
     # =========================================================================
-    # 24. HANDOFF FINAL
+    # 23. HANDOFF FINAL
     # =========================================================================
-    should_transfer = lead.qualification in ["quente", "hot"] or should_transfer_by_ai  # ← BUG CORRIGIDO
+    should_transfer = lead.qualification in ["quente", "hot"] or should_transfer_by_ai
     
     if should_transfer:
         handoff_reason = "lead_hot" if lead.qualification in ["quente", "hot"] else "ai_suggested"
@@ -1155,14 +852,14 @@ Resposta:"""
         }
     
     # =========================================================================
-    # 25. AVISO DE FORA DO HORÁRIO
+    # 24. AVISO DE FORA DO HORÁRIO
     # =========================================================================
     if is_out_of_hours and is_new:
         final_response += out_of_hours_message
         logger.info(f"⏰ Aviso horário adicionado: {lead.id}")
     
     # =========================================================================
-    # 26. COMMIT E RETORNO
+    # 25. COMMIT E RETORNO
     # =========================================================================
     try:
         await db.commit()
