@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o"
     
     # ===========================================
-    # GUPSHUP (WhatsApp)
+    # GUPSHUP (WhatsApp)  novo
     # ===========================================
     gupshup_api_key: Optional[str] = None
     gupshup_app_name: Optional[str] = None
