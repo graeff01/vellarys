@@ -1070,10 +1070,11 @@ USE esses dados para responder perguntas sobre o imóvel!
 
     try:
         ai_response = await chat_completion(
-                messages=messages,
-                temperature=0.6,  # ← Otimizado para GPT-4o
-                max_tokens=300,   # ← Aumentado
-            )
+            messages=messages,
+            temperature=0.6,
+            max_tokens=300,
+            enable_web_search=True,  # ← ATIVAR AQUI!
+        )
         
         ai_response_raw = ai_response["content"]
         
