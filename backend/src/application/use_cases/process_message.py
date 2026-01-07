@@ -727,7 +727,7 @@ async def process_message(
             "hot_signal_detected": True,
         }
     
-    # =========================================================================
+# =========================================================================
     # 20. MONTA PROMPT MINIMALISTA
     # =========================================================================
     logger.info(f"🤖 Chamando GPT-4o-mini | Imóvel: {bool(imovel_portal)}")
@@ -761,6 +761,11 @@ REGRAS DE SEGURANÇA (IMPORTANTE):
 - Se cliente quiser visitar/comprar: "Vou passar você pro corretor!"
 
 Seja breve e amigável."""
+    
+    # ═══════════════════════════════════════════════════════════════
+    # ⚠️ CRITICAL FIX: ADICIONA MENSAGEM ATUAL AO HISTÓRICO!
+    # ═══════════════════════════════════════════════════════════════
+    history.append({"role": "user", "content": content})
     
     messages = [{"role": "system", "content": system_prompt}, *history]
 
