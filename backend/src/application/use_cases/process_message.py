@@ -889,28 +889,28 @@ USE esses dados para responder perguntas sobre o imóvel!
     ═══════════════════════════════════════════════════════════════
 
     1. **RESPONDA APENAS O QUE FOI PERGUNTADO**
-    - Cliente pergunta escola? Fale APENAS de escola!
-    - Cliente pergunta vaga? Fale APENAS de vaga!
-    - NUNCA misture assuntos!
+    - Cliente pergunta ESCOLA? → Fale APENAS de ESCOLA!
+    - Cliente pergunta VAGA? → Fale APENAS de VAGA!
+    - Cliente pergunta MERCADO? → Fale APENAS de MERCADO!
+    - NUNCA, JAMAIS, EM HIPÓTESE ALGUMA misture assuntos!
 
-    2. **MÁXIMO 2 LINHAS POR RESPOSTA**
-    - 1 linha = resposta
-    - 1 linha = pergunta de qualificação (opcional)
+    2. **MÁXIMO 1 LINHA POR RESPOSTA**
+    - APENAS 1 LINHA!
+    - Seja DIRETA e OBJETIVA!
 
-    3. **LEIA O HISTÓRICO ANTES DE RESPONDER**
-    - Se já respondeu algo, NÃO REPITA!
-    - Avance a conversa!
+    3. **LEIA O HISTÓRICO COMPLETAMENTE**
+    - Se JÁ respondeu algo, NÃO REPITA!
+    - Se o cliente repete a pergunta, diga: "Como disse antes..."
+    - NUNCA dê a mesma resposta duas vezes!
 
     4. **VOCÊ NÃO TEM BUSCA NA WEB**
     - NUNCA diga "fazendo uma busca"
-    - NUNCA diga "pesquisando"
     - Use: "Pelo que sei..." ou "Vou confirmar!"
 
-    5. **TRANSFERE IMEDIATAMENTE SE:**
-    - "Quero ir aí"
-    - "Endereço da imobiliária"
-    - "Quero visitar"
-    - "Tenho dinheiro"
+    5. **DADOS DO IMÓVEL:**
+    - 3 quartos, 2 banheiros, 2 vagas, 108m², R$ 680.000
+    - NO CENTRO DE CANOAS
+    - Use esses dados quando perguntarem!
 
     ═══════════════════════════════════════════════════════════════
     🎯 SUA MISSÃO
@@ -1023,6 +1023,7 @@ USE esses dados para responder perguntas sobre o imóvel!
     
     logger.info(f"📝 Prompt inline: {len(system_prompt)} chars")
 
+
     # =========================================================================
     # 21. PREPARA MENSAGENS E CHAMA IA
     # =========================================================================
@@ -1034,8 +1035,8 @@ USE esses dados para responder perguntas sobre o imóvel!
     try:
         ai_response = await chat_completion(
             messages=messages,
-            temperature=0.5,
-            max_tokens=150,
+            temperature=0.3,  # ← MAIS DETERMINÍSTICO!
+            max_tokens=80,    # ← FORÇAR RESPOSTAS CURTAS!
         )
         
         ai_response_raw = ai_response["content"]
@@ -1066,6 +1067,74 @@ USE esses dados para responder perguntas sobre o imóvel!
             history=history
         )
         
+        # ═══════════════════════════════════════════════════════════════
+        # 4. ANTI-REPETIÇÃO: VERIFICA SE JÁ DISSE ISSO ANTES
+        # ═══════════════════════════════════════════════════════════════
+        
+        if history:
+            # Pega últimas 3 mensagens da IA
+            assistant_messages = [msg.get("content", "") for msg in history[-6:] if msg.get("role") == "assistant"]
+            
+            # Verifica se a resposta atual é muito similar às anteriores
+            for prev_msg in assistant_messages:
+                # Se mais de 50% do conteúdo é igual, é repetição
+                if len(final_response) > 20 and len(prev_msg) > 20:
+                    # Remove pontuação e espaços para comparar
+                    import re
+                    clean_final = re.sub(r'[^\w\s]', '', final_response.lower())
+                    clean_prev = re.sub(r'[^\w\s]', '', prev_msg.lower())
+                    
+                    # Conta palavras em comum
+                    words_final = set(clean_final.split())
+                    words_prev = set(clean_prev.split())
+                    
+                    if words_final and words_prev:
+                        common_words = words_final.intersection(words_prev)
+                        similarity = len(common_words) / len(words_final)
+                        
+                        if similarity > 0.6:  # Mais de 60% igual
+                            logger.warning(f"⚠️ REPETIÇÃO DETECTADA! Similaridade: {similarity:.0%}")
+                            
+                            # Pega a última mensagem do cliente
+                            last_user_msg = ""
+                            for msg in reversed(history):
+                                if msg.get("role") == "user":
+                                    last_user_msg = msg.get("content", "")
+                                    break
+                            
+                            # Regenera resposta com prompt anti-repetição
+                            retry_prompt = f"""ATENÇÃO: Você ACABOU DE REPETIR informação!
+
+Mensagem anterior sua: "{prev_msg}"
+
+Pergunta do cliente AGORA: "{last_user_msg}"
+
+RESPONDA DIFERENTE! Seja DIRETA e responda SÓ o que foi perguntado!
+NÃO REPITA O QUE JÁ DISSE!
+
+Resposta:"""
+                            
+                            # Adiciona ao contexto e tenta de novo
+                            retry_messages = messages + [
+                                {"role": "assistant", "content": final_response},
+                                {"role": "user", "content": retry_prompt}
+                            ]
+                            
+                            try:
+                                retry_response = await chat_completion(
+                                    messages=retry_messages,
+                                    temperature=0.3,
+                                    max_tokens=100,
+                                )
+                                
+                                final_response = retry_response["content"].strip()
+                                logger.info(f"✅ Resposta regenerada: '{final_response}'")
+                                break
+                                
+                            except Exception as e:
+                                logger.error(f"❌ Erro ao regenerar: {e}")
+                                # Mantém resposta original se falhar
+        
         if was_corrected:
             logger.warning(f"🔧 Resposta da IA foi corrigida - Lead {lead.id}")
         
@@ -1081,6 +1150,8 @@ USE esses dados para responder perguntas sobre o imóvel!
             final_response = f"Olá! Vi seu interesse no imóvel {imovel_portal.get('codigo')}! Como posso ajudar?"
         else:
             final_response = f"Olá! Sou da {settings['company_name']}. Como posso ajudar?"
+
+
 
     # =========================================================================
     # 22. VERIFICA HANDOFF SUGERIDO PELA IA
