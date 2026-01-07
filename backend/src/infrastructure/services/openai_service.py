@@ -65,44 +65,17 @@ def get_random_greeting(tone: str = "cordial") -> str:
 async def chat_completion(
     messages: list[dict],
     model: str = None,
-    temperature: float = 0.65,  # ← Otimizado para GPT-4o
-    max_tokens: int = 350,      # ← Ajustado
-    enable_web_search: bool = False,  # ← WEB SEARCH (NOVO!)
+    temperature: float = 0.65,
+    max_tokens: int = 350,
 ) -> dict:
-    """
-    Envia mensagens para OpenAI e retorna resposta.
-    
-    Args:
-        messages: Lista de mensagens (system, user, assistant)
-        model: Modelo a usar (default: settings.openai_model)
-        temperature: Criatividade (0.0-1.0)
-        max_tokens: Limite de tokens na resposta
-        enable_web_search: Habilita busca na web (GPT-4o only)
-    
-    Returns:
-        {
-            "content": str,
-            "tokens_used": int
-        }
-    """
+    """Envia mensagens para OpenAI e retorna resposta."""
     try:
-        # Prepara tools (web search)
-        tools = None
-        if enable_web_search:
-            current_model = model or settings.openai_model
-            # Web search só funciona com GPT-4o
-            if "gpt-4o" in current_model:
-                tools = [{
-                    "type": "web_search_google"
-                }]
-                logger.info("🔍 Web search habilitado")
-        
         response = await client.chat.completions.create(
             model=model or settings.openai_model,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
-            tools=tools,
+            # SEM tools, SEM enable_web_search
         )
 
         return {
@@ -136,57 +109,6 @@ def validate_ai_response(
     
     original_response = response
     was_corrected = False
-    
-    # ═══════════════════════════════════════════════════════════════
-    # 1. REMOVE VAZAMENTO DE TELEFONE/EMAIL
-    # ═══════════════════════════════════════════════════════════════
-    
-    # Remove telefones expostos (exceto se for o próprio lead)
-    phone_pattern = r'\b\d{10,11}\b|\b\(\d{2}\)\s*\d{4,5}-?\d{4}\b'
-    phones_found = re.findall(phone_pattern, response)
-    
-    for phone in phones_found:
-        clean_phone = re.sub(r'\D', '', phone)
-        # Se não for o telefone do lead, remove
-        if lead_phone:
-            lead_clean = re.sub(r'\D', '', lead_phone)
-            if clean_phone != lead_clean:
-                response = response.replace(phone, "[REMOVIDO]")
-                was_corrected = True
-                logger.warning(f"⚠️ Telefone vazado removido: {phone}")
-    
-    # Remove emails expostos
-    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-    if re.search(email_pattern, response):
-        response = re.sub(email_pattern, "[EMAIL]", response)
-        was_corrected = True
-        logger.warning(f"⚠️ Email vazado removido")
-    
-    # ═══════════════════════════════════════════════════════════════
-    # 2. LIMPA RESPOSTAS VAZIAS/QUEBRADAS
-    # ═══════════════════════════════════════════════════════════════
-    
-    response = response.strip()
-    
-    # Remove artefatos comuns
-    response = re.sub(r'^(Resposta:|IA:|Assistente:)\s*', '', response, flags=re.IGNORECASE)
-    response = response.strip()
-    
-    # Se ficou vazio após limpeza
-    if not response or len(response) < 3:
-        response = "Desculpe, pode repetir? Não entendi bem."
-        was_corrected = True
-        logger.warning(f"⚠️ Resposta vazia corrigida")
-    
-    # ═══════════════════════════════════════════════════════════════
-    # 3. LOG (se corrigiu)
-    # ═══════════════════════════════════════════════════════════════
-    
-    if was_corrected:
-        logger.info(f"✂️ Resposta validada: '{original_response[:50]}...' → '{response[:50]}...'")
-    
-    return response, was_corrected
-
     
     # ═══════════════════════════════════════════════════════════════
     # 1. REMOVE VAZAMENTO DE TELEFONE/EMAIL

@@ -896,30 +896,29 @@ USE esses dados para responder perguntas sobre o imóvel!
     Você NÃO é vendedora! Você é a primeira linha de atendimento.
 
     ═══════════════════════════════════════════════════════════════
-    🔍 VOCÊ TEM ACESSO À WEB SEARCH!
+    🧠 USE SEU CONHECIMENTO SOBRE A REGIÃO!
     ═══════════════════════════════════════════════════════════════
 
-    **QUANDO BUSCAR NA WEB:**
+    **VOCÊ CONHECE O BRASIL!**
 
-    Sempre que o cliente perguntar sobre:
-    - Escolas próximas → Busque "escolas próximas [endereço/bairro]"
-    - Mercados/supermercados → Busque "supermercados [bairro]"
-    - Hospitais/clínicas → Busque "hospitais [bairro]"
-    - Farmácias → Busque "farmácias [bairro]"
-    - Academias → Busque "academias [bairro]"
-    - Transporte público → Busque "transporte público [bairro]"
-    - Segurança do bairro → Busque "segurança [bairro]"
-    - Qualquer infraestrutura local!
+    Quando o cliente perguntar sobre infraestrutura local, USE seu conhecimento:
 
-    **COMO APRESENTAR:**
+    - "Tem escola perto?" → "Sim! O Centro de Canoas tem várias escolas como o Colégio La Salle, SESI e escolas estaduais. Seus filhos têm qual idade?"
 
-    Cliente: "Tem escola perto?"
-    Você: [busca "escolas próximas Rua Coronel Vicente, Centro, Canoas"]
-    Você: "Sim! Tem a Escola [Nome] a X km, que atende ensino fundamental. Também tem [Nome 2] próxima. Seus filhos estão em qual série?"
+    - "Tem mercado?" → "Tem sim! O Centro tem Supermercado Zaffari, Big, e vários mercados menores. Bem servido!"
 
-    **SEJA ESPECÍFICA:**
-    ❌ "O Centro é bem servido" (genérico)
-    ✅ "Tem o Supermercado Zaffari a 500m e o Big a 1,2km" (específico)
+    - "Como é o bairro?" → "O Centro de Canoas é ótimo! Região comercial, bancos, hospitais, transporte. O que mais te interessa saber?"
+
+    **SEJA ESPECÍFICA com o que você SABE:**
+    - Nomes de estabelecimentos conhecidos
+    - Características gerais do bairro
+    - Infraestrutura típica da região
+
+    **Se NÃO souber algo específico:**
+    - "Vou confirmar com o corretor a distância exata!"
+    - "O corretor pode te passar um mapa com tudo marcado!"
+
+    **REGRA:** Use seu conhecimento sobre Canoas/Porto Alegre para dar respostas úteis!''
 
     ═══════════════════════════════════════════════════════════════
     ✅ O QUE VOCÊ PODE FAZER
@@ -1073,7 +1072,6 @@ USE esses dados para responder perguntas sobre o imóvel!
             messages=messages,
             temperature=0.6,
             max_tokens=300,
-            enable_web_search=True,  # ← ATIVAR AQUI!
         )
         
         ai_response_raw = ai_response["content"]
