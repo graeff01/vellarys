@@ -89,112 +89,73 @@ async def chat_completion(
     
 def validate_ai_response(
     response: str,
-    lead_name: str,
-    lead_phone: str,
-    history: list
+    lead_name: str = None,
+    lead_phone: str = None,
+    history: list[dict] = None,
 ) -> tuple[str, bool]:
     """
-    Valida resposta da IA antes de enviar.
-    VERSÃO OTIMIZADA: Bloqueia apenas perguntas EXPLÍCITAS e REPETIDAS.
-    Retorna (resposta_corrigida, foi_bloqueada)
+    Valida resposta da IA - VERSÃO LEVE (sem substituições agressivas).
+    
+    Remove apenas:
+    - Vazamentos de dados sensíveis
+    - Respostas vazias/quebradas
+    
+    Retorna: (resposta_validada, foi_corrigida)
     """
+    import re
     
-    blocked = False
-    corrections = []
-    
-    response_lower = response.lower()
-    
-    # ═══════════════════════════════════════════════════════════════
-    # Check 1: Pediu nome MAS já tem E está PERGUNTANDO explicitamente?
-    # ═══════════════════════════════════════════════════════════════
-    asking_name_explicitly = any(phrase in response_lower for phrase in [
-        "qual seu nome?", "qual o seu nome?", "me diz seu nome?",
-        "como posso te chamar?", "qual é seu nome?"
-    ])
-    
-    # Permite menções casuais como "Oi, {nome}! Prazer!"
-    if lead_name and asking_name_explicitly:
-        blocked = True
-        corrections.append(f"❌ Tentou pedir nome mas já tem: {lead_name}")
+    original_response = response
+    was_corrected = False
     
     # ═══════════════════════════════════════════════════════════════
-    # Check 2: Pediu WhatsApp? (SEMPRE bloqueado - já está no WhatsApp!)
+    # 1. REMOVE VAZAMENTO DE TELEFONE/EMAIL
     # ═══════════════════════════════════════════════════════════════
-    asking_whatsapp = any(phrase in response_lower for phrase in [
-        "seu whatsapp", "numero de whatsapp", "me passa seu contato",
-        "qual seu telefone?", "me passa seu numero?"
-    ])
     
-    if asking_whatsapp:
-        blocked = True
-        corrections.append(f"❌ Tentou pedir WhatsApp mas já conversando!")
-
-    # ═══════════════════════════════════════════════════════════════
-    # Check 3: Perguntou financiamento quando cliente tem À VISTA?
-    # OTIMIZADO: Só bloqueia se estiver PERGUNTANDO, não oferecendo
-    # ═══════════════════════════════════════════════════════════════
-    cliente_tem_vista = any(phrase in " ".join([
-        msg.get("content", "").lower() 
-        for msg in history[-3:] 
-        if msg.get("role") == "user"
-    ]) for phrase in ["dinheiro a vista", "dinheiro à vista", "pagamento a vista", "pagar a vista", "tenho o valor"])
+    # Remove telefones expostos (exceto se for o próprio lead)
+    phone_pattern = r'\b\d{10,11}\b|\b\(\d{2}\)\s*\d{4,5}-?\d{4}\b'
+    phones_found = re.findall(phone_pattern, response)
     
-    # Identifica se está PERGUNTANDO sobre financiamento (não só mencionando)
-    asking_financing = any(phrase in response_lower for phrase in [
-        "vai financiar?", "precisa financiar?", "pensa em financiar?",
-        "quer financiar?", "tem financiamento aprovado?"
-    ])
+    for phone in phones_found:
+        clean_phone = re.sub(r'\D', '', phone)
+        # Se não for o telefone do lead, remove
+        if lead_phone:
+            lead_clean = re.sub(r'\D', '', lead_phone)
+            if clean_phone != lead_clean:
+                response = response.replace(phone, "[REMOVIDO]")
+                was_corrected = True
+                logger.warning(f"⚠️ Telefone vazado removido: {phone}")
     
-    if cliente_tem_vista and asking_financing:
-        blocked = True
-        corrections.append("❌ Cliente tem À VISTA, não pergunte sobre financiamento!")
+    # Remove emails expostos
+    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    if re.search(email_pattern, response):
+        response = re.sub(email_pattern, "[EMAIL]", response)
+        was_corrected = True
+        logger.warning(f"⚠️ Email vazado removido")
     
     # ═══════════════════════════════════════════════════════════════
-    # Check 4: Pergunta IDÊNTICA repetida no histórico?
-    # OTIMIZADO: Só bloqueia se for EXATAMENTE a mesma pergunta
+    # 2. LIMPA RESPOSTAS VAZIAS/QUEBRADAS
     # ═══════════════════════════════════════════════════════════════
-    for msg in history[-3:]:  # Últimas 3 mensagens do assistente
-        if msg.get("role") == "assistant":
-            msg_lower = msg.get("content", "").lower()
-            
-            # Define perguntas-chave específicas
-            key_questions = [
-                "morar ou investir",
-                "pra morar ou pra investir",
-                "financiamento aprovado",
-                "já tem financiamento",
-                "quando você pensa em se mudar",
-                "qual seu orçamento",
-            ]
-            
-            # Verifica se a MESMA pergunta aparece na resposta atual E na mensagem anterior
-            for question in key_questions:
-                if question in response_lower and question in msg_lower:
-                    blocked = True
-                    corrections.append(f"❌ Perguntou '{question}' novamente")
-                    break
-            
-            if blocked:
-                break
+    
+    response = response.strip()
+    
+    # Remove artefatos comuns
+    response = re.sub(r'^(Resposta:|IA:|Assistente:)\s*', '', response, flags=re.IGNORECASE)
+    response = response.strip()
+    
+    # Se ficou vazio após limpeza
+    if not response or len(response) < 3:
+        response = "Desculpe, pode repetir? Não entendi bem."
+        was_corrected = True
+        logger.warning(f"⚠️ Resposta vazia corrigida")
     
     # ═══════════════════════════════════════════════════════════════
-    # Se bloqueou, retorna fallback inteligente
+    # 3. LOG (se corrigiu)
     # ═══════════════════════════════════════════════════════════════
-    if blocked:
-        for c in corrections:
-            logger.warning(c)
-        
-        # Resposta genérica mas natural
-        if lead_name:
-            first_name = lead_name.split()[0]
-            fallback = f"Me conta mais, {first_name}! O que você tá buscando?"
-        else:
-            fallback = "Me conta mais! O que você procura?"
-        
-        return fallback, True
     
-    return response, False
-
+    if was_corrected:
+        logger.info(f"✂️ Resposta validada: '{original_response[:50]}...' → '{response[:50]}...'")
+    
+    return response, was_corrected
 
 async def detect_sentiment(message: str) -> dict:
     """

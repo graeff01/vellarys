@@ -379,76 +379,76 @@ def build_lead_context_dict(lead: Lead, message_count: int) -> dict:
     
     return context
 
-
-# =============================================================================
-# DETECÇÃO DE LEAD QUENTE
-# =============================================================================
-
 def detect_hot_lead_signals(content: str) -> bool:
     """
     Detecta sinais de lead QUENTE na mensagem.
-    Retorna True se detectar urgência/decisão.
+    Versão MELHORADA com regex simplificada.
     """
     import re
     
     content_lower = content.lower()
     
     hot_signals = [
+        # INTENÇÃO DE COMPRA (SIMPLIFICADO)
+        r"\bquero\s+comprar\b",
+        r"\bvou\s+comprar\b",
+        r"\bquero\s+fechar\b",
+        r"\bvou\s+fechar\b",
+        r"\bquero\s+esse\b",
+        r"\bquero\s+essa\b",
+        r"\bquero\s+visitar\b",
+        r"\bgostei\s+desse\b",
+        r"\bgostei\s+dessa\b",
+        r"\bme\s+interessei\b",
+        
         # DINHEIRO À VISTA
-        r"tenho.*dinheiro.*vista",
-        r"tenho.*valor.*vista",
-        r"dinheiro.*vista",
-        r"pagamento.*vista",
-        r"pagar.*vista",
+        r"\btenho.*\bdinheiro\b",
+        r"\btenho.*\bvalor\b.*\bvista\b",
+        r"\bdinheiro.*\bvista\b",
+        r"\bpagamento.*\bvista\b",
+        r"\bpagar.*\bvista\b",
+        r"\btenho\s+\d+\s*mil\b",  # "tenho 50 mil"
         
         # CRÉDITO/FINANCIAMENTO APROVADO
-        r"tenho.*aprovado",
-        r"financiamento.*aprovado",
-        r"credito.*aprovado",
-        r"já.*aprovado",
-        r"pre.*aprovado",
+        r"\btenho.*\baprovado\b",
+        r"\bfinanciamento.*\baprovado\b",
+        r"\bcredito.*\baprovado\b",
+        r"\bja.*\baprovado\b",
+        r"\bpre.*\baprovado\b",
         
         # URGÊNCIA TEMPORAL
-        r"o\s+mais\s+rapido\s+possivel",
-        r"mais\s+rapido\s+possivel",
-        r"rapido\s+possivel",
-        r"penso\s+em\s+me\s+mudar",
-        r"preciso\s+me\s+mudar",
-        r"preciso.*urgente",
-        r"urgente.*mudar",
-        r"mudar.*urgente",
-        r"preciso.*rapido",
-        r"preciso.*hoje",
-        r"preciso.*agora",
-        r"para.*ontem",
+        r"\bmais\s+rapido\b",
+        r"\bo\s+mais\s+rapido\b",
+        r"\brapido\s+possivel\b",
+        r"\bmais\s+rapido\s+possivel\b",
+        r"\bpreciso.*\bmudar\b",
+        r"\bpreciso.*\burgente\b",
+        r"\burgente\b",
+        r"\bpreciso.*\brapido\b",
+        r"\bpreciso.*\bhoje\b",
+        r"\bpreciso.*\bagora\b",
+        r"\bpara.*\bontem\b",
+        r"\bcom\s+urgencia\b",
         
-        # INTENÇÃO DE COMPRA ESPECÍFICA
-        r"quero\s+esse\s+imovel",
-        r"quero\s+comprar\s+esse",
-        r"vou\s+comprar\s+esse",
-        r"quero\s+fechar\s+esse",
-        r"gostei\s+desse",
-        r"me\s+interessei\s+nesse",
-        r"quero\s+esse",
-        r"esse.*que.*enviei",
-        r"esse.*que.*mandei",
-        r"esse\s+apartamento",
-        r"essa\s+casa",
+        # PERGUNTAS DE DECISÃO
+        r"\bquando.*\bposso.*\bvisitar\b",
+        r"\bquando.*\bpodemos.*\bver\b",
+        r"\bposso.*\bir.*\bhoje\b",
+        r"\bposso.*\bver.*\bagora\b",
+        r"\bquais.*\bdocumentos\b",
+        r"\bquando.*\bpodemos.*\bfechar\b",
         
-        # SINAIS DE DECISÃO
-        r"tenho.*entrada",
-        r"quando.*posso.*visitar",
-        r"quero.*visitar",
-        r"posso.*ir.*hoje",
-        r"quero.*fechar",
-        r"vamos.*fechar",
-        r"ja.*decidi",
-        r"to.*decidido",
-        r"quais.*documentos",
+        # SINAIS DE ENTRADA/FINANCIAMENTO
+        r"\btenho.*\bentrada\b",
+        r"\btenho\s+entrada\b",
     ]
     
-    return any(re.search(pattern, content_lower) for pattern in hot_signals)
-
+    for pattern in hot_signals:
+        if re.search(pattern, content_lower):
+            logger.info(f"🔥 Sinal quente detectado: '{pattern}' em '{content[:50]}...'")
+            return True
+    
+    return False
 
 # =============================================================================
 # FUNÇÃO PRINCIPAL
