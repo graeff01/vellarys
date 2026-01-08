@@ -282,3 +282,40 @@ export async function detectEmpreendimento(message: string) {
     method: 'POST',
   });
 }
+
+// ===============================================
+// 🆕 NOVAS FUNÇÕES - MELHORIAS LEAD DETAIL V2.0
+// ===============================================
+
+// Busca eventos/timeline do lead
+export async function getLeadEvents(leadId: number) {
+  const slug = getTenantSlug();
+  return request(`/leads/${leadId}/events?tenant_slug=${slug}`);
+}
+
+// Atribui vendedor ao lead
+export async function assignSellerToLead(leadId: number, sellerId: number, reason?: string) {
+  return request(`/leads/${leadId}/assign-seller`, {
+    method: 'POST',
+    body: JSON.stringify({ 
+      seller_id: sellerId,
+      reason: reason || 'Atribuição manual via dashboard'
+    }),
+  });
+}
+
+// Remove atribuição de vendedor
+export async function unassignSellerFromLead(leadId: number) {
+  return request(`/leads/${leadId}/assign-seller`, {
+    method: 'DELETE',
+  });
+}
+
+// Atualiza custom_data (para notas e tags)
+export async function updateLeadCustomData(leadId: number, customData: Record<string, any>) {
+  const slug = getTenantSlug();
+  return request(`/leads/${leadId}?tenant_slug=${slug}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ custom_data: customData }),
+  });
+}
