@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.database import get_db
 from src.domain.entities import Lead, Tenant, LeadEvent, Message, User
 from src.domain.entities.enums import LeadStatus
-from src.api.deps import get_current_user
+from src.api.dependencies import get_current_user
 from src.api.schemas import DashboardMetrics, LeadsByPeriod
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])  # ✅ CORRIGIDO!
