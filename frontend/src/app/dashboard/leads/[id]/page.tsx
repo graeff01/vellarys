@@ -33,10 +33,10 @@ import {
   Trash2,
   UserPlus,
   History,
-  Send,
   CheckCircle2,
-  Flame,
-  Circle
+  Loader2,
+  Zap,
+  TrendingUp
 } from 'lucide-react';
 
 interface Lead {
@@ -94,9 +94,7 @@ function groupMessagesByDate(messages: Message[]): Map<string, Message[]> {
 }
 
 function isToday(dateString: string): boolean {
-  const date = new Date(dateString);
-  const today = new Date();
-  return date.toDateString() === today.toDateString();
+  return new Date(dateString).toDateString() === new Date().toDateString();
 }
 
 function isYesterday(dateString: string): boolean {
@@ -113,12 +111,13 @@ function formatDateLabel(dateString: string, originalDate: string): string {
 }
 
 function getEventIcon(eventType: string) {
+  const iconClass = "w-3.5 h-3.5";
   switch (eventType) {
-    case 'status_change': return <History className="w-3 h-3 text-blue-600" />;
-    case 'qualification_change': return <Sparkles className="w-3 h-3 text-purple-600" />;
-    case 'seller_assigned': return <UserPlus className="w-3 h-3 text-green-600" />;
-    case 'seller_unassigned': return <X className="w-3 h-3 text-red-600" />;
-    default: return <Clock className="w-3 h-3 text-gray-600" />;
+    case 'status_change': return <TrendingUp className={`${iconClass} text-blue-600`} />;
+    case 'qualification_change': return <Zap className={`${iconClass} text-purple-600`} />;
+    case 'seller_assigned': return <UserPlus className={`${iconClass} text-green-600`} />;
+    case 'seller_unassigned': return <X className={`${iconClass} text-red-600`} />;
+    default: return <Clock className={`${iconClass} text-gray-600`} />;
   }
 }
 
@@ -195,7 +194,7 @@ export default function LeadDetailPage() {
 
   const mostrarSucesso = (mensagem: string) => {
     setMensagemSucesso(mensagem);
-    setTimeout(() => setMensagemSucesso(''), 2000);
+    setTimeout(() => setMensagemSucesso(''), 3000);
   };
 
   const atualizarQualificacao = async (novaQualificacao: string) => {
@@ -206,7 +205,7 @@ export default function LeadDetailPage() {
       setLead({ ...lead, qualification: novaQualificacao });
       const novosEventos = await getLeadEvents(lead.id);
       setEvents(novosEventos as LeadEvent[]);
-      mostrarSucesso('Qualificação atualizada!');
+      mostrarSucesso('✨ Qualificação atualizada!');
     } catch (error) {
       alert('Erro ao atualizar qualificação');
     } finally {
@@ -222,7 +221,7 @@ export default function LeadDetailPage() {
       setLead({ ...lead, status: novoStatus });
       const novosEventos = await getLeadEvents(lead.id);
       setEvents(novosEventos as LeadEvent[]);
-      mostrarSucesso('Status atualizado!');
+      mostrarSucesso('✅ Status atualizado!');
     } catch (error) {
       alert('Erro ao atualizar status');
     } finally {
@@ -240,7 +239,7 @@ export default function LeadDetailPage() {
       await updateLead(lead.id, { name: nomeTemp.trim() });
       setLead({ ...lead, name: nomeTemp.trim() });
       setEditandoNome(false);
-      mostrarSucesso('Nome atualizado!');
+      mostrarSucesso('👤 Nome atualizado!');
     } catch (error) {
       alert('Erro ao salvar nome');
     } finally {
@@ -264,7 +263,7 @@ export default function LeadDetailPage() {
       setLead({ ...lead, custom_data: customDataAtualizado });
       setNovaNota('');
       setEditandoNota(false);
-      mostrarSucesso('Nota adicionada!');
+      mostrarSucesso('📝 Nota adicionada!');
     } catch (error) {
       alert('Erro ao salvar nota');
     } finally {
@@ -281,7 +280,7 @@ export default function LeadDetailPage() {
       const customDataAtualizado = { ...lead.custom_data, notas: notasFiltradas };
       await updateLeadCustomData(lead.id, customDataAtualizado);
       setLead({ ...lead, custom_data: customDataAtualizado });
-      mostrarSucesso('Nota excluída!');
+      mostrarSucesso('🗑️ Nota excluída!');
     } catch (error) {
       alert('Erro ao deletar nota');
     } finally {
@@ -307,7 +306,7 @@ export default function LeadDetailPage() {
       setLead({ ...lead, custom_data: customDataAtualizado });
       setNovaTag('');
       setAdicionandoTag(false);
-      mostrarSucesso('Tag adicionada!');
+      mostrarSucesso('🏷️ Tag adicionada!');
     } catch (error) {
       alert('Erro ao adicionar tag');
     } finally {
@@ -324,7 +323,7 @@ export default function LeadDetailPage() {
       const customDataAtualizado = { ...lead.custom_data, tags: tagsFiltradas };
       await updateLeadCustomData(lead.id, customDataAtualizado);
       setLead({ ...lead, custom_data: customDataAtualizado });
-      mostrarSucesso('Tag removida!');
+      mostrarSucesso('🏷️ Tag removida!');
     } catch (error) {
       alert('Erro ao remover tag');
     } finally {
@@ -334,16 +333,27 @@ export default function LeadDetailPage() {
 
   const atribuirVendedor = async (sellerId: number) => {
     if (!lead || !sellerId) return;
+    
     try {
       setAtribuindoVendedor(true);
+      console.log('🔔 Atribuindo vendedor e enviando notificação...');
+      
+      // Backend envia notificação automática via WhatsApp!
       await assignSellerToLead(lead.id, sellerId);
+      
+      console.log('✅ Vendedor atribuído com sucesso!');
+      
+      // Recarrega dados
       const leadAtualizado = await getLead(lead.id);
       setLead(leadAtualizado as Lead);
+      
       const novosEventos = await getLeadEvents(lead.id);
       setEvents(novosEventos as LeadEvent[]);
-      mostrarSucesso('✅ Vendedor notificado!');
+      
+      mostrarSucesso('🎉 Vendedor atribuído e notificado no WhatsApp!');
     } catch (error) {
-      alert('Erro ao atribuir vendedor');
+      console.error('❌ Erro ao atribuir vendedor:', error);
+      alert('Erro ao atribuir vendedor. Verifique o console.');
     } finally {
       setAtribuindoVendedor(false);
     }
@@ -357,7 +367,7 @@ export default function LeadDetailPage() {
       setLead({ ...lead, assigned_seller: null });
       const novosEventos = await getLeadEvents(lead.id);
       setEvents(novosEventos as LeadEvent[]);
-      mostrarSucesso('Atribuição removida!');
+      mostrarSucesso('👋 Atribuição removida!');
     } catch (error) {
       alert('Erro ao remover atribuição');
     } finally {
@@ -367,10 +377,13 @@ export default function LeadDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="flex flex-col items-center gap-2">
-          <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
-          <span className="text-gray-500 text-sm">Carregando...</span>
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="relative">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600"></div>
+            <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-blue-400 to-purple-400 opacity-20 blur-xl"></div>
+          </div>
+          <span className="text-gray-600 text-sm font-semibold">Carregando detalhes...</span>
         </div>
       </div>
     );
@@ -378,45 +391,61 @@ export default function LeadDetailPage() {
 
   if (!lead) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen gap-3">
-        <h3 className="text-lg font-semibold">Lead não encontrado</h3>
-        <button onClick={() => router.back()} className="px-4 py-2 bg-blue-600 text-white rounded-lg">
-          Voltar
+      <div className="flex flex-col items-center justify-center h-screen gap-4 bg-gradient-to-br from-red-50 via-white to-orange-50">
+        <div className="w-20 h-20 bg-gradient-to-br from-red-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg">
+          <X className="w-10 h-10 text-white" />
+        </div>
+        <div className="text-center">
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Lead não encontrado</h3>
+          <p className="text-gray-600 text-sm">Este lead pode ter sido removido.</p>
+        </div>
+        <button onClick={() => router.back()} className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all hover:scale-105">
+          ← Voltar aos Leads
         </button>
       </div>
     );
   }
 
   const messageGroups = groupMessagesByDate(messages);
-  const qualificationColors = {
-    quente: 'bg-red-100 text-red-700 border-red-300',
-    hot: 'bg-red-100 text-red-700 border-red-300',
-    morno: 'bg-orange-100 text-orange-700 border-orange-300',
-    warm: 'bg-orange-100 text-orange-700 border-orange-300',
-    frio: 'bg-blue-100 text-blue-700 border-blue-300',
-    cold: 'bg-blue-100 text-blue-700 border-blue-300',
+  
+  const qualificationConfig = {
+    quente: { bg: 'bg-gradient-to-r from-red-500 to-orange-500', text: 'text-white', icon: '🔥', label: 'Quente' },
+    hot: { bg: 'bg-gradient-to-r from-red-500 to-orange-500', text: 'text-white', icon: '🔥', label: 'Quente' },
+    morno: { bg: 'bg-gradient-to-r from-orange-400 to-yellow-400', text: 'text-white', icon: '🌤️', label: 'Morno' },
+    warm: { bg: 'bg-gradient-to-r from-orange-400 to-yellow-400', text: 'text-white', icon: '🌤️', label: 'Morno' },
+    frio: { bg: 'bg-gradient-to-r from-blue-500 to-cyan-500', text: 'text-white', icon: '❄️', label: 'Frio' },
+    cold: { bg: 'bg-gradient-to-r from-blue-500 to-cyan-500', text: 'text-white', icon: '❄️', label: 'Frio' },
   };
 
+  const currentQual = qualificationConfig[lead.qualification as keyof typeof qualificationConfig] || qualificationConfig.frio;
+
   return (
-    <div className="h-[calc(100vh-120px)] flex flex-col">
-      {/* Toast de Sucesso */}
+    <div className="h-[calc(100vh-120px)] flex flex-col bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      {/* Toast de Sucesso - Melhorado */}
       {mensagemSucesso && (
-        <div className="fixed top-4 right-4 z-50 bg-green-50 border-2 border-green-500 rounded-lg px-4 py-2 shadow-lg flex items-center gap-2 animate-in slide-in-from-top">
-          <CheckCircle2 className="w-4 h-4 text-green-600" />
-          <span className="text-green-800 text-sm font-medium">{mensagemSucesso}</span>
+        <div className="fixed top-6 right-6 z-50 animate-in slide-in-from-top-2 duration-300">
+          <div className="bg-white border-2 border-green-400 rounded-2xl px-5 py-3 shadow-2xl flex items-center gap-3 backdrop-blur-sm">
+            <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center animate-bounce">
+              <CheckCircle2 className="w-6 h-6 text-white" />
+            </div>
+            <span className="text-gray-800 font-bold">{mensagemSucesso}</span>
+          </div>
         </div>
       )}
 
-      {/* Header Compacto */}
-      <div className="bg-white border-b border-gray-200 px-4 py-2 flex-shrink-0">
+      {/* Header Premium */}
+      <div className="bg-white/80 backdrop-blur-md border-b border-gray-200/50 shadow-sm px-4 py-3 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.back()} className="p-1.5 hover:bg-gray-100 rounded-lg">
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          <button 
+            onClick={() => router.back()} 
+            className="p-2 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 rounded-xl transition-all hover:scale-110 active:scale-95 group"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-600 group-hover:text-blue-600 transition-colors" />
           </button>
           
           <div className="flex-1 min-w-0">
             {editandoNome ? (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
                 <input
                   type="text"
                   value={nomeTemp}
@@ -425,27 +454,42 @@ export default function LeadDetailPage() {
                     if (e.key === 'Enter') salvarNome();
                     if (e.key === 'Escape') setEditandoNome(false);
                   }}
-                  className="text-lg font-bold border-b-2 border-blue-600 bg-transparent outline-none flex-1"
+                  className="text-xl font-bold border-b-2 border-blue-600 bg-transparent outline-none flex-1"
                   autoFocus
                 />
-                <button onClick={salvarNome} className="p-1 text-green-600"><Check className="w-4 h-4" /></button>
-                <button onClick={() => setEditandoNome(false)} className="p-1 text-red-600"><X className="w-4 h-4" /></button>
+                <button onClick={salvarNome} className="p-1.5 bg-green-100 hover:bg-green-200 rounded-lg transition-colors">
+                  <Check className="w-4 h-4 text-green-700" />
+                </button>
+                <button onClick={() => setEditandoNome(false)} className="p-1.5 bg-red-100 hover:bg-red-200 rounded-lg transition-colors">
+                  <X className="w-4 h-4 text-red-700" />
+                </button>
               </div>
             ) : (
-              <div className="flex items-center gap-1 group">
-                <h1 className="text-lg font-bold text-gray-900 truncate">{lead.name || 'Lead sem nome'}</h1>
-                <button onClick={() => { setNomeTemp(lead.name || ''); setEditandoNome(true); }} className="opacity-0 group-hover:opacity-100 p-1">
-                  <Edit2 className="w-3 h-3 text-gray-400" />
+              <div className="flex items-center gap-2 group">
+                <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent truncate">
+                  {lead.name || 'Lead sem nome'}
+                </h1>
+                <button
+                  onClick={() => { setNomeTemp(lead.name || ''); setEditandoNome(true); }}
+                  className="p-1 opacity-0 group-hover:opacity-100 hover:bg-blue-50 rounded-lg transition-all"
+                >
+                  <Edit2 className="w-3.5 h-3.5 text-gray-400" />
                 </button>
               </div>
             )}
             
-            {/* Tags + Badges Compactos */}
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap text-xs">
+            {/* Tags + Badges Premium */}
+            <div className="flex items-center gap-2 mt-2 flex-wrap text-xs">
               {(lead.custom_data?.tags || []).map((tag: string) => (
-                <Badge key={tag} variant="outline" className="flex items-center gap-1 bg-blue-50 text-blue-700 border-blue-200 px-2 py-0.5">
-                  🏷️ {tag}
-                  <X className="w-2.5 h-2.5 cursor-pointer" onClick={() => removerTag(tag)} />
+                <Badge 
+                  key={tag} 
+                  className="flex items-center gap-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white border-0 px-3 py-1 shadow-md hover:shadow-lg transition-all hover:scale-105"
+                >
+                  <span className="text-base">🏷️</span>
+                  {tag}
+                  <button onClick={() => removerTag(tag)} className="hover:bg-white/20 rounded-full p-0.5 transition-colors">
+                    <X className="w-3 h-3" />
+                  </button>
                 </Badge>
               ))}
               
@@ -459,22 +503,27 @@ export default function LeadDetailPage() {
                     if (e.key === 'Escape') setAdicionandoTag(false);
                   }}
                   onBlur={adicionarTag}
-                  className="border border-blue-400 rounded px-2 py-0.5 text-xs w-20 outline-none"
-                  placeholder="Tag"
+                  className="border-2 border-blue-400 rounded-lg px-2 py-1 text-xs w-24 outline-none shadow-sm"
+                  placeholder="Nova tag"
                   autoFocus
                 />
               ) : (
-                <button onClick={() => setAdicionandoTag(true)} className="text-xs text-blue-600 hover:bg-blue-50 px-2 py-0.5 rounded">
-                  + Tag
+                <button
+                  onClick={() => setAdicionandoTag(true)}
+                  className="flex items-center gap-1 text-xs bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-3 py-1 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all hover:scale-105"
+                >
+                  <Plus className="w-3 h-3" /> Tag
                 </button>
               )}
               
               <span className="text-gray-300">•</span>
               
+              {/* Qualificação Premium */}
               <select
                 value={lead.qualification}
                 onChange={(e) => atualizarQualificacao(e.target.value)}
-                className={`border rounded px-2 py-0.5 text-xs font-semibold cursor-pointer outline-none ${qualificationColors[lead.qualification as keyof typeof qualificationColors]}`}
+                disabled={salvando}
+                className={`${currentQual.bg} ${currentQual.text} border-0 rounded-lg px-3 py-1.5 text-xs font-bold cursor-pointer outline-none shadow-md hover:shadow-lg transition-all`}
               >
                 <option value="frio">❄️ Frio</option>
                 <option value="morno">🌤️ Morno</option>
@@ -483,221 +532,287 @@ export default function LeadDetailPage() {
               
               <span className="text-gray-300">•</span>
               
+              {/* Status Premium */}
               <select
                 value={lead.status}
                 onChange={(e) => atualizarStatus(e.target.value)}
-                className="border border-gray-200 bg-white rounded px-2 py-0.5 text-xs font-medium text-gray-700 cursor-pointer outline-none"
+                disabled={salvando}
+                className="bg-gradient-to-r from-gray-100 to-gray-200 border-2 border-gray-300 rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 cursor-pointer outline-none hover:border-gray-400 transition-all shadow-sm"
               >
-                <option value="new">Novo</option>
-                <option value="in_progress">Atendimento</option>
-                <option value="qualified">Qualificado</option>
-                <option value="handed_off">Transferido</option>
-                <option value="converted">Convertido</option>
-                <option value="lost">Perdido</option>
+                <option value="new">🆕 Novo</option>
+                <option value="in_progress">⚡ Atendimento</option>
+                <option value="qualified">✅ Qualificado</option>
+                <option value="handed_off">🤝 Transferido</option>
+                <option value="converted">🎉 Convertido</option>
+                <option value="lost">❌ Perdido</option>
               </select>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Layout Principal - Altura Fixa */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-3 p-3 overflow-hidden">
+      {/* Layout Principal */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 overflow-hidden">
         
         {/* Coluna Esquerda - Scroll Interno */}
-        <div className="lg:col-span-1 space-y-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 180px)' }}>
+        <div className="lg:col-span-1 space-y-3 overflow-y-auto pr-2" style={{ maxHeight: 'calc(100vh - 200px)', scrollbarWidth: 'thin', scrollbarColor: '#3B82F6 transparent' }}>
           
-          {/* Card Informações Compacto */}
-          <Card className="shadow-sm">
-            <div className="p-3">
-              <h3 className="font-bold text-sm mb-2 flex items-center gap-1">
-                <User className="w-4 h-4 text-blue-600" />
-                Informações
+          {/* Card Informações Premium */}
+          <Card className="bg-white/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all border-0 overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-3">
+              <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Informações do Lead
               </h3>
-              <div className="space-y-2 text-xs">
-                {lead.phone && (
-                  <a href={`tel:${lead.phone}`} className="flex items-center gap-2 p-1.5 rounded hover:bg-green-50">
-                    <div className="w-6 h-6 bg-green-500 rounded-lg flex items-center justify-center">
-                      <Phone className="w-3 h-3 text-white" />
-                    </div>
-                    <span className="text-gray-700 font-medium">{lead.phone}</span>
-                  </a>
-                )}
-                
-                {lead.email && (
-                  <a href={`mailto:${lead.email}`} className="flex items-center gap-2 p-1.5 rounded hover:bg-blue-50">
-                    <div className="w-6 h-6 bg-blue-500 rounded-lg flex items-center justify-center">
-                      <Mail className="w-3 h-3 text-white" />
-                    </div>
-                    <span className="text-gray-700 font-medium truncate">{lead.email}</span>
-                  </a>
-                )}
-                
-                {lead.city && (
-                  <div className="flex items-center gap-2 p-1.5 bg-purple-50 rounded">
-                    <div className="w-6 h-6 bg-purple-500 rounded-lg flex items-center justify-center">
-                      <MapPin className="w-3 h-3 text-white" />
-                    </div>
-                    <span className="text-gray-800 font-medium">{lead.city}</span>
+            </div>
+            <div className="p-3 space-y-2.5">
+              {lead.phone && (
+                <a 
+                  href={`tel:${lead.phone}`} 
+                  className="flex items-center gap-3 p-2.5 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 transition-all group border border-green-200 shadow-sm hover:shadow-md"
+                >
+                  <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-md">
+                    <Phone className="w-4 h-4 text-white" />
                   </div>
-                )}
-
-                <div className="flex items-center gap-2 p-1.5 bg-gray-50 rounded">
-                  <div className="w-6 h-6 bg-gray-500 rounded-lg flex items-center justify-center">
-                    <Calendar className="w-3 h-3 text-white" />
+                  <span className="text-gray-700 group-hover:text-green-700 font-semibold text-xs transition-colors">{lead.phone}</span>
+                </a>
+              )}
+              
+              {lead.email && (
+                <a 
+                  href={`mailto:${lead.email}`} 
+                  className="flex items-center gap-3 p-2.5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 transition-all group border border-blue-200 shadow-sm hover:shadow-md"
+                >
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-md">
+                    <Mail className="w-4 h-4 text-white" />
                   </div>
-                  <div>
-                    <p className="text-[10px] text-gray-500">Criado em</p>
-                    <p className="text-gray-800 font-semibold">
-                      {new Date(lead.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                    </p>
+                  <span className="text-gray-700 group-hover:text-blue-700 font-semibold text-xs truncate transition-colors">{lead.email}</span>
+                </a>
+              )}
+              
+              {lead.city && (
+                <div className="flex items-center gap-3 p-2.5 rounded-xl bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 shadow-sm">
+                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-md">
+                    <MapPin className="w-4 h-4 text-white" />
                   </div>
+                  <span className="text-gray-800 font-semibold text-xs">{lead.city}</span>
                 </div>
+              )}
 
-                {/* Vendedor Compacto */}
-                <div className="border-t pt-2 mt-2">
-                  <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">
-                    Vendedor
-                  </label>
-                  
-                  {lead.assigned_seller ? (
-                    <div className="bg-green-50 border border-green-300 rounded-lg p-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 bg-green-500 rounded-lg flex items-center justify-center">
-                            <User className="w-3 h-3 text-white" />
-                          </div>
-                          <div>
-                            <p className="font-bold text-gray-900 text-xs">{lead.assigned_seller.name}</p>
-                            <p className="text-[10px] text-gray-600">{lead.assigned_seller.whatsapp}</p>
-                          </div>
+              <div className="flex items-center gap-3 p-2.5 rounded-xl bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 shadow-sm">
+                <div className="w-10 h-10 bg-gradient-to-br from-gray-500 to-slate-600 rounded-xl flex items-center justify-center shadow-md">
+                  <Calendar className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Criado em</p>
+                  <p className="text-gray-900 font-bold text-xs">
+                    {new Date(lead.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+
+              {/* Vendedor Premium com Notificação */}
+              <div className="border-t-2 border-gray-100 pt-3 mt-3">
+                <label className="text-[10px] font-bold text-gray-600 uppercase tracking-wider block mb-2 flex items-center gap-1">
+                  <UserPlus className="w-3.5 h-3.5" />
+                  Vendedor Responsável
+                </label>
+                
+                {lead.assigned_seller ? (
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-400 rounded-xl p-3 shadow-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg ring-2 ring-green-200">
+                          <User className="w-5 h-5 text-white" />
                         </div>
-                        <button onClick={removerAtribuicao} className="text-red-600 text-[10px] hover:bg-red-100 px-1.5 py-0.5 rounded">
-                          Remover
-                        </button>
+                        <div>
+                          <p className="font-bold text-gray-900 text-sm">{lead.assigned_seller.name}</p>
+                          <p className="text-xs text-gray-600 flex items-center gap-1">
+                            <Phone className="w-3 h-3" />
+                            {lead.assigned_seller.whatsapp}
+                          </p>
+                        </div>
                       </div>
+                      <button 
+                        onClick={removerAtribuicao} 
+                        disabled={salvando}
+                        className="text-red-600 text-xs font-bold hover:bg-red-100 px-2 py-1 rounded-lg transition-all"
+                      >
+                        Remover
+                      </button>
                     </div>
-                  ) : (
+                  </div>
+                ) : (
+                  <div className="relative">
                     <select
                       onChange={(e) => atribuirVendedor(parseInt(e.target.value))}
-                      className="w-full border rounded-lg px-2 py-1.5 text-xs"
+                      className="w-full bg-white border-2 border-gray-300 rounded-xl px-3 py-2.5 text-sm font-semibold appearance-none cursor-pointer hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all shadow-sm"
                       defaultValue=""
                       disabled={atribuindoVendedor}
                     >
                       <option value="" disabled>
-                        {atribuindoVendedor ? '📲 Notificando...' : 'Selecione...'}
+                        {atribuindoVendedor ? '📲 Notificando vendedor...' : '👤 Selecione um vendedor...'}
                       </option>
                       {sellers.filter(s => s.active).map(seller => (
-                        <option key={seller.id} value={seller.id}>{seller.name}</option>
+                        <option key={seller.id} value={seller.id}>
+                          {seller.name} {seller.available ? '✅ Disponível' : '⏸️ Ocupado'}
+                        </option>
                       ))}
                     </select>
-                  )}
-                </div>
+                    
+                    {atribuindoVendedor && (
+                      <div className="absolute inset-0 bg-white/95 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                        <div className="flex items-center gap-2 text-blue-600">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span className="text-sm font-bold">Enviando notificação...</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {!lead.assigned_seller && (
+                  <div className="mt-2 flex items-start gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                    <Sparkles className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-blue-700 font-semibold leading-relaxed">
+                      O vendedor receberá automaticamente um resumo completo da conversa no WhatsApp! 📲
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </Card>
 
-          {/* Timeline Compacta */}
+          {/* Timeline Premium */}
           {events.length > 0 && (
-            <Card className="shadow-sm">
-              <div className="p-3">
-                <h3 className="font-bold text-sm mb-2 flex items-center gap-1">
-                  <History className="w-4 h-4 text-purple-600" />
-                  Eventos
+            <Card className="bg-white/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all border-0 overflow-hidden">
+              <div className="bg-gradient-to-r from-purple-500 to-pink-600 p-3">
+                <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                  <History className="w-4 h-4" />
+                  Histórico de Eventos
                 </h3>
-                <div className="space-y-2 text-xs">
-                  {events.slice(0, 3).map((event) => (
-                    <div key={event.id} className="flex gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-                        {getEventIcon(event.event_type)}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-gray-900 font-medium">{event.description}</p>
-                        <span className="text-[10px] text-gray-500">
-                          {new Date(event.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
+              </div>
+              <div className="p-3 space-y-2.5">
+                {events.slice(0, 4).map((event) => (
+                  <div key={event.id} className="flex gap-2.5 group">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center flex-shrink-0 border-2 border-blue-200 group-hover:scale-110 transition-transform shadow-sm">
+                      {getEventIcon(event.event_type)}
                     </div>
-                  ))}
-                </div>
-              </div>
-            </Card>
-          )}
-
-          {/* Resumo IA Compacto */}
-          {lead.summary && (
-            <Card className="shadow-sm bg-purple-50 border border-purple-200">
-              <div className="p-3">
-                <h3 className="font-bold text-sm mb-1 flex items-center gap-1 text-purple-900">
-                  <Sparkles className="w-4 h-4" />
-                  Resumo IA
-                </h3>
-                <p className="text-gray-700 text-xs leading-relaxed">{lead.summary}</p>
-              </div>
-            </Card>
-          )}
-
-          {/* Notas Compactas */}
-          <Card className="shadow-sm">
-            <div className="p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-bold text-sm">📝 Notas</h3>
-                <button onClick={() => setEditandoNota(true)} className="text-xs text-blue-600 hover:bg-blue-50 px-2 py-0.5 rounded">
-                  + Nova
-                </button>
-              </div>
-              
-              <div className="space-y-2">
-                {(lead.custom_data?.notas || []).slice(0, 2).map((nota: any) => (
-                  <div key={nota.id} className="bg-yellow-50 border-l-2 border-yellow-400 p-2 rounded text-xs">
-                    <div className="flex justify-between items-start mb-1">
-                      <span className="text-[10px] text-gray-600">
-                        {nota.created_by} • {new Date(nota.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                    <div className="flex-1">
+                      <p className="text-gray-900 font-bold text-xs">{event.description}</p>
+                      <span className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full inline-block mt-1">
+                        {new Date(event.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </span>
-                      <button onClick={() => deletarNota(nota.id)} className="text-red-600 text-[10px]">
-                        <Trash2 className="w-3 h-3" />
-                      </button>
                     </div>
-                    <p className="text-gray-800">{nota.content}</p>
                   </div>
                 ))}
-
-                {editandoNota && (
-                  <div className="space-y-2 border-2 border-blue-200 rounded-lg p-2">
-                    <textarea
-                      value={novaNota}
-                      onChange={(e) => setNovaNota(e.target.value)}
-                      placeholder="Nova nota..."
-                      className="w-full border rounded p-2 text-xs resize-none"
-                      rows={2}
-                    />
-                    <div className="flex gap-1">
-                      <button onClick={salvarNota} className="flex-1 px-2 py-1 bg-blue-600 text-white rounded text-xs font-medium">
-                        Salvar
-                      </button>
-                      <button onClick={() => {setEditandoNota(false); setNovaNota('');}} className="px-2 py-1 border rounded text-xs">
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                )}
-                
-                {!editandoNota && (lead.custom_data?.notas || []).length === 0 && (
-                  <p className="text-xs text-gray-400 text-center py-2">Sem notas</p>
-                )}
               </div>
+            </Card>
+          )}
+
+          {/* Resumo IA Premium */}
+          {lead.summary && (
+            <Card className="bg-gradient-to-br from-purple-100 via-pink-50 to-purple-50 shadow-lg hover:shadow-xl transition-all border-2 border-purple-300 overflow-hidden">
+              <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-3">
+                <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  Resumo da IA
+                </h3>
+              </div>
+              <div className="p-3">
+                <p className="text-gray-800 text-xs leading-relaxed font-medium">{lead.summary}</p>
+              </div>
+            </Card>
+          )}
+
+          {/* Notas Premium */}
+          <Card className="bg-white/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all border-0 overflow-hidden">
+            <div className="bg-gradient-to-r from-yellow-500 to-orange-600 p-3 flex items-center justify-between">
+              <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                <span className="text-lg">📝</span>
+                Notas Internas
+              </h3>
+              <button 
+                onClick={() => setEditandoNota(true)} 
+                disabled={salvando}
+                className="flex items-center gap-1 text-xs bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-lg font-bold transition-all"
+              >
+                <Plus className="w-3 h-3" /> Nova
+              </button>
+            </div>
+            
+            <div className="p-3 space-y-2.5">
+              {(lead.custom_data?.notas || []).slice(0, 3).map((nota: any) => (
+                <div key={nota.id} className="bg-gradient-to-r from-yellow-50 to-amber-50 border-l-4 border-yellow-500 p-3 rounded-lg shadow-sm hover:shadow-md transition-all">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-[10px] font-bold text-gray-700 bg-white px-2 py-1 rounded-full shadow-sm">
+                      {nota.created_by} • {new Date(nota.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                    </span>
+                    <button 
+                      onClick={() => deletarNota(nota.id)} 
+                      disabled={salvando}
+                      className="text-red-600 hover:bg-red-100 p-1 rounded transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <p className="text-gray-800 text-xs font-semibold leading-relaxed">{nota.content}</p>
+                </div>
+              ))}
+
+              {editandoNota && (
+                <div className="space-y-2 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-3 shadow-md">
+                  <textarea
+                    value={novaNota}
+                    onChange={(e) => setNovaNota(e.target.value)}
+                    placeholder="Digite sua nota aqui..."
+                    className="w-full border-2 border-gray-300 rounded-lg p-2.5 text-xs font-medium focus:border-blue-400 focus:ring-2 focus:ring-blue-200 outline-none transition-all resize-none"
+                    rows={3}
+                    disabled={salvando}
+                  />
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={salvarNota} 
+                      disabled={salvando || !novaNota.trim()}
+                      className="flex-1 px-3 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-bold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg disabled:opacity-50"
+                    >
+                      {salvando ? 'Salvando...' : 'Salvar Nota'}
+                    </button>
+                    <button 
+                      onClick={() => {setEditandoNota(false); setNovaNota('');}} 
+                      disabled={salvando}
+                      className="px-3 py-2 border-2 border-gray-300 rounded-lg font-bold hover:bg-gray-50 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              {!editandoNota && (lead.custom_data?.notas || []).length === 0 && (
+                <div className="text-center py-6">
+                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <span className="text-2xl">📝</span>
+                  </div>
+                  <p className="text-xs text-gray-500 font-semibold">Nenhuma nota ainda</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Clique em "Nova" para adicionar</p>
+                </div>
+              )}
             </div>
           </Card>
         </div>
 
-        {/* Chat - Altura Fixa */}
+        {/* Chat Premium */}
         <div className="lg:col-span-2">
-          <Card className="h-full flex flex-col shadow-sm">
-            <div className="flex items-center justify-between p-3 border-b flex-shrink-0">
+          <Card className="h-full flex flex-col bg-white/90 backdrop-blur-sm shadow-xl border-0 overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-3 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-blue-600" />
-                <h3 className="font-bold text-sm">Conversa</h3>
+                <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center shadow-lg">
+                  <MessageSquare className="w-5 h-5 text-white" />
+                </div>
+                <h3 className="font-bold text-sm text-white">Histórico da Conversa</h3>
               </div>
-              <span className="text-[10px] text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+              <span className="text-xs font-bold text-white/80 bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
                 {messages.length} msgs
               </span>
             </div>
@@ -705,49 +820,62 @@ export default function LeadDetailPage() {
             <div
               ref={chatContainerRef}
               onScroll={handleScroll}
-              className="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-50"
+              className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-gray-50 to-white"
+              style={{ scrollbarWidth: 'thin', scrollbarColor: '#60A5FA transparent' }}
             >
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                  <MessageSquare className="w-8 h-8 mb-2 opacity-50" />
-                  <p className="text-sm">Sem mensagens</p>
+                  <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl flex items-center justify-center mb-3 shadow-lg">
+                    <MessageSquare className="w-10 h-10 text-blue-400" />
+                  </div>
+                  <p className="text-sm font-bold">Sem mensagens</p>
+                  <p className="text-xs text-gray-400 mt-1">Aguardando primeira interação</p>
                 </div>
               ) : (
                 <>
                   {Array.from(messageGroups.entries()).map(([date, dateMessages]) => (
                     <div key={date}>
-                      <div className="flex items-center justify-center my-3">
-                        <span className="px-3 py-0.5 text-[10px] font-bold text-gray-500 bg-white border rounded-full">
+                      <div className="flex items-center justify-center my-4">
+                        <span className="px-4 py-1.5 text-xs font-bold text-gray-600 bg-white border-2 border-gray-200 rounded-full shadow-md">
                           {formatDateLabel(date, dateMessages[0].created_at)}
                         </span>
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {dateMessages.map((msg, idx) => {
                           const isAssistant = msg.role === 'assistant';
                           const showAvatar = idx === 0 || dateMessages[idx - 1]?.role !== msg.role;
                           
                           return (
-                            <div key={msg.id} className={`flex ${isAssistant ? 'justify-start' : 'justify-end'}`}>
+                            <div key={msg.id} className={`flex ${isAssistant ? 'justify-start' : 'justify-end'} animate-in fade-in duration-300`}>
                               {isAssistant && (
-                                <div className={`flex-shrink-0 mr-2 ${showAvatar ? 'visible' : 'invisible'}`}>
-                                  <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
-                                    <Bot className="w-3 h-3 text-white" />
+                                <div className={`flex-shrink-0 mr-2.5 ${showAvatar ? 'visible' : 'invisible'}`}>
+                                  <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-500 rounded-full flex items-center justify-center shadow-lg ring-2 ring-purple-200">
+                                    <Bot className="w-4 h-4 text-white" />
                                   </div>
                                 </div>
                               )}
 
-                              <div className={`max-w-[75%] px-3 py-1.5 rounded-lg text-xs ${isAssistant ? 'bg-white text-gray-800 border' : 'bg-blue-600 text-white'}`}>
+                              <div className={`
+                                max-w-[80%] px-4 py-2.5 rounded-2xl shadow-md hover:shadow-lg transition-all text-xs font-medium
+                                ${isAssistant 
+                                  ? 'bg-white text-gray-800 border-2 border-gray-200 rounded-tl-sm' 
+                                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-tr-sm'
+                                }
+                              `}>
                                 <p className="leading-relaxed">{msg.content}</p>
-                                <span className={`text-[10px] ${isAssistant ? 'text-gray-400' : 'text-blue-100'}`}>
-                                  {new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                </span>
+                                <div className={`flex items-center gap-1 mt-1.5 ${isAssistant ? 'text-gray-400' : 'text-blue-100'}`}>
+                                  <Clock className="w-3 h-3" />
+                                  <span className="text-[10px] font-bold">
+                                    {new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
                               </div>
 
                               {!isAssistant && (
-                                <div className={`flex-shrink-0 ml-2 ${showAvatar ? 'visible' : 'invisible'}`}>
-                                  <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-                                    <User className="w-3 h-3 text-white" />
+                                <div className={`flex-shrink-0 ml-2.5 ${showAvatar ? 'visible' : 'invisible'}`}>
+                                  <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-full flex items-center justify-center shadow-lg ring-2 ring-blue-200">
+                                    <User className="w-4 h-4 text-white" />
                                   </div>
                                 </div>
                               )}
@@ -763,16 +891,20 @@ export default function LeadDetailPage() {
             </div>
 
             {showScrollButton && (
-              <div className="absolute bottom-16 right-6">
-                <button onClick={scrollToBottom} className="p-2 bg-white border rounded-full shadow-lg">
-                  <ChevronDown className="w-4 h-4 text-blue-600" />
+              <div className="absolute bottom-20 right-6">
+                <button 
+                  onClick={scrollToBottom} 
+                  className="p-3 bg-white border-2 border-blue-300 rounded-full shadow-2xl hover:bg-blue-50 transition-all hover:scale-110 active:scale-95"
+                >
+                  <ChevronDown className="w-5 h-5 text-blue-600" />
                 </button>
               </div>
             )}
 
-            <div className="p-2 border-t bg-gray-50 flex-shrink-0">
-              <p className="text-[10px] text-gray-400 text-center">
-                💬 Gerenciado pela IA vellarys
+            <div className="p-3 border-t-2 border-gray-100 bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
+              <p className="text-[10px] text-gray-600 text-center font-semibold flex items-center justify-center gap-1">
+                <Sparkles className="w-3 h-3 text-purple-500" />
+                Conversa gerenciada automaticamente pela IA do Velaris
               </p>
             </div>
           </Card>
