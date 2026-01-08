@@ -19,8 +19,9 @@ import {
   DollarSign,
   Moon,
   Zap,
-  MessageCircle,
-  ArrowRight
+  ArrowRight,
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 
 interface TimeSaved {
@@ -36,14 +37,14 @@ interface Metrics {
   leads_this_month: number;
   conversion_rate: number;
   avg_qualification_time_hours: number;
-  avg_response_time_minutes?: number;
-  engagement_rate?: number;
+  avg_response_time_minutes: number;
+  engagement_rate: number;
   by_qualification: Record<string, number>;
   by_status: Record<string, number>;
-  time_saved?: TimeSaved;
-  after_hours_leads?: number;
-  growth_percentage?: number;
-  hot_leads_waiting?: number;
+  time_saved: TimeSaved;
+  after_hours_leads: number;
+  growth_percentage: number;
+  hot_leads_waiting: number;
 }
 
 interface Lead {
@@ -65,6 +66,33 @@ interface Seller {
 }
 
 // =============================================================================
+// COMPONENTE DE ERRO
+// =============================================================================
+
+function ErrorState({ error, onRetry }: { error: string; onRetry: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 space-y-4">
+      <div className="p-4 bg-red-50 rounded-full">
+        <AlertCircle className="w-12 h-12 text-red-600" />
+      </div>
+      <div className="text-center">
+        <h3 className="text-xl font-semibold text-gray-900 mb-2">
+          Erro ao carregar dashboard
+        </h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <button
+          onClick={onRetry}
+          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors mx-auto"
+        >
+          <RefreshCw className="w-5 h-5" />
+          Tentar Novamente
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
 // DASHBOARD DO GESTOR (cliente normal)
 // =============================================================================
 
@@ -74,62 +102,97 @@ function GestorDashboard() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const [metricsData, leadsData, sellersData] = await Promise.all([
+        getMetrics(),
+        getLeads({ page: 1 }),
+        getSellers(),
+      ]);
+
+      // ✅ VALIDAÇÃO: Verifica se dados vieram corretamente
+      if (!metricsData) {
+        throw new Error('Métricas não disponíveis');
+      }
+
+      setMetrics(metricsData as Metrics);
+      setLeads((leadsData as { items: Lead[] }).items || []);
+      setSellers((sellersData as any).sellers || []);
+      setRetryCount(0); // Reset retry count on success
+    } catch (err: any) {
+      console.error('❌ Erro ao carregar dashboard:', err);
+      
+      // Mensagens de erro específicas
+      if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
+        setError('Sessão expirada. Faça login novamente.');
+        setTimeout(() => router.push('/login'), 2000);
+      } else if (err.message?.includes('Failed to fetch')) {
+        setError('Sem conexão com servidor. Verifique sua internet.');
+      } else {
+        setError(err.message || 'Erro desconhecido. Tente novamente.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true);
-
-        const [metricsData, leadsData, sellersData] = await Promise.all([
-          getMetrics().catch(e => {
-            console.error('❌ Erro ao carregar métricas:', e);
-            return null;
-          }),
-          getLeads({ page: 1 }).catch(e => {
-            console.error('❌ Erro ao carregar leads:', e);
-            return { items: [] };
-          }),
-          getSellers().catch(e => {
-            console.error('❌ Erro ao carregar vendedores:', e);
-            return { sellers: [] };
-          }),
-        ]);
-
-        setMetrics(metricsData as Metrics);
-        setLeads((leadsData as { items: Lead[] }).items);
-        setSellers((sellersData as any).sellers || []);
-      } catch (error) {
-        console.error('❌ Erro fatal:', error);
-      } finally {
-        setLoading(false);
-      }
-    }
-
     loadData();
   }, []);
 
+  // ✅ RETRY AUTOMÁTICO (após 3 segundos, máximo 3 tentativas)
+  useEffect(() => {
+    if (error && retryCount < 3) {
+      const timer = setTimeout(() => {
+        console.log(`🔄 Tentativa ${retryCount + 1}/3 de reconexão...`);
+        setRetryCount(prev => prev + 1);
+        loadData();
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [error, retryCount]);
+
+  // Estados de loading e erro
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           <div className="text-gray-500">Carregando dashboard...</div>
+          {retryCount > 0 && (
+            <div className="text-sm text-gray-400">
+              Tentativa {retryCount}/3
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
-  // Calcula métricas para os cards
-  const leadsHot = metrics?.by_qualification?.quente || 0;
-  const leadsCold = metrics?.by_qualification?.frio || 0;
+  if (error) {
+    return <ErrorState error={error} onRetry={loadData} />;
+  }
 
-  // Valores com fallback seguro
-  const timeSaved = metrics?.time_saved || { hours_saved: 0, cost_saved_brl: 0, leads_handled: 0 };
-  const afterHoursLeads = metrics?.after_hours_leads || 0;
-  const growthPercentage = metrics?.growth_percentage || 0;
-  const hotLeadsWaiting = metrics?.hot_leads_waiting || 0;
-  const avgResponseTime = metrics?.avg_response_time_minutes || 2.0;
-  const engagementRate = metrics?.engagement_rate || 0;
+  if (!metrics) {
+    return <ErrorState error="Nenhum dado disponível" onRetry={loadData} />;
+  }
+
+  // ✅ VALORES SEGUROS (com fallbacks)
+  const leadsHot = metrics.by_qualification?.quente || 0;
+  const leadsCold = metrics.by_qualification?.frio || 0;
+  const timeSaved = metrics.time_saved || { hours_saved: 0, cost_saved_brl: 0, leads_handled: 0 };
+  const afterHoursLeads = metrics.after_hours_leads || 0;
+  const growthPercentage = metrics.growth_percentage || 0;
+  const hotLeadsWaiting = metrics.hot_leads_waiting || 0;
+  const avgResponseTime = metrics.avg_response_time_minutes || 0;
+  const engagementRate = metrics.engagement_rate || 0;
 
   return (
     <div className="space-y-8">
@@ -140,7 +203,7 @@ function GestorDashboard() {
       </div>
 
       {/* Cards principais */}
-      {metrics && <MetricsCards metrics={metrics} />}
+      <MetricsCards metrics={metrics} />
 
       {/* CARDS DE VALOR AGREGADO */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -161,7 +224,7 @@ function GestorDashboard() {
             </div>
             <h3 className="text-sm font-medium text-gray-600 mb-2">Tempo Economizado</h3>
             <p className="text-3xl font-bold text-gray-900 mb-1">
-              {timeSaved.hours_saved}h
+              {timeSaved.hours_saved.toFixed(1)}h
             </p>
             <p className="text-xs text-gray-500">
               Este mês • {timeSaved.leads_handled} leads atendidos
@@ -215,7 +278,7 @@ function GestorDashboard() {
             </div>
             <h3 className="text-sm font-medium text-gray-600 mb-2">Velocidade de Resposta</h3>
             <p className="text-3xl font-bold text-orange-600 mb-1">
-              {avgResponseTime}min
+              {avgResponseTime.toFixed(1)}min
             </p>
             <p className="text-xs text-gray-500">
               Resposta instantânea 24/7
@@ -258,7 +321,7 @@ function GestorDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Card de ROI */}
         <ROICard
-          totalLeads={metrics?.total_leads || 0}
+          totalLeads={metrics.total_leads}
           leadsFiltered={leadsCold}
           leadsHot={leadsHot}
         />
@@ -269,7 +332,7 @@ function GestorDashboard() {
             title="Qualificação dos Leads"
             subtitle="Distribuição por temperatura"
           />
-          {metrics && <QualificationDonut data={metrics.by_qualification} />}
+          <QualificationDonut data={metrics.by_qualification} />
         </Card>
 
         {/* Card de Uso do Plano */}

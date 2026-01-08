@@ -1,29 +1,32 @@
 """
-ROTAS: MÉTRICAS
-================
+ROTAS: MÉTRICAS V2.0
+====================
 
 Endpoints para métricas do dashboard.
 Dados consolidados para análise do gestor.
 
-MELHORIAS:
-- Economia de tempo calculada
-- Leads fora do horário
-- Crescimento vs semana anterior
-- Leads quentes aguardando
-- Taxa de engajamento
-- Velocidade de resposta
+CORREÇÕES V2.0:
+✅ Autenticação via token (não mais tenant_slug)
+✅ Cálculo correto de tempo economizado
+✅ Horário comercial realista (8h-22h)
+✅ Engagement rate correto (2+ mensagens)
+✅ Crescimento pode ser negativo
+✅ Campo assigned_seller_id (não assigned_to)
+✅ Endpoint correto (/dashboard/metrics)
 """
 
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func, and_, case, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.database import get_db
-from src.domain.entities import Lead, Tenant, LeadEvent, Message
+from src.domain.entities import Lead, Tenant, LeadEvent, Message, User
+from src.domain.entities.enums import LeadStatus
+from src.api.deps import get_current_user
 from src.api.schemas import DashboardMetrics, LeadsByPeriod
 
-router = APIRouter(prefix="/metrics", tags=["Métricas"])
+router = APIRouter(prefix="/dashboard", tags=["Dashboard"])  # ✅ CORRIGIDO!
 
 
 # ============================================
@@ -31,25 +34,64 @@ router = APIRouter(prefix="/metrics", tags=["Métricas"])
 # ============================================
 
 def is_after_hours(dt: datetime) -> bool:
-    """Verifica se está fora do horário comercial (8h-18h, seg-sex)."""
+    """
+    Verifica se está fora do horário comercial.
+    
+    ✅ CORRIGIDO: Agora usa 8h-22h (mais realista)
+    """
     hour = dt.hour
     weekday = dt.weekday()
-    return hour < 8 or hour >= 18 or weekday >= 5
+    return hour < 8 or hour >= 22 or weekday >= 5  # ✅ 22h ao invés de 18h
 
 
 def calculate_time_saved(total_leads: int) -> dict:
     """
-    Calcula tempo/dinheiro economizado pela IA.
-    Premissa: Cada lead = 15min de atendente humano.
+    ✅ CORRIGIDO: Calcula tempo/dinheiro economizado pela IA.
+    
+    Premissa:
+    - Atendente humano: 10 minutos por lead
+    - IA Velaris: 2 minutos por lead
+    - Economia: 8 minutos por lead
+    - Custo atendente: R$ 20/hora
     """
-    total_minutes = total_leads * 15
-    hours = total_minutes / 60
-    cost_saved = hours * 15  # R$ 15/hora
+    minutes_saved_per_lead = 10 - 2  # 8 minutos economizados
+    total_minutes_saved = total_leads * minutes_saved_per_lead
+    hours_saved = total_minutes_saved / 60
+    cost_saved = hours_saved * 20  # ✅ R$ 20/hora (mais realista)
     
     return {
-        "hours_saved": round(hours, 1),
+        "hours_saved": round(hours_saved, 1),
         "cost_saved_brl": round(cost_saved, 2),
         "leads_handled": total_leads,
+    }
+
+
+def get_date_ranges():
+    """Retorna ranges de datas para filtros."""
+    now = datetime.now(timezone.utc)
+    
+    # Início do dia (00:00)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Início da semana (segunda-feira)
+    week_start = today_start - timedelta(days=today_start.weekday())
+    
+    # Início do mês
+    month_start = today_start.replace(day=1)
+    
+    # Semana anterior (para calcular growth)
+    last_week_start = week_start - timedelta(days=7)
+    
+    # Mês anterior (para calcular growth)
+    last_month_start = (month_start - timedelta(days=1)).replace(day=1)
+    
+    return {
+        "now": now,
+        "today_start": today_start,
+        "week_start": week_start,
+        "month_start": month_start,
+        "last_week_start": last_week_start,
+        "last_month_start": last_month_start,
     }
 
 
@@ -57,27 +99,29 @@ def calculate_time_saved(total_leads: int) -> dict:
 # ENDPOINT PRINCIPAL
 # ============================================
 
-@router.get("")
+@router.get("/metrics")  # ✅ /api/dashboard/metrics
 async def get_dashboard_metrics(
-    tenant_slug: str,
+    current_user: User = Depends(get_current_user),  # ✅ AUTENTICAÇÃO!
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Retorna métricas consolidadas do dashboard.
+    📊 Retorna métricas consolidadas do dashboard.
     
-    MELHORADO COM:
-    - Economia de tempo/dinheiro
-    - Leads fora do horário
-    - Crescimento positivo
-    - Leads quentes aguardando
-    - Velocidade de resposta
-    - Taxa de engajamento
+    ✅ MELHORADO COM:
+    - Autenticação via token
+    - Cálculos corretos
+    - Todos os campos que o frontend espera
     """
     
     try:
-        # Busca tenant
+        tenant_id = current_user.tenant_id  # ✅ Pega do token!
+        
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="Usuário sem tenant")
+        
+        # ✅ Busca tenant para validar
         result = await db.execute(
-            select(Tenant).where(Tenant.slug == tenant_slug)
+            select(Tenant).where(Tenant.id == tenant_id)
         )
         tenant = result.scalar_one_or_none()
         
@@ -85,54 +129,50 @@ async def get_dashboard_metrics(
             raise HTTPException(status_code=404, detail="Tenant não encontrado")
         
         # Períodos de tempo
-        now = datetime.utcnow()
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        week_start = today_start - timedelta(days=now.weekday())
-        month_start = today_start.replace(day=1)
-        last_week_start = week_start - timedelta(days=7)
+        dates = get_date_ranges()
         
         # =============================================
         # TOTAIS BÁSICOS
         # =============================================
         
         total_result = await db.execute(
-            select(func.count(Lead.id)).where(Lead.tenant_id == tenant.id)
+            select(func.count(Lead.id)).where(Lead.tenant_id == tenant_id)
         )
         total_leads = total_result.scalar() or 0
         
         today_result = await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
-            .where(Lead.created_at >= today_start)
+            .where(Lead.tenant_id == tenant_id)
+            .where(Lead.created_at >= dates["today_start"])
         )
         leads_today = today_result.scalar() or 0
         
         week_result = await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
-            .where(Lead.created_at >= week_start)
+            .where(Lead.tenant_id == tenant_id)
+            .where(Lead.created_at >= dates["week_start"])
         )
         leads_this_week = week_result.scalar() or 0
         
         month_result = await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
-            .where(Lead.created_at >= month_start)
+            .where(Lead.tenant_id == tenant_id)
+            .where(Lead.created_at >= dates["month_start"])
         )
         leads_this_month = month_result.scalar() or 0
         
         # =============================================
-        # ECONOMIA DE TEMPO/DINHEIRO (NOVO!)
+        # ECONOMIA DE TEMPO/DINHEIRO (✅ CORRIGIDO!)
         # =============================================
         time_saved = calculate_time_saved(leads_this_month)
         
         # =============================================
-        # LEADS FORA DO HORÁRIO (NOVO!)
+        # LEADS FORA DO HORÁRIO (✅ OTIMIZADO!)
         # =============================================
         all_leads_month = await db.execute(
             select(Lead.created_at)
-            .where(Lead.tenant_id == tenant.id)
-            .where(Lead.created_at >= month_start)
+            .where(Lead.tenant_id == tenant_id)
+            .where(Lead.created_at >= dates["month_start"])
         )
         
         after_hours_count = 0
@@ -141,29 +181,29 @@ async def get_dashboard_metrics(
                 after_hours_count += 1
         
         # =============================================
-        # CRESCIMENTO VS SEMANA ANTERIOR (NOVO!)
+        # CRESCIMENTO VS SEMANA/MÊS ANTERIOR (✅ CORRIGIDO!)
         # =============================================
         last_week_result = await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
-            .where(Lead.created_at >= last_week_start)
-            .where(Lead.created_at < week_start)
+            .where(Lead.tenant_id == tenant_id)
+            .where(Lead.created_at >= dates["last_week_start"])
+            .where(Lead.created_at < dates["week_start"])
         )
         leads_last_week = last_week_result.scalar() or 0
         
+        # ✅ PODE SER NEGATIVO AGORA!
         if leads_last_week > 0:
             growth_percentage = ((leads_this_week - leads_last_week) / leads_last_week) * 100
         else:
             growth_percentage = 100 if leads_this_week > 0 else 0
-        
-        growth_percentage = max(0, growth_percentage)  # Sempre positivo
         
         # =============================================
         # POR QUALIFICAÇÃO
         # =============================================
         qual_result = await db.execute(
             select(Lead.qualification, func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == tenant_id)
+            .where(Lead.qualification.isnot(None))
             .group_by(Lead.qualification)
         )
         
@@ -186,31 +226,28 @@ async def get_dashboard_metrics(
         # =============================================
         status_result = await db.execute(
             select(Lead.status, func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == tenant_id)
             .group_by(Lead.status)
         )
         by_status = {row[0]: row[1] for row in status_result.all()}
         
         # =============================================
-        # LEADS QUENTES AGUARDANDO (NOVO!)
+        # LEADS QUENTES AGUARDANDO (✅ CORRIGIDO!)
         # =============================================
         hot_waiting_result = await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == tenant_id)
             .where(or_(
                 Lead.qualification == "quente",
                 Lead.qualification == "hot"
             ))
-            .where(or_(
-                Lead.status == "new",
-                Lead.status == "in_progress"
-            ))
-            .where(Lead.assigned_to.is_(None))
+            .where(Lead.status != LeadStatus.HANDED_OFF.value)
+            .where(Lead.assigned_seller_id.is_(None))  # ✅ CORRIGIDO!
         )
         hot_leads_waiting = hot_waiting_result.scalar() or 0
         
         # =============================================
-        # VELOCIDADE DE RESPOSTA (NOVO!)
+        # VELOCIDADE DE RESPOSTA
         # =============================================
         avg_response_result = await db.execute(
             select(func.avg(
@@ -218,24 +255,27 @@ async def get_dashboard_metrics(
                 func.extract('epoch', Lead.created_at)
             ))
             .join(Lead, Message.lead_id == Lead.id)
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == tenant_id)
             .where(Message.role == "assistant")
-            .where(Lead.created_at >= month_start)
+            .where(Lead.created_at >= dates["month_start"])
         )
         avg_seconds = avg_response_result.scalar()
         avg_response_time_minutes = round((avg_seconds / 60), 1) if avg_seconds else 2.0
         
         # =============================================
-        # TAXA DE ENGAJAMENTO (NOVO!)
+        # TAXA DE ENGAJAMENTO (✅ CORRIGIDO!)
         # =============================================
+        # Leads com 2+ mensagens (conversa real)
         engaged_result = await db.execute(
-            select(func.count(func.distinct(Message.lead_id)))
-            .join(Lead, Message.lead_id == Lead.id)
-            .where(Lead.tenant_id == tenant.id)
+            select(Lead.id)
+            .join(Message, Message.lead_id == Lead.id)
+            .where(Lead.tenant_id == tenant_id)
             .where(Message.role == "user")
-            .where(Lead.created_at >= month_start)
+            .where(Lead.created_at >= dates["month_start"])
+            .group_by(Lead.id)
+            .having(func.count(Message.id) >= 2)  # ✅ CORRIGIDO!
         )
-        engaged_leads = engaged_result.scalar() or 0
+        engaged_leads = len(engaged_result.all())
         engagement_rate = (engaged_leads / leads_this_month * 100) if leads_this_month > 0 else 0
         
         # =============================================
@@ -243,43 +283,43 @@ async def get_dashboard_metrics(
         # =============================================
         channel_result = await db.execute(
             select(Lead.channel_id, func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == tenant_id)
             .group_by(Lead.channel_id)
         )
         by_channel = {str(row[0] or "direct"): row[1] for row in channel_result.all()}
         
         source_result = await db.execute(
             select(Lead.source, func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == tenant_id)
             .group_by(Lead.source)
         )
-        by_source = {row[0]: row[1] for row in source_result.all()}
+        by_source = {row[0] or "organico": row[1] for row in source_result.all()}
         
         # =============================================
         # TAXA DE CONVERSÃO
         # =============================================
-        qualified_count = (
-            by_qualification.get("quente", 0) +
-            by_status.get("handed_off", 0) +
-            by_status.get("closed", 0)
+        converted_result = await db.execute(
+            select(func.count(Lead.id))
+            .where(Lead.tenant_id == tenant_id)
+            .where(Lead.status == LeadStatus.HANDED_OFF.value)
         )
-        conversion_rate = (qualified_count / total_leads * 100) if total_leads > 0 else 0
+        converted_leads = converted_result.scalar() or 0
+        
+        conversion_rate = (converted_leads / total_leads * 100) if total_leads > 0 else 0
         
         # =============================================
         # TEMPO MÉDIO DE QUALIFICAÇÃO
         # =============================================
         avg_time_result = await db.execute(
             select(func.avg(
-                func.extract('epoch', LeadEvent.created_at) - 
+                func.extract('epoch', Lead.updated_at) - 
                 func.extract('epoch', Lead.created_at)
             ))
-            .join(Lead, LeadEvent.lead_id == Lead.id)
-            .where(Lead.tenant_id == tenant.id)
-            .where(LeadEvent.event_type == "status_change")
-            .where(LeadEvent.new_value == "qualified")
+            .where(Lead.tenant_id == tenant_id)
+            .where(Lead.qualification.isnot(None))
         )
         avg_qual_seconds = avg_time_result.scalar()
-        avg_qualification_time_hours = round((avg_qual_seconds / 3600), 2) if avg_qual_seconds else 0
+        avg_qualification_time_hours = round((avg_qual_seconds / 3600), 2) if avg_qual_seconds else 1.0
         
         # =============================================
         # RESPOSTA FINAL
@@ -301,7 +341,7 @@ async def get_dashboard_metrics(
             "conversion_rate": round(conversion_rate, 1),
             "avg_qualification_time_hours": avg_qualification_time_hours,
             
-            # NOVAS MÉTRICAS DE VALOR
+            # Métricas de Valor
             "avg_response_time_minutes": avg_response_time_minutes,
             "engagement_rate": round(engagement_rate, 1),
             "time_saved": time_saved,
@@ -315,7 +355,7 @@ async def get_dashboard_metrics(
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
-        logger.error(f"Erro ao buscar métricas: {e}", exc_info=True)
+        logger.error(f"❌ Erro ao buscar métricas: {e}", exc_info=True)
         
         # Fallback - nunca deixa dashboard quebrar
         return {
@@ -339,12 +379,12 @@ async def get_dashboard_metrics(
 
 
 # ============================================
-# LEADS POR DIA (Mantido)
+# LEADS POR DIA (Mantido - Útil para gráficos)
 # ============================================
 
 @router.get("/leads-by-day", response_model=list[LeadsByPeriod])
 async def get_leads_by_day(
-    tenant_slug: str,
+    current_user: User = Depends(get_current_user),  # ✅ CORRIGIDO!
     days: int = Query(30, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
 ):
@@ -352,26 +392,22 @@ async def get_leads_by_day(
     Retorna leads agrupados por dia.
     Útil para gráficos de evolução.
     """
+    tenant_id = current_user.tenant_id
     
-    result = await db.execute(
-        select(Tenant).where(Tenant.slug == tenant_slug)
-    )
-    tenant = result.scalar_one_or_none()
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="Usuário sem tenant")
     
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant não encontrado")
-    
-    start_date = datetime.utcnow() - timedelta(days=days)
+    start_date = datetime.now(timezone.utc) - timedelta(days=days)
     
     result = await db.execute(
         select(
             func.date(Lead.created_at).label("day"),
             func.count(Lead.id).label("count"),
-            func.sum(case((Lead.qualification == "hot", 1), else_=0)).label("hot"),
-            func.sum(case((Lead.qualification == "warm", 1), else_=0)).label("warm"),
-            func.sum(case((Lead.qualification == "cold", 1), else_=0)).label("cold"),
+            func.sum(case((Lead.qualification == "quente", 1), else_=0)).label("hot"),
+            func.sum(case((Lead.qualification == "morno", 1), else_=0)).label("warm"),
+            func.sum(case((Lead.qualification == "frio", 1), else_=0)).label("cold"),
         )
-        .where(Lead.tenant_id == tenant.id)
+        .where(Lead.tenant_id == tenant_id)
         .where(Lead.created_at >= start_date)
         .group_by(func.date(Lead.created_at))
         .order_by(func.date(Lead.created_at))
@@ -390,30 +426,26 @@ async def get_leads_by_day(
 
 
 # ============================================
-# TOP CAMPANHAS (Mantido)
+# TOP CAMPANHAS (Mantido - Útil para análise)
 # ============================================
 
 @router.get("/top-campaigns")
 async def get_top_campaigns(
-    tenant_slug: str,
+    current_user: User = Depends(get_current_user),  # ✅ CORRIGIDO!
     limit: int = Query(10, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Retorna campanhas com mais leads.
     """
+    tenant_id = current_user.tenant_id
     
-    result = await db.execute(
-        select(Tenant).where(Tenant.slug == tenant_slug)
-    )
-    tenant = result.scalar_one_or_none()
-    
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant não encontrado")
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="Usuário sem tenant")
     
     result = await db.execute(
         select(Lead.campaign, func.count(Lead.id).label("count"))
-        .where(Lead.tenant_id == tenant.id)
+        .where(Lead.tenant_id == tenant_id)
         .where(Lead.campaign.isnot(None))
         .group_by(Lead.campaign)
         .order_by(func.count(Lead.id).desc())
