@@ -1,6 +1,7 @@
 import { getToken, getUser } from './auth';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+// ✅ CORREÇÃO 1: Remover /v1 da base URL
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
 function getTenantSlug(): string {
   if (typeof window === 'undefined') return 'imob-teste';
@@ -42,15 +43,14 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   return response.json();
 }
 
-// === MÉTRICAS ===
+// ✅ CORREÇÃO 2 e 3: Endpoint correto + sem tenant_slug (usa token)
 export async function getMetrics() {
-  const slug = getTenantSlug();
-  return request(`/metrics?tenant_slug=${slug}`);
+  return request('/dashboard/metrics');  // ✅ Token já tem tenant_id!
 }
 
+// ✅ CORREÇÃO 4: Atualizar também leads-by-day
 export async function getLeadsByDay(days: number = 7) {
-  const tenantSlug = getTenantSlug();
-  return request<any[]>(`/metrics/leads-by-day?tenant_slug=${tenantSlug}&days=${days}`);
+  return request<any[]>(`/dashboard/leads-by-day?days=${days}`);  // ✅ Sem tenant_slug
 }
 
 // === LEADS ===
@@ -84,7 +84,6 @@ export async function getLeadMessages(id: number) {
   const slug = getTenantSlug();
   return request(`/leads/${id}/messages?tenant_slug=${slug}`);
 }
-
 
 export async function updateLead(id: number, data: Record<string, unknown>) {
   const slug = getTenantSlug();
@@ -283,4 +282,3 @@ export async function detectEmpreendimento(message: string) {
     method: 'POST',
   });
 }
-
