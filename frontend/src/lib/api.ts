@@ -282,7 +282,6 @@ export async function detectEmpreendimento(message: string) {
     method: 'POST',
   });
 }
-
 // ===============================================
 // 🆕 NOVAS FUNÇÕES - MELHORIAS LEAD DETAIL V2.0
 // ===============================================
@@ -293,7 +292,7 @@ export async function getLeadEvents(leadId: number) {
   return request(`/leads/${leadId}/events?tenant_slug=${slug}`);
 }
 
-// Atribui vendedor ao lead
+// Atribui vendedor ao lead (COM NOTIFICAÇÃO AUTOMÁTICA!)
 export async function assignSellerToLead(leadId: number, sellerId: number, reason?: string) {
   return request(`/leads/${leadId}/assign-seller`, {
     method: 'POST',
@@ -318,4 +317,10 @@ export async function updateLeadCustomData(leadId: number, customData: Record<st
     method: 'PATCH',
     body: JSON.stringify({ custom_data: customData }),
   });
+}
+
+// Busca lista de vendedores
+export async function getSellers() {
+  const slug = getTenantSlug();
+  return request(`/sellers?tenant_slug=${slug}`);
 }
