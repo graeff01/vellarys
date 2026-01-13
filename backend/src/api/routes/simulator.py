@@ -93,7 +93,7 @@ class SimulatorChatResponse(BaseModel):
     # Metadados do prompt (para debug)
     prompt_length: int = 0
     has_identity: bool = False
-    has_empreendimento: bool = False
+    has_product: bool = False
     has_imovel_portal: bool = False
     hot_lead_detected: bool = False
     hot_lead_signal: Optional[str] = None
@@ -642,9 +642,9 @@ async def compare_prompts(
         history=[],
     )
     
-    emp_context = None
-    if empreendimento:
-        emp_context = empreendimento_to_context(empreendimento)
+    product_context = None
+    if product:
+        product_context = product_to_context(product)
     
     # Constrói prompt
     prompt_result = build_complete_prompt(
@@ -660,7 +660,7 @@ async def compare_prompts(
         "test_message": test_message,
         "prompt_length": prompt_result.prompt_length,
         "has_identity": prompt_result.has_identity,
-        "has_empreendimento": prompt_result.has_empreendimento,
+        "has_product": prompt_result.has_product,
         "has_imovel_portal": prompt_result.has_imovel_portal,
         "has_lead_context": prompt_result.has_lead_context,
         "warnings": prompt_result.warnings,

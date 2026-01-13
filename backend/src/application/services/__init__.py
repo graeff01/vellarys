@@ -6,7 +6,7 @@ from .ai_context_builder import (
     # Data Classes
     AIContext,
     LeadContext,
-    EmpreendimentoContext,
+    ProductContext,
     ImovelPortalContext,
     PromptBuildResult,
     
@@ -16,13 +16,13 @@ from .ai_context_builder import (
     build_complete_prompt,
     
     # Funções de construção de contexto
-    build_empreendimento_context,
+    build_product_context,
     build_imovel_portal_context,
     build_lead_info_context,
     build_security_instructions,
     
     # Funções de conversão
-    empreendimento_to_context,
+    product_to_context,
     lead_to_context,
     imovel_dict_to_context,
     
@@ -34,17 +34,17 @@ from .ai_context_builder import (
 __all__ = [
     "AIContext",
     "LeadContext", 
-    "EmpreendimentoContext",
+    "ProductContext",
     "ImovelPortalContext",
     "PromptBuildResult",
     "migrate_settings_if_needed",
     "extract_ai_context",
     "build_complete_prompt",
-    "build_empreendimento_context",
+    "build_product_context",
     "build_imovel_portal_context",
     "build_lead_info_context",
     "build_security_instructions",
-    "empreendimento_to_context",
+    "product_to_context",
     "lead_to_context",
     "imovel_dict_to_context",
     "detect_hot_lead_signals",

@@ -95,7 +95,7 @@ class PromptBuildResult:
     system_prompt: str
     prompt_length: int
     has_identity: bool
-    has_empreendimento: bool
+    has_product: bool
     has_imovel_portal: bool
     has_lead_context: bool
     warnings: List[str] = field(default_factory=list)
@@ -329,7 +329,7 @@ Fora do escopo: "{out_of_scope_message}"
 def build_complete_prompt(
     ai_context: AIContext,
     lead_context: Optional[LeadContext] = None,
-    empreendimento: Optional[EmpreendimentoContext] = None,
+    product: Optional[ProductContext] = None,
     imovel_portal: Optional[ImovelPortalContext] = None,
     include_security: bool = True,
     is_simulation: bool = False,
@@ -447,7 +447,7 @@ def build_complete_prompt(
     
     # Instruções de segurança (compactas)
     if include_security and ai_context.scope_description:
-        if not empreendimento and not imovel_portal:
+        if not product and not imovel_portal:
             security = build_security_instructions(
                 company_name=ai_context.company_name,
                 scope_description=ai_context.scope_description,
@@ -472,7 +472,7 @@ def build_complete_prompt(
     logger.info(f"📝 Prompt FINAL: {len(final_prompt)} chars | "
                 f"Base: {original_base_length}→{len(base_prompt)} | "
                 f"Dinâmico: {dynamic_length} | "
-                f"Imóvel: {bool(imovel_portal)} | Emp: {bool(empreendimento)} | "
+                f"Imóvel: {bool(imovel_portal)} | Prod: {bool(product)} | "
                 f"Lead: {bool(lead_context)} | Sim: {is_simulation}")
     
     return PromptBuildResult(
