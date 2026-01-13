@@ -39,11 +39,6 @@ router = APIRouter(prefix="/auth", tags=["Autenticação"])
 # SCHEMAS
 # ============================================
 
-class SuperAdminCreate(BaseModel):
-    name: str
-    email: str
-    password: str
-    secret_key: str
 
 
 class ChangePasswordRequest(BaseModel):
@@ -322,93 +317,7 @@ async def register(
     }
 
 
-@router.post("/setup-superadmin")
-async def setup_superadmin(
-    data: SuperAdminCreate,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Cria o primeiro superadmin do sistema.
-    
-    ⚠️ Esta rota só funciona se:
-    1. Não existir nenhum superadmin ainda
-    2. A secret_key for igual à SECRET_KEY do sistema
-    
-    Use apenas na configuração inicial!
-    """
-    
-    # Verifica secret key
-    if data.secret_key != settings.secret_key:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Chave secreta inválida",
-        )
-    
-    # Verifica se já existe superadmin
-    result = await db.execute(
-        select(User).where(User.role == UserRole.SUPERADMIN.value)
-    )
-    if result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Já existe um superadmin no sistema",
-        )
-    
-    # Verifica se email já existe
-    result = await db.execute(
-        select(User).where(User.email == data.email)
-    )
-    if result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email já cadastrado",
-        )
-    
-    # Cria tenant especial para Velaris (admin)
-    result = await db.execute(
-        select(Tenant).where(Tenant.slug == "velaris-admin")
-    )
-    tenant = result.scalar_one_or_none()
-    
-    if not tenant:
-        tenant = Tenant(
-            name="Velaris Admin",
-            slug="velaris-admin",
-            plan="enterprise",
-            settings={"is_admin_tenant": True},
-            active=True,
-        )
-        db.add(tenant)
-        await db.flush()
-    
-    # Cria superadmin
-    user = User(
-        tenant_id=tenant.id,
-        name=data.name,
-        email=data.email,
-        password_hash=hash_password(data.password),
-        role=UserRole.SUPERADMIN.value,
-        active=True,
-    )
-    db.add(user)
-    await db.commit()
-    
-    # Gera token
-    access_token = create_access_token(
-        data={"sub": str(user.id), "tenant_id": str(tenant.id)}
-    )
-    
-    return {
-        "success": True,
-        "message": "Superadmin criado com sucesso!",
-        "access_token": access_token,
-        "user": {
-            "id": user.id,
-            "name": user.name,
-            "email": user.email,
-            "role": user.role,
-        },
-    }
+
 
 
 @router.post("/change-password")

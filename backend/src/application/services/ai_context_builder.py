@@ -63,37 +63,15 @@ class LeadContext:
 
 
 @dataclass
-class EmpreendimentoContext:
-    """Contexto de empreendimento imobiliário."""
+class ProductContext:
+    """Contexto de produto ou serviço."""
     id: int
-    nome: str
-    descricao: Optional[str] = None
+    name: str
+    description: Optional[str] = None
     status: Optional[str] = None
-    endereco: Optional[str] = None
-    bairro: Optional[str] = None
-    cidade: Optional[str] = None
-    estado: Optional[str] = None
-    descricao_localizacao: Optional[str] = None
-    tipologias: List[str] = field(default_factory=list)
-    metragem_minima: Optional[float] = None
-    metragem_maxima: Optional[float] = None
-    vagas_minima: Optional[int] = None
-    vagas_maxima: Optional[int] = None
-    torres: Optional[int] = None
-    andares: Optional[int] = None
-    total_unidades: Optional[int] = None
-    previsao_entrega: Optional[str] = None
-    preco_minimo: Optional[float] = None
-    preco_maximo: Optional[float] = None
-    aceita_financiamento: bool = False
-    aceita_fgts: bool = False
-    aceita_permuta: bool = False
-    aceita_consorcio: bool = False
-    condicoes_especiais: Optional[str] = None
-    itens_lazer: List[str] = field(default_factory=list)
-    diferenciais: List[str] = field(default_factory=list)
-    instrucoes_ia: Optional[str] = None
-    perguntas_qualificacao: List[str] = field(default_factory=list)
+    attributes: Dict[str, Any] = field(default_factory=dict)
+    ai_instructions: Optional[str] = None
+    qualification_questions: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -244,77 +222,38 @@ def extract_ai_context(tenant_name: str, settings: dict) -> AIContext:
 # FUNÇÕES DE CONSTRUÇÃO DE CONTEXTO
 # =============================================================================
 
-def build_empreendimento_context(emp: EmpreendimentoContext) -> str:
+def build_product_context(prod: ProductContext) -> str:
     """
-    Constrói o contexto do empreendimento para adicionar ao prompt da IA.
-    VERSÃO COMPACTA para economizar tokens.
+    Constrói o contexto do produto para adicionar ao prompt da IA.
     """
     sections = []
     
-    sections.append(f"🏢 EMPREENDIMENTO: {emp.nome.upper()}")
+    sections.append(f"📦 PRODUTO/SERVIÇO: {prod.name.upper()}")
     
-    # Status
-    status_map = {
-        "lancamento": "🚀 Lançamento",
-        "em_obras": "🏗️ Em Obras",
-        "pronto_para_morar": "🏠 Pronto para Morar",
-    }
-    if emp.status:
-        sections.append(f"Status: {status_map.get(emp.status, emp.status)}")
+    if prod.status:
+        sections.append(f"Status: {prod.status}")
     
-    # Descrição (resumida)
-    if emp.descricao:
-        desc = emp.descricao[:200] + "..." if len(emp.descricao) > 200 else emp.descricao
+    # Descrição
+    if prod.description:
+        desc = prod.description[:300] + "..." if len(prod.description) > 300 else prod.description
         sections.append(f"Sobre: {desc}")
     
-    # Localização compacta
-    loc_parts = []
-    if emp.bairro:
-        loc_parts.append(emp.bairro)
-    if emp.cidade:
-        loc_parts.append(emp.cidade)
-    if loc_parts:
-        sections.append(f"Local: {', '.join(loc_parts)}")
-    
-    # Tipologias
-    if emp.tipologias:
-        sections.append(f"Tipologias: {', '.join(emp.tipologias)}")
-    
-    # Metragem
-    if emp.metragem_minima or emp.metragem_maxima:
-        if emp.metragem_minima and emp.metragem_maxima:
-            sections.append(f"Metragem: {emp.metragem_minima}m² a {emp.metragem_maxima}m²")
-        elif emp.metragem_minima:
-            sections.append(f"Metragem: a partir de {emp.metragem_minima}m²")
-    
-    # Preços
-    if emp.preco_minimo or emp.preco_maximo:
-        if emp.preco_minimo and emp.preco_maximo:
-            preco = f"R$ {emp.preco_minimo:,.0f} a R$ {emp.preco_maximo:,.0f}".replace(",", ".")
-        elif emp.preco_minimo:
-            preco = f"A partir de R$ {emp.preco_minimo:,.0f}".replace(",", ".")
-        else:
-            preco = f"Até R$ {emp.preco_maximo:,.0f}".replace(",", ".")
-        sections.append(f"Preço: {preco}")
-    
-    # Condições de pagamento
-    condicoes = []
-    if emp.aceita_financiamento:
-        condicoes.append("Financiamento")
-    if emp.aceita_fgts:
-        condicoes.append("FGTS")
-    if emp.aceita_permuta:
-        condicoes.append("Permuta")
-    if condicoes:
-        sections.append(f"Aceita: {', '.join(condicoes)}")
+    # Atributos dinâmicos
+    if prod.attributes:
+        sections.append("Características:")
+        for key, value in prod.attributes.items():
+            if value:
+                # Formata a chave (ex: "faixa_preco" -> "Faixa Preco")
+                label = key.replace("_", " ").title()
+                sections.append(f"- {label}: {value}")
     
     # Instruções para IA
-    if emp.instrucoes_ia:
-        sections.append(f"INSTRUÇÕES: {emp.instrucoes_ia}")
+    if prod.ai_instructions:
+        sections.append(f"INSTRUÇÕES: {prod.ai_instructions}")
     
     # Perguntas de qualificação
-    if emp.perguntas_qualificacao:
-        sections.append(f"PERGUNTE: {' | '.join(emp.perguntas_qualificacao[:3])}")
+    if prod.qualification_questions:
+        sections.append(f"PERGUNTE: {' | '.join(prod.qualification_questions[:3])}")
     
     return "\n".join(sections)
 
@@ -403,7 +342,7 @@ def build_complete_prompt(
     Ordem de prioridade (do mais importante para menos):
     1. Contexto do imóvel de portal (CRÍTICO - cliente perguntou sobre isso!)
     2. Contexto do lead (evita perguntas burras)
-    3. Contexto do empreendimento
+    3. Contexto do produto/serviço
     4. Prompt base do nicho (TRUNCÁVEL se necessário)
     5. Instruções de segurança
     """
@@ -422,12 +361,12 @@ def build_complete_prompt(
         dynamic_parts.append(imovel_context)
         logger.info(f"✅ Contexto imóvel portal adicionado: {imovel_portal.codigo}")
     
-    # Contexto do empreendimento
-    if empreendimento:
-        emp_context = build_empreendimento_context(empreendimento)
-        dynamic_parts.append(emp_context)
-        dynamic_parts.append(f"⚠️ Cliente interessado em {empreendimento.nome}. Use as informações acima!")
-        logger.info(f"✅ Contexto empreendimento adicionado: {empreendimento.nome}")
+    # Contexto do produto
+    if product:
+        prod_context = build_product_context(product)
+        dynamic_parts.append(prod_context)
+        dynamic_parts.append(f"⚠️ Cliente interessado em {product.name}. Use as informações acima!")
+        logger.info(f"✅ Contexto produto adicionado: {product.name}")
     
     # Contexto do lead
     if lead_context:
@@ -540,7 +479,7 @@ def build_complete_prompt(
         system_prompt=final_prompt,
         prompt_length=len(final_prompt),
         has_identity=bool(ai_context.identity),
-        has_empreendimento=bool(empreendimento),
+        has_product=bool(product),
         has_imovel_portal=bool(imovel_portal),
         has_lead_context=bool(lead_context),
         warnings=warnings,
@@ -625,38 +564,16 @@ def analyze_qualification_from_message(
 # HELPERS PARA CONVERSÃO DE ENTIDADES
 # =============================================================================
 
-def empreendimento_to_context(emp) -> EmpreendimentoContext:
-    """Converte uma entidade Empreendimento do banco para EmpreendimentoContext."""
-    return EmpreendimentoContext(
-        id=emp.id,
-        nome=emp.nome,
-        descricao=emp.descricao,
-        status=emp.status,
-        endereco=emp.endereco,
-        bairro=emp.bairro,
-        cidade=emp.cidade,
-        estado=emp.estado,
-        descricao_localizacao=emp.descricao_localizacao,
-        tipologias=emp.tipologias or [],
-        metragem_minima=emp.metragem_minima,
-        metragem_maxima=emp.metragem_maxima,
-        vagas_minima=emp.vagas_minima,
-        vagas_maxima=emp.vagas_maxima,
-        torres=emp.torres,
-        andares=emp.andares,
-        total_unidades=emp.total_unidades,
-        previsao_entrega=emp.previsao_entrega,
-        preco_minimo=emp.preco_minimo,
-        preco_maximo=emp.preco_maximo,
-        aceita_financiamento=emp.aceita_financiamento or False,
-        aceita_fgts=emp.aceita_fgts or False,
-        aceita_permuta=emp.aceita_permuta or False,
-        aceita_consorcio=emp.aceita_consorcio or False,
-        condicoes_especiais=emp.condicoes_especiais,
-        itens_lazer=emp.itens_lazer or [],
-        diferenciais=emp.diferenciais or [],
-        instrucoes_ia=emp.instrucoes_ia,
-        perguntas_qualificacao=emp.perguntas_qualificacao or [],
+def product_to_context(prod) -> ProductContext:
+    """Converte uma entidade Product do banco para ProductContext."""
+    return ProductContext(
+        id=prod.id,
+        name=prod.name,
+        description=prod.description,
+        status=prod.status,
+        attributes=prod.attributes or {},
+        ai_instructions=prod.ai_instructions,
+        qualification_questions=prod.qualification_questions or [],
     )
 
 

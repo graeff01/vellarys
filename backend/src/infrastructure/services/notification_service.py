@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 NOTIFICATION_TYPES = {
     "lead_new": "Novo Lead",
     "lead_hot": "Lead Quente",
-    "lead_empreendimento": "Lead Empreendimento",
+    "lead_product": "Novo Produto/Serviço",
     "lead_out_of_hours": "Lead Fora do Horário",
     "handoff_requested": "Handoff Solicitado",
     "handoff_completed": "Handoff Concluído",
@@ -197,7 +197,8 @@ def build_lead_summary_text(
         custom_lines = []
 
         field_mappings = {
-            "empreendimento_nome": ("🏢", "Empreendimento"),
+            "product_name": ("📦", "Produto/Serviço"),
+            "product_name": ("📦", "Produto/Serviço"),
             "interesse": ("🏠", "Interesse"),
             "tipologia": ("🛏️", "Tipologia"),
             "budget_range": ("💰", "Orçamento"),
@@ -245,7 +246,7 @@ async def build_whatsapp_notification_message(
     lead: Lead,
     notification_type: str,
     tenant: Tenant,
-    empreendimento: Any = None,
+    product: Any = None,
     extra_context: Dict[str, Any] = None,
 ) -> str:
     """Constrói mensagem de notificação WhatsApp."""
@@ -254,7 +255,7 @@ async def build_whatsapp_notification_message(
     headers = {
         "lead_hot": "🔥 *Lead Quente!*",
         "lead_new": "🔥 *Novo Lead!*",
-        "lead_empreendimento": "🏢 *Lead de Empreendimento!*",
+        "lead_product": "📦 *Novo Interesse em Produto!*",
         "lead_out_of_hours": "🌙 *Lead Fora do Horário!*",
         "handoff_requested": "🙋 *Lead Pediu Atendente!*",
         "lead_assigned": "👋 *Você recebeu um novo lead!*",
@@ -271,11 +272,14 @@ async def build_whatsapp_notification_message(
 
     lines.append(build_lead_summary_text(lead, include_conversation=False))
 
-    if empreendimento:
+    if product:
         lines.append("")
-        lines.append(f"🏢 *Empreendimento:* {empreendimento.nome}")
-        if hasattr(empreendimento, 'bairro') and empreendimento.bairro:
-            lines.append(f"📍 *Bairro:* {empreendimento.bairro}")
+        lines.append(f"📦 *Produto/Serviço:* {product.name}")
+        if hasattr(product, 'attributes') and product.attributes:
+             # Se for imobiliário, pode ter bairro nos atributos
+             bairro = product.attributes.get('bairro')
+             if bairro:
+                 lines.append(f"📍 *Bairro:* {bairro}")
 
     lines.append("")
     lines.append("💬 *O QUE O CLIENTE DISSE:*")
@@ -496,14 +500,14 @@ async def create_panel_notification(
     lead: Lead,
     title: str = None,
     message: str = None,
-    empreendimento: Any = None,
+    product: Any = None,
 ) -> Notification:
     """Cria notificação no painel (banco de dados)."""
 
     default_titles = {
         "lead_hot": "🔥 Lead Quente!",
         "lead_new": "🔥 Novo Lead",
-        "lead_empreendimento": f"🏢 Lead do {empreendimento.nome if empreendimento else 'Empreendimento'}",
+        "lead_product": f"📦 Interesse no {product.name if product else 'Produto'}",
         "lead_out_of_hours": "🌙 Lead Fora do Horário",
         "handoff_requested": "🙋 Lead Pediu Atendente",
         "handoff_completed": "✅ Lead Transferido",
@@ -513,7 +517,7 @@ async def create_panel_notification(
     default_messages = {
         "lead_hot": f"{lead.name or 'Lead'} está muito interessado!",
         "lead_new": f"Novo lead: {lead.name or lead.phone or 'Não identificado'}",
-        "lead_empreendimento": f"Lead interessado no {empreendimento.nome if empreendimento else 'empreendimento'}",
+        "lead_product": f"Lead interessado no {product.name if product else 'produto'}",
         "lead_out_of_hours": f"{lead.name or 'Lead'} entrou em contato fora do horário",
         "handoff_requested": f"{lead.name or 'Lead'} quer falar com atendente",
         "handoff_completed": f"{lead.name or 'Lead'} foi transferido",
@@ -541,15 +545,15 @@ async def notify_gestor_whatsapp(
     tenant: Tenant,
     lead: Lead,
     notification_type: str,
-    empreendimento: Any = None,
+    product: Any = None,
     extra_context: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
     """Envia notificação WhatsApp para o gestor via Z-API."""
 
     manager_whatsapp = None
 
-    if empreendimento and hasattr(empreendimento, 'whatsapp_notificacao'):
-        manager_whatsapp = empreendimento.whatsapp_notificacao
+    if product and hasattr(product, 'whatsapp_notification'):
+        manager_whatsapp = product.whatsapp_notification
 
     if not manager_whatsapp:
         settings = tenant.settings or {}
@@ -565,7 +569,7 @@ async def notify_gestor_whatsapp(
         lead=lead,
         notification_type=notification_type,
         tenant=tenant,
-        empreendimento=empreendimento,
+        product=product,
         extra_context=extra_context,
     )
 
@@ -848,7 +852,7 @@ async def notify_gestor(
     tenant: Tenant,
     lead: Lead,
     notification_type: str,
-    empreendimento: Any = None,
+    product: Any = None,
     extra_context: Dict[str, Any] = None,
 ) -> Dict[str, Any]:
     """
@@ -866,7 +870,7 @@ async def notify_gestor(
             tenant_id=tenant.id,
             notification_type=notification_type,
             lead=lead,
-            empreendimento=empreendimento,
+            product=product,
         )
         results["panel"] = True
 
@@ -876,7 +880,7 @@ async def notify_gestor(
             tenant=tenant,
             lead=lead,
             notification_type=notification_type,
-            empreendimento=empreendimento,
+            product=product,
             extra_context=extra_context,
         )
         results["whatsapp"] = whatsapp_result.get("success", False)
@@ -886,7 +890,7 @@ async def notify_gestor(
             push_titles = {
                 "lead_hot": "🔥 Lead Quente!",
                 "lead_new": "🔔 Novo Lead!",
-                "lead_empreendimento": f"🏢 Lead do {empreendimento.nome if empreendimento else 'Empreendimento'}",
+                "lead_product": f"📦 Lead do {product.name if product else 'Produto'}",
                 "lead_out_of_hours": "🌙 Lead Fora do Horário!",
                 "handoff_requested": "🙋 Lead Pediu Atendente!",
             }
@@ -894,7 +898,7 @@ async def notify_gestor(
             push_bodies = {
                 "lead_hot": f"{lead.name or 'Lead'} está muito interessado!",
                 "lead_new": f"Novo lead: {lead.name or lead.phone or 'Não identificado'}",
-                "lead_empreendimento": f"{lead.name or 'Lead'} interessado no {empreendimento.nome if empreendimento else 'empreendimento'}",
+                "lead_product": f"{lead.name or 'Lead'} interessado no {product.name if product else 'produto'}",
                 "lead_out_of_hours": f"{lead.name or 'Lead'} entrou em contato fora do horário",
                 "handoff_requested": f"{lead.name or 'Lead'} quer falar com atendente",
             }
@@ -1020,7 +1024,7 @@ async def notify_lead_hot(
     db: AsyncSession,
     tenant: Tenant,
     lead: Lead,
-    empreendimento: Any = None,
+    product: Any = None,
 ) -> Dict[str, Any]:
     """Atalho para notificar lead quente."""
     return await notify_gestor(
@@ -1028,23 +1032,23 @@ async def notify_lead_hot(
         tenant=tenant,
         lead=lead,
         notification_type="lead_hot",
-        empreendimento=empreendimento,
+        product=product,
     )
 
 
-async def notify_lead_empreendimento(
+async def notify_lead_product(
     db: AsyncSession,
     tenant: Tenant,
     lead: Lead,
-    empreendimento: Any,
+    product: Any,
 ) -> Dict[str, Any]:
-    """Atalho para notificar lead de empreendimento específico."""
+    """Atalho para notificar lead de produto específico."""
     return await notify_gestor(
         db=db,
         tenant=tenant,
         lead=lead,
-        notification_type="lead_empreendimento",
-        empreendimento=empreendimento,
+        notification_type="lead_product",
+        product=product,
     )
 
 

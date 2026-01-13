@@ -17,7 +17,7 @@ from src.api.routes.messages import router as messages_router
 from src.api.routes.zapi_routes import router as zapi_router
 from src.api.routes import (
     admin_ceo_router,
-    empreendimentos_router,
+    products_router,
     dialog360_webhook_router,
     twilio_webhook_router,
     webhook_router,
@@ -87,11 +87,14 @@ async def create_superadmin():
         print("✅ Superadmin criado com sucesso!")
 
 
+from src.infrastructure.logging_config import setup_logging
+
 # ============================================================
 # 🔁 LIFESPAN
 # ============================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging()
     print("🚀 Iniciando Velaris API...")
 
     await init_db()
@@ -124,7 +127,7 @@ app = FastAPI(
 # ============================================================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permite todas as origens
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -138,7 +141,7 @@ app.add_middleware(
 app.include_router(health_router, prefix="/api") # ← ADICIONE ESTA LINHA (SEM PREFIX!)
 app.include_router(zapi_router, prefix="/api")
 app.include_router(debug_portal_router, prefix="/api/v1/debug", tags=["debug"])
-app.include_router(empreendimentos_router, prefix="/api/v1")
+app.include_router(products_router, prefix="/api/v1")
 app.include_router(dialog360_webhook_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(webhook_router, prefix="/api/v1")

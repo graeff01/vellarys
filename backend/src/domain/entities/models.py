@@ -14,7 +14,7 @@ from sqlalchemy import String, Boolean, ForeignKey, Text, Integer, DateTime, Tab
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.mutable import MutableDict  # ← ADICIONADO!
-from .empreendimento import Empreendimento  
+from .product import Product  
 
 from .base import Base, TimestampMixin
 from .enums import LeadStatus, LeadQualification, LeadSource, UserRole
@@ -68,7 +68,7 @@ class Tenant(Base, TimestampMixin):
     leads: Mapped[list["Lead"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
     tags: Mapped[list["Tag"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
     sellers: Mapped[list["Seller"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
-    empreendimentos: Mapped[list["Empreendimento"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
+    products: Mapped[list["Product"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
 
     # Relacionamentos de assinatura e uso
     subscription: Mapped[Optional["TenantSubscription"]] = relationship(

@@ -15,7 +15,7 @@ from .export import router as export_router
 from .usage import router as usage_router
 from .simulator import router as simulator_router
 from .dialog360_webhook import router as dialog360_webhook_router
-from .empreendimentos import router as empreendimentos_router
+from .products import router as products_router
 from .handoff_routes import router as handoff_router  # ← NOVO
 from src.api.routes.health import router as health_router  # ← ADICIONADO
 
@@ -46,7 +46,7 @@ __all__ = [
     "export_router",
     "usage_router",
     "simulator_router",
-    "empreendimentos_router",
+    "products_router",
     "handoff_router",
     "health_router",  # ← ADICIONE ESTA LINHA
     # Admin

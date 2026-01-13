@@ -34,7 +34,7 @@ from src.infrastructure.services.property_lookup_service import (
 )
 
 from src.domain.entities import (
-    Tenant, Lead, Message, Channel, LeadEvent, Notification, Empreendimento
+    Tenant, Lead, Message, Channel, LeadEvent, Notification, Product
 )
 from src.domain.entities.enums import LeadStatus, EventType
 
@@ -44,7 +44,7 @@ from src.infrastructure.services import (
     mark_lead_activity,
     check_handoff_triggers,
     check_business_hours,
-    notify_lead_empreendimento,
+    notify_lead_product,
     notify_gestor,
     chat_completion,
 )
@@ -251,76 +251,76 @@ def extract_settings(tenant: Tenant) -> dict:
 # FUNÇÕES DE EMPREENDIMENTO
 # =============================================================================
 
-async def detect_empreendimento(
+async def detect_product(
     db: AsyncSession,
     tenant_id: int,
     message: str,
-) -> Optional[Empreendimento]:
-    """Detecta se a mensagem contém gatilhos de algum empreendimento."""
+) -> Optional[Product]:
+    """Detecta se a mensagem contém gatilhos de algum produto."""
     try:
         result = await db.execute(
-            select(Empreendimento)
-            .where(Empreendimento.tenant_id == tenant_id)
-            .where(Empreendimento.ativo == True)
-            .order_by(Empreendimento.prioridade.desc())
+            select(Product)
+            .where(Product.tenant_id == tenant_id)
+            .where(Product.active == True)
+            .order_by(Product.priority.desc())
         )
-        empreendimentos = result.scalars().all()
+        products = result.scalars().all()
         
-        if not empreendimentos:
+        if not products:
             return None
         
         message_lower = message.lower()
         
-        for emp in empreendimentos:
-            if emp.gatilhos:
-                for gatilho in emp.gatilhos:
-                    if gatilho.lower() in message_lower:
-                        logger.info(f"🏢 Empreendimento detectado: {emp.nome} (gatilho: {gatilho})")
-                        return emp
+        for prod in products:
+            if prod.triggers:
+                for trigger in prod.triggers:
+                    if trigger.lower() in message_lower:
+                        logger.info(f"📦 Produto detectado: {prod.name} (gatilho: {trigger})")
+                        return prod
         
         return None
         
     except Exception as e:
-        logger.error(f"Erro detectando empreendimento: {e}")
+        logger.error(f"Erro detectando produto: {e}")
         return None
 
 
-async def get_empreendimento_from_lead(
+async def get_product_from_lead(
     db: AsyncSession,
     lead: Lead,
-) -> Optional[Empreendimento]:
-    """Recupera o empreendimento associado ao lead (se houver)."""
+) -> Optional[Product]:
+    """Recupera o produto associado ao lead (se houver)."""
     try:
         if not lead.custom_data:
             return None
         
-        emp_id = lead.custom_data.get("empreendimento_id")
-        if not emp_id:
+        prod_id = lead.custom_data.get("product_id")
+        if not prod_id:
             return None
         
         result = await db.execute(
-            select(Empreendimento)
-            .where(Empreendimento.id == emp_id)
-            .where(Empreendimento.ativo == True)
+            select(Product)
+            .where(Product.id == prod_id)
+            .where(Product.active == True)
         )
         return result.scalar_one_or_none()
         
     except Exception as e:
-        logger.error(f"Erro recuperando empreendimento: {e}")
+        logger.error(f"Erro recuperando produto: {e}")
         return None
 
 
-async def update_empreendimento_stats(
+async def update_product_stats(
     db: AsyncSession,
-    empreendimento: Empreendimento,
+    product: Product,
     is_new_lead: bool = False,
 ):
-    """Atualiza estatísticas do empreendimento."""
+    """Atualiza estatísticas do produto."""
     try:
         if is_new_lead:
-            empreendimento.total_leads = (empreendimento.total_leads or 0) + 1
+            product.total_leads = (product.total_leads or 0) + 1
     except Exception as e:
-        logger.error(f"Erro atualizando stats do empreendimento: {e}")
+        logger.error(f"Erro atualizando stats do produto: {e}")
 
 
 # =============================================================================
@@ -574,7 +574,7 @@ async def process_message(
     # =========================================================================
     # INICIALIZAÇÃO DE VARIÁVEIS
     # =========================================================================
-    empreendimento_detectado: Optional[Empreendimento] = None
+    product_detected: Optional[Product] = None
     imovel_portal: Optional[Dict] = None
     gestor_ja_notificado = False
     history: list[dict] = []
@@ -714,47 +714,47 @@ async def process_message(
 """)
         
     # =========================================================================
-    # 9. DETECÇÃO DE EMPREENDIMENTO
+    # 9. DETECÇÃO DE PRODUTO
     # =========================================================================
-    empreendimento_detectado = await detect_empreendimento(
+    product_detected = await detect_product(
         db=db,
         tenant_id=tenant.id,
         message=content,
     )
     
-    if not empreendimento_detectado and not is_new:
-        empreendimento_detectado = await get_empreendimento_from_lead(db, lead)
+    if not product_detected and not is_new:
+        product_detected = await get_product_from_lead(db, lead)
     
-    if empreendimento_detectado:
-        logger.info(f"🏢 Empreendimento: {empreendimento_detectado.nome}")
+    if product_detected:
+        logger.info(f"📦 Produto: {product_detected.name}")
         
         if not lead.custom_data:
             lead.custom_data = {}
         
-        old_emp_id = lead.custom_data.get("empreendimento_id")
-        if old_emp_id != empreendimento_detectado.id:
-            lead.custom_data["empreendimento_id"] = empreendimento_detectado.id
-            lead.custom_data["empreendimento_nome"] = empreendimento_detectado.nome
+        old_prod_id = lead.custom_data.get("product_id")
+        if old_prod_id != product_detected.id:
+            lead.custom_data["product_id"] = product_detected.id
+            lead.custom_data["product_name"] = product_detected.name
             flag_modified(lead, "custom_data")
         
         if is_new:
-            await update_empreendimento_stats(db, empreendimento_detectado, is_new_lead=True)
+            await update_product_stats(db, product_detected, is_new_lead=True)
             
-            if empreendimento_detectado.vendedor_id:
-                lead.assigned_seller_id = empreendimento_detectado.vendedor_id
-                lead.assignment_method = "empreendimento"
+            if product_detected.seller_id:
+                lead.assigned_seller_id = product_detected.seller_id
+                lead.assignment_method = "product"
                 lead.assigned_at = datetime.now(timezone.utc)
     
     # =========================================================================
-    # 10. NOTIFICAÇÃO ESPECÍFICA DE EMPREENDIMENTO
+    # 10. NOTIFICAÇÃO ESPECÍFICA DE PRODUTO
     # =========================================================================
-    if (empreendimento_detectado and 
-        empreendimento_detectado.notificar_gestor and 
+    if (product_detected and 
+        product_detected.notify_manager and 
         is_new and 
         not gestor_ja_notificado):
-        await notify_lead_empreendimento(db, tenant, lead, empreendimento_detectado)
+        await notify_lead_product(db, tenant, lead, product_detected)
         gestor_ja_notificado = True
-        logger.info(f"📲 Notificação empreendimento: {empreendimento_detectado.nome}")
+        logger.info(f"📲 Notificação produto: {product_detected.name}")
     
     # =========================================================================
     # 11. LGPD CHECK

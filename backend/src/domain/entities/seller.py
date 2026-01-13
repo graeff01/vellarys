@@ -98,7 +98,7 @@ class Seller(Base, TimestampMixin):
     # ==========================================
     tenant: Mapped["Tenant"] = relationship(back_populates="sellers")
     assignments: Mapped[List["LeadAssignment"]] = relationship(back_populates="seller", cascade="all, delete-orphan")
-    empreendimentos: Mapped[List["Empreendimento"]] = relationship(back_populates="vendedor")
+    products: Mapped[List["Product"]] = relationship(back_populates="seller")
     # ==========================================
     # MÉTODOS ÚTEIS
     # ==========================================

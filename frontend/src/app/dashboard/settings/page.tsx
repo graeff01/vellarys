@@ -1,41 +1,41 @@
 'use client';
 
 // Adicionar esses imports
-import EmpreendimentosTab from '@/components/dashboard/EmpreendimentosTab';
+import ProductsTab from '@/components/dashboard/ProductsTab';
 import { getSellers } from '@/lib/sellers';
 import { getToken } from '@/lib/auth';
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardHeader } from '@/components/ui/card';
 import { requestNotificationPermission, subscribeToPush } from '@/components/pwa/service-worker-registration';
-import { 
-  getSettings, updateSettings, 
+import {
+  getSettings, updateSettings,
   SettingsResponse, TenantSettings,
   ToneOption, PersonalityTrait,
   DistributionMethod, FallbackOption, NicheOption,
   RequiredInfoOption, FAQItem,
   DEFAULT_IDENTITY,
-  
+
 } from '@/lib/settings';
-import { 
-  Save, Plus, X, Phone, User, MessageSquare, 
+import {
+  Save, Plus, X, Phone, User, MessageSquare,
   Clock, HelpCircle, Shield, Users, RefreshCw,
   Building2, Target, Sparkles, AlertTriangle,
   CheckCircle2, Info, ChevronDown, ChevronUp,
   Home, Edit2, Trash2, Eye, EyeOff, MapPin,
-  DollarSign, Calendar, UserCheck, Building
+  DollarSign, Calendar, UserCheck, Building, Package
 } from 'lucide-react';
 
 // Adicionar esses imports
 import {
-  checkEmpreendimentosAccess,
-  getEmpreendimentos,
-  getEmpreendimento,
-  createEmpreendimento,
-  updateEmpreendimento,
-  deleteEmpreendimento,
-  toggleEmpreendimentoStatus,
-  Empreendimento,
-  EmpreendimentoCreate,
+  checkProductsAccess,
+  getProducts,
+  getProduct,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  toggleProductStatus,
+  Product,
+  ProductCreate,
 } from '@/lib/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
@@ -122,7 +122,7 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState('identidade');
 
-  
+
   // IDENTIDADE
   const [companyName, setCompanyName] = useState('');
   const [niche, setNiche] = useState('services');
@@ -143,17 +143,17 @@ export default function SettingsPage() {
   const [requiredQuestions, setRequiredQuestions] = useState<string[]>([]);
   const [requiredInfo, setRequiredInfo] = useState<string[]>([]);
   const [additionalContext, setAdditionalContext] = useState('');
-  
+
   // HANDOFF
   const [managerWhatsapp, setManagerWhatsapp] = useState('');
   const [managerName, setManagerName] = useState('');
   const [handoffEnabled, setHandoffEnabled] = useState(true);
   const [handoffTriggers, setHandoffTriggers] = useState<string[]>([]);
   const [maxMessages, setMaxMessages] = useState(15);
-  
+
   // HORÁRIO
   const [businessHoursEnabled, setBusinessHoursEnabled] = useState(false);
-  const [businessHours, setBusinessHours] = useState<Record<string, {open: string, close: string, enabled: boolean}>>({
+  const [businessHours, setBusinessHours] = useState<Record<string, { open: string, close: string, enabled: boolean }>>({
     monday: { open: '08:00', close: '18:00', enabled: true },
     tuesday: { open: '08:00', close: '18:00', enabled: true },
     wednesday: { open: '08:00', close: '18:00', enabled: true },
@@ -163,34 +163,34 @@ export default function SettingsPage() {
     sunday: { open: '', close: '', enabled: false },
   });
   const [outOfHoursMessage, setOutOfHoursMessage] = useState('');
-  
+
   // FAQ
   const [faqEnabled, setFaqEnabled] = useState(true);
   const [faqItems, setFaqItems] = useState<FAQItem[]>([]);
   const [newFaqQuestion, setNewFaqQuestion] = useState('');
   const [newFaqAnswer, setNewFaqAnswer] = useState('');
-  
+
   // ESCOPO
   const [scopeEnabled, setScopeEnabled] = useState(true);
   const [scopeDescription, setScopeDescription] = useState('');
   const [allowedTopics, setAllowedTopics] = useState<string[]>([]);
   const [blockedTopics, setBlockedTopics] = useState<string[]>([]);
   const [outOfScopeMessage, setOutOfScopeMessage] = useState('');
-  
+
   // DISTRIBUIÇÃO
   const [distributionMethod, setDistributionMethod] = useState('round_robin');
   const [distributionFallback, setDistributionFallback] = useState('manager');
   const [respectDailyLimit, setRespectDailyLimit] = useState(true);
   const [respectAvailability, setRespectAvailability] = useState(true);
   const [notifyManagerCopy, setNotifyManagerCopy] = useState(false);
-  
+
   // GUARDRAILS
   const [priceGuardEnabled, setPriceGuardEnabled] = useState(true);
   const [priceGuardBehavior, setPriceGuardBehavior] = useState<'redirect' | 'collect_first' | 'allow'>('redirect');
   const [priceGuardMessage, setPriceGuardMessage] = useState('');
   const [scopeGuardEnabled, setScopeGuardEnabled] = useState(true);
   const [scopeGuardStrictness, setScopeGuardStrictness] = useState<'low' | 'medium' | 'high'>('medium');
-  
+
   // FOLLOW-UP
   const [followUpEnabled, setFollowUpEnabled] = useState(false);
   const [followUpInactivityHours, setFollowUpInactivityHours] = useState(24);
@@ -205,14 +205,14 @@ export default function SettingsPage() {
   const [followUpExcludeStatuses, setFollowUpExcludeStatuses] = useState<string[]>(['converted', 'lost', 'handed_off']);
 
   // Após os outros estados, adicionar:
-  const [hasEmpreendimentosAccess, setHasEmpreendimentosAccess] = useState(false);
+  const [hasProductsAccess, setHasProductsAccess] = useState(false);
   const [sellers, setSellers] = useState<Array<{ id: number; name: string }>>([]);
 
 
   // OPTIONS
   // ⭐ CORRIGIDO: Inicializa vazio - nichos serão carregados do banco de dados
   const [niches, setNiches] = useState<NicheOption[]>([]);
-  
+
   const [toneOptions, setToneOptions] = useState<ToneOption[]>([
     { id: 'formal', name: 'Formal', description: 'Profissional, direto e corporativo', icon: '👔', examples: ['Prezado(a)', 'Agradeço o contato', 'Fico à disposição'] },
     { id: 'cordial', name: 'Cordial', description: 'Amigável, educado e acolhedor', icon: '😊', examples: ['Olá!', 'Fico feliz em ajudar', 'Conte comigo'] },
@@ -288,15 +288,15 @@ export default function SettingsPage() {
       try {
         // ⭐ Busca nichos do banco primeiro
         await fetchNiches();
-        
+
         const response = await getSettings();
         setData(response);
         const s = response.settings;
 
         try {
-          const accessResponse = await checkEmpreendimentosAccess();
-          setHasEmpreendimentosAccess(accessResponse.has_access);
-          
+          const accessResponse = await checkProductsAccess();
+          setHasProductsAccess(accessResponse.has_access);
+
           // Se tem acesso, busca os vendedores
           if (accessResponse.has_access) {
             try {
@@ -307,13 +307,13 @@ export default function SettingsPage() {
             }
           }
         } catch {
-          setHasEmpreendimentosAccess(false);
+          setHasProductsAccess(false);
         }
-        
+
         // Basic
         setCompanyName(s.basic?.company_name || response.tenant.name);
         setNiche(s.basic?.niche || 'services');
-        
+
         // Identity
         const identity = s.identity || DEFAULT_IDENTITY;
         setDescription(identity.description || '');
@@ -333,7 +333,7 @@ export default function SettingsPage() {
         setRequiredQuestions(identity.required_questions || []);
         setRequiredInfo(identity.required_info || []);
         setAdditionalContext(identity.additional_context || '');
-        
+
         // Handoff
         const handoff = s.handoff || {};
         setHandoffEnabled(handoff.enabled ?? true);
@@ -341,18 +341,18 @@ export default function SettingsPage() {
         setManagerName(handoff.manager_name || '');
         setHandoffTriggers(handoff.triggers || []);
         setMaxMessages(handoff.max_messages_before_handoff || 15);
-        
+
         // Business Hours
         const bh = s.business_hours || {};
         setBusinessHoursEnabled(bh.enabled || false);
         if (bh.schedule) setBusinessHours(bh.schedule);
         setOutOfHoursMessage(bh.out_of_hours_message || '');
-        
+
         // FAQ
         const faq = s.faq || {};
         setFaqEnabled(faq.enabled ?? true);
         setFaqItems(faq.items || []);
-        
+
         // Scope
         const scope = s.scope || {};
         setScopeEnabled(scope.enabled ?? true);
@@ -360,7 +360,7 @@ export default function SettingsPage() {
         setAllowedTopics(scope.allowed_topics || []);
         setBlockedTopics(scope.blocked_topics || []);
         setOutOfScopeMessage(scope.out_of_scope_message || '');
-        
+
         // Distribution
         const dist = s.distribution || {};
         setDistributionMethod(dist.method || 'round_robin');
@@ -368,7 +368,7 @@ export default function SettingsPage() {
         setRespectDailyLimit(dist.respect_daily_limit ?? true);
         setRespectAvailability(dist.respect_availability ?? true);
         setNotifyManagerCopy(dist.notify_manager_copy ?? false);
-        
+
         // Guardrails
         const guards = s.guardrails || {};
         setPriceGuardEnabled(guards.price_guard?.enabled ?? true);
@@ -386,7 +386,7 @@ export default function SettingsPage() {
         setFollowUpRespectBusinessHours(followUp.respect_business_hours ?? true);
         if (followUp.messages) setFollowUpMessages(followUp.messages);
         if (followUp.exclude_statuses) setFollowUpExcludeStatuses(followUp.exclude_statuses);
-        
+
         // Options - sobrescreve com dados da API se existirem
         const opts = response.options || {};
         // ⭐ REMOVIDO: Nichos agora vêm do endpoint /tenants/niches
@@ -479,7 +479,7 @@ export default function SettingsPage() {
     { id: 'identidade', label: 'Identidade', icon: Building2 },
     { id: 'comunicacao', label: 'Comunicação', icon: MessageSquare },
     { id: 'qualificacao', label: 'Qualificação', icon: Target },
-    ...(hasEmpreendimentosAccess ? [{ id: 'empreendimentos', label: 'Empreendimentos', icon: Home }] : []),
+    ...(hasProductsAccess ? [{ id: 'products', label: 'Produtos', icon: Package }] : []),
     { id: 'distribuicao', label: 'Distribuição', icon: Users },
     { id: 'handoff', label: 'Transferência', icon: Phone },
     { id: 'horario', label: 'Horário', icon: Clock },
@@ -522,8 +522,8 @@ export default function SettingsPage() {
           </button>
         </div>
 
-      
-        {activeTab !== 'empreendimentos' && (
+
+        {activeTab !== 'products' && (
           <button onClick={handleSave} disabled={saving} className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50">
             {saving ? <><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>Salvando...</> : <><Save className="w-5 h-5" />Salvar</>}
           </button>
@@ -570,9 +570,9 @@ export default function SettingsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Nicho de Atuação *</label>
-                <select 
-                  value={niche} 
-                  onChange={(e) => setNiche(e.target.value)} 
+                <select
+                  value={niche}
+                  onChange={(e) => setNiche(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white appearance-none cursor-pointer"
                   style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '1.25rem', paddingRight: '2.5rem' }}
                 >
@@ -959,59 +959,59 @@ export default function SettingsPage() {
           <Card>
             <CardHeader title="Configuração Geral" subtitle="Ative e configure o comportamento do follow-up" />
             <div className="space-y-4">
-              <ToggleSwitch 
-                checked={followUpEnabled} 
-                onChange={setFollowUpEnabled} 
-                label="Follow-up automático ativo" 
-                description="Envia mensagens automáticas para leads inativos" 
+              <ToggleSwitch
+                checked={followUpEnabled}
+                onChange={setFollowUpEnabled}
+                label="Follow-up automático ativo"
+                description="Envia mensagens automáticas para leads inativos"
               />
-              
+
               {followUpEnabled && (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Tempo de inatividade (horas)</label>
-                      <input 
-                        type="number" 
-                        value={followUpInactivityHours} 
-                        onChange={(e) => setFollowUpInactivityHours(parseInt(e.target.value) || 24)} 
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" 
-                        min={1} 
-                        max={168} 
+                      <input
+                        type="number"
+                        value={followUpInactivityHours}
+                        onChange={(e) => setFollowUpInactivityHours(parseInt(e.target.value) || 24)}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                        min={1}
+                        max={168}
                       />
                       <p className="text-xs text-gray-500 mt-1">Após quantas horas sem resposta enviar follow-up</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Máximo de tentativas</label>
-                      <input 
-                        type="number" 
-                        value={followUpMaxAttempts} 
-                        onChange={(e) => setFollowUpMaxAttempts(parseInt(e.target.value) || 3)} 
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" 
-                        min={1} 
-                        max={5} 
+                      <input
+                        type="number"
+                        value={followUpMaxAttempts}
+                        onChange={(e) => setFollowUpMaxAttempts(parseInt(e.target.value) || 3)}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                        min={1}
+                        max={5}
                       />
                       <p className="text-xs text-gray-500 mt-1">Quantos follow-ups enviar antes de desistir</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Intervalo entre tentativas (horas)</label>
-                      <input 
-                        type="number" 
-                        value={followUpIntervalHours} 
-                        onChange={(e) => setFollowUpIntervalHours(parseInt(e.target.value) || 24)} 
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" 
-                        min={1} 
-                        max={168} 
+                      <input
+                        type="number"
+                        value={followUpIntervalHours}
+                        onChange={(e) => setFollowUpIntervalHours(parseInt(e.target.value) || 24)}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                        min={1}
+                        max={168}
                       />
                       <p className="text-xs text-gray-500 mt-1">Tempo entre cada tentativa de follow-up</p>
                     </div>
                   </div>
 
-                  <ToggleSwitch 
-                    checked={followUpRespectBusinessHours} 
-                    onChange={setFollowUpRespectBusinessHours} 
-                    label="Respeitar horário comercial" 
-                    description="Só envia follow-up durante o horário de atendimento configurado" 
+                  <ToggleSwitch
+                    checked={followUpRespectBusinessHours}
+                    onChange={setFollowUpRespectBusinessHours}
+                    label="Respeitar horário comercial"
+                    description="Só envia follow-up durante o horário de atendimento configurado"
                   />
                 </>
               )}
@@ -1042,12 +1042,12 @@ export default function SettingsPage() {
                       Primeira tentativa
                     </span>
                   </label>
-                  <textarea 
-                    value={followUpMessages.attempt_1} 
-                    onChange={(e) => setFollowUpMessages({...followUpMessages, attempt_1: e.target.value})} 
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" 
-                    rows={2} 
-                    placeholder="Oi {nome}! Vi que você se interessou..." 
+                  <textarea
+                    value={followUpMessages.attempt_1}
+                    onChange={(e) => setFollowUpMessages({ ...followUpMessages, attempt_1: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                    rows={2}
+                    placeholder="Oi {nome}! Vi que você se interessou..."
                   />
                 </div>
 
@@ -1058,12 +1058,12 @@ export default function SettingsPage() {
                       Segunda tentativa
                     </span>
                   </label>
-                  <textarea 
-                    value={followUpMessages.attempt_2} 
-                    onChange={(e) => setFollowUpMessages({...followUpMessages, attempt_2: e.target.value})} 
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" 
-                    rows={2} 
-                    placeholder="Oi {nome}! Ainda está procurando..." 
+                  <textarea
+                    value={followUpMessages.attempt_2}
+                    onChange={(e) => setFollowUpMessages({ ...followUpMessages, attempt_2: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                    rows={2}
+                    placeholder="Oi {nome}! Ainda está procurando..."
                   />
                 </div>
 
@@ -1074,12 +1074,12 @@ export default function SettingsPage() {
                       Terceira tentativa (final)
                     </span>
                   </label>
-                  <textarea 
-                    value={followUpMessages.attempt_3} 
-                    onChange={(e) => setFollowUpMessages({...followUpMessages, attempt_3: e.target.value})} 
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500" 
-                    rows={2} 
-                    placeholder="{nome}, vou encerrar nosso atendimento..." 
+                  <textarea
+                    value={followUpMessages.attempt_3}
+                    onChange={(e) => setFollowUpMessages({ ...followUpMessages, attempt_3: e.target.value })}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                    rows={2}
+                    placeholder="{nome}, vou encerrar nosso atendimento..."
                   />
                 </div>
               </div>
@@ -1104,11 +1104,10 @@ export default function SettingsPage() {
                             setFollowUpExcludeStatuses([...followUpExcludeStatuses, status]);
                           }
                         }}
-                        className={`px-4 py-2 rounded-full text-sm font-medium ${
-                          followUpExcludeStatuses.includes(status) 
-                            ? 'bg-red-100 text-red-700 border-2 border-red-300' 
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
+                        className={`px-4 py-2 rounded-full text-sm font-medium ${followUpExcludeStatuses.includes(status)
+                          ? 'bg-red-100 text-red-700 border-2 border-red-300'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
                       >
                         {status === 'new' && '🆕 Novo'}
                         {status === 'in_conversation' && '💬 Em conversa'}
@@ -1127,9 +1126,9 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* TAB: EMPREENDIMENTOS */}
-      {activeTab === 'empreendimentos' && (
-        <EmpreendimentosTab sellers={sellers} />
+      {/* TAB: PRODUTOS */}
+      {activeTab === 'products' && (
+        <ProductsTab sellers={sellers} />
       )}
     </div>
   );

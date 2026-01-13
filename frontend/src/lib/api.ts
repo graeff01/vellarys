@@ -118,170 +118,129 @@ export async function getNiches() {
   return request('/tenants/niches');
 }
 
-// === EMPREENDIMENTOS (apenas para imobiliárias) ===
+// === PRODUCTS (Genérico) ===
 
-export interface Empreendimento {
+export interface Product {
   id: number;
-  nome: string;
+  name: string;
   slug: string;
   status: string;
   status_label?: string;
-  ativo: boolean;
+  active: boolean;
   url_landing_page?: string;
-  imagem_destaque?: string;
-  gatilhos: string[];
-  prioridade: number;
-  endereco?: string;
-  bairro?: string;
-  cidade?: string;
-  estado?: string;
-  cep?: string;
-  descricao_localizacao?: string;
-  descricao?: string;
-  tipologias: string[];
-  metragem_minima?: number;
-  metragem_maxima?: number;
-  faixa_metragem?: string;
-  torres?: number;
-  andares?: number;
-  unidades_por_andar?: number;
-  total_unidades?: number;
-  vagas_minima?: number;
-  vagas_maxima?: number;
-  previsao_entrega?: string;
-  preco_minimo?: number;
-  preco_maximo?: number;
-  faixa_preco?: string;
-  aceita_financiamento: boolean;
-  aceita_fgts: boolean;
-  aceita_permuta: boolean;
-  aceita_consorcio: boolean;
-  condicoes_especiais?: string;
-  itens_lazer: string[];
-  diferenciais: string[];
-  perguntas_qualificacao: string[];
-  instrucoes_ia?: string;
-  vendedor_id?: number;
-  vendedor_nome?: string;
-  metodo_distribuicao?: string;
-  notificar_gestor: boolean;
-  whatsapp_notificacao?: string;
+  image_url?: string;
+  triggers: string[];
+  priority: number;
+  description?: string;
+  ai_instructions?: string;
+  qualification_questions: string[];
+  seller_id?: number;
+  seller_name?: string;
+  distribution_method?: string;
+  notify_manager: boolean;
   total_leads: number;
-  leads_qualificados: number;
-  leads_convertidos: number;
-  taxa_conversao?: number;
+  qualified_leads: number;
+  converted_leads: number;
+  attributes: Record<string, any>;
   created_at?: string;
   updated_at?: string;
 }
 
-export interface EmpreendimentoCreate {
-  nome: string;
+export interface ProductCreate {
+  name: string;
   status?: string;
   url_landing_page?: string;
-  imagem_destaque?: string;
-  gatilhos?: string[];
-  prioridade?: number;
-  endereco?: string;
-  bairro?: string;
-  cidade?: string;
-  estado?: string;
-  cep?: string;
-  descricao_localizacao?: string;
-  descricao?: string;
-  tipologias?: string[];
-  metragem_minima?: number;
-  metragem_maxima?: number;
-  torres?: number;
-  andares?: number;
-  unidades_por_andar?: number;
-  total_unidades?: number;
-  vagas_minima?: number;
-  vagas_maxima?: number;
-  previsao_entrega?: string;
-  preco_minimo?: number;
-  preco_maximo?: number;
-  aceita_financiamento?: boolean;
-  aceita_fgts?: boolean;
-  aceita_permuta?: boolean;
-  aceita_consorcio?: boolean;
-  condicoes_especiais?: string;
-  itens_lazer?: string[];
-  diferenciais?: string[];
-  perguntas_qualificacao?: string[];
-  instrucoes_ia?: string;
-  vendedor_id?: number;
-  metodo_distribuicao?: string;
-  notificar_gestor?: boolean;
-  whatsapp_notificacao?: string;
+  image_url?: string;
+  triggers?: string[];
+  priority?: number;
+  description?: string;
+  ai_instructions?: string;
+  qualification_questions?: string[];
+  seller_id?: number;
+  distribution_method?: string;
+  notify_manager?: boolean;
+  attributes?: Record<string, any>;
 }
 
-// Verifica se tenant tem acesso a empreendimentos
-export async function checkEmpreendimentosAccess(): Promise<{ has_access: boolean; niche: string }> {
-  return request('/empreendimentos/check-access');
+// Retrocompatibilidade
+export type Empreendimento = Product;
+export type EmpreendimentoCreate = ProductCreate;
+
+// Verifica se tenant tem acesso a produtos
+export async function checkProductsAccess(): Promise<{ has_access: boolean; niche: string }> {
+  return request('/products/check-access');
 }
 
-// Estatísticas dos empreendimentos
-export async function getEmpreendimentosStats() {
-  return request('/empreendimentos/stats');
+// Estatísticas dos produtos
+export async function getProductsStats() {
+  return request('/products/stats');
 }
 
-// Lista empreendimentos
-export async function getEmpreendimentos(params?: {
-  ativo?: boolean;
+// Lista produtos
+export async function getProducts(params?: {
+  active?: boolean;
   status?: string;
   search?: string;
-}): Promise<{ empreendimentos: Empreendimento[]; total: number }> {
+}): Promise<{ products: Product[]; total: number }> {
   const searchParams = new URLSearchParams();
-  
-  if (params?.ativo !== undefined) searchParams.set('ativo', params.ativo.toString());
+
+  if (params?.active !== undefined) searchParams.set('active', params.active.toString());
   if (params?.status) searchParams.set('status', params.status);
   if (params?.search) searchParams.set('search', params.search);
-  
+
   const query = searchParams.toString();
-  return request(`/empreendimentos${query ? `?${query}` : ''}`);
+  return request(`/products${query ? `?${query}` : ''}`);
 }
 
-// Busca empreendimento por ID
-export async function getEmpreendimento(id: number): Promise<Empreendimento> {
-  return request(`/empreendimentos/${id}`);
+// Busca produto por ID
+export async function getProduct(id: number): Promise<Product> {
+  return request(`/products/${id}`);
 }
 
-// Cria empreendimento
-export async function createEmpreendimento(data: EmpreendimentoCreate) {
-  return request('/empreendimentos', {
+// Cria produto
+export async function createProduct(data: ProductCreate) {
+  return request('/products', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-// Atualiza empreendimento
-export async function updateEmpreendimento(id: number, data: Partial<EmpreendimentoCreate>) {
-  return request(`/empreendimentos/${id}`, {
+// Atualiza produto
+export async function updateProduct(id: number, data: Partial<ProductCreate>) {
+  return request(`/products/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
 }
 
-// Remove empreendimento
-export async function deleteEmpreendimento(id: number) {
-  return request(`/empreendimentos/${id}`, {
+// Remove produto
+export async function deleteProduct(id: number) {
+  return request(`/products/${id}`, {
     method: 'DELETE',
   });
 }
 
-// Ativa/desativa empreendimento
-export async function toggleEmpreendimentoStatus(id: number) {
-  return request(`/empreendimentos/${id}/toggle-status`, {
+// Ativa/desativa produto
+export async function toggleProductStatus(id: number) {
+  return request(`/products/${id}/toggle-status`, {
     method: 'POST',
   });
 }
 
 // Testa detecção de gatilhos (debug)
-export async function detectEmpreendimento(message: string) {
-  return request(`/empreendimentos/detect?message=${encodeURIComponent(message)}`, {
+export async function detectProduct(message: string) {
+  return request(`/products/detect?message=${encodeURIComponent(message)}`, {
     method: 'POST',
   });
 }
+
+// Atalhos para retrocompatibilidade (Frontend ainda referenciando Empreendimento)
+export const getEmpreendimentos = getProducts;
+export const getEmpreendimento = getProduct;
+export const createEmpreendimento = createProduct;
+export const updateEmpreendimento = updateProduct;
+export const deleteEmpreendimento = deleteProduct;
+export const toggleEmpreendimentoStatus = toggleProductStatus;
 // ===============================================
 // 🆕 NOVAS FUNÇÕES - MELHORIAS LEAD DETAIL V2.0
 // ===============================================
@@ -296,7 +255,7 @@ export async function getLeadEvents(leadId: number) {
 export async function assignSellerToLead(leadId: number, sellerId: number, reason?: string) {
   return request(`/leads/${leadId}/assign-seller`, {
     method: 'POST',
-    body: JSON.stringify({ 
+    body: JSON.stringify({
       seller_id: sellerId,
       reason: reason || 'Atribuição manual via dashboard'
     }),

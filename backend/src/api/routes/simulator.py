@@ -23,7 +23,7 @@ import logging
 
 from src.infrastructure.database import get_db
 from src.api.dependencies import get_current_user
-from src.domain.entities import User, Tenant, Empreendimento
+from src.domain.entities import User, Tenant, Product
 from src.infrastructure.services import (
     chat_completion,
     calculate_typing_delay,
@@ -37,12 +37,12 @@ from src.infrastructure.services.openai_service import detect_sentiment
 from src.application.services.ai_context_builder import (
     AIContext,
     LeadContext,
-    EmpreendimentoContext,
+    ProductContext,
     ImovelPortalContext,
     migrate_settings_if_needed,
     extract_ai_context,
     build_complete_prompt,
-    empreendimento_to_context,
+    product_to_context,
     analyze_qualification_from_message,
     detect_hot_lead_signals,
 )
@@ -109,7 +109,7 @@ class SimulatorDebugResponse(BaseModel):
     identity_fields: dict
     faq_count: int
     scope_description: bool
-    empreendimentos_count: int = 0
+    products_count: int = 0
     prompt_preview: str = ""
 
 
@@ -117,55 +117,49 @@ class SimulatorDebugResponse(BaseModel):
 # HELPERS
 # =============================================================================
 
-async def detect_empreendimento_for_simulator(
+async def detect_product_for_simulator(
     db: AsyncSession,
     tenant_id: int,
     message: str,
     history: List[SimulatorMessage],
-    niche_id: str,
-) -> Optional[Empreendimento]:
+) -> Optional[Product]:
     """
-    Detecta empreendimento na mensagem atual OU no histórico.
-    
-    NOTA: Esta função é idêntica à do process_message.
+    Detecta produto na mensagem atual OU no histórico.
     """
-    if niche_id.lower() not in NICHOS_IMOBILIARIOS:
-        return None
-    
     try:
         result = await db.execute(
-            select(Empreendimento)
-            .where(Empreendimento.tenant_id == tenant_id)
-            .where(Empreendimento.ativo == True)
-            .order_by(Empreendimento.prioridade.desc())
+            select(Product)
+            .where(Product.tenant_id == tenant_id)
+            .where(Product.active == True)
+            .order_by(Product.priority.desc())
         )
-        empreendimentos = result.scalars().all()
+        products = result.scalars().all()
         
-        if not empreendimentos:
+        if not products:
             return None
         
         # Verifica na mensagem atual
         message_lower = message.lower()
-        for emp in empreendimentos:
-            if emp.gatilhos:
-                for gatilho in emp.gatilhos:
-                    if gatilho.lower() in message_lower:
-                        logger.info(f"🏢 Simulador - Empreendimento detectado: {emp.nome}")
-                        return emp
+        for prod in products:
+            if prod.triggers:
+                for trigger in prod.triggers:
+                    if trigger.lower() in message_lower:
+                        logger.info(f"📦 Simulador - Produto detectado: {prod.name}")
+                        return prod
         
         # Verifica no histórico
         for msg in history:
             msg_lower = msg.content.lower()
-            for emp in empreendimentos:
-                if emp.gatilhos:
-                    for gatilho in emp.gatilhos:
-                        if gatilho.lower() in msg_lower:
-                            logger.info(f"🏢 Simulador - Empreendimento no histórico: {emp.nome}")
-                            return emp
+            for prod in products:
+                if prod.triggers:
+                    for trigger in prod.triggers:
+                        if trigger.lower() in msg_lower:
+                            logger.info(f"📦 Simulador - Produto no histórico: {prod.name}")
+                            return prod
         
         return None
     except Exception as e:
-        logger.error(f"Erro detectando empreendimento no simulador: {e}")
+        logger.error(f"Erro detectando produto no simulador: {e}")
         return None
 
 
@@ -244,26 +238,25 @@ async def simulator_chat(
     logger.info(f"📱 Simulador - Identity: {bool(ai_context.identity)} | Nicho: {ai_context.niche_id}")
     
     # =========================================================================
-    # 3. DETECTA EMPREENDIMENTO (MESMA LÓGICA DO PROCESS_MESSAGE)
+    # 3. DETECTA PRODUTO (MESMA LÓGICA DO PROCESS_MESSAGE)
     # =========================================================================
-    empreendimento = await detect_empreendimento_for_simulator(
+    product = await detect_product_for_simulator(
         db=db,
         tenant_id=tenant.id,
         message=payload.message,
         history=payload.history or [],
-        niche_id=ai_context.niche_id,
     )
     
-    empreendimento_context = None
-    if empreendimento:
-        logger.info(f"🏢 Simulador - Empreendimento ativo: {empreendimento.nome}")
-        empreendimento_context = empreendimento_to_context(empreendimento)
+    product_context = None
+    if product:
+        logger.info(f"📦 Simulador - Produto ativo: {product.name}")
+        product_context = product_to_context(product)
         
-        # Adiciona perguntas de qualificação do empreendimento
-        if empreendimento.perguntas_qualificacao:
+        # Adiciona perguntas de qualificação do produto
+        if product.qualification_questions:
             ai_context.custom_questions = (
                 ai_context.custom_questions + 
-                empreendimento.perguntas_qualificacao
+                product.qualification_questions
             )
     
     # =========================================================================
@@ -320,7 +313,7 @@ async def simulator_chat(
     prompt_result = build_complete_prompt(
         ai_context=ai_context,
         lead_context=simulated_lead,
-        empreendimento=empreendimento_context,
+        product=product_context,
         imovel_portal=imovel_portal_context,
         include_security=True,
         is_simulation=True,  # Adiciona aviso de simulação
@@ -382,7 +375,7 @@ async def simulator_chat(
             qualification_hint=qualification_hint,
             prompt_length=prompt_result.prompt_length,
             has_identity=prompt_result.has_identity,
-            has_empreendimento=prompt_result.has_empreendimento,
+            has_product=prompt_result.has_product,
             has_imovel_portal=prompt_result.has_imovel_portal,
             hot_lead_detected=is_hot,
             hot_lead_signal=hot_signal,
@@ -425,21 +418,20 @@ async def debug_settings(
     
     identity = ai_context.identity or {}
     
-    # Conta empreendimentos
-    emp_count = 0
-    if ai_context.niche_id.lower() in NICHOS_IMOBILIARIOS:
-        emp_result = await db.execute(
-            select(Empreendimento)
-            .where(Empreendimento.tenant_id == tenant.id)
-            .where(Empreendimento.ativo == True)
-        )
-        emp_count = len(emp_result.scalars().all())
+    # Conta produtos
+    prod_count = 0
+    prod_result = await db.execute(
+        select(Product)
+        .where(Product.tenant_id == tenant.id)
+        .where(Product.active == True)
+    )
+    prod_count = len(prod_result.scalars().all())
     
     # Gera preview do prompt
     prompt_result = build_complete_prompt(
         ai_context=ai_context,
         lead_context=None,
-        empreendimento=None,
+        product=None,
         imovel_portal=None,
         include_security=False,
         is_simulation=True,
@@ -466,7 +458,7 @@ async def debug_settings(
         },
         faq_count=len(ai_context.faq_items),
         scope_description=bool(ai_context.scope_description),
-        empreendimentos_count=emp_count,
+        products_count=prod_count,
         prompt_preview=prompt_preview,
     )
 
@@ -559,26 +551,26 @@ async def get_simulator_suggestions(
             ]
         })
         
-        # Busca empreendimentos para sugerir gatilhos
+        # Busca produtos para sugerir gatilhos
         if tenant:
-            emp_result = await db.execute(
-                select(Empreendimento)
-                .where(Empreendimento.tenant_id == tenant.id)
-                .where(Empreendimento.ativo == True)
+            prod_result = await db.execute(
+                select(Product)
+                .where(Product.tenant_id == tenant.id)
+                .where(Product.active == True)
                 .limit(5)
             )
-            empreendimentos = emp_result.scalars().all()
+            products = prod_result.scalars().all()
             
-            if empreendimentos:
-                emp_messages = []
-                for emp in empreendimentos:
-                    emp_messages.append(f"Interesse no {emp.nome}")
-                    if emp.gatilhos:
-                        emp_messages.append(emp.gatilhos[0])
+            if products:
+                prod_messages = []
+                for prod in products:
+                    prod_messages.append(f"Interesse no {prod.name}")
+                    if prod.triggers:
+                        prod_messages.append(prod.triggers[0])
                 
                 suggestions.insert(3, {
-                    "category": "🏢 Empreendimentos",
-                    "messages": emp_messages[:6]
+                    "category": "📦 Produtos/Serviços",
+                    "messages": prod_messages[:6]
                 })
     else:
         # Sugestões genéricas para outros nichos
@@ -642,13 +634,12 @@ async def compare_prompts(
         status="em_atendimento",
     )
     
-    # Detecta empreendimento
-    empreendimento = await detect_empreendimento_for_simulator(
+    # Detecta produto
+    product = await detect_product_for_simulator(
         db=db,
         tenant_id=tenant.id,
         message=test_message,
         history=[],
-        niche_id=ai_context.niche_id,
     )
     
     emp_context = None
@@ -659,7 +650,7 @@ async def compare_prompts(
     prompt_result = build_complete_prompt(
         ai_context=ai_context,
         lead_context=simulated_lead,
-        empreendimento=emp_context,
+        product=product_context,
         imovel_portal=None,
         include_security=True,
         is_simulation=True,

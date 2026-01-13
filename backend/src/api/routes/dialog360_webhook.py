@@ -35,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from src.infrastructure.database import get_db
-from src.domain.entities import Lead, Message, Tenant, Empreendimento
+from src.domain.entities import Lead, Message, Tenant, Product
 from src.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -230,14 +230,14 @@ class GestorNotificationService:
     @staticmethod
     def build_notification_message(
         lead: Lead,
-        empreendimento: Empreendimento,
+        product: Product,
         conversation_summary: str = None,
     ) -> str:
         """
         Constrói mensagem de notificação para o gestor.
         
         Formato:
-        🏢 Novo lead qualificado - [Empreendimento]
+        📦 Novo lead qualificado - [Produto/Serviço]
         
         👤 Nome: João Silva
         📱 Telefone: (51) 99999-9999
@@ -278,6 +278,9 @@ class GestorNotificationService:
         # Dados extras coletados
         extras = []
         if lead.custom_data:
+            if lead.custom_data.get("product_name") or lead.custom_data.get("empreendimento_nome"):
+                product_name = lead.custom_data.get("product_name") or lead.custom_data.get("empreendimento_nome")
+                extras.append(f"• Produto: {product_name}")
             if lead.custom_data.get("tipologia"):
                 extras.append(f"• Interesse: {lead.custom_data['tipologia']}")
             if lead.custom_data.get("orcamento") or lead.custom_data.get("budget_range"):
@@ -291,7 +294,7 @@ class GestorNotificationService:
         
         extras_text = "\n".join(extras) if extras else "• Dados sendo coletados..."
         
-        message = f"""🏢 *Novo Lead - {empreendimento.nome}*
+        message = f"""📦 *Novo Lead - {product.name}*
 
 👤 *Nome:* {lead.name or 'Não informado'}
 📱 *WhatsApp:* {phone_formatted}
@@ -315,12 +318,12 @@ _Para atender, clique no número acima ou encaminhe para um corretor._"""
         db: AsyncSession,
         api_key: str,
         lead: Lead,
-        empreendimento: Empreendimento,
+        product: Product,
     ) -> bool:
         """
         Envia notificação para o gestor se:
         - Lead tem nome
-        - Empreendimento tem whatsapp_notificacao configurado
+        - Produto tem notify_manager configurado (ou settings do tenant)
         - Lead ainda não foi notificado
         
         Returns:
@@ -332,8 +335,11 @@ _Para atender, clique no número acima ou encaminhe para um corretor._"""
                 logger.debug(f"Lead {lead.id} sem nome, não notifica gestor")
                 return False
             
-            if not empreendimento.whatsapp_notificacao:
-                logger.debug(f"Empreendimento {empreendimento.id} sem WhatsApp do gestor")
+            manager_phone = product.attributes.get("whatsapp_notification") if product.attributes else None
+            
+            if not manager_phone:
+                # Tenta nos settings do tenant como fallback (implementado na lógica real do process_message)
+                logger.debug(f"Produto {product.id} sem WhatsApp do gestor nos atributos")
                 return False
             
             # Verifica se já notificou
@@ -352,7 +358,7 @@ _Para atender, clique no número acima ou encaminhe para um corretor._"""
             # Monta mensagem
             message = GestorNotificationService.build_notification_message(
                 lead=lead,
-                empreendimento=empreendimento,
+                product=product,
             )
             
             # Envia
@@ -369,11 +375,11 @@ _Para atender, clique no número acima ou encaminhe para um corretor._"""
                 
                 lead.custom_data["gestor_notificado"] = True
                 lead.custom_data["gestor_notificado_em"] = datetime.now(timezone.utc).isoformat()
-                lead.custom_data["gestor_phone"] = gestor_phone
+                lead.custom_data["gestor_phone"] = manager_phone
                 
                 await db.commit()
                 
-                logger.info(f"✅ Gestor notificado - Lead: {lead.id}, Empreendimento: {empreendimento.nome}")
+                logger.info(f"✅ Gestor notificado - Lead: {lead.id}, Produto: {product.name}")
                 return True
             else:
                 logger.error(f"❌ Falha ao notificar gestor - Lead: {lead.id}, Erro: {result.get('error')}")
@@ -443,20 +449,20 @@ async def get_tenant_by_phone(db: AsyncSession, business_phone: str) -> Optional
     return tenant
 
 
-async def get_empreendimento_for_lead(
+async def get_product_for_lead(
     db: AsyncSession,
     lead: Lead,
-) -> Optional[Empreendimento]:
-    """Busca empreendimento associado ao lead."""
+) -> Optional[Product]:
+    """Busca produto associado ao lead."""
     if not lead.custom_data:
         return None
     
-    emp_id = lead.custom_data.get("empreendimento_id")
-    if not emp_id:
+    prod_id = lead.custom_data.get("product_id") or lead.custom_data.get("empreendimento_id")
+    if not prod_id:
         return None
     
     result = await db.execute(
-        select(Empreendimento).where(Empreendimento.id == emp_id)
+        select(Product).where(Product.id == prod_id)
     )
     return result.scalar_one_or_none()
 
@@ -606,9 +612,9 @@ async def receive_webhook(
                         
                         ai_reply = result.get("reply")
                         lead_id = result.get("lead_id")
-                        empreendimento_id = result.get("empreendimento_id")
+                        product_id = result.get("product_id") or result.get("empreendimento_id")
                         
-                        logger.info(f"🤖 Resposta gerada - Lead: {lead_id}, Empreendimento: {empreendimento_id}")
+                        logger.info(f"🤖 Resposta gerada - Lead: {lead_id}, Produto: {product_id}")
                         
                     except Exception as e:
                         logger.error(f"❌ Erro no process_message: {e}")
@@ -632,27 +638,27 @@ async def receive_webhook(
                     # ============================================
                     # 5. NOTIFICA GESTOR (se aplicável)
                     # ============================================
-                    if lead_id and empreendimento_id:
+                    if lead_id and product_id:
                         # Busca lead atualizado
                         lead_result = await db.execute(
                             select(Lead).where(Lead.id == lead_id)
                         )
                         lead = lead_result.scalar_one_or_none()
                         
-                        # Busca empreendimento
-                        emp_result = await db.execute(
-                            select(Empreendimento).where(Empreendimento.id == empreendimento_id)
+                        # Busca produto
+                        prod_result = await db.execute(
+                            select(Product).where(Product.id == product_id)
                         )
-                        empreendimento = emp_result.scalar_one_or_none()
+                        product = prod_result.scalar_one_or_none()
                         
-                        if lead and empreendimento:
+                        if lead and product:
                             # Notifica em background para não atrasar resposta
                             background_tasks.add_task(
                                 GestorNotificationService.notify_gestor,
                                 db,
                                 api_key,
                                 lead,
-                                empreendimento,
+                                product,
                             )
         
         return {"status": "ok"}
@@ -746,11 +752,11 @@ async def test_notify_gestor(
     if not api_key:
         raise HTTPException(status_code=400, detail="Tenant sem dialog360_api_key")
     
-    # Busca empreendimento
-    empreendimento = await get_empreendimento_for_lead(db, lead)
+    # Busca produto
+    product = await get_product_for_lead(db, lead)
     
-    if not empreendimento:
-        raise HTTPException(status_code=400, detail="Lead não tem empreendimento associado")
+    if not product:
+        raise HTTPException(status_code=400, detail="Lead não tem produto associado")
     
     # Força reset do flag para testar
     if lead.custom_data:
@@ -762,15 +768,15 @@ async def test_notify_gestor(
         db=db,
         api_key=api_key,
         lead=lead,
-        empreendimento=empreendimento,
+        product=product,
     )
     
     return {
         "success": success,
         "lead_id": lead.id,
         "lead_name": lead.name,
-        "empreendimento": empreendimento.nome,
-        "gestor_phone": empreendimento.whatsapp_notificacao,
+        "product": product.name,
+        "gestor_phone": product.attributes.get("whatsapp_notification") if product.attributes else None,
     }
 
 

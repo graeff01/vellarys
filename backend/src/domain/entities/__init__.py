@@ -30,7 +30,7 @@ from .plan import Plan
 from .tenant_usage import TenantUsage
 from .tenant_subscription import TenantSubscription
 from .audit_log import AuditLog
-from .empreendimento import Empreendimento
+from .product import Product
 from .push_subscription import PushSubscription  # ← NOVO
 
 __all__ = [
@@ -66,8 +66,8 @@ __all__ = [
     "TenantSubscription",
     # Audit
     "AuditLog",
-    # Imobiliário
-    "Empreendimento",
+    # Produtos
+    \"Product\",
     # Push Notifications
     "PushSubscription",  # ← NOVO
 ]
