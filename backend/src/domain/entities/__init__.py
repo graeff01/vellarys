@@ -67,7 +67,7 @@ __all__ = [
     # Audit
     "AuditLog",
     # Produtos
-    \"Product\",
+    "Product",
     # Push Notifications
     "PushSubscription",  # ← NOVO
 ]
