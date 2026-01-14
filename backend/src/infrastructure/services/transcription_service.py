@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 TEMP_AUDIO_DIR = "temp_audio"
 os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
 
-async def transcribe_audio_url(url: str) -> Optional[str]:
+async def transcribe_audio_url(url: str, prompt: Optional[str] = None) -> Optional[str]:
     """
     Baixa um arquivo de áudio de uma URL e o transcreve via Whisper.
     """
@@ -36,9 +36,9 @@ async def transcribe_audio_url(url: str) -> Optional[str]:
                 f.write(response.content)
         
         # 2. Transcrição via LLM Provider
-        logger.info(f"🎙️ Enviando para Whisper: {temp_file}")
+        logger.info(f"🎙️ Enviando para Whisper: {temp_file} | Prompt: {prompt[:50] if prompt else 'N/A'}")
         provider = LLMFactory.get_provider()
-        text = await provider.transcribe(temp_file)
+        text = await provider.transcribe(temp_file, prompt=prompt)
         
         logger.info(f"✅ Transcrição concluída: \"{text[:50]}...\"")
         return text

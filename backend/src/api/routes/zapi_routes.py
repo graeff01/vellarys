@@ -151,7 +151,32 @@ async def zapi_receive_message(
             return {"status": "ignored", "reason": "from_me"}
         
         # ════════════════════════════════════════════════════════════════
-        # PASSO 2: EXTRAI DADOS DA MENSAGEM
+        # NOVO PASSO 2: BUSCA TENANT (NECESSÁRIO PARA CONTEXTO DE TRANSCRIÇÃO)
+        # ════════════════════════════════════════════════════════════════
+        result = await db.execute(
+            select(Channel)
+            .where(Channel.type == "whatsapp")
+            .where(Channel.active == True)
+        )
+        channel = result.scalar_one_or_none()
+        
+        if not channel:
+            logger.error("Nenhum canal WhatsApp ativo encontrado")
+            return {"status": "error", "reason": "no_channel"}
+        
+        result = await db.execute(
+            select(Tenant)
+            .where(Tenant.id == channel.tenant_id)
+            .where(Tenant.active == True)
+        )
+        tenant = result.scalar_one_or_none()
+        
+        if not tenant:
+            logger.error(f"Tenant nao encontrado para channel {channel.id}")
+            return {"status": "error", "reason": "no_tenant"}
+
+        # ════════════════════════════════════════════════════════════════
+        # PASSO 3: EXTRAI DADOS DA MENSAGEM
         # ════════════════════════════════════════════════════════════════
         
         phone = payload.get("phone")
@@ -170,7 +195,15 @@ async def zapi_receive_message(
             audio_url = payload["audio"].get("audioUrl")
             if audio_url:
                 logger.info(f"🎙️ Áudio detectado! Iniciando transcrição Whisper...")
-                transcription = await transcribe_audio_url(audio_url)
+                
+                # Build context-aware prompt for Whisper
+                whisper_prompt = "Igara, Guajuviras, Mathias Velho, Niterói, Marechal Rondon, Estância Velha, Canoas, Rio Grande do Sul, imobiliária, corretor, apartamento, casa, FGTS, financiamento."
+                if tenant and tenant.settings:
+                    company_name = tenant.settings.get("company_name", "")
+                    if company_name:
+                        whisper_prompt = f"{company_name}, {whisper_prompt}"
+                
+                transcription = await transcribe_audio_url(audio_url, prompt=whisper_prompt)
                 if transcription:
                     message_text = transcription
                     logger.info(f"✅ Áudio transcrito: {message_text[:50]}...")
@@ -198,7 +231,7 @@ async def zapi_receive_message(
             return {"status": "ignored", "reason": "incomplete_payload"}
         
         # ════════════════════════════════════════════════════════════════
-        # PASSO 3: DEDUPLICAÇÃO (PRIORIDADE: messageId)
+        # PASSO 4: DEDUPLICAÇÃO (PRIORIDADE: messageId)
         # ════════════════════════════════════════════════════════════════
         
         if message_id:
@@ -222,32 +255,6 @@ async def zapi_receive_message(
             if is_duplicate:
                 logger.warning(f"⚠️ Webhook duplicado detectado (fallback): {phone}")
                 return {"status": "ok", "message": "already_processed_fallback"}
-        
-        # ════════════════════════════════════════════════════════════════
-        # PASSO 4: BUSCA TENANT
-        # ════════════════════════════════════════════════════════════════
-        
-        result = await db.execute(
-            select(Channel)
-            .where(Channel.type == "whatsapp")
-            .where(Channel.active == True)
-        )
-        channel = result.scalar_one_or_none()
-        
-        if not channel:
-            logger.error("Nenhum canal WhatsApp ativo encontrado")
-            return {"status": "error", "reason": "no_channel"}
-        
-        result = await db.execute(
-            select(Tenant)
-            .where(Tenant.id == channel.tenant_id)
-            .where(Tenant.active == True)
-        )
-        tenant = result.scalar_one_or_none()
-        
-        if not tenant:
-            logger.error(f"Tenant nao encontrado para channel {channel.id}")
-            return {"status": "error", "reason": "no_tenant"}
         
         logger.info(f"🏢 Processando para tenant: {tenant.slug}")
         

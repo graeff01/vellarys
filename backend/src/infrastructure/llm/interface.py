@@ -28,7 +28,7 @@ class LLMProvider(ABC):
             Dict com 'content' (str) e 'tokens_used' (int)
         """
     @abstractmethod
-    async def transcribe(self, audio_file_path: str) -> str:
+    async def transcribe(self, audio_file_path: str, prompt: Optional[str] = None) -> str:
         """
         Transcreve um arquivo de áudio para texto.
         
