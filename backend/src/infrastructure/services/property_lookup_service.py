@@ -7,7 +7,7 @@ Arquivo: backend/src/infrastructure/services/property_lookup_service.py
 
 import logging
 import re
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
