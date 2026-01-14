@@ -239,7 +239,7 @@ class PropertyLookupService:
             "metragem": imovel.get("metragem", "Consulte"),
             "preco": preco_fmt,
             "descricao": imovel.get("descricao", ""),
-            "link": f"{PORTAL_BASE_URL}/imovel.html?id={imovel.get('id', '')}",
+            "link": f"{PORTAL_BASE_URL}/imovel.html?codigo={imovel.get('codigo', '')}",
         }
 
 
