@@ -33,18 +33,33 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
         
         # Sincroniza colunas extras da tabela products (fix UndefinedColumnError)
-        columns_to_add = [
+        products_columns = [
             ("latitude", "DOUBLE PRECISION"),
             ("longitude", "DOUBLE PRECISION"),
             ("pdf_url", "VARCHAR(500)"),
             ("folder_url", "VARCHAR(500)")
         ]
         
-        for col_name, col_type in columns_to_add:
+        for col_name, col_type in products_columns:
             try:
                 await conn.execute(text(f"ALTER TABLE products ADD COLUMN {col_name} {col_type}"))
                 print(f"✅ Coluna '{col_name}' sincronizada na tabela products.")
             except Exception as e:
-                # Ignora se a coluna já existe
+                if "already exists" not in str(e).lower():
+                    print(f"⚠️ Erro ao sincronizar coluna '{col_name}': {e}")
+        
+        # Sincroniza colunas extras da tabela leads (reengajamento)
+        leads_columns = [
+            ("reengagement_attempts", "INTEGER DEFAULT 0"),
+            ("last_reengagement_at", "TIMESTAMP WITH TIME ZONE"),
+            ("reengagement_status", "VARCHAR(20) DEFAULT 'none'"),
+            ("last_activity_at", "TIMESTAMP WITH TIME ZONE")
+        ]
+        
+        for col_name, col_type in leads_columns:
+            try:
+                await conn.execute(text(f"ALTER TABLE leads ADD COLUMN {col_name} {col_type}"))
+                print(f"✅ Coluna '{col_name}' sincronizada na tabela leads.")
+            except Exception as e:
                 if "already exists" not in str(e).lower():
                     print(f"⚠️ Erro ao sincronizar coluna '{col_name}': {e}")
