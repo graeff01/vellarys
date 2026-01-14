@@ -15,8 +15,9 @@ from .semantic_search_service import semantic_search
 logger = logging.getLogger(__name__)
 
 PORTAL_BASE_URL = "https://portalinvestimento.com"
-PORTAL_REGIONS = ["poa", "sc", "canoas", "pb"]
+PORTAL_REGIONS = ["canoas", "poa", "sc", "pb"]  # 🚀 CANOAS AGORA É PRIORIDADE
 HTTP_TIMEOUT = 5.0
+FALLBACK_FILE_CANOAS = "data/fallback_canoas.json"  # 📂 ARQUIVO LOCAL
 
 # Cache simples em memória
 _cache: Dict[str, tuple] = {}
@@ -206,6 +207,18 @@ class PropertyLookupService:
         
         data = _fazer_request_http(url)
         
+        # 📂 FALLBACK ESTRATÉGICO: Se falhar e for Canoas, usa o JSON local que o usuário forneceu
+        if not data and regiao == "canoas":
+            import os
+            import json
+            if os.path.exists(FALLBACK_FILE_CANOAS):
+                logger.warning(f"⚠️ [PORTAL] Portal offline. Usando FALLBACK LOCAL para Canoas!")
+                try:
+                    with open(FALLBACK_FILE_CANOAS, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                except Exception as e:
+                    logger.error(f"❌ [PORTAL] Erro ao carregar fallback local: {e}")
+
         if data:
             _set_cache(f"reg_{regiao}", data)
             logger.info(f"✅ [PORTAL] {len(data)} imóveis carregados de {regiao}")
