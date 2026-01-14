@@ -1070,8 +1070,8 @@ Seja foda, amigável e focado em converter."""
         logger.error(traceback.format_exc())
         
         # Fallback responses
-        if empreendimento_detectado:
-            final_response = f"Olá! Interesse no {empreendimento_detectado.nome}! Como posso ajudar?"
+        if product_detected:
+            final_response = f"Olá! Interesse no {product_detected.name}! Como posso ajudar?"
         elif imovel_portal:
             final_response = f"Olá! Vi seu interesse no imóvel {imovel_portal.get('codigo')}! Como posso ajudar?"
         else:
@@ -1100,7 +1100,7 @@ Seja foda, amigável e focado em converter."""
         details={
             "tokens_used": tokens_used,
             "sentiment": sentiment.get("sentiment"),
-            "empreendimento_id": empreendimento_detectado.id if empreendimento_detectado else None,
+            "product_id": product_detected.id if product_detected else None,
             "imovel_portal_codigo": imovel_portal.get("codigo") if imovel_portal else None,
         },
     )
