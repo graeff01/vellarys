@@ -24,7 +24,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.database import get_db
 from src.domain.entities import Tenant, Channel
 from src.application.use_cases.process_message import process_message
-from src.infrastructure.services import transcribe_audio_url
+from src.infrastructure.services import (
+    transcribe_audio_url,
+    analyze_property_image,
+)
 from src.infrastructure.services.zapi_service import get_zapi_client
 
 logger = logging.getLogger(__name__)
@@ -190,7 +193,15 @@ async def zapi_receive_message(
         if payload.get("text"):
             message_text = payload["text"].get("message")
         elif payload.get("image"):
-            message_text = payload["image"].get("caption") or "[Imagem recebida]"
+            image_url = payload["image"].get("imageUrl")
+            caption = payload["image"].get("caption") or ""
+            
+            if image_url:
+                logger.info(f"📸 Imagem detectada! Analisando com GPT-4o Vision...")
+                analysis = await analyze_property_image(image_url)
+                message_text = f"[Imagem: {analysis}] {caption}".strip()
+            else:
+                message_text = caption or "[Imagem recebida]"
         elif payload.get("audio"):
             audio_url = payload["audio"].get("audioUrl")
             if audio_url:

@@ -98,3 +98,25 @@ def should_handoff(user_message: str, ai_response: str) -> dict:
         return {"should_handoff": True, "reason": "IA sugeriu transferência"}
     
     return {"should_handoff": False, "reason": None}
+
+
+def is_prompt_safe(content: str) -> bool:
+    """
+    Detecta tentativas de prompt injection / jailbreak.
+    """
+    content_lower = content.lower()
+    malicious_patterns = [
+        r"ignore.*instru[çc][õo]es.*anteriores",
+        r"esque[çc]a.*regras",
+        r"aja\s+como",
+        r"atue\s+como",
+        r"dan\s+mode",
+        r"jailbreak",
+        r"system\s*prompt",
+    ]
+    
+    for pattern in malicious_patterns:
+        if re.search(pattern, content_lower):
+            return False
+            
+    return True

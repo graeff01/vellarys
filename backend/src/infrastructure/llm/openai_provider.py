@@ -54,3 +54,36 @@ class OpenAIProvider(LLMProvider):
         except Exception as e:
             logger.error(f"Erro na transcrição Whisper: {e}")
             raise e
+
+    async def generate_embeddings(self, text: str, model: str = "text-embedding-3-small") -> List[float]:
+        """Gera embeddings usando OpenAI API."""
+        try:
+            response = await self.client.embeddings.create(
+                input=text,
+                model=model
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            logger.error(f"Erro ao gerar embeddings OpenAI: {e}")
+            raise e
+
+    async def analyze_image(self, image_url: str, prompt: str) -> str:
+        """Analisa imagem usando GPT-4o Vision."""
+        try:
+            response = await self.client.chat.completions.create(
+                model="gpt-4o-mini", # Mini agora suporta visão e é mais barato/rápido
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": image_url}},
+                        ],
+                    }
+                ],
+                max_tokens=300,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            logger.error(f"Erro ao analisar imagem OpenAI: {e}")
+            return f"[Erro na análise de imagem: {e}]"

@@ -9,6 +9,8 @@ import logging
 import re
 from typing import Optional, Dict, List, Any
 from datetime import datetime, timedelta
+import asyncio
+from .semantic_search_service import semantic_search
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +209,15 @@ class PropertyLookupService:
         if data:
             _set_cache(f"reg_{regiao}", data)
             logger.info(f"✅ [PORTAL] {len(data)} imóveis carregados de {regiao}")
+            
+            # 🧠 NOVO: Indexa para busca semântica em background
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(semantic_search.index_properties(data))
+            except Exception as e:
+                logger.debug(f"⚠️ Erro ao disparar indexação: {e}")
+                
             return data
         
         logger.error(f"❌ [PORTAL] Falha ao carregar {regiao}")
@@ -403,8 +414,31 @@ def extrair_criterios_busca(mensagem: str) -> Dict[str, Any]:
 def buscar_imoveis_por_criterios(mensagem: str) -> List[Dict]:
     """Função utilitária para buscar imóveis baseados na mensagem."""
     criterios = extrair_criterios_busca(mensagem)
-    if not criterios:
-        return []
     
     service = PropertyLookupService()
-    return service.buscar_por_criterios(**criterios)
+    resultados = []
+    
+    if criterios:
+        resultados = service.buscar_por_criterios(**criterios)
+    
+    return resultados
+
+
+async def buscar_imoveis_semantico(mensagem: str, limit: int = 3) -> List[Dict]:
+    """
+    🔍 Busca imóveis usando inteligência semântica (OpenAI Embeddings).
+    Tenta entender pedidos como 'casa de luxo', 'lugar calmo', etc.
+    """
+    logger.info(f"🧠 [SEMÂNTICO] Buscando por: '{mensagem}'")
+    
+    # 1. Tira ruídos comuns de saudação
+    ruidos = ["quero", "busco", "procurando", "imóvel", "casa", "apartamento", "apto", "teria", "alguma", "opção"]
+    query = mensagem.lower()
+    for r in ruidos:
+        query = query.replace(r, "")
+    
+    query = query.strip()
+    if not query:
+        return []
+        
+    return await semantic_search.search(query, limit=limit)

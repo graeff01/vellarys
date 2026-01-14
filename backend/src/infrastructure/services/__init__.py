@@ -27,6 +27,8 @@ from .openai_service import (
     get_random_greeting,
 )
 from .transcription_service import transcribe_audio_url
+from .semantic_search_service import semantic_search
+from .vision_service import analyze_property_image
 
 # =============================================================================
 # COMUNICAÇÃO - WhatsApp (Z-API)

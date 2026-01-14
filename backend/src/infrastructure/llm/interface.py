@@ -39,3 +39,17 @@ class LLMProvider(ABC):
             Texto transcrito.
         """
         pass
+
+    @abstractmethod
+    async def generate_embeddings(self, text: str, model: str = "text-embedding-3-small") -> List[float]:
+        """
+        Gera embeddings vetoriais para um texto.
+        """
+        pass
+
+    @abstractmethod
+    async def analyze_image(self, image_url: str, prompt: str) -> str:
+        """
+        Analisa uma imagem via URL e retorna uma descrição/resposta.
+        """
+        pass

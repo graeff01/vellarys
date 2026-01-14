@@ -33,6 +33,7 @@ from sqlalchemy.orm import selectinload
 from src.infrastructure.database import async_session
 from src.domain.entities import Lead, Message, Tenant
 from src.infrastructure.services.whatsapp_service import send_whatsapp_message
+from src.infrastructure.services.openai_service import chat_completion
 
 logger = logging.getLogger(__name__)
 
@@ -309,8 +310,11 @@ class FollowUpService:
             # Determina qual tentativa é essa
             attempt = (lead.reengagement_attempts or 0) + 1
             
-            # Obtém mensagem personalizada
-            message = self._get_personalized_message(lead, attempt, config)
+            # Obtém mensagem personalizada (Tenta por IA primeiro)
+            message = await self._generate_ai_follow_up(lead, attempt, config)
+            
+            if not message:
+                message = self._get_personalized_message(lead, attempt, config)
             
             if not message:
                 print(f"⚠️ Lead {lead.id}: Sem mensagem para tentativa {attempt}")
@@ -446,6 +450,45 @@ class FollowUpService:
             print(f"Erro ao verificar horário permitido: {e}")
             return True
     
+    async def _generate_ai_follow_up(self, lead: Lead, attempt: int, config: dict) -> Optional[str]:
+        """Gera uma mensagem de follow-up ultra-personalizada usando GPT-4o-mini."""
+        
+        try:
+            # Pega as últimas 5 mensagens para dar contexto
+            history_text = ""
+            if lead.messages:
+                recent = sorted(lead.messages, key=lambda m: m.created_at, reverse=True)[:5]
+                history_text = "\n".join([f"{'IA' if m.role == 'assistant' else 'Cliente'}: {m.content}" for m in reversed(recent)])
+            
+            prompt = f"""
+Você é um corretor de imóveis sênior fazendo um follow-up (tentativa #{attempt}) com um cliente.
+NOME DO CLIENTE: {lead.name or 'Cliente'}
+INTERESSE: {self._extract_interesse(lead)}
+ÚLTIMAS MENSAGENS:
+{history_text}
+
+# INSTRUÇÃO:
+- Crie uma mensagem curta (máximo 200 caracteres) para WhatsApp.
+- Seja amigável, não pareça um robô.
+- Use o contexto das últimas mensagens se houver.
+- O objetivo é fazer o cliente responder.
+- Não use 'Olá', use algo mais casual como 'Oi' ou 'Tudo bem?'.
+- Se for a tentativa 3 (última), seja educado mas diga que vai encerrar o contato para não incomodar.
+
+RESPONDA APENAS A MENSAGEM DO WHATSAPP.
+"""
+            ai_response = await chat_completion(
+                messages=[{"role": "system", "content": prompt}],
+                temperature=0.8,
+                max_tokens=100
+            )
+            
+            return ai_response["content"].strip().strip('"')
+            
+        except Exception as e:
+            logger.error(f"⚠️ Falha ao gerar follow-up com IA: {e}")
+            return None
+
     def _get_personalized_message(self, lead: Lead, attempt: int, config: dict) -> str:
         """Gera mensagem personalizada para o lead."""
         

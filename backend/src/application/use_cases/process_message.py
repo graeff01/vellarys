@@ -31,6 +31,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from src.infrastructure.services.property_lookup_service import (
     buscar_imovel_na_mensagem,
     buscar_imoveis_por_criterios,
+    buscar_imoveis_semantico,
     extrair_codigo_imovel,
 )
 
@@ -67,6 +68,7 @@ from src.application.services.ai_context_builder import (
 from src.infrastructure.services.ai_security import (
     sanitize_response,
     should_handoff as check_ai_handoff,
+    is_prompt_safe,
 )
 
 from src.infrastructure.services.security_service import (
@@ -821,10 +823,16 @@ async def process_message(
     if imovel_portal:
         logger.info(f"🏠 Imóvel portal: {imovel_portal.get('codigo')}")
     else:
-        # Tenta buscar por critérios se não houver código específico
+        # 1. Tenta por critérios (bairro, preço, quartos)
         imoveis_sugeridos = buscar_imoveis_por_criterios(content)
+        
+        # 2. SE não achou por critérios, TENTA BUSCA SEMÂNTICA (RAG)
+        if not imoveis_sugeridos and len(content.strip()) > 10:
+            logger.info("🧠 Critérios não retornaram nada. Iniciando busca semântica...")
+            imoveis_sugeridos = await buscar_imoveis_semantico(content)
+            
         if imoveis_sugeridos:
-            logger.info(f"🔎 Encontrados {len(imoveis_sugeridos)} imóveis por critérios")
+            logger.info(f"🔎 Encontrados {len(imoveis_sugeridos)} imóveis para sugestão")
     
     # =========================================================================
     # 14. HANDOFF TRIGGERS
@@ -998,6 +1006,27 @@ async def process_message(
             "hot_signal_detected": True,
         }
     
+    # =========================================================================
+    # 19.5 VERIFICA SEGURANÇA DO PROMPT (ANTI-JAILBREAK)
+    # =========================================================================
+    if not is_prompt_safe(content):
+        logger.warning(f"🚨 Tentativa de Jailbreak detectada do lead {lead.id}!")
+        safe_reply = f"Desculpe, não entendi perfeitamente. Pode reformular? Sou um assistente da {settings['company_name']} focado em imóveis."
+        
+        # Salva histórico básico e breca
+        user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
+        db.add(user_message)
+        assistant_message = Message(lead_id=lead.id, role="assistant", content=safe_reply, tokens_used=0)
+        db.add(assistant_message)
+        await db.commit()
+        
+        return {
+            "success": True, 
+            "reply": safe_reply, 
+            "lead_id": lead.id,
+            "security": "blocked_jailbreak"
+        }
+
     # =========================================================================
     # 20. MONTA PROMPT CENTRALIZADO (FAXINA DE SENIORIDADE)
     # =========================================================================
