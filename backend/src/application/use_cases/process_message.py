@@ -56,6 +56,14 @@ from src.infrastructure.services.openai_service import (
     validate_ai_response,
 )
 
+from src.application.services.ai_context_builder import (
+    extract_ai_context,
+    build_complete_prompt,
+    lead_to_context,
+    product_to_context,
+    imovel_dict_to_context,
+)
+
 from src.infrastructure.services.ai_security import (
     sanitize_response,
     should_handoff as check_ai_handoff,
@@ -991,57 +999,28 @@ async def process_message(
         }
     
     # =========================================================================
-    # 20. MONTA PROMPT MINIMALISTA
+    # 20. MONTA PROMPT CENTRALIZADO (FAXINA DE SENIORIDADE)
     # =========================================================================
-    logger.info(f"🤖 Chamando GPT-4o-mini | Imóvel: {bool(imovel_portal)}")
+    logger.info(f"🤖 Preparando contexto centralizado...")
     
-    system_prompt = f"""Você é um Corretor de Imóveis especialista da {settings['company_name']}, em Canoas/RS.
-Sua missão não é apenas responder, mas conduzir o cliente para o fechamento ou agendamento de visita.
-
-# POSTURA:
-- Consultiva: Ajude o cliente a entender o mercado.
-- Ágil: Dê respostas diretas e curtas.
-- Humana: Use emojis moderadamente e tom cordial.
-
-# FERRAMENTAS E DADOS:
-1. CATALOGO: Temos acesso ao catálogo via código ou busca por filtros.
-2. FINANCIAMENTO: Você pode simular valores básicos. Use a regra: 20% entrada, 80% financiamento em 360x, juros de ~11% a.a.
-3. MIDIA: Se o cliente pedir fotos ou mais detalhes, diga que o link do imóvel tem tudo, mas que você pode enviar o material completo (PDF/Fotos) pelo WhatsApp do corretor logo em seguida."""
-
-    # Adiciona dados do imóvel se houver (com formatação melhorada)
-    if imovel_portal:
-        preco_formatado = formatar_preco_br(imovel_portal.get('preco'))
-        
-        system_prompt += f"""
-
-Imóvel código {imovel_portal.get('codigo')}:
-- {imovel_portal.get('tipo')} em {imovel_portal.get('regiao')}, Canoas
-- {imovel_portal.get('quartos')} quartos, {imovel_portal.get('banheiros')} banheiros, {imovel_portal.get('vagas')} vagas
-- {imovel_portal.get('metragem')}m²
-- {preco_formatado}"""
-
-    # Adiciona sugestões de busca se houver
-    if imoveis_sugeridos:
-        system_prompt += f"\n\nBaseado no que o cliente busca, temos estas opções (Sugerir apenas se fizer sentido):\n"
-        for imv in imoveis_sugeridos:
-            system_prompt += f"- Cód {imv['codigo']}: {imv['tipo']} em {imv['regiao']} ({imv['preco']})\n"
-        system_prompt += "\nInstrução: Se o cliente perguntar por opções, apresente estas. Se ele gostar de alguma, use o código para dar detalhes."
+    from src.application.services.ai_context_builder import extract_ai_context, build_complete_prompt
     
-    # Conhecimento local
-    system_prompt += """
-
-Você conhece Canoas:
-- Escolas no Centro: La Salle, SESI
-- Mercados: Zaffari, Big
-- Hospitais: Mãe de Deus
-
-REGRAS DE SEGURANÇA E VENDAS:
-- NUNCA dê o endereço exato do imóvel (por segurança).
-- NUNCA negocie descontos (isso é com o corretor).
-- Se o cliente demonstrar urgência ou perguntar muito, diga: "Vou agilizar seu atendimento com um de nossos corretores especialistas".
-- SEMPRE tente descobrir: 1. Finalidade (morar/investir), 2. Prazo de mudança, 3. Se possui entrada ou FGTS.
-
-Seja foda, amigável e focado em converter."""
+    # Prepara os contextos
+    ai_context = extract_ai_context(tenant.name, tenant.settings)
+    lead_ctx = lead_to_context(lead, message_count)
+    prod_ctx = product_to_context(product_detected) if product_detected else None
+    imovel_ctx = imovel_dict_to_context(imovel_portal) if imovel_portal else None
+    
+    # Constrói o prompt completo (V2 - Prioriza contextos dinâmicos)
+    prompt_result = build_complete_prompt(
+        ai_context=ai_context,
+        lead_context=lead_ctx,
+        product=prod_ctx,
+        imovel_portal=imovel_ctx
+    )
+    
+    system_prompt = prompt_result.system_prompt
+    logger.info(f"✅ Prompt centralizado gerado ({len(system_prompt)} chars)")
     
     # ═══════════════════════════════════════════════════════════════
     # ⚠️ CRITICAL FIX: ADICIONA MENSAGEM ATUAL AO HISTÓRICO!

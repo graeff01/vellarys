@@ -57,12 +57,81 @@ def get_available_niches() -> List[str]:
     return list(NICHE_SPECIFIC_TEMPLATES.keys())
 
 
-def build_system_prompt(*args, **kwargs) -> str:
+def build_system_prompt(
+    niche_id: str,
+    company_name: str,
+    tone: str = "cordial",
+    custom_questions: List[str] = None,
+    custom_rules: List[str] = None,
+    custom_prompt: Optional[str] = None,
+    faq_items: List[Dict] = None,
+    scope_description: str = "",
+    lead_context: Optional[Any] = None,
+    identity: Optional[Dict] = None,
+    scope_config: Optional[Dict] = None,
+) -> str:
     """
-    Função legacy - não usa mais.
-    Prompts agora são inline no process_message.py
+    Constrói o prompt de sistema (base) para a IA.
+    Esta é a 'alma' do Velaris. Centraliza persona e regras.
     """
-    return ""
+    
+    # 1. PERSONA E IDENTIDADE
+    persona_rules = []
+    if niche_id in ["realestate", "imobiliaria", "real_estate", "imobiliario"]:
+        persona_rules = [
+            f"Você é um Corretor de Imóveis especialista da {company_name}, em Canoas/RS.",
+            "Sua missão é conduzir o cliente para o fechamento ou agendamento de visita.",
+            "Postura: Consultiva (ajude a entender o mercado), Ágil (respostas curtas) e Humana.",
+        ]
+    else:
+        persona_rules = [
+            f"Você é um assistente especialista da {company_name}.",
+            "Sua missão é fornecer um atendimento de excelência e converter leads.",
+            f"Tom de voz: {tone}.",
+        ]
+
+    # 2. REGRAS DE NEGÓCIO (CUSTOMIZADAS)
+    business_rules = custom_rules or []
+    if identity and identity.get("business_rules"):
+        business_rules.extend(identity.get("business_rules"))
+    
+    # 3. PERGUNTAS DE QUALIFICAÇÃO
+    questions_to_ask = custom_questions or []
+    if identity and identity.get("required_questions"):
+        questions_to_ask.extend(identity.get("required_questions"))
+
+    # 4. MONTAGEM DO PROMPT
+    prompt_lines = [
+        "# PERSONA",
+        "\n".join(persona_rules),
+        "",
+        "# REGRAS DE OURO",
+        "- NUNCA negocie descontos.",
+        "- NUNCA diga endereço exato do imóvel (se for imobiliário).",
+        "- SEJA DIRETO: No WhatsApp, menos é mais. Máximo 3 parágrafos.",
+        "- NÃO peça o telefone de volta (você já está no WhatsApp!).",
+    ]
+
+    if business_rules:
+        prompt_lines.append("\n# REGRAS ESPECÍFICAS")
+        for rule in business_rules:
+            prompt_lines.append(f"- {rule}")
+
+    if questions_to_ask:
+        prompt_lines.append("\n# O QUE VOCÊ PRECISA DESCOBRIR")
+        for q in questions_to_ask:
+            prompt_lines.append(f"- {q}")
+
+    if custom_prompt:
+        prompt_lines.append("\n# INSTRUÇÕES ADICIONAIS DO TENANT")
+        prompt_lines.append(custom_prompt)
+
+    if faq_items:
+        prompt_lines.append("\n# FAQ / CONHECIMENTO")
+        for item in faq_items[:5]: # Limita a 5 itens para não explodir tokens
+            prompt_lines.append(f"P: {item.get('question')}\nR: {item.get('answer')}\n")
+
+    return "\n".join(prompt_lines)
 
 
 __all__ = [
