@@ -39,3 +39,17 @@ class OpenAIProvider(LLMProvider):
         except Exception as e:
             logger.error(f"Erro na chamada OpenAI: {e}")
             raise e
+
+    async def transcribe(self, audio_file_path: str) -> str:
+        """Transcreve áudio usando OpenAI Whisper."""
+        try:
+            with open(audio_file_path, "rb") as audio_file:
+                transcript = await self.client.audio.transcriptions.create(
+                    model="whisper-1", 
+                    file=audio_file,
+                    response_format="text"
+                )
+            return transcript
+        except Exception as e:
+            logger.error(f"Erro na transcrição Whisper: {e}")
+            raise e

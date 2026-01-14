@@ -26,6 +26,7 @@ from .openai_service import (
     calculate_typing_delay,
     get_random_greeting,
 )
+from .transcription_service import transcribe_audio_url
 
 # =============================================================================
 # COMUNICAÇÃO - WhatsApp (Z-API)
@@ -184,6 +185,7 @@ __all__ = [
     "generate_conversation_summary",
     "calculate_typing_delay",
     "get_random_greeting",
+    "transcribe_audio_url",
 
     # WHATSAPP
     "ZAPIService",
