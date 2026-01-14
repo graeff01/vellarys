@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     # ===========================================
     # CORS
     # ===========================================
-    cors_origins: str = "http://localhost:3000,http://localhost:5173,http://localhost:8080"
+    cors_origins: str = "http://localhost:3000,http://localhost:5173,http://localhost:8080,https://vellarys-production.up.railway.app,https://velaris.app"
     
     # ===========================================
     # OPENAI

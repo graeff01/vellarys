@@ -15,8 +15,12 @@ import json
 import random
 import logging
 from datetime import datetime, timedelta
+logger = logging.getLogger(__name__)
 # Cliente OpenAI removido (agora via LLMFactory)
 from src.infrastructure.llm import LLMFactory
+from src.config import get_settings
+
+settings = get_settings()
 
 
 # ============================================
