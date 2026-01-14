@@ -30,11 +30,14 @@ async_session = async_sessionmaker(
 
 # Inicialização do banco (criar tabelas)
 async def init_db():
+    print("🔍 [DB] Iniciando sincronização do banco de dados...")
     async with engine.begin() as conn:
         # 1. Cria as tabelas que não existem
         await conn.run_sync(Base.metadata.create_all)
+        print("✅ [DB] Tabelas base verificadas.")
         
         # 2. Sincroniza colunas extras da tabela products (fix UndefinedColumnError)
+        # Usamos ADD COLUMN IF NOT EXISTS (Postgres 9.6+)
         products_columns = [
             ("latitude", "DOUBLE PRECISION"),
             ("longitude", "DOUBLE PRECISION"),
@@ -44,12 +47,10 @@ async def init_db():
         
         for col_name, col_type in products_columns:
             try:
-                await conn.execute(text(f"ALTER TABLE products ADD COLUMN {col_name} {col_type}"))
-                logger.info(f"✅ Coluna '{col_name}' sincronizada na tabela products.")
+                # O Postgres suporta ADD COLUMN IF NOT EXISTS
+                await conn.execute(text(f"ALTER TABLE products ADD COLUMN IF NOT EXISTS {col_name} {col_type}"))
             except Exception as e:
-                # Ignora se a coluna já existe (error code 42701 no postgres)
-                if "already exists" not in str(e).lower():
-                    logger.warning(f"⚠️ Erro ao sincronizar coluna '{col_name}': {e}")
+                print(f"⚠️ [DB] Erro ao sincronizar coluna '{col_name}' em products: {e}")
         
         # 3. Sincroniza colunas extras da tabela leads (reengajamento)
         leads_columns = [
@@ -61,8 +62,8 @@ async def init_db():
         
         for col_name, col_type in leads_columns:
             try:
-                await conn.execute(text(f"ALTER TABLE leads ADD COLUMN {col_name} {col_type}"))
-                logger.info(f"✅ Coluna '{col_name}' sincronizada na tabela leads.")
+                await conn.execute(text(f"ALTER TABLE leads ADD COLUMN IF NOT EXISTS {col_name} {col_type}"))
             except Exception as e:
-                if "already exists" not in str(e).lower():
-                    logger.warning(f"⚠️ Erro ao sincronizar coluna '{col_name}': {e}")
+                print(f"⚠️ [DB] Erro ao sincronizar coluna '{col_name}' em leads: {e}")
+
+    print("✅ [DB] Sincronização de colunas concluída.")

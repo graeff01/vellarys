@@ -19,6 +19,13 @@ PORTAL_REGIONS = ["canoas", "poa", "sc", "pb"]  # 🚀 CANOAS AGORA É PRIORIDAD
 HTTP_TIMEOUT = 5.0
 FALLBACK_FILE_CANOAS = "data/fallback_canoas.json"  # 📂 ARQUIVO LOCAL
 
+# 🌐 HEADERS PARA EVITAR 403 FORBIDDEN
+HTTP_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+}
+
 # Cache simples em memória
 _cache: Dict[str, tuple] = {}
 _cache_ttl = 300  # 5 minutos
@@ -43,15 +50,13 @@ def _fazer_request_http(url: str) -> Optional[List[Dict]]:
     try:
         import httpx
         logger.info(f"🌐 [HTTP] Tentando httpx: {url}")
-        with httpx.Client(timeout=HTTP_TIMEOUT) as client:
+        with httpx.Client(timeout=HTTP_TIMEOUT, headers=HTTP_HEADERS, follow_redirects=True) as client:
             response = client.get(url)
             if response.status_code == 200:
                 logger.info(f"✅ [HTTP] httpx OK - Status: {response.status_code}")
                 return response.json()
             else:
                 logger.warning(f"⚠️ [HTTP] httpx Status: {response.status_code}")
-    except ImportError:
-        logger.warning(f"⚠️ [HTTP] httpx não disponível")
     except Exception as e:
         logger.error(f"❌ [HTTP] httpx erro: {type(e).__name__}: {e}")
     
@@ -59,14 +64,12 @@ def _fazer_request_http(url: str) -> Optional[List[Dict]]:
     try:
         import requests
         logger.info(f"🌐 [HTTP] Tentando requests: {url}")
-        response = requests.get(url, timeout=HTTP_TIMEOUT)
+        response = requests.get(url, timeout=HTTP_TIMEOUT, headers=HTTP_HEADERS)
         if response.status_code == 200:
             logger.info(f"✅ [HTTP] requests OK - Status: {response.status_code}")
             return response.json()
         else:
             logger.warning(f"⚠️ [HTTP] requests Status: {response.status_code}")
-    except ImportError:
-        logger.warning(f"⚠️ [HTTP] requests não disponível")
     except Exception as e:
         logger.error(f"❌ [HTTP] requests erro: {type(e).__name__}: {e}")
     
@@ -75,7 +78,8 @@ def _fazer_request_http(url: str) -> Optional[List[Dict]]:
         import urllib.request
         import json
         logger.info(f"🌐 [HTTP] Tentando urllib: {url}")
-        with urllib.request.urlopen(url, timeout=HTTP_TIMEOUT) as response:
+        req = urllib.request.Request(url, headers=HTTP_HEADERS)
+        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as response:
             if response.status == 200:
                 data = json.loads(response.read().decode('utf-8'))
                 logger.info(f"✅ [HTTP] urllib OK")
