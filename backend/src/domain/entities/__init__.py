@@ -31,7 +31,10 @@ from .tenant_usage import TenantUsage
 from .tenant_subscription import TenantSubscription
 from .audit_log import AuditLog
 from .product import Product
-from .push_subscription import PushSubscription  # ← NOVO
+from .push_subscription import PushSubscription
+from .refresh_token import RefreshToken
+from .password_reset_token import PasswordResetToken
+from .message_template import MessageTemplate
 
 __all__ = [
     # Base
@@ -69,5 +72,10 @@ __all__ = [
     # Produtos
     "Product",
     # Push Notifications
-    "PushSubscription",  # ← NOVO
+    "PushSubscription",
+    # Auth
+    "RefreshToken",
+    "PasswordResetToken",
+    # Templates
+    "MessageTemplate",
 ]

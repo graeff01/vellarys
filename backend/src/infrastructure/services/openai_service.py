@@ -15,14 +15,8 @@ import json
 import random
 import logging
 from datetime import datetime, timedelta
-from openai import AsyncOpenAI
-from src.config import get_settings
-
-settings = get_settings()
-logger = logging.getLogger(__name__)
-
-# Cliente OpenAI (singleton)
-client = AsyncOpenAI(api_key=settings.openai_api_key)
+# Cliente OpenAI removido (agora via LLMFactory)
+from src.infrastructure.llm import LLMFactory
 
 
 # ============================================
@@ -68,20 +62,15 @@ async def chat_completion(
     temperature: float = 0.65,
     max_tokens: int = 350,
 ) -> dict:
-    """Envia mensagens para OpenAI e retorna resposta."""
+    """Envia mensagens para OpenAI (via Provider) e retorna resposta."""
     try:
-        response = await client.chat.completions.create(
-            model=model or settings.openai_model,
+        provider = LLMFactory.get_provider()
+        return await provider.chat_completion(
             messages=messages,
+            model=model or settings.openai_model,
             temperature=temperature,
-            max_tokens=max_tokens,
-            # SEM tools, SEM enable_web_search
+            max_tokens=max_tokens
         )
-
-        return {
-            "content": response.choices[0].message.content,
-            "tokens_used": response.usage.total_tokens if response.usage else 0
-        }
     except Exception as e:
         logger.error(f"Erro na chamada OpenAI: {e}")
         return {
@@ -267,14 +256,15 @@ Retorne APENAS JSON válido. Use null se não mencionado.
 JSON:"""
 
     try:
-        response = await client.chat.completions.create(
-            model=settings.openai_model,
+        provider = LLMFactory.get_provider()
+        response = await provider.chat_completion(
             messages=[{"role": "user", "content": extraction_prompt}],
+            model=settings.openai_model,
             temperature=0.1,
             max_tokens=600,
         )
 
-        content = response.choices[0].message.content.strip()
+        content = response["content"].strip()
         
         # Remove markdown se houver
         if content.startswith("```"):
@@ -336,14 +326,15 @@ Retorne APENAS JSON:
 JSON:"""
 
     try:
-        response = await client.chat.completions.create(
-            model=settings.openai_model,
+        provider = LLMFactory.get_provider()
+        response = await provider.chat_completion(
             messages=[{"role": "user", "content": qualification_prompt}],
-            temperature=0.15,  # Mais determinístico
+            model=settings.openai_model,
+            temperature=0.15,
             max_tokens=300,
         )
 
-        content = response.choices[0].message.content.strip()
+        content = response["content"].strip()
         
         if content.startswith("```"):
             content = content.split("```")[1]
@@ -439,14 +430,15 @@ REGRAS:
 RESUMO:"""
 
     try:
-        response = await client.chat.completions.create(
-            model=settings.openai_model,
+        provider = LLMFactory.get_provider()
+        response = await provider.chat_completion(
             messages=[{"role": "user", "content": summary_prompt}],
+            model=settings.openai_model,
             temperature=0.1,
             max_tokens=150,
         )
 
-        summary = response.choices[0].message.content.strip()
+        summary = response["content"].strip()
         
         # Limpa formatação
         summary = summary.replace("**", "").replace("- ", "").replace("* ", "")
@@ -496,14 +488,15 @@ SEM saudações, SEM formalidades.
 RESUMO:"""
 
     try:
-        response = await client.chat.completions.create(
-            model=settings.openai_model,
+        provider = LLMFactory.get_provider()
+        response = await provider.chat_completion(
             messages=[{"role": "user", "content": summary_prompt}],
+            model=settings.openai_model,
             temperature=0.2,
             max_tokens=50,
         )
         
-        summary = response.choices[0].message.content.strip()
+        summary = response["content"].strip()
         
         # Garante máximo 100 caracteres
         if len(summary) > 100:

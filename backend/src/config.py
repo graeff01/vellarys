@@ -39,7 +39,8 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str
     secret_key: str
-    access_token_expire_minutes: int = 1440
+    access_token_expire_minutes: int = 15  # Reduzido para 15 min (mais seguro com refresh)
+    refresh_token_expire_days: int = 7  # Refresh token dura 7 dias
     host: str = "0.0.0.0"
     port: int = 8000
     debug: bool = False
@@ -54,6 +55,18 @@ class Settings(BaseSettings):
     # ===========================================
     openai_api_key: str
     openai_model: str = "gpt-4o"
+    
+    # ===========================================
+    # EMAIL (Resend)
+    # ===========================================
+    resend_api_key: Optional[str] = None
+    email_from: str = "noreply@vellarys.app"
+    frontend_url: str = "http://localhost:3000"  # Para links de reset
+    
+    # ===========================================
+    # SENTRY (Error Tracking)
+    # ===========================================
+    sentry_dsn: Optional[str] = None
     
     # ===========================================
     # GUPSHUP (WhatsApp)  novo
