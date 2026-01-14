@@ -1153,18 +1153,21 @@ async def process_message(
             "processing_time_seconds": f"{elapsed:.2f}",
         }
 
-        # 🚀 EXTRA: Verifica se deve enviar localização GPS
-        has_gps = product_detected and product_detected.latitude and product_detected.longitude
+        # 🚀 EXTRA: Verifica se o cliente pediu localização
         asked_location = any(word in final_response.lower() for word in ["localização", "endereço", "onde fica", "gps", "mapa"])
         
-        if has_gps and asked_location:
-            logger.info(f"📍 Intenção de localização detectada para {product_detected.name}")
-            reply_data["location"] = {
-                "latitude": product_detected.latitude,
-                "longitude": product_detected.longitude,
-                "title": product_detected.name,
-                "address": product_detected.description[:100] if product_detected.description else ""
-            }
+        if asked_location:
+            endereco = ""
+            if imovel_portal and imovel_portal.get("regiao"):
+                endereco = imovel_portal.get("regiao")
+            elif product_detected:
+                attrs = product_detected.attributes or {}
+                endereco = attrs.get("regiao") or attrs.get("bairro") or ""
+            
+            if endereco:
+                addr_text = f"📍 Localização: {endereco}"
+                if addr_text not in reply_data["reply"]:
+                    reply_data["reply"] += f"\n\n{addr_text}"
 
         return reply_data
     
@@ -1198,18 +1201,21 @@ async def process_message(
             "processing_time_seconds": f"{elapsed:.2f}",
         }
 
-        # 🚀 EXTRA: Verifica se deve enviar localização GPS
-        has_gps = product_detected and product_detected.latitude and product_detected.longitude
+        # 🚀 EXTRA: Verifica se o cliente pediu localização
         asked_location = any(word in final_response.lower() for word in ["localização", "endereço", "onde fica", "gps", "mapa"])
         
-        if has_gps and asked_location:
-            logger.info(f"📍 Intenção de localização detectada para {product_detected.name}")
-            reply_data["location"] = {
-                "latitude": product_detected.latitude,
-                "longitude": product_detected.longitude,
-                "title": product_detected.name,
-                "address": product_detected.description[:100] if product_detected.description else ""
-            }
+        if asked_location:
+            endereco = ""
+            if imovel_portal and imovel_portal.get("regiao"):
+                endereco = imovel_portal.get("regiao")
+            elif product_detected:
+                attrs = product_detected.attributes or {}
+                endereco = attrs.get("regiao") or attrs.get("bairro") or ""
+            
+            if endereco:
+                addr_text = f"📍 Localização: {endereco}"
+                if addr_text not in reply_data["reply"]:
+                    reply_data["reply"] += f"\n\n{addr_text}"
 
         return reply_data
     except Exception as e:

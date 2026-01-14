@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     create_async_engine,
@@ -7,6 +8,7 @@ from sqlalchemy.orm import declarative_base
 from sqlalchemy import text
 from src.config import get_settings
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 # Base ORM
@@ -29,10 +31,10 @@ async_session = async_sessionmaker(
 # Inicialização do banco (criar tabelas)
 async def init_db():
     async with engine.begin() as conn:
-        # Cria as tabelas que não existem
+        # 1. Cria as tabelas que não existem
         await conn.run_sync(Base.metadata.create_all)
         
-        # Sincroniza colunas extras da tabela products (fix UndefinedColumnError)
+        # 2. Sincroniza colunas extras da tabela products (fix UndefinedColumnError)
         products_columns = [
             ("latitude", "DOUBLE PRECISION"),
             ("longitude", "DOUBLE PRECISION"),
@@ -43,12 +45,13 @@ async def init_db():
         for col_name, col_type in products_columns:
             try:
                 await conn.execute(text(f"ALTER TABLE products ADD COLUMN {col_name} {col_type}"))
-                print(f"✅ Coluna '{col_name}' sincronizada na tabela products.")
+                logger.info(f"✅ Coluna '{col_name}' sincronizada na tabela products.")
             except Exception as e:
+                # Ignora se a coluna já existe (error code 42701 no postgres)
                 if "already exists" not in str(e).lower():
-                    print(f"⚠️ Erro ao sincronizar coluna '{col_name}': {e}")
+                    logger.warning(f"⚠️ Erro ao sincronizar coluna '{col_name}': {e}")
         
-        # Sincroniza colunas extras da tabela leads (reengajamento)
+        # 3. Sincroniza colunas extras da tabela leads (reengajamento)
         leads_columns = [
             ("reengagement_attempts", "INTEGER DEFAULT 0"),
             ("last_reengagement_at", "TIMESTAMP WITH TIME ZONE"),
@@ -59,7 +62,7 @@ async def init_db():
         for col_name, col_type in leads_columns:
             try:
                 await conn.execute(text(f"ALTER TABLE leads ADD COLUMN {col_name} {col_type}"))
-                print(f"✅ Coluna '{col_name}' sincronizada na tabela leads.")
+                logger.info(f"✅ Coluna '{col_name}' sincronizada na tabela leads.")
             except Exception as e:
                 if "already exists" not in str(e).lower():
-                    print(f"⚠️ Erro ao sincronizar coluna '{col_name}': {e}")
+                    logger.warning(f"⚠️ Erro ao sincronizar coluna '{col_name}': {e}")
