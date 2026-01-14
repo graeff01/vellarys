@@ -247,6 +247,7 @@ CAMPOS: {json.dumps(all_fields, ensure_ascii=False)}
 EXTRAS (se mencionado):
 - family_situation, work_info, budget_range, urgency_level
 - preferences, pain_points, objections, buying_signals
+- entrada, fgts, financiamento, timing_mudanca
 
 CONVERSA (últimas 10 mensagens):
 {json.dumps(conversation[-10:], ensure_ascii=False)}

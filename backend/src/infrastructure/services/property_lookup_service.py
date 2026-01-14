@@ -125,6 +125,72 @@ class PropertyLookupService:
         
         logger.warning(f"❌❌❌ [PORTAL] Código {codigo} NÃO ENCONTRADO em nenhuma região!")
         return None
+
+    def buscar_por_criterios(
+        self, 
+        regiao: Optional[str] = None, 
+        tipo: Optional[str] = None, 
+        preco_max: Optional[int] = None, 
+        quartos_min: Optional[int] = None,
+        limit: int = 5
+    ) -> List[Dict]:
+        """
+        Busca imóveis que atendam aos critérios informados.
+        """
+        logger.info(f"🔎 [PORTAL] Buscando por critérios: regiao={regiao}, tipo={tipo}, preco_max={preco_max}, quartos_min={quartos_min}")
+        
+        resultados = []
+        
+        # Define quais regiões buscar (se regiao for informada, tenta filtrar, mas por garantia busca em todas)
+        regioes_para_busca = PORTAL_REGIONS
+        
+        for r in regioes_para_busca:
+            imoveis = self._carregar_regiao(r)
+            if not imoveis:
+                continue
+            
+            for imovel in imoveis:
+                # Filtro por Região/Bairro (case insensitive, parcial)
+                if regiao:
+                    imovel_regiao = str(imovel.get("regiao", "")).lower()
+                    if regiao.lower() not in imovel_regiao and regiao.lower() not in r.lower():
+                        continue
+                
+                # Filtro por Tipo
+                if tipo:
+                    imovel_tipo = str(imovel.get("tipo", "")).lower()
+                    if tipo.lower() not in imovel_tipo:
+                        continue
+                
+                # Filtro por Preço
+                if preco_max:
+                    try:
+                        preco_imovel = int(imovel.get("preco", 0))
+                        if preco_imovel > preco_max or preco_imovel == 0:
+                            continue
+                    except:
+                        continue
+                
+                # Filtro por Quartos
+                if quartos_min:
+                    try:
+                        q_imovel = int(imovel.get("quartos", 0))
+                        if q_imovel < quartos_min:
+                            continue
+                    except:
+                        continue
+                
+                # Se passou em todos os filtros, adiciona
+                resultados.append(self._formatar(imovel, r))
+                
+                if len(resultados) >= limit:
+                    break
+            
+            if len(resultados) >= limit:
+                break
+                
+        logger.info(f"✅ [PORTAL] Busca concluída: {len(resultados)} imóveis encontrados")
+        return resultados
     
     def _carregar_regiao(self, regiao: str) -> Optional[List[Dict]]:
         """Carrega JSON de uma região."""
@@ -279,29 +345,60 @@ def buscar_imovel_na_mensagem(mensagem: str) -> Optional[Dict]:
     return resultado
 
 
-def build_property_context(imovel: Dict) -> str:
-    """Constrói contexto para a IA."""
-    if not imovel:
-        return ""
+
+def extrair_criterios_busca(mensagem: str) -> Dict[str, Any]:
+    """
+    Extrai critérios de busca da mensagem (bairro, preço, quartos, tipo).
+    """
+    msg_lower = mensagem.lower()
+    criterios = {}
+
+    # 1. Bairros comuns em Canoas (Exemplos)
+    bairros = ["centro", "niterói", "niteroi", "marechal rondon", "igara", "guajuviras", "estância velha", "estancia velha", "harmonia", "mathias velho", "rio branco", "fátima", "fatima", "mato grande", "são luís", "sao luis", "são josé", "sao jose"]
+    for bairro in bairros:
+        if bairro in msg_lower:
+            criterios["regiao"] = bairro
+            break
+
+    # 2. Tipo de imóvel
+    if "casa" in msg_lower:
+        criterios["tipo"] = "Casa"
+    elif "apartamento" in msg_lower or "apto" in msg_lower or "ap " in msg_lower:
+        criterios["tipo"] = "Apartamento"
+    elif "terreno" in msg_lower:
+        criterios["tipo"] = "Terreno"
+
+    # 3. Preço máximo (Até 500k, inferior a 600 mil, etc)
+    preco_match = re.search(r'(?:at[eé]|abaixo de|menos de|m[aá]ximo de)\s*(?:r\$)?\s*(\d+(?:\.\d+)?)\s*(?:mil|k|milh[oõ]es|mi)?', msg_lower)
+    if preco_match:
+        valor_str = preco_match.group(1).replace(".", "")
+        try:
+            valor = float(valor_str)
+            contexto = preco_match.group(0)
+            if "milh" in contexto or "mi" in contexto:
+                valor *= 1_000_000
+            elif "mil" in contexto or "k" in contexto or valor < 1000:
+                valor *= 1000
+            criterios["preco_max"] = int(valor)
+        except:
+            pass
+
+    # 4. Quartos (2 quartos, 3 dormitórios, etc)
+    quartos_match = re.search(r'(\d+)\s*(?:quartos|dormit[oó]rios|dorm)', msg_lower)
+    if quartos_match:
+        try:
+            criterios["quartos_min"] = int(quartos_match.group(1))
+        except:
+            pass
+
+    return criterios
+
+
+def buscar_imoveis_por_criterios(mensagem: str) -> List[Dict]:
+    """Função utilitária para buscar imóveis baseados na mensagem."""
+    criterios = extrair_criterios_busca(mensagem)
+    if not criterios:
+        return []
     
-    return f"""
-============================================================
-🏠 IMÓVEL DO PORTAL DE INVESTIMENTO
-============================================================
-Código: {imovel['codigo']}
-Título: {imovel['titulo']}
-Tipo: {imovel['tipo']}
-Localização: {imovel['regiao']}
-Quartos: {imovel['quartos']}
-Banheiros: {imovel['banheiros']}
-Vagas: {imovel['vagas']}
-Área: {imovel['metragem']} m²
-Preço: {imovel['preco']}
-
-Descrição: {imovel['descricao']}
-
-Link: {imovel['link']}
-============================================================
-INSTRUÇÕES: Use APENAS estas informações. NÃO invente dados.
-============================================================
-"""
+    service = PropertyLookupService()
+    return service.buscar_por_criterios(**criterios)

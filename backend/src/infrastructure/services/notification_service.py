@@ -212,6 +212,9 @@ def build_lead_summary_text(
             "curso": ("📚", "Curso"),
             "servico": ("🔧", "Serviço"),
             "produto": ("📦", "Produto"),
+            "entrada": ("💰", "Entrada/Recursos"),
+            "fgts": ("🏦", "Usa FGTS"),
+            "financiamento": ("🏦", "Financiamento"),
         }
 
         for field, (emoji, label) in field_mappings.items():

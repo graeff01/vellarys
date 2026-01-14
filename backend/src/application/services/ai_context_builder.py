@@ -512,12 +512,23 @@ def detect_hot_lead_signals(content: str) -> tuple[bool, Optional[str]]:
         (r"preciso.*urgente", "urgência"),
         (r"urgente.*mudar", "urgência para mudar"),
         (r"mudar.*urgente", "urgência para mudar"),
+        (r"quanto.*parcela", "interesse em valores"),
+        (r"valor.*parcela", "interesse em valores"),
+        (r"simula[çc][ãa]o", "interesse em simulação"),
+        (r"aceita.*fgts", "uso de FGTS"),
+        (r"tem.*fgts", "uso de FGTS"),
+        (r"usar.*fgts", "uso de FGTS"),
         (r"tenho.*entrada", "tem entrada"),
+        (r"valor.*entrada", "tem entrada"),
         (r"quando.*posso.*visitar", "quer visitar"),
         (r"quero.*visitar", "quer visitar"),
         (r"posso.*ir.*hoje", "quer ir hoje"),
+        (r"quero.*ver.*im[oó]vel", "quer visitar"),
+        (r"agendar.*visita", "quer visitar"),
         (r"quero.*fechar", "quer fechar"),
         (r"vamos.*fechar", "quer fechar"),
+        (r"manda.*localiza[çc][ãa]o", "pediu localização"),
+        (r"manda.*fotos", "pediu fotos"),
     ]
     
     for pattern, signal_name in hot_patterns:

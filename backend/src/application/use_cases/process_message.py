@@ -30,6 +30,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from src.infrastructure.services.property_lookup_service import (
     buscar_imovel_na_mensagem,
+    buscar_imoveis_por_criterios,
     extrair_codigo_imovel,
 )
 
@@ -580,6 +581,7 @@ async def process_message(
     history: list[dict] = []
     message_count: int = 0
     should_transfer = False
+    imoveis_sugeridos: List[Dict] = []
     
     # =========================================================================
     # 1. SANITIZAÇÃO
@@ -810,6 +812,11 @@ async def process_message(
     
     if imovel_portal:
         logger.info(f"🏠 Imóvel portal: {imovel_portal.get('codigo')}")
+    else:
+        # Tenta buscar por critérios se não houver código específico
+        imoveis_sugeridos = buscar_imoveis_por_criterios(content)
+        if imoveis_sugeridos:
+            logger.info(f"🔎 Encontrados {len(imoveis_sugeridos)} imóveis por critérios")
     
     # =========================================================================
     # 14. HANDOFF TRIGGERS
@@ -988,9 +995,18 @@ async def process_message(
     # =========================================================================
     logger.info(f"🤖 Chamando GPT-4o-mini | Imóvel: {bool(imovel_portal)}")
     
-    system_prompt = f"""Você é assistente virtual da {settings['company_name']}, imobiliária em Canoas/RS.
+    system_prompt = f"""Você é um Corretor de Imóveis especialista da {settings['company_name']}, em Canoas/RS.
+Sua missão não é apenas responder, mas conduzir o cliente para o fechamento ou agendamento de visita.
 
-Responda naturalmente as perguntas do cliente sobre imóveis."""
+# POSTURA:
+- Consultiva: Ajude o cliente a entender o mercado.
+- Ágil: Dê respostas diretas e curtas.
+- Humana: Use emojis moderadamente e tom cordial.
+
+# FERRAMENTAS E DADOS:
+1. CATALOGO: Temos acesso ao catálogo via código ou busca por filtros.
+2. FINANCIAMENTO: Você pode simular valores básicos. Use a regra: 20% entrada, 80% financiamento em 360x, juros de ~11% a.a.
+3. MIDIA: Se o cliente pedir fotos ou mais detalhes, diga que o link do imóvel tem tudo, mas que você pode enviar o material completo (PDF/Fotos) pelo WhatsApp do corretor logo em seguida."""
 
     # Adiciona dados do imóvel se houver (com formatação melhorada)
     if imovel_portal:
@@ -1003,6 +1019,13 @@ Imóvel código {imovel_portal.get('codigo')}:
 - {imovel_portal.get('quartos')} quartos, {imovel_portal.get('banheiros')} banheiros, {imovel_portal.get('vagas')} vagas
 - {imovel_portal.get('metragem')}m²
 - {preco_formatado}"""
+
+    # Adiciona sugestões de busca se houver
+    if imoveis_sugeridos:
+        system_prompt += f"\n\nBaseado no que o cliente busca, temos estas opções (Sugerir apenas se fizer sentido):\n"
+        for imv in imoveis_sugeridos:
+            system_prompt += f"- Cód {imv['codigo']}: {imv['tipo']} em {imv['regiao']} ({imv['preco']})\n"
+        system_prompt += "\nInstrução: Se o cliente perguntar por opções, apresente estas. Se ele gostar de alguma, use o código para dar detalhes."
     
     # Conhecimento local
     system_prompt += """
@@ -1012,13 +1035,13 @@ Você conhece Canoas:
 - Mercados: Zaffari, Big
 - Hospitais: Mãe de Deus
 
-REGRAS DE SEGURANÇA (IMPORTANTE):
-- NÃO marque visitas (só corretor pode)
-- NÃO negocie valores/descontos
-- NÃO dê endereço da imobiliária
-- Se cliente quiser visitar/comprar: "Vou passar você pro corretor!"
+REGRAS DE SEGURANÇA E VENDAS:
+- NUNCA dê o endereço exato do imóvel (por segurança).
+- NUNCA negocie descontos (isso é com o corretor).
+- Se o cliente demonstrar urgência ou perguntar muito, diga: "Vou agilizar seu atendimento com um de nossos corretores especialistas".
+- SEMPRE tente descobrir: 1. Finalidade (morar/investir), 2. Prazo de mudança, 3. Se possui entrada ou FGTS.
 
-Seja breve e amigável."""
+Seja foda, amigável e focado em converter."""
     
     # ═══════════════════════════════════════════════════════════════
     # ⚠️ CRITICAL FIX: ADICIONA MENSAGEM ATUAL AO HISTÓRICO!
