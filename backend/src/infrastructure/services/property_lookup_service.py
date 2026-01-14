@@ -353,8 +353,14 @@ def extrair_criterios_busca(mensagem: str) -> Dict[str, Any]:
     msg_lower = mensagem.lower()
     criterios = {}
 
-    # 1. Bairros comuns em Canoas (Exemplos)
-    bairros = ["centro", "niterói", "niteroi", "marechal rondon", "igara", "guajuviras", "estância velha", "estancia velha", "harmonia", "mathias velho", "rio branco", "fátima", "fatima", "mato grande", "são luís", "sao luis", "são josé", "sao jose"]
+    # 1. Bairros abrangentes em Canoas (Baseado no mapa oficial)
+    bairros = [
+        "centro", "niterói", "niteroi", "marechal rondon", "igara", "guajuviras", 
+        "estância velha", "estancia velha", "harmonia", "mathias velho", "rio branco", 
+        "fátima", "fatima", "mato grande", "são luís", "sao luis", "são josé", "sao jose",
+        "industrial", "brigadeira", "olaria", "ilha das garças", "nossa senhora das graças",
+        "nossa senhora das gracas"
+    ]
     for bairro in bairros:
         if bairro in msg_lower:
             criterios["regiao"] = bairro

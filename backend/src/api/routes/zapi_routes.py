@@ -197,7 +197,7 @@ async def zapi_receive_message(
                 logger.info(f"🎙️ Áudio detectado! Iniciando transcrição Whisper...")
                 
                 # Build context-aware prompt for Whisper
-                whisper_prompt = "Igara, Guajuviras, Mathias Velho, Niterói, Marechal Rondon, Estância Velha, Canoas, Rio Grande do Sul, imobiliária, corretor, apartamento, casa, FGTS, financiamento."
+                whisper_prompt = "Industrial, São Luís, Mathias Velho, Harmonia, Mato Grande, Fátima, Rio Branco, Ilha das Garças, Centro, Marechal Rondon, Nossa Senhora das Graças, Niterói, Brigadeira, São José, Igara, Guajuviras, Estância Velha, Olaria, Canoas, Rio Grande do Sul, imobiliária, corretor, apartamento, casa, FGTS, financiamento."
                 if tenant and tenant.settings:
                     company_name = tenant.settings.get("company_name", "")
                     if company_name:
