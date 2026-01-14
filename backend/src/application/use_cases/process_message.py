@@ -293,7 +293,6 @@ async def detect_product(
         
     except Exception as e:
         logger.error(f"Erro detectando produto: {e}")
-        await db.rollback() # 🛡️ Recupera a sessão para que o bot possa continuar respondendo
         return None
 
 
@@ -319,7 +318,6 @@ async def get_product_from_lead(
         
     except Exception as e:
         logger.error(f"Erro recuperando produto: {e}")
-        await db.rollback()
         return None
 
 
