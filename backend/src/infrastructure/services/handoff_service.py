@@ -350,10 +350,30 @@ async def execute_handoff(
         
         # 3. Prepara mensagem para o lead
         message_for_lead = build_handoff_message_for_lead(lead, tenant_obj, seller)
+
+        # 3.1 Gera Raio-X (Resumo Inteligente) do Lead
+        logger.info(f"🧠 Gerando Raio-X para lead {lead.id}...")
+        try:
+            from .openai_service import generate_lead_raiox
+            # Converte histórico de mensagens para formato lista de dicts
+            history = []
+            if lead.messages:
+                # Pega as últimas 15 mensagens para o resumo
+                for msg in lead.messages[-15:]:
+                    history.append({"role": msg.role, "content": msg.content})
+            
+            lead_raiox = await generate_lead_raiox(lead.name or "Novo", history)
+        except Exception as e:
+            logger.error(f"❌ Erro gerando Raio-X: {e}")
+            lead_raiox = None
         
         # 4. Notifica vendedor (se houver)
         if seller and seller.whatsapp:
             seller_message = build_handoff_message_for_seller(lead, seller, tenant_obj)
+            
+            # Anexa o Raio-X se disponível
+            if lead_raiox:
+                seller_message += f"\n---\n{lead_raiox}"
             
             try:
                 await send_whatsapp_message(seller.whatsapp, seller_message)

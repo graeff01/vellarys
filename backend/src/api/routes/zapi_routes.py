@@ -319,6 +319,18 @@ async def zapi_receive_message(
             
             if not send_result.get("success"):
                 logger.error(f"❌ Erro enviando resposta: {send_result.get('error')}")
+
+            # 🚀 NOVO: Se houver localização, envia o GPS
+            location = result.get("location")
+            if location:
+                logger.info(f"📍 Disparando GPS para {phone}...")
+                await zapi.send_location(
+                    phone=phone,
+                    latitude=location["latitude"],
+                    longitude=location["longitude"],
+                    title=location["title"],
+                    address=location["address"]
+                )
         
         return {
             "status": "processed",

@@ -57,6 +57,15 @@ class Product(Base, TimestampMixin):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # =========================================================================
+    # LOCALIZAÇÃO E MÍDIA
+    # =========================================================================
+    
+    latitude: Mapped[Optional[float]] = mapped_column(nullable=True)
+    longitude: Mapped[Optional[float]] = mapped_column(nullable=True)
+    pdf_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    folder_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    
+    # =========================================================================
     # GATILHOS DE DETECÇÃO
     # =========================================================================
     
@@ -159,6 +168,14 @@ class Product(Base, TimestampMixin):
         # Adiciona todos os atributos dinâmicos
         if self.attributes:
             context.update(self.attributes)
+        
+        # Mídia e GPS
+        if self.latitude and self.longitude:
+            context["location"] = {"lat": self.latitude, "lng": self.longitude}
+        if self.pdf_url:
+            context["pdf_url"] = self.pdf_url
+        if self.folder_url:
+            context["folder_url"] = self.folder_url
         
         # Perguntas específicas
         if self.qualification_questions:

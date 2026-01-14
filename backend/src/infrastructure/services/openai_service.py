@@ -98,6 +98,47 @@ def validate_ai_response(
     
     Retorna: (resposta_validada, foi_corrigida)
     """
+    return response, False
+
+
+async def generate_lead_raiox(lead_name: str, conversation_history: list[dict]) -> str:
+    """
+    Gera um 'Raio-X' (resumo executivo) do lead para o corretor.
+    """
+    history_str = ""
+    for msg in conversation_history[-15:]: # Pega as últimas 15 mensagens
+        role = "Cliente" if msg["role"] == "user" else "IA"
+        history_str += f"{role}: {msg['content']}\n"
+    
+    prompt = f"""
+    Você é um analista de vendas sênior. Baseado no histórico abaixo de uma conversa imobiliária, 
+    gere um 'Raio-X' curto e matador para o corretor humano que vai assumir o atendimento.
+
+    Histórico:
+    {history_str}
+
+    O seu retorno deve ser EXATAMENTE neste formato (Markdown):
+    🚨 *RAIO-X DO LEAD* 🚨
+    🎯 *Foco:* (O que ele quer? Casa, apto, investimento?)
+    💰 *Perfil:* (Capacidade financeira, FGTS, carro como entrada?)
+    🛡️ *Dores:* (Do que ele tem medo ou o que é essencial?)
+    ⏰ *Urgência:* (Baixa/Média/Alta)
+    🧠 *Dica IA:* (O que o corretor deve falar para fechar logo?)
+
+    IMPORTANTE: Seja direto. Se não tiver alguma informação, coloque 'A investigar'.
+    """
+
+    try:
+        provider = LLMFactory.get_provider()
+        response = await provider.chat_completion(
+            messages=[{"role": "system", "content": prompt}],
+            temperature=0.3, # Mais direto e factual
+            max_tokens=250
+        )
+        return response["content"]
+    except Exception as e:
+        logger.error(f"Erro ao gerar Raio-X: {e}")
+        return "⚠️ Não foi possível gerar o Raio-X automaticamente."
     import re
     
     original_response = response

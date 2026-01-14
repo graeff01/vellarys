@@ -150,6 +150,42 @@ class ZAPIService:
             except Exception as e:
                 logger.error(f"Z-API erro documento: {e}")
                 return {"success": False, "error": str(e)}
+
+    async def send_location(
+        self, 
+        phone: str, 
+        latitude: float, 
+        longitude: float,
+        title: str = "",
+        address: str = ""
+    ) -> dict:
+        """Envia localizacao (GPS)."""
+        if not self.is_configured():
+            return {"success": False, "error": "Z-API nao configurado"}
+        
+        url = f"{self.base_url}/send-location"
+        
+        payload = {
+            "phone": self._format_phone(phone),
+            "latitude": str(latitude),
+            "longitude": str(longitude),
+            "title": title,
+            "address": address
+        }
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    url, 
+                    json=payload, 
+                    headers=self._get_headers(),
+                    timeout=30
+                )
+                response.raise_for_status()
+                return {"success": True, "data": response.json()}
+            except Exception as e:
+                logger.error(f"Z-API erro localizacao: {e}")
+                return {"success": False, "error": str(e)}
     
     async def send_audio(self, phone: str, audio_url: str) -> dict:
         """Envia audio."""

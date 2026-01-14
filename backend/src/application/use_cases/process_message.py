@@ -1133,7 +1133,7 @@ Seja foda, amigável e focado em converter."""
         elapsed = time.time() - start_time
         logger.info(f"⏱️ Processamento concluído em {elapsed:.2f}s (com handoff)")
         
-        return {
+        reply_data = {
             "success": True,
             "reply": reply_with_handoff,
             "lead_id": lead.id,
@@ -1144,6 +1144,21 @@ Seja foda, amigável e focado em converter."""
             "out_of_hours": is_out_of_hours,
             "processing_time_seconds": f"{elapsed:.2f}",
         }
+
+        # 🚀 EXTRA: Verifica se deve enviar localização GPS
+        has_gps = product_detected and product_detected.latitude and product_detected.longitude
+        asked_location = any(word in final_response.lower() for word in ["localização", "endereço", "onde fica", "gps", "mapa"])
+        
+        if has_gps and asked_location:
+            logger.info(f"📍 Intenção de localização detectada para {product_detected.name}")
+            reply_data["location"] = {
+                "latitude": product_detected.latitude,
+                "longitude": product_detected.longitude,
+                "title": product_detected.name,
+                "address": product_detected.description[:100] if product_detected.description else ""
+            }
+
+        return reply_data
     
     # =========================================================================
     # 24. AVISO DE FORA DO HORÁRIO
@@ -1162,7 +1177,7 @@ Seja foda, amigável e focado em converter."""
         elapsed = time.time() - start_time
         logger.info(f"⏱️ Processamento concluído em {elapsed:.2f}s")
         
-        return {
+        reply_data = {
             "success": True,
             "reply": final_response,
             "lead_id": lead.id,
@@ -1174,6 +1189,21 @@ Seja foda, amigável e focado em converter."""
             "imovel_portal_codigo": imovel_portal.get("codigo") if imovel_portal else None,
             "processing_time_seconds": f"{elapsed:.2f}",
         }
+
+        # 🚀 EXTRA: Verifica se deve enviar localização GPS
+        has_gps = product_detected and product_detected.latitude and product_detected.longitude
+        asked_location = any(word in final_response.lower() for word in ["localização", "endereço", "onde fica", "gps", "mapa"])
+        
+        if has_gps and asked_location:
+            logger.info(f"📍 Intenção de localização detectada para {product_detected.name}")
+            reply_data["location"] = {
+                "latitude": product_detected.latitude,
+                "longitude": product_detected.longitude,
+                "title": product_detected.name,
+                "address": product_detected.description[:100] if product_detected.description else ""
+            }
+
+        return reply_data
     except Exception as e:
         logger.error(f"❌ Erro no commit: {e}")
         logger.error(traceback.format_exc())
