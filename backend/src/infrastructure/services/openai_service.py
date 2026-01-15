@@ -119,16 +119,14 @@ async def generate_lead_raiox(lead_name: str, conversation_history: list[dict]) 
 
     O seu retorno deve ser EXATAMENTE neste formato (Sem blocos de código markdown):
     🚨 *RAIO-X ESTRATÉGICO* 🚨
-    🎯 *Foco do Lead:* (Moradia? Investimento? Detalhes do imóvel preferido)
-    💰 *Money Talk:* (Dinheiro, FGTS, condições mencionadas)
-    🛡️ *Ponto de Dor:* (O que é essencial? Escolas, transporte, medo de algo?)
-    ⏰ *Timing:* (Urgência Alta/Média/Baixa)
-    🔥 *Gancho de Venda:* (O que o corretor deve dizer AGORA para converter?)
+    🎯 *Foco do Lead:* (Resumo do que ele busca)
+    🛡️ *Ponto de Dor:* (O que é essencial ou preocupa o lead)
+    🔥 *Gancho de Venda:* (Sugestão de abordagem para fechar a visita)
 
     REGRAS DE OURO:
-    - Seja direto, impactante e use emojis para facilitar o escaneamento.
-    - Se não souber algo, use '❓ A descobrir'.
-    - NÃO use blocos de código (```). Use apenas texto formatado para WhatsApp.
+    - Seja ULTRA CONCISO e direto.
+    - NÃO use blocos de código (```).
+    - Se não souber algo, use 'A descobrir'.
     """
 
 
