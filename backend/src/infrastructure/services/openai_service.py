@@ -111,22 +111,26 @@ async def generate_lead_raiox(lead_name: str, conversation_history: list[dict]) 
         history_str += f"{role}: {msg['content']}\n"
     
     prompt = f"""
-    Você é um analista de vendas sênior. Baseado no histórico abaixo de uma conversa imobiliária, 
-    gere um 'Raio-X' curto e matador para o corretor humano que vai assumir o atendimento.
+    Você é um Especialista em Conversão Imobiliária de Alto Nível. 
+    Analise o histórico abaixo e gere um 'Raio-X' estratégico para o corretor humano.
 
     Histórico:
     {history_str}
 
-    O seu retorno deve ser EXATAMENTE neste formato (Markdown):
-    🚨 *RAIO-X DO LEAD* 🚨
-    🎯 *Foco:* (O que ele quer? Casa, apto, investimento?)
-    💰 *Perfil:* (Capacidade financeira, FGTS, carro como entrada?)
-    🛡️ *Dores:* (Do que ele tem medo ou o que é essencial?)
-    ⏰ *Urgência:* (Baixa/Média/Alta)
-    🧠 *Dica IA:* (O que o corretor deve falar para fechar logo?)
+    O seu retorno deve ser EXATAMENTE neste formato (Sem blocos de código markdown):
+    🚨 *RAIO-X ESTRATÉGICO* 🚨
+    🎯 *Foco do Lead:* (Moradia? Investimento? Detalhes do imóvel preferido)
+    💰 *Money Talk:* (Dinheiro, FGTS, condições mencionadas)
+    🛡️ *Ponto de Dor:* (O que é essencial? Escolas, transporte, medo de algo?)
+    ⏰ *Timing:* (Urgência Alta/Média/Baixa)
+    🔥 *Gancho de Venda:* (O que o corretor deve dizer AGORA para converter?)
 
-    IMPORTANTE: Seja direto. Se não tiver alguma informação, coloque 'A investigar'.
+    REGRAS DE OURO:
+    - Seja direto, impactante e use emojis para facilitar o escaneamento.
+    - Se não souber algo, use '❓ A descobrir'.
+    - NÃO use blocos de código (```). Use apenas texto formatado para WhatsApp.
     """
+
 
     try:
         provider = LLMFactory.get_provider()
@@ -135,10 +139,19 @@ async def generate_lead_raiox(lead_name: str, conversation_history: list[dict]) 
             temperature=0.3, # Mais direto e factual
             max_tokens=250
         )
-        return response["content"]
+        
+        content = response["content"].strip()
+        
+        # Limpa artefatos de markdown caso a IA os coloque
+        import re
+        content = re.sub(r'```[a-z]*\n?', '', content)
+        content = content.replace('```', '').strip()
+        
+        return content
     except Exception as e:
         logger.error(f"Erro ao gerar Raio-X: {e}")
         return "⚠️ Não foi possível gerar o Raio-X automaticamente."
+
     import re
     
     original_response = response
