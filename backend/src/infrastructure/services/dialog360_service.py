@@ -70,7 +70,7 @@ class GestorNotificationService:
     @staticmethod
     def build_notification_message(
         lead: Lead,
-        product: Product,
+        product: Optional[Product] = None,
         conversation_summary: str = None,
         is_for_broker: bool = False,
     ) -> str:
@@ -110,7 +110,8 @@ class GestorNotificationService:
                 corretor_info = f"\n👔 *Corretor Responsável:* {corretor_nome}"
 
         extras_text = "\n".join(extras) if extras else "• Dados sendo coletados..."
-        header = "🚀 *NOVO LEAD (ENCAMINHADO)*" if is_for_broker else f"📦 *Novo Lead - {product.name}*"
+        product_name = product.name if product else (lead.custom_data.get("product_name") or lead.custom_data.get("empreendimento_nome") or "Imóvel")
+        header = "🚀 *NOVO LEAD (ENCAMINHADO)*" if is_for_broker else f"📦 *Novo Lead - {product_name}*"
         
         return f"""{header}
 
@@ -134,17 +135,27 @@ _Para atender, clique no número acima ou responda agora._"""
         db: AsyncSession,
         api_key: str,
         lead: Lead,
-        product: Product,
+        tenant: Any,  # Passamos o tenant para fallback de manager
+        product: Optional[Product] = None,
     ) -> bool:
         """
         Envia notificação para o gestor e para o corretor responsável.
         """
         try:
-            manager_phone = product.attributes.get("whatsapp_notification") if product.attributes else None
-            corretor_phone = product.attributes.get("corretor_whatsapp") if product.attributes else None
-            corretor_nome = product.attributes.get("corretor_nome") if product.attributes else None
+            manager_phone = None
+            if product and product.attributes:
+                manager_phone = product.attributes.get("whatsapp_notification")
+            
+            # Fallback para o gestor do tenant se não tem no produto
+            if not manager_phone:
+                settings = tenant.settings or {}
+                manager_phone = settings.get("handoff", {}).get("manager_whatsapp")
+            
+            corretor_phone = product.attributes.get("corretor_whatsapp") if product and product.attributes else None
+            corretor_nome = product.attributes.get("corretor_nome") if product and product.attributes else None
             
             if not manager_phone and not corretor_phone:
+                logger.warning(f"⚠️ Sem telefone de destino para notificação Raio-X (Lead {lead.id})")
                 return False
             
             if lead.custom_data and lead.custom_data.get("gestor_notificado"):

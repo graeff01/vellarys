@@ -980,23 +980,18 @@ async def process_message(
                     res_p = await db.execute(select(Product).where(Product.id == lead.custom_data["product_id"]))
                     target_prod = res_p.scalar_one_or_none()
                 
-                # Se não temos produto mas temos imóvel portal, precisamos de um Product "dummy" ou genérico
-                # Mas aqui o GestorNotificationService.notify_gestor espera um Product object.
-                # Se target_prod ainda for None, tentamos buscar um produto genérico ou o que estiver associado ao tenant
-                if target_prod:
-                    logger.info(f"📲 Disparando Raio-X para {lead.name} no produto {target_prod.name}")
-                    success = await GestorNotificationService.notify_gestor(
-                        db=db, api_key=api_key, lead=lead, product=target_prod
-                    )
-                    if success:
-                        logger.info(f"✅ Raio-X enviado com sucesso!")
-                        if not lead.custom_data: lead.custom_data = {}
-                        lead.custom_data["notificado_imovel_codigo"] = codigo_atual
-                        flag_modified(lead, "custom_data")
-                    else:
-                        logger.warning(f"❌ Falha ao enviar Raio-X. Verifique configurações do produto {target_prod.name}")
+                # Se não temos produto mas temos imóvel portal, o notify_gestor usará dados do portal/tenant
+                logger.info(f"📲 Disparando Raio-X para {lead.name}")
+                success = await GestorNotificationService.notify_gestor(
+                    db=db, api_key=api_key, lead=lead, tenant=tenant, product=target_prod
+                )
+                if success:
+                    logger.info(f"✅ Raio-X enviado com sucesso!")
+                    if not lead.custom_data: lead.custom_data = {}
+                    lead.custom_data["notificado_imovel_codigo"] = codigo_atual
+                    flag_modified(lead, "custom_data")
                 else:
-                    logger.warning(f"⚠️ Raio-X não disparado: Nenhum Product associado ao código {codigo_atual}")
+                    logger.warning(f"❌ Falha ao enviar Raio-X (Lead {lead.id})")
     
     # =========================================================================
     # 18.6. PROTEÇÃO ANTI-SPAM (REPETIÇÃO)
