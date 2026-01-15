@@ -232,22 +232,10 @@ class GestorNotificationService:
         lead: Lead,
         product: Product,
         conversation_summary: str = None,
+        is_for_broker: bool = False,
     ) -> str:
         """
-        Constrói mensagem de notificação para o gestor.
-        
-        Formato:
-        📦 Novo lead qualificado - [Produto/Serviço]
-        
-        👤 Nome: João Silva
-        📱 Telefone: (51) 99999-9999
-        🔥 Qualificação: QUENTE
-        
-        💬 Resumo:
-        - Interesse em 2 dormitórios
-        - Quer financiar
-        
-        🕐 Recebido: 09/12/2024 08:30
+        Constrói mensagem de notificação para o gestor ou corretor.
         """
         phone_formatted = GestorNotificationService.format_phone(lead.phone or "")
         
@@ -286,30 +274,36 @@ class GestorNotificationService:
             if lead.custom_data.get("orcamento") or lead.custom_data.get("budget_range"):
                 orcamento = lead.custom_data.get("orcamento") or lead.custom_data.get("budget_range")
                 extras.append(f"• Orçamento: {orcamento}")
-            if lead.custom_data.get("prazo") or lead.custom_data.get("urgency_level"):
-                prazo = lead.custom_data.get("prazo") or lead.custom_data.get("urgency_level")
-                extras.append(f"• Prazo: {prazo}")
             if lead.custom_data.get("forma_pagamento"):
                 extras.append(f"• Pagamento: {lead.custom_data['forma_pagamento']}")
-        
+
+        # Informações do Corretor (se for para o Gestor saber quem é o responsável)
+        corretor_info = ""
+        if not is_for_broker and product.attributes:
+            corretor_nome = product.attributes.get("corretor_nome")
+            if corretor_nome:
+                corretor_info = f"\n👔 *Corretor Responsável:* {corretor_nome}"
+
         extras_text = "\n".join(extras) if extras else "• Dados sendo coletados..."
         
-        message = f"""📦 *Novo Lead - {product.name}*
+        header = "🚀 *NOVO LEAD (ENCAMINHADO)*" if is_for_broker else f"📦 *Novo Lead - {product.name}*"
+        
+        message = f"""{header}
 
 👤 *Nome:* {lead.name or 'Não informado'}
 📱 *WhatsApp:* {phone_formatted}
-{qualification}
+{qualification}{corretor_info}
 
 📝 *Informações coletadas:*
 {extras_text}
 
 💬 *Resumo da conversa:*
-{summary[:500]}{'...' if len(summary) > 500 else ''}
+{summary[:800]}{'...' if len(summary) > 800 else ''}
 
 🕐 *Recebido:* {date_str}
 📍 *Origem:* WhatsApp
 
-_Para atender, clique no número acima ou encaminhe para um corretor._"""
+_Para atender, clique no número acima ou responda agora._"""
         
         return message
     
@@ -321,72 +315,76 @@ _Para atender, clique no número acima ou encaminhe para um corretor._"""
         product: Product,
     ) -> bool:
         """
-        Envia notificação para o gestor se:
-        - Lead tem nome
-        - Produto tem notify_manager configurado (ou settings do tenant)
-        - Lead ainda não foi notificado
-        
-        Returns:
-            True se notificou, False caso contrário
+        Envia notificação para o gestor e para o corretor responsável.
         """
         try:
-            # Verificações
-            if not lead.name:
-                logger.debug(f"Lead {lead.id} sem nome, não notifica gestor")
-                return False
-            
+            # 1. Busca dados de contato do GESTOR
             manager_phone = product.attributes.get("whatsapp_notification") if product.attributes else None
             
-            if not manager_phone:
-                # Tenta nos settings do tenant como fallback (implementado na lógica real do process_message)
-                logger.debug(f"Produto {product.id} sem WhatsApp do gestor nos atributos")
+            # 2. Busca dados de contato do CORRETOR (Adicionado pelo usuário)
+            corretor_phone = product.attributes.get("corretor_whatsapp") if product.attributes else None
+            corretor_nome = product.attributes.get("corretor_nome") if product.attributes else None
+            
+            if not manager_phone and not corretor_phone:
+                logger.debug(f"Produto {product.id} sem contatos configurados")
                 return False
             
-            # Verifica se já notificou
+            # 3. Verifica se já notificou para evitar spam
             if lead.custom_data and lead.custom_data.get("gestor_notificado"):
-                logger.debug(f"Lead {lead.id} já notificou gestor")
-                return False
-            
-            # Formata número do gestor
-            gestor_phone = empreendimento.whatsapp_notificacao
-            gestor_phone = gestor_phone.replace("+", "").replace("-", "").replace(" ", "").replace("(", "").replace(")", "")
-            
-            # Garante formato internacional
-            if not gestor_phone.startswith("55") and len(gestor_phone) <= 11:
-                gestor_phone = "55" + gestor_phone
-            
-            # Monta mensagem
-            message = GestorNotificationService.build_notification_message(
-                lead=lead,
-                product=product,
-            )
-            
-            # Envia
-            result = await Dialog360Service.send_text_message(
-                api_key=api_key,
-                to=gestor_phone,
-                text=message,
-            )
-            
-            if result.get("success"):
-                # Marca como notificado
-                if not lead.custom_data:
-                    lead.custom_data = {}
+                # Se já notificou gestor, mas agora temos um corretor e ele não foi notificado
+                if corretor_phone and not lead.custom_data.get("corretor_notificado"):
+                    pass # Deixa passar para notificar o corretor
+                else:
+                    logger.debug(f"Lead {lead.id} já possui notificações enviadas")
+                    return False
+
+            # --- NOTIFICAÇÃO AO GESTOR (Aviso de entrada) ---
+            if manager_phone and not lead.custom_data.get("gestor_notificado"):
+                gestor_phone = str(manager_phone).replace("+", "").replace("-", "").replace(" ", "").replace("(", "").replace(")", "")
+                if not gestor_phone.startswith("55") and len(gestor_phone) <= 11:
+                    gestor_phone = "55" + gestor_phone
                 
+                # Para o gestor, mandamos o resumo padrão avisando quem é o corretor se houver
+                msg_gestor = GestorNotificationService.build_notification_message(
+                    lead=lead,
+                    product=product,
+                    is_for_broker=False
+                )
+                
+                await Dialog360Service.send_text_message(api_key=api_key, to=gestor_phone, text=msg_gestor)
+                
+                if not lead.custom_data: lead.custom_data = {}
                 lead.custom_data["gestor_notificado"] = True
                 lead.custom_data["gestor_notificado_em"] = datetime.now(timezone.utc).isoformat()
-                lead.custom_data["gestor_phone"] = manager_phone
+                logger.info(f"✅ Gestor notificado - Lead: {lead.id}")
+
+            # --- NOTIFICAÇÃO AO CORRETOR (Resumo do Lead) ---
+            # Só notifica o corretor se o lead já tiver NOME (indica que a IA já qualificou minimamente)
+            if corretor_phone and lead.name and not lead.custom_data.get("corretor_notificado"):
+                broker_phone = str(corretor_phone).replace("+", "").replace("-", "").replace(" ", "").replace("(", "").replace(")", "")
+                if not broker_phone.startswith("55") and len(broker_phone) <= 11:
+                    broker_phone = "55" + broker_phone
                 
-                await db.commit()
+                msg_corretor = GestorNotificationService.build_notification_message(
+                    lead=lead,
+                    product=product,
+                    is_for_broker=True
+                )
                 
-                logger.info(f"✅ Gestor notificado - Lead: {lead.id}, Produto: {product.name}")
-                return True
-            else:
-                logger.error(f"❌ Falha ao notificar gestor - Lead: {lead.id}, Erro: {result.get('error')}")
-                return False
+                res = await Dialog360Service.send_text_message(api_key=api_key, to=broker_phone, text=msg_corretor)
+                
+                if res.get("success"):
+                    if not lead.custom_data: lead.custom_data = {}
+                    lead.custom_data["corretor_notificado"] = True
+                    lead.custom_data["corretor_notificado_em"] = datetime.now(timezone.utc).isoformat()
+                    lead.custom_data["corretor_nome"] = corretor_nome
+                    logger.info(f"🚀 Corretor {corretor_nome} notificado - Lead: {lead.id}")
+                
+            await db.commit()
+            return True
                 
         except Exception as e:
-            logger.error(f"❌ Exceção ao notificar gestor: {e}")
+            logger.error(f"❌ Exceção ao notificar: {e}", exc_info=True)
             return False
 
 

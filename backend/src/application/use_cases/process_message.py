@@ -469,8 +469,30 @@ async def detect_property_context(
         if not lead.custom_data:
             lead.custom_data = {}
         
+        # --- NOVO: BUSCA PRODUTO CORRESPONDENTE NO BANCO ---
+        # Busca se existe um produto cadastrado com esse código para pegar o corretor
+        codigo = str(imovel_portal.get("codigo"))
+        res_prod = await db.execute(
+            select(Product).where(
+                Product.tenant_id == lead.tenant_id,
+                Product.slug == codigo  # No portal, o slug costuma ser o código
+            )
+        )
+        product_obj = res_prod.scalar_one_or_none()
+        
+        # Se não achou pelo slug, tenta nos atributos
+        if not product_obj:
+            res_prod = await db.execute(
+                select(Product).where(
+                    Product.tenant_id == lead.tenant_id,
+                    Product.attributes["codigo"].astext == codigo
+                )
+            )
+            product_obj = res_prod.scalar_one_or_none()
+
+        # Armazena dados do imóvel
         lead.custom_data["imovel_portal"] = {
-            "codigo": imovel_portal.get("codigo"),
+            "codigo": codigo,
             "titulo": imovel_portal.get("titulo"),
             "tipo": imovel_portal.get("tipo"),
             "regiao": imovel_portal.get("regiao"),
@@ -481,6 +503,18 @@ async def detect_property_context(
             "preco": imovel_portal.get("preco"),
             "descricao": imovel_portal.get("descricao", ""),
         }
+        
+        # Se encontrou o produto, associa ao lead e pega dados do corretor
+        if product_obj:
+            lead.custom_data["product_id"] = product_obj.id
+            lead.custom_data["product_name"] = product_obj.name
+            
+            # Se o produto tem corretor nos atributos, salva no lead para facilitar
+            if product_obj.attributes:
+                lead.custom_data["corretor_nome"] = product_obj.attributes.get("corretor_nome")
+                lead.custom_data["corretor_whatsapp"] = product_obj.attributes.get("corretor_whatsapp")
+                lead.custom_data["whatsapp_notification"] = product_obj.attributes.get("whatsapp_notification")
+
         lead.custom_data["contexto_ativo"] = "imovel_portal"
         flag_modified(lead, "custom_data")
     
@@ -927,6 +961,23 @@ async def process_message(
         if nome_extraido:
             lead.name = nome_extraido
             logger.info(f"✨ Nome extraído: {nome_extraido}")
+            
+            # --- NOVO: Se extraiu o nome e temos imóvel, dispara notificação ---
+            if imovel_portal or product_detected:
+                from src.api.routes.dialog360_webhook import GestorNotificationService
+                # Pega API Key do tenant
+                api_key = (tenant.settings or {}).get("dialog360_api_key")
+                if api_key:
+                    target_prod = product_detected
+                    if not target_prod and lead.custom_data.get("product_id"):
+                        # Busca o produto se não estiver na memória mas tiver ID
+                        res_p = await db.execute(select(Product).where(Product.id == lead.custom_data["product_id"]))
+                        target_prod = res_p.scalar_one_or_none()
+                    
+                    if target_prod:
+                        await GestorNotificationService.notify_gestor(
+                            db=db, api_key=api_key, lead=lead, product=target_prod
+                        )
     
     # =========================================================================
     # 18.6. PROTEÇÃO ANTI-SPAM (REPETIÇÃO)
