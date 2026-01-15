@@ -104,10 +104,16 @@ class GestorNotificationService:
             if lead.custom_data.get("forma_pagamento"): extras.append(f"• Pagamento: {lead.custom_data['forma_pagamento']}")
 
         corretor_info = ""
-        if not is_for_broker and product.attributes:
-            corretor_nome = product.attributes.get("corretor_nome")
-            if corretor_nome:
-                corretor_info = f"\n👔 *Corretor Responsável:* {corretor_nome}"
+        # Prioriza corretor do portal se estiver no custom_data, senão tenta do produto
+        c_nome = None
+        if lead.custom_data and lead.custom_data.get("imovel_portal"):
+            c_nome = lead.custom_data["imovel_portal"].get("corretor_nome")
+        
+        if not c_nome and product and product.attributes:
+            c_nome = product.attributes.get("corretor_nome")
+
+        if not is_for_broker and c_nome:
+            corretor_info = f"\n👔 *Corretor Responsável:* {c_nome}"
 
         extras_text = "\n".join(extras) if extras else "• Dados sendo coletados..."
         product_name = product.name if product else (lead.custom_data.get("product_name") or lead.custom_data.get("empreendimento_nome") or "Imóvel")
@@ -142,17 +148,27 @@ _Para atender, clique no número acima ou responda agora._"""
         Envia notificação para o gestor e para o corretor responsável.
         """
         try:
+            # 1. Tenta pegar corretor do imovel_portal (maior prioridade - Vindo do Portal de Investimento)
+            portal_data = lead.custom_data.get("imovel_portal") if lead.custom_data else None
+            
+            p_corretor_phone = portal_data.get("corretor_whatsapp") if portal_data else None
+            p_corretor_nome = portal_data.get("corretor_nome") if portal_data else None
+            
+            # 2. Tenta pegar do produto local (prioridade secundária)
             manager_phone = None
             if product and product.attributes:
                 manager_phone = product.attributes.get("whatsapp_notification")
+                if not p_corretor_phone:
+                    p_corretor_phone = product.attributes.get("corretor_whatsapp")
+                    p_corretor_nome = product.attributes.get("corretor_nome")
             
             # Fallback para o gestor do tenant se não tem no produto
             if not manager_phone:
                 settings = tenant.settings or {}
                 manager_phone = settings.get("handoff", {}).get("manager_whatsapp")
             
-            corretor_phone = product.attributes.get("corretor_whatsapp") if product and product.attributes else None
-            corretor_nome = product.attributes.get("corretor_nome") if product and product.attributes else None
+            corretor_phone = p_corretor_phone
+            corretor_nome = p_corretor_nome
             
             if not manager_phone and not corretor_phone:
                 logger.warning(f"⚠️ Sem telefone de destino para notificação Raio-X (Lead {lead.id})")
