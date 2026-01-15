@@ -413,6 +413,10 @@ def extract_message_content(message: dict) -> Optional[str]:
         if "button_reply" in interactive:
             return interactive["button_reply"].get("title")
     
+    # ✨ NOVO: Retorna None para áudio (será processado separadamente)
+    elif msg_type == "audio":
+        return None  # Sinal para processar áudio
+    
     return None
 
 
@@ -577,8 +581,70 @@ async def receive_webhook(
                     msg_id = message.get("id")
                     from_phone = normalize_phone(message.get("from", ""))
                     
-                    # Extrai conteúdo
-                    content = extract_message_content(message)
+                    # ============================================
+                    # ✨ NOVO: TRANSCRIÇÃO DE ÁUDIO
+                    # ============================================
+                    content = None
+                    
+                    if msg_type == "audio":
+                        logger.info(f"🎙️ Áudio recebido de {from_phone[-4:]}")
+                        
+                        try:
+                            from src.infrastructure.services.transcription_service import transcribe_audio_url
+                            
+                            # Pega URL do áudio
+                            audio_data = message.get("audio", {})
+                            audio_id = audio_data.get("id")
+                            
+                            if not audio_id:
+                                logger.error("❌ Áudio sem ID")
+                                continue
+                            
+                            # Baixa URL do áudio via API 360Dialog
+                            media_url_endpoint = f"https://waba.360dialog.io/v1/media/{audio_id}"
+                            async with httpx.AsyncClient(timeout=30.0) as client:
+                                media_response = await client.get(
+                                    media_url_endpoint,
+                                    headers={"D360-API-KEY": api_key}
+                                )
+                                
+                                if media_response.status_code == 200:
+                                    media_data = media_response.json()
+                                    audio_url = media_data.get("url")
+                                    
+                                    if audio_url:
+                                        # Transcreve
+                                        logger.info(f"🎙️ Transcrevendo áudio: {audio_url[:50]}...")
+                                        content = await transcribe_audio_url(
+                                            url=audio_url,
+                                            prompt="Transcrição de mensagem de WhatsApp em português brasileiro sobre imóveis."
+                                        )
+                                        
+                                        if content:
+                                            logger.info(f"✅ Áudio transcrito: \"{content[:50]}...\"")
+                                        else:
+                                            logger.error("❌ Falha na transcrição")
+                                            content = "[Áudio não compreendido. Pode enviar como texto?]"
+                                    else:
+                                        logger.error("❌ URL do áudio não encontrada")
+                                        continue
+                                else:
+                                    logger.error(f"❌ Erro ao buscar mídia: {media_response.status_code}")
+                                    continue
+                        
+                        except Exception as e:
+                            logger.error(f"❌ Erro ao processar áudio: {e}")
+                            # Envia mensagem educativa
+                            await Dialog360Service.send_text_message(
+                                api_key=api_key,
+                                to=from_phone,
+                                text="Desculpe, não consegui processar seu áudio. Pode enviar sua mensagem como texto? 😊"
+                            )
+                            continue
+                    
+                    else:
+                        # Extrai conteúdo de mensagens de texto/botões
+                        content = extract_message_content(message)
                     
                     if not content:
                         logger.debug(f"⚠️ Mensagem tipo {msg_type} sem conteúdo extraível")
