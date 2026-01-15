@@ -421,6 +421,7 @@ async def count_lead_messages(db: AsyncSession, lead_id: int) -> int:
 
 
 async def detect_property_context(
+    db: AsyncSession,
     content: str,
     lead: Lead,
     history: list[dict],
@@ -853,6 +854,7 @@ async def process_message(
     # 13. DETECÇÃO DE CONTEXTO IMOBILIÁRIO (PORTAL)
     # =========================================================================
     imovel_portal = await detect_property_context(
+        db=db,
         content=content,
         lead=lead,
         history=history,
