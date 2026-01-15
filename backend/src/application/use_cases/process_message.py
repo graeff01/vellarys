@@ -509,6 +509,8 @@ async def detect_property_context(
             "metragem": imovel_portal.get("metragem"),
             "preco": imovel_portal.get("preco"),
             "descricao": imovel_portal.get("descricao", ""),
+            "corretor_nome": imovel_portal.get("corretor_nome"),
+            "corretor_whatsapp": imovel_portal.get("corretor_whatsapp"),
         }
         
         # Se encontrou o produto, associa ao lead e pega dados do corretor
@@ -969,6 +971,8 @@ async def process_message(
         # Evita duplicar notificação para o MESMO imóvel nesta conversa
         codigo_atual = str(imovel_portal.get("codigo") if imovel_portal else product_detected.slug)
         ja_notificado = lead.custom_data.get("notificado_imovel_codigo") == codigo_atual
+        
+        logger.info(f"🔍 [RAIO-X] Candidato: {codigo_atual} | Ja notificado? {ja_notificado}")
         
         if not ja_notificado:
             from src.infrastructure.services.dialog360_service import GestorNotificationService

@@ -257,6 +257,8 @@ class PropertyLookupService:
             "preco": preco_fmt,
             "descricao": imovel.get("descricao", ""),
             "link": f"{PORTAL_BASE_URL}/imovel.html?codigo={imovel.get('codigo', '')}",
+            "corretor_nome": imovel.get("corretor_nome"),
+            "corretor_whatsapp": imovel.get("corretor_whatsapp"),
         }
 
 
