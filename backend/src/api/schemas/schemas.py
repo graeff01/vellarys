@@ -119,10 +119,22 @@ class LeadResponse(LeadBase):
     assigned_seller: Optional[SellerSummary] = None
 
 
+class LeadListOut(BaseModel):
+    """Schema de saída simplificado para listagem de leads."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    status: Optional[str] = None
+    qualification: Optional[str] = None
+    created_at: Optional[datetime] = None
+    last_activity_at: Optional[datetime] = None
+
 class LeadListResponse(BaseModel):
     """Lista de leads com paginação."""
     
-    items: list[LeadResponse]
+    items: list[LeadListOut]
     total: int
     page: int
     per_page: int

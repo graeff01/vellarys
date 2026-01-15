@@ -3,11 +3,6 @@ import { getToken, getUser } from './auth';
 // ✅ CORREÇÃO 1: Remover /v1 da base URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
-function getTenantSlug(): string {
-  if (typeof window === 'undefined') return 'imob-teste';
-  const user = getUser();
-  return user?.tenant?.slug || 'imob-teste';
-}
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const token = typeof window !== 'undefined' ? getToken() : null;
@@ -59,20 +54,16 @@ export async function getLeads(params?: {
   status?: string;
   qualification?: string;
   search?: string;
-  assigned_seller_id?: number;
-  unassigned?: boolean;
 }) {
-  const slug = getTenantSlug();
-  const searchParams = new URLSearchParams({ tenant_slug: slug });
+  const searchParams = new URLSearchParams();
 
   if (params?.page) searchParams.set('page', params.page.toString());
   if (params?.status) searchParams.set('status', params.status);
   if (params?.qualification) searchParams.set('qualification', params.qualification);
   if (params?.search) searchParams.set('search', params.search);
-  if (params?.assigned_seller_id) searchParams.set('assigned_seller_id', params.assigned_seller_id.toString());
-  if (params?.unassigned) searchParams.set('unassigned', 'true');
 
-  return request(`/leads?${searchParams}`);
+  const queryString = searchParams.toString();
+  return request(`/leads${queryString ? `?${queryString}` : ''}`);
 }
 
 export async function getLead(id: number) {

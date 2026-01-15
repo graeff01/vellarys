@@ -117,8 +117,8 @@ export default function LeadsPage() {
           break;
           
         case 'pending':
-          // Leads quentes sem vendedor atribuído
-          params.unassigned = true;
+          // Leads aguardando atendimento
+          params.status = 'in_progress';
           break;
           
         case 'in_progress':
@@ -145,24 +145,7 @@ export default function LeadsPage() {
         getSellers(),
       ]);
       
-      let items = (leadsResponse as LeadsResponse).items;
-      
-      // Filtro adicional para "Aguardando" - só leads que não foram transferidos/convertidos/perdidos
-      if (activeTab === 'pending') {
-        items = items.filter(
-          (lead) =>
-            lead.status !== 'handed_off' &&
-            lead.status !== 'converted' &&
-            lead.status !== 'lost' &&
-            !lead.assigned_seller_id
-        );
-      }
-
-      setData({
-        ...(leadsResponse as LeadsResponse),
-        items,
-        total: items.length,
-      });
+      setData(leadsResponse as LeadsResponse);
       setSellers((sellersResponse as any).sellers || []);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
