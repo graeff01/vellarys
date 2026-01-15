@@ -186,6 +186,7 @@ class Lead(Base, TimestampMixin):
     # RESUMO E HANDOFF
     # ==========================================
     summary: Mapped[Optional[str]] = mapped_column(Text)
+    conversation_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # ✨ NOVO: Resumo automático para conversas longas
     handed_off_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     
 

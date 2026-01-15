@@ -373,8 +373,31 @@ async def get_conversation_history(
     lead_id: int,
     limit: int = settings.max_conversation_history,
 ) -> list[dict]:
-    """Busca histórico de mensagens do lead."""
+    """
+    Busca histórico de mensagens do lead.
+    
+    ✨ NOVO: Agora usa resumo automático para conversas longas!
+    - Se <50 mensagens: retorna todas
+    - Se >=50: retorna resumo + últimas 30
+    """
     try:
+        # Busca lead para verificar se tem resumo
+        from src.domain.entities import Lead
+        lead_result = await db.execute(
+            select(Lead).where(Lead.id == lead_id)
+        )
+        lead = lead_result.scalar_one_or_none()
+        
+        if not lead:
+            return []
+        
+        # Usa novo serviço de histórico efetivo
+        from src.infrastructure.services.conversation_summary_service import get_effective_history
+        return await get_effective_history(db, lead, max_recent_messages=limit)
+        
+    except Exception as e:
+        logger.error(f"Erro ao buscar histórico: {e}")
+        # Fallback: busca últimas N mensagens
         result = await db.execute(
             select(Message)
             .where(Message.lead_id == lead_id)
@@ -383,9 +406,6 @@ async def get_conversation_history(
         )
         messages = result.scalars().all()
         return [{"role": msg.role, "content": msg.content} for msg in reversed(messages)]
-    except Exception as e:
-        logger.error(f"Erro ao buscar histórico: {e}")
-        return []
 
 
 async def count_lead_messages(db: AsyncSession, lead_id: int) -> int:
@@ -1071,6 +1091,13 @@ async def process_message(
         tokens_used=tokens_used,
     )
     db.add(assistant_message)
+    
+    # ✨ NOVO: Atualiza resumo automático (em background, não bloqueia)
+    try:
+        from src.infrastructure.services.conversation_summary_service import update_lead_summary
+        await update_lead_summary(db, lead)
+    except Exception as e:
+        logger.warning(f"⚠️ Erro ao atualizar resumo (não crítico): {e}")
     
     await log_ai_action(
         db=db, tenant_id=tenant.id, lead_id=lead.id,
