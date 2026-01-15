@@ -21,10 +21,11 @@ from sqlalchemy.orm import selectinload
 
 from src.infrastructure.database import get_db
 from src.domain.entities import Lead, Message, Tenant, LeadEvent, Seller, User
-from src.api.schemas import (
+from src.api.schemas.schemas import (
     LeadResponse,
     LeadListResponse,
     LeadUpdate,
+    LeadCreate
 )
 from src.api.dependencies import get_current_user, get_current_tenant
 
@@ -99,125 +100,83 @@ def message_to_response(message: Message) -> dict:
 # ===============================
 # LISTAGEM DE LEADS
 # ===============================
-@router.get("")
+@router.get("", response_model=LeadListResponse)
 async def list_leads(
-    tenant_slug: str,
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     status: Optional[str] = None,
     qualification: Optional[str] = None,
-    channel_id: Optional[int] = None,
     search: Optional[str] = None,
-    date_from: Optional[datetime] = None,
-    date_to: Optional[datetime] = None,
-    assigned_seller_id: Optional[int] = None,
-    unassigned: Optional[bool] = None,
     db: AsyncSession = Depends(get_db),
+    current_tenant: Tenant = Depends(get_current_tenant),
 ):
     """Lista leads do tenant com filtros e paginação."""
-    try:
-        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
-        tenant = result.scalar_one_or_none()
-        if not tenant:
-            raise HTTPException(404, "Tenant não encontrado")
+    query = select(Lead).where(Lead.tenant_id == current_tenant.id)
+    count_query = select(func.count(Lead.id)).where(Lead.tenant_id == current_tenant.id)
 
-        query = (
-            select(Lead)
-            .where(Lead.tenant_id == tenant.id)
-            .options(selectinload(Lead.assigned_seller))
-        )
-        count_query = select(func.count(Lead.id)).where(Lead.tenant_id == tenant.id)
+    if status:
+        query = query.where(Lead.status == status)
+        count_query = count_query.where(Lead.status == status)
 
-        if status:
-            query = query.where(Lead.status == status)
-            count_query = count_query.where(Lead.status == status)
+    if qualification:
+        query = query.where(Lead.qualification == qualification)
+        count_query = count_query.where(Lead.qualification == qualification)
 
-        if qualification:
-            query = query.where(Lead.qualification == qualification)
-            count_query = count_query.where(Lead.qualification == qualification)
+    if search:
+        s = f"%{search}%"
+        query = query.where((Lead.name.ilike(s)) | (Lead.phone.ilike(s)) | (Lead.email.ilike(s)))
+        count_query = count_query.where((Lead.name.ilike(s)) | (Lead.phone.ilike(s)) | (Lead.email.ilike(s)))
 
-        if channel_id:
-            query = query.where(Lead.channel_id == channel_id)
-            count_query = count_query.where(Lead.channel_id == channel_id)
+    total = (await db.execute(count_query)).scalar() or 0
+    offset = (page - 1) * per_page
 
-        if search:
-            s = f"%{search}%"
-            query = query.where(
-                (Lead.name.ilike(s)) | (Lead.phone.ilike(s)) | (Lead.email.ilike(s))
-            )
-            count_query = count_query.where(
-                (Lead.name.ilike(s)) | (Lead.phone.ilike(s)) | (Lead.email.ilike(s))
-            )
+    result = await db.execute(query.order_by(Lead.created_at.desc()).offset(offset).limit(per_page))
+    leads = result.scalars().all()
 
-        if date_from:
-            query = query.where(Lead.created_at >= date_from)
-            count_query = count_query.where(Lead.created_at >= date_from)
+    return {
+        "items": leads,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "pages": (total + per_page - 1) // per_page if total > 0 else 0,
+    }
 
-        if date_to:
-            query = query.where(Lead.created_at <= date_to)
-            count_query = count_query.where(Lead.created_at <= date_to)
 
-        if assigned_seller_id:
-            query = query.where(Lead.assigned_seller_id == assigned_seller_id)
-            count_query = count_query.where(Lead.assigned_seller_id == assigned_seller_id)
-
-        if unassigned:
-            query = query.where(Lead.assigned_seller_id.is_(None))
-            count_query = count_query.where(Lead.assigned_seller_id.is_(None))
-
-        total = (await db.execute(count_query)).scalar() or 0
-        offset = (page - 1) * per_page
-
-        result = await db.execute(
-            query.order_by(Lead.created_at.desc()).offset(offset).limit(per_page)
-        )
-        leads = result.scalars().all()
-
-        return {
-            "items": [lead_to_response(lead) for lead in leads],
-            "total": total,
-            "page": page,
-            "per_page": per_page,
-            "pages": (total + per_page - 1) // per_page if total > 0 else 0,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Erro ao listar leads: {e}")
-        raise HTTPException(500, f"Erro interno: {str(e)}")
-
+# ===============================
+# CRIAR LEAD MANUALMENTE
+# ===============================
+@router.post("", response_model=LeadResponse, status_code=201)
+async def create_lead(
+    lead_data: LeadCreate,
+    db: AsyncSession = Depends(get_db),
+    current_tenant: Tenant = Depends(get_current_tenant),
+):
+    """Cria um novo lead manualmente para o tenant."""
+    new_lead = Lead(**lead_data.model_dump(), tenant_id=current_tenant.id)
+    db.add(new_lead)
+    await db.commit()
+    await db.refresh(new_lead)
+    return new_lead
 
 # ===============================
 # DETALHE DO LEAD
 # ===============================
-@router.get("/{lead_id}")
+@router.get("/{lead_id}", response_model=LeadResponse)
 async def get_lead(
     lead_id: int,
-    tenant_slug: str,
     db: AsyncSession = Depends(get_db),
+    current_tenant: Tenant = Depends(get_current_tenant),
 ):
     """Retorna detalhes de um lead específico."""
-    try:
-        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
-        tenant = result.scalar_one_or_none()
-        if not tenant:
-            raise HTTPException(404, "Tenant não encontrado")
-
-        result = await db.execute(
-            select(Lead)
-            .where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
-            .options(selectinload(Lead.assigned_seller))
-        )
-        lead = result.scalar_one_or_none()
-        if not lead:
-            raise HTTPException(404, "Lead não encontrado")
-
-        return lead_to_response(lead)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Erro ao buscar lead {lead_id}: {e}")
-        raise HTTPException(500, f"Erro interno: {str(e)}")
+    result = await db.execute(
+        select(Lead)
+        .where(Lead.id == lead_id, Lead.tenant_id == current_tenant.id)
+        .options(selectinload(Lead.assigned_seller))
+    )
+    lead = result.scalar_one_or_none()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead não encontrado")
+    return lead
 
 
 # ===============================

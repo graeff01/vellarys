@@ -68,9 +68,39 @@ services:
       - velaris-network
     command: npm run dev
 
+  db_test:
+    image: postgres:16-alpine
+    container_name: velaris_db_test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: velaris_test
+      POSTGRES_PASSWORD: velaris_test_password
+      POSTGRES_DB: velaris_db_test
+    ports:
+      - "5433:5432" # Porta diferente para evitar conflito
+    volumes:
+      - velaris_postgres_test_data:/var/lib/postgresql/data
+    networks:
+      - velaris-network
+
+  backend_test:
+    build: ./backend
+    container_name: velaris_backend_test
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://velaris_test:velaris_test_password@db_test:5432/velaris_db_test
+      - OPENAI_API_KEY=test-key
+      - SECRET_KEY=test-secret
+      - ENVIRONMENT=test
+    depends_on:
+      - db_test
+    networks:
+      - velaris-network
+    command: ["pytest", "-v"]
+
 
 volumes:
   velaris_postgres_data:
+  velaris_postgres_test_data: # Novo volume para o DB de teste
 
 networks:
   velaris-network:
