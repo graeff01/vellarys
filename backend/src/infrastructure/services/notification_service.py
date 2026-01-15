@@ -28,6 +28,8 @@ from src.infrastructure.services.push_service import (
 )
 
 from src.infrastructure.services.zapi_service import ZAPIService, get_zapi_client
+from src.infrastructure.services.openai_service import generate_lead_raiox
+
 
 logger = logging.getLogger(__name__)
 
@@ -314,10 +316,13 @@ async def build_seller_notification_message(
     assigned_by: str = "Gestor",
     notes: str = None,
 ) -> str:
-    """Constrói mensagem de notificação para o VENDEDOR."""
     company_name = tenant.name or "Empresa"
-
+    
+    # Busca insights (incluindo Raio-X da IA)
+    insights = await extract_conversation_insights(db, lead.id)
+    
     lines = [
+
         "👋 *Você recebeu um novo lead!*",
         f"🏷️ {company_name}",
         "━━━━━━━━━━━━━━━━━━━━",
@@ -389,8 +394,14 @@ async def build_seller_notification_message(
     
     conversation_excerpt = await build_conversation_excerpt(db, lead.id, max_messages=6)
     lines.append(conversation_excerpt)
-    
     lines.append("─────────────────")
+
+    # Raio-X da IA (se disponível)
+    if insights.get('raiox'):
+        lines.append("")
+        lines.append(insights['raiox'])
+        lines.append("─────────────────")
+
 
     if notes:
         lines.append("")
@@ -653,9 +664,11 @@ async def extract_conversation_insights(
             "origem": "Portal de Investimento",
             "pediu": "Mais detalhes sobre o imóvel",
             "pendentes": ["finalidade (morar/investir)", "timing de mudança"],
-            "follow_ups_enviados": 1
+            "follow_ups_enviados": 1,
+            "raiox": "🚨 *RAIO-X DO LEAD* 🚨..."
         }
     """
+
     try:
         result = await db.execute(
             select(Message)
@@ -669,8 +682,10 @@ async def extract_conversation_insights(
                 "origem": "Desconhecida",
                 "pediu": "Informações não disponíveis",
                 "pendentes": [],
-                "follow_ups_enviados": 0
+                "follow_ups_enviados": 0,
+                "raiox": None
             }
+
         
         # Conta follow-ups automáticos
         follow_ups = sum(1 for m in messages if m.role == "assistant" and "[FOLLOW-UP" in (m.content or ""))
@@ -732,12 +747,33 @@ async def extract_conversation_insights(
                 if "visita" in last_ia_msg:
                     pendentes.append("interesse em visitar")
         
+        # Gera Raio-X via IA (opcional, se houver mensagens suficientes)
+        raiox = None
+        if len(messages) >= 2:
+            try:
+                # Converte para formato OpenAI
+                history = [
+                    {"role": m.role, "content": m.content or ""}
+                    for m in messages[-15:]  # Últimas 15 mensagens
+                ]
+                
+                # Busca nome do lead para o Raio-X
+                lead_name = "Novo Lead"
+                result_lead = await db.execute(select(Lead.name).where(Lead.id == lead_id))
+                lead_name = result_lead.scalar() or "Novo Lead"
+                
+                raiox = await generate_lead_raiox(lead_name, history)
+            except Exception as e:
+                logger.error(f"Erro ao gerar Raio-X na extração de insights: {e}")
+        
         return {
             "origem": origem,
             "pediu": pediu,
             "pendentes": pendentes,
-            "follow_ups_enviados": follow_ups
+            "follow_ups_enviados": follow_ups,
+            "raiox": raiox
         }
+
         
     except Exception as e:
         logger.error(f"Erro ao extrair insights da conversa: {e}")
@@ -833,6 +869,12 @@ async def build_concise_seller_notification(
     # Observações do gestor
     if notes:
         lines.append(f"• 🔴 Observação: {notes}")
+    
+    # Raio-X da IA
+    if insights.get('raiox'):
+        lines.append("")
+        lines.append(insights['raiox'])
+
     
     # Footer
     lines.append("")
