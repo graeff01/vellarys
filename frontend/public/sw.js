@@ -16,7 +16,7 @@ const STATIC_CACHE = [
 // Instalação do Service Worker
 self.addEventListener('install', (event) => {
   console.log('[SW] Instalando Service Worker...');
-  
+
   event.waitUntil(
     caches.open(CACHE_VERSION)
       .then((cache) => {
@@ -36,7 +36,7 @@ self.addEventListener('install', (event) => {
 // Ativação - limpa caches antigos
 self.addEventListener('activate', (event) => {
   console.log('[SW] Ativando Service Worker...');
-  
+
   event.waitUntil(
     caches.keys()
       .then((cacheNames) => {
@@ -60,28 +60,28 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
-  
+
   // Ignora requisições que não são GET
   if (request.method !== 'GET') {
     return;
   }
-  
+
   // Ignora requisições de API (sempre busca da rede)
   if (url.pathname.startsWith('/api/')) {
     return;
   }
-  
+
   // Ignora websockets e outras requisições especiais
   if (url.protocol === 'chrome-extension:' || url.protocol === 'ws:' || url.protocol === 'wss:') {
     return;
   }
-  
+
   event.respondWith(
     // Tenta buscar da rede primeiro
     fetch(request)
       .then((response) => {
         // Se sucesso, salva no cache e retorna
-        if (response.ok) {
+        if (response.ok && response.status !== 206) {
           const responseClone = response.clone();
           caches.open(CACHE_VERSION)
             .then((cache) => {
@@ -97,12 +97,12 @@ self.addEventListener('fetch', (event) => {
             if (cachedResponse) {
               return cachedResponse;
             }
-            
+
             // Se não estiver no cache e for navegação, mostra página offline
             if (request.mode === 'navigate') {
               return caches.match('/offline.html');
             }
-            
+
             // Retorna erro para outros recursos
             return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
           });
@@ -117,7 +117,7 @@ self.addEventListener('fetch', (event) => {
 // Recebe notificação push
 self.addEventListener('push', (event) => {
   console.log('[SW] Push recebido:', event);
-  
+
   let data = {
     title: 'Velaris',
     body: 'Você tem uma nova atualização',
@@ -126,7 +126,7 @@ self.addEventListener('push', (event) => {
     tag: 'velaris-notification',
     data: { url: '/dashboard/leads' }, // fallback URL
   };
-  
+
   // Tenta parsear dados do push
   if (event.data) {
     try {
@@ -136,7 +136,7 @@ self.addEventListener('push', (event) => {
       data.body = event.data.text();
     }
   }
-  
+
   const options = {
     body: data.body,
     icon: data.icon || '/icons/icon-192x192.png',
@@ -152,7 +152,7 @@ self.addEventListener('push', (event) => {
       { action: 'dismiss', title: 'Dispensar' },
     ],
   };
-  
+
   event.waitUntil(
     self.registration.showNotification(data.title, options)
   );
@@ -161,25 +161,25 @@ self.addEventListener('push', (event) => {
 // Clique na notificação
 self.addEventListener('notificationclick', (event) => {
   console.log('[SW] Notificação clicada:', event);
-  
+
   event.notification.close();
-  
+
   const action = event.action;
   const data = event.notification.data || {};
-  
+
   if (action === 'dismiss') {
     return;
   }
-  
+
   // URL para abrir (padrão: dashboard de leads)
   let targetUrl = '/dashboard/leads';
-  
+
   if (data.url) {
     targetUrl = data.url;
   } else if (data.lead_id) {
     targetUrl = `/dashboard/leads?lead=${data.lead_id}`;
   }
-  
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
@@ -190,7 +190,7 @@ self.addEventListener('notificationclick', (event) => {
             return client.focus();
           }
         }
-        
+
         // Se não, abre nova janela
         if (clients.openWindow) {
           return clients.openWindow(targetUrl);
@@ -210,7 +210,7 @@ self.addEventListener('notificationclose', (event) => {
 
 self.addEventListener('sync', (event) => {
   console.log('[SW] Background sync:', event.tag);
-  
+
   if (event.tag === 'sync-notifications') {
     event.waitUntil(syncNotifications());
   }
@@ -227,11 +227,11 @@ async function syncNotifications() {
 
 self.addEventListener('message', (event) => {
   console.log('[SW] Mensagem recebida:', event.data);
-  
+
   if (event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
-  
+
   if (event.data.type === 'GET_VERSION') {
     event.ports[0].postMessage({ version: CACHE_VERSION });
   }
