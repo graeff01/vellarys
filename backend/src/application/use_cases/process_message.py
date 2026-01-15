@@ -476,10 +476,12 @@ async def detect_property_context(
         res_prod = await db.execute(
             select(Product).where(
                 Product.tenant_id == lead.tenant_id,
-                Product.slug == codigo  # No portal, o slug costuma ser o código
+                Product.slug == codigo
             )
         )
         product_obj = res_prod.scalar_one_or_none()
+        if product_obj:
+            logger.info(f"✅ Produto encontrado pelo slug: {product_obj.name}")
         
         # Se não achou pelo slug, tenta nos atributos
         if not product_obj:
@@ -490,6 +492,10 @@ async def detect_property_context(
                 )
             )
             product_obj = res_prod.scalar_one_or_none()
+            if product_obj:
+                logger.info(f"✅ Produto encontrado pelos atributos: {product_obj.name}")
+            else:
+                logger.warning(f"⚠️ Nenhum produto local encontrado para o código {codigo}")
 
         # Armazena dados do imóvel
         lead.custom_data["imovel_portal"] = {
@@ -983,9 +989,14 @@ async def process_message(
                         db=db, api_key=api_key, lead=lead, product=target_prod
                     )
                     if success:
+                        logger.info(f"✅ Raio-X enviado com sucesso!")
                         if not lead.custom_data: lead.custom_data = {}
                         lead.custom_data["notificado_imovel_codigo"] = codigo_atual
                         flag_modified(lead, "custom_data")
+                    else:
+                        logger.warning(f"❌ Falha ao enviar Raio-X. Verifique configurações do produto {target_prod.name}")
+                else:
+                    logger.warning(f"⚠️ Raio-X não disparado: Nenhum Product associado ao código {codigo_atual}")
     
     # =========================================================================
     # 18.6. PROTEÇÃO ANTI-SPAM (REPETIÇÃO)
