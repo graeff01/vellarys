@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     # ===========================================
     openai_api_key: str
     openai_model: str = "gpt-4o"
+
+    # ===========================================
+    # AI CONSTANTS
+    # ===========================================
+    max_message_length: int = 2000
+    max_conversation_history: int = 30
+    openai_timeout_seconds: int = 30
+    openai_max_retries: int = 2
     
     # ===========================================
     # EMAIL (Resend)
@@ -123,3 +131,11 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+# ===========================================
+# FALLBACK RESPONSES (não precisam ser do env)
+# ===========================================
+FALLBACK_RESPONSES = {
+    "error": "Desculpe, estou com uma instabilidade momentânea. Tente novamente em alguns segundos.",
+    "security": "Por segurança, não posso responder a essa mensagem.",
+}

@@ -21,6 +21,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - velaris-network
 
   backend:
     build: ./backend
@@ -35,7 +37,7 @@ services:
       - ENVIRONMENT=development
       - DEBUG=true
     volumes:
-      - ./backend/src:/app/src:ro
+      - ./backend/src:/app/src
     depends_on:
       db:
         condition: service_healthy
@@ -46,10 +48,30 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+    networks:
+      - velaris-network
 
+  frontend:
+    build:
+      context: ./frontend
+    container_name: velaris_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # Monta o código-fonte para hot-reloading, mas ignora node_modules e .next
+      # para usar os que foram instalados/gerados dentro do container.
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    networks:
+      - velaris-network
+    command: npm run dev
 
-  environment:
-  DATABASE_URL: "postgresql://postgres:YIffnOKDrYGj...@postgres.railway.internal:5432/railway"
 
 volumes:
   velaris_postgres_data:
+
+networks:
+  velaris-network:
+    driver: bridge

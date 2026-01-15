@@ -3,6 +3,9 @@
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Python egg metadata
+*.egg-info/
 *.so
 .Python
 venv/

@@ -12,6 +12,24 @@ export function Card({ children, className = '', overflow = false }: CardProps) 
   );
 }
 
+interface CardContentProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function CardContent({ children, className = '' }: CardContentProps) {
+  return <div className={`text-gray-700 ${className}`}>{children}</div>;
+}
+
+interface CardFooterProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function CardFooter({ children, className = '' }: CardFooterProps) {
+  return <div className={`mt-6 pt-4 border-t border-gray-200 flex items-center justify-end gap-3 ${className}`}>{children}</div>;
+}
+
 interface CardHeaderProps {
   title: React.ReactNode;
   subtitle?: string;

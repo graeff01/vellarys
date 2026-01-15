@@ -65,10 +65,14 @@ from src.application.services.ai_context_builder import (
     imovel_dict_to_context,
 )
 
+from src.application.services.message_security import (
+    check_jailbreak_attempt,
+    check_spam_repetition,
+    sanitize_message_content,
+)
 from src.infrastructure.services.ai_security import (
     sanitize_response,
     should_handoff as check_ai_handoff,
-    is_prompt_safe,
 )
 
 from src.infrastructure.services.security_service import (
@@ -83,38 +87,18 @@ from src.infrastructure.services.audit_service import (
     log_message_received,
     log_ai_action,
 )
+from src.config import FALLBACK_RESPONSES, get_settings
 from src.infrastructure.services.lgpd_service import (
     detect_lgpd_request,
     get_lgpd_response,
 )
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 # =============================================================================
-# CONSTANTES
+# HELPERS DE SEGURANÇA (Refatorado para message_security.py)
 # =============================================================================
-
-MAX_MESSAGE_LENGTH = 2000
-MAX_CONVERSATION_HISTORY = 30
-OPENAI_TIMEOUT_SECONDS = 30
-OPENAI_MAX_RETRIES = 2
-
-FALLBACK_RESPONSES = {
-    "error": "Desculpe, estou com uma instabilidade momentânea. Tente novamente em alguns segundos.",
-    "security": "Por segurança, não posso responder a essa mensagem.",
-}
-
-# =============================================================================
-# HELPERS DE SEGURANÇA
-# =============================================================================
-
-def sanitize_message_content(content: str) -> str:
-    """Remove conteúdo potencialmente perigoso ou muito longo."""
-    if not content:
-        return ""
-    content = content[:MAX_MESSAGE_LENGTH]
-    content = content.replace('\0', '').replace('\r', '')
-    return content.strip()
 
 
 def sanitize_imovel_data(imovel: Dict) -> Dict:
@@ -387,7 +371,7 @@ async def get_or_create_lead(
 async def get_conversation_history(
     db: AsyncSession,
     lead_id: int,
-    limit: int = MAX_CONVERSATION_HISTORY,
+    limit: int = settings.max_conversation_history,
 ) -> list[dict]:
     """Busca histórico de mensagens do lead."""
     try:
@@ -519,8 +503,8 @@ async def chat_completion_com_retry(
     messages: list,
     temperature: float,
     max_tokens: int,
-    max_retries: int = OPENAI_MAX_RETRIES,
-    timeout: float = OPENAI_TIMEOUT_SECONDS,
+    max_retries: int = settings.openai_max_retries,
+    timeout: float = settings.openai_timeout_seconds,
 ) -> dict:
     """
     🔄 Chama OpenAI com retry automático e timeout.
@@ -927,36 +911,24 @@ async def process_message(
     # =========================================================================
     # 18.6. PROTEÇÃO ANTI-SPAM (REPETIÇÃO)
     # =========================================================================
-    if message_count > 3:
-        # Pega últimas 3 mensagens do usuário
-        recent_user_msgs = [
-            msg.get("content", "") for msg in history[-6:] 
-            if msg.get("role") == "user"
-        ][-3:]
+    spam_response = check_spam_repetition(history, message_count)
+    if spam_response:
+        assistant_message = Message(
+            lead_id=lead.id,
+            role="assistant",
+            content=spam_response,
+            tokens_used=0
+        )
+        db.add(assistant_message)
+        await db.commit()
         
-        # Verifica se está repetindo a mesma coisa 3x
-        if len(recent_user_msgs) == 3:
-            if recent_user_msgs[0] == recent_user_msgs[1] == recent_user_msgs[2]:
-                logger.warning(f"⚠️ Lead {lead.id} repetindo mensagem 3x!")
-                
-                spam_response = "Percebi que você está repetindo a mesma mensagem. Posso te ajudar com algo específico?"
-                
-                assistant_message = Message(
-                    lead_id=lead.id,
-                    role="assistant",
-                    content=spam_response,
-                    tokens_used=0
-                )
-                db.add(assistant_message)
-                await db.commit()
-                
-                return {
-                    "success": True,
-                    "reply": spam_response,
-                    "lead_id": lead.id,
-                    "is_new_lead": False,
-                    "spam_detected": True,
-                }
+        return {
+            "success": True,
+            "reply": spam_response,
+            "lead_id": lead.id,
+            "is_new_lead": False,
+            "spam_detected": True,
+        }
     
     # =========================================================================
     # 19. DETECÇÃO DE LEAD QUENTE
@@ -1009,20 +981,18 @@ async def process_message(
     # =========================================================================
     # 19.5 VERIFICA SEGURANÇA DO PROMPT (ANTI-JAILBREAK)
     # =========================================================================
-    if not is_prompt_safe(content):
-        logger.warning(f"🚨 Tentativa de Jailbreak detectada do lead {lead.id}!")
-        safe_reply = f"Desculpe, não entendi perfeitamente. Pode reformular? Sou um assistente da {settings['company_name']} focado em imóveis."
-        
+    jailbreak_reply = check_jailbreak_attempt(content, settings["company_name"])
+    if jailbreak_reply:
         # Salva histórico básico e breca
         user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
         db.add(user_message)
-        assistant_message = Message(lead_id=lead.id, role="assistant", content=safe_reply, tokens_used=0)
+        assistant_message = Message(lead_id=lead.id, role="assistant", content=jailbreak_reply, tokens_used=0)
         db.add(assistant_message)
         await db.commit()
         
         return {
             "success": True, 
-            "reply": safe_reply, 
+            "reply": jailbreak_reply,
             "lead_id": lead.id,
             "security": "blocked_jailbreak"
         }
@@ -1074,7 +1044,7 @@ async def process_message(
         tokens_used = ai_response.get("tokens_used", 0)
         
     except Exception as e:
-        logger.error(f"❌ Erro chamando IA (após {OPENAI_MAX_RETRIES + 1} tentativas): {e}")
+        logger.error(f"❌ Erro chamando IA (após {settings.openai_max_retries + 1} tentativas): {e}")
         logger.error(traceback.format_exc())
         
         # Fallback responses
