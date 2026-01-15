@@ -1,7 +1,12 @@
 'use client';
 
 import { Card } from '@/components/ui/card';
-import { Users, Flame, UserCheck, Filter, Clock, TrendingUp, MessageSquare, Zap } from 'lucide-react';
+import {
+  Flame,
+  UserCheck,
+  TrendingUp,
+  MessageSquare
+} from 'lucide-react';
 
 interface MetricsCardsProps {
   metrics: {
@@ -17,125 +22,118 @@ interface MetricsCardsProps {
 }
 
 export function MetricsCards({ metrics }: MetricsCardsProps) {
-  // Calcula métricas derivadas
+  // Calcula métricas derivadas com fallback para garantir robustez
   const leadsHot = metrics.by_qualification?.hot || metrics.by_qualification?.quente || 0;
-  const leadsWarm = metrics.by_qualification?.warm || metrics.by_qualification?.morno || 0;
   const leadsCold = metrics.by_qualification?.cold || metrics.by_qualification?.frio || 0;
-  
+
   const leadsTransferred = metrics.by_status?.handed_off || metrics.by_status?.transferido || 0;
   const leadsQualified = metrics.by_status?.qualified || metrics.by_status?.qualificado || 0;
-  
-  // Taxa de leads quentes (eficiência da IA em encontrar compradores)
-  const hotRate = metrics.total_leads > 0 
-    ? Math.round((leadsHot / metrics.total_leads) * 100) 
+
+  // Taxas de performance
+  const hotRate = metrics.total_leads > 0
+    ? Math.round((leadsHot / metrics.total_leads) * 100)
     : 0;
-  
-  // Taxa de filtro (leads frios = curiosos filtrados)
-  const filterRate = metrics.total_leads > 0 
-    ? Math.round((leadsCold / metrics.total_leads) * 100) 
+
+  const filterRate = metrics.total_leads > 0
+    ? Math.round((leadsCold / metrics.total_leads) * 100)
     : 0;
 
   return (
-    <div className="space-y-6">
-      {/* Cards principais - Resultado da IA */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <div className="flex items-center">
-            <div className="p-3 rounded-lg bg-blue-100">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* 1. Atendimento Total */}
+      <Card className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-2xl group hover:border-blue-300 transition-all duration-300">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center border border-blue-100 group-hover:scale-110 transition-transform">
               <MessageSquare className="w-6 h-6 text-blue-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Atendidos pela IA</p>
-              <p className="text-2xl font-bold text-gray-900">{metrics.total_leads}</p>
-              <p className="text-xs text-gray-400">{metrics.leads_today} hoje</p>
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg uppercase tracking-wider">
+                Hoje: +{metrics.leads_today}
+              </span>
             </div>
           </div>
-        </Card>
+          <div>
+            <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-1">Atendidos pela IA</p>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">{metrics.total_leads}</h2>
+              <span className="text-xs font-bold text-slate-400">Conversas</span>
+            </div>
+          </div>
+        </div>
+      </Card>
 
-        <Card>
-          <div className="flex items-center">
-            <div className="p-3 rounded-lg bg-red-100">
-              <Flame className="w-6 h-6 text-red-600" />
+      {/* 2. Funil de Qualificação (Ouro) */}
+      <Card className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-2xl group hover:border-rose-300 transition-all duration-300">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-rose-50 rounded-xl flex items-center justify-center border border-rose-100 group-hover:scale-110 transition-transform">
+              <Flame className="w-6 h-6 text-rose-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Prontos p/ Comprar</p>
-              <p className="text-2xl font-bold text-red-600">{leadsHot}</p>
-              <p className="text-xs text-green-600 font-medium">{hotRate}% dos leads</p>
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg uppercase tracking-wider">
+                {hotRate}% Eficiência
+              </span>
             </div>
           </div>
-        </Card>
+          <div>
+            <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-1">Prontos p/ Comprar</p>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-4xl font-extrabold text-rose-600 tracking-tight">{leadsHot}</h2>
+              <span className="text-xs font-bold text-slate-400">Leads Quentes</span>
+            </div>
+          </div>
+        </div>
+      </Card>
 
-        <Card>
-          <div className="flex items-center">
-            <div className="p-3 rounded-lg bg-green-100">
-              <UserCheck className="w-6 h-6 text-green-600" />
+      {/* 3. Entrega Comercial */}
+      <Card className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-2xl group hover:border-emerald-300 transition-all duration-300">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform">
+              <UserCheck className="w-6 h-6 text-emerald-600" />
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Entregues p/ Vendedor</p>
-              <p className="text-2xl font-bold text-gray-900">{leadsTransferred + leadsQualified}</p>
-              <p className="text-xs text-gray-400">qualificados</p>
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg uppercase tracking-wider">
+                Transf. Direta
+              </span>
             </div>
           </div>
-        </Card>
+          <div>
+            <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-1">Enviados ao Time</p>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">{leadsTransferred + leadsQualified}</h2>
+              <span className="text-xs font-bold text-slate-400">Oportunidades</span>
+            </div>
+          </div>
+        </div>
+      </Card>
 
-        <Card>
-          <div className="flex items-center">
-            <div className="p-3 rounded-lg bg-gray-100">
-              <Filter className="w-6 h-6 text-gray-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Curiosos Filtrados</p>
-              <p className="text-2xl font-bold text-gray-900">{leadsCold}</p>
-              <p className="text-xs text-blue-600 font-medium">{filterRate}% bloqueados</p>
-            </div>
+      {/* Resumo de Conversão (Banner Sutil) */}
+      <div className="md:col-span-3 bg-slate-900 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-xl shadow-slate-200/50">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-slate-800 rounded-lg flex items-center justify-center border border-slate-700">
+            <TrendingUp className="w-4 h-4 text-emerald-400" />
           </div>
-        </Card>
-      </div>
+          <p className="text-white text-xs font-bold uppercase tracking-widest">Performance Global</p>
+        </div>
 
-      {/* Cards secundários - Performance */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Leads Interessados</p>
-              <p className="text-xl font-bold text-yellow-600">{leadsWarm}</p>
-            </div>
-            <div className="p-2 rounded-lg bg-yellow-100">
-              <Zap className="w-5 h-5 text-yellow-600" />
-            </div>
+        <div className="flex items-center gap-8 pr-4">
+          <div className="flex flex-col">
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Taxa de Conversão</span>
+            <span className="text-lg font-extrabold text-white leading-none">{metrics.conversion_rate}%</span>
           </div>
-          <p className="text-xs text-gray-400 mt-2">Ainda em conversa com a IA</p>
-        </Card>
-
-        <Card>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Tempo Médio</p>
-              <p className="text-xl font-bold text-gray-900">
-                {metrics.avg_qualification_time_hours > 0 
-                  ? `${metrics.avg_qualification_time_hours}h` 
-                  : '< 1h'}
-              </p>
-            </div>
-            <div className="p-2 rounded-lg bg-purple-100">
-              <Clock className="w-5 h-5 text-purple-600" />
-            </div>
+          <div className="flex flex-col border-l border-slate-700 pl-8">
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Filtro de Curiosos</span>
+            <span className="text-lg font-extrabold text-blue-400 leading-none">{filterRate}%</span>
           </div>
-          <p className="text-xs text-gray-400 mt-2">Para qualificar um lead</p>
-        </Card>
-
-        <Card>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Taxa de Conversão</p>
-              <p className="text-xl font-bold text-green-600">{metrics.conversion_rate}%</p>
-            </div>
-            <div className="p-2 rounded-lg bg-green-100">
-              <TrendingUp className="w-5 h-5 text-green-600" />
-            </div>
+          <div className="flex flex-col border-l border-slate-700 pl-8">
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Ciclo de Qualificação</span>
+            <span className="text-lg font-extrabold text-amber-400 leading-none">
+              {metrics.avg_qualification_time_hours > 0 ? `${metrics.avg_qualification_time_hours}h` : '< 1h'}
+            </span>
           </div>
-          <p className="text-xs text-gray-400 mt-2">Leads que avançaram</p>
-        </Card>
+        </div>
       </div>
     </div>
   );

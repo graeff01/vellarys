@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardHeader } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { MetricsCards } from '@/components/dashboard/metrics-cards';
 import { QualificationDonut } from '@/components/dashboard/qualification-donut';
 import { ROICard } from '@/components/dashboard/roi-card';
@@ -14,14 +14,15 @@ import { getSellers } from '@/lib/sellers';
 import { getUser } from '@/lib/auth';
 import {
   Flame,
-  TrendingUp,
   Clock,
   DollarSign,
-  Moon,
   Zap,
   ArrowRight,
+  TrendingUp,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Sparkles,
+  ChevronRight
 } from 'lucide-react';
 
 interface TimeSaved {
@@ -65,24 +66,20 @@ interface Seller {
   active: boolean;
 }
 
-// =============================================================================
-// COMPONENTE DE ERRO
-// =============================================================================
-
 function ErrorState({ error, onRetry }: { error: string; onRetry: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center h-64 space-y-4">
-      <div className="p-4 bg-red-50 rounded-full">
-        <AlertCircle className="w-12 h-12 text-red-600" />
+    <div className="flex flex-col items-center justify-center min-h-[400px] space-y-6">
+      <div className="p-5 bg-rose-50 rounded-2xl border border-rose-100 shadow-xl shadow-rose-100/20">
+        <AlertCircle className="w-12 h-12 text-rose-600" />
       </div>
-      <div className="text-center">
-        <h3 className="text-xl font-semibold text-gray-900 mb-2">
-          Erro ao carregar dashboard
+      <div className="text-center max-w-sm">
+        <h3 className="text-xl font-extrabold text-slate-900 mb-2">
+          Houve um contratempo
         </h3>
-        <p className="text-gray-600 mb-4">{error}</p>
+        <p className="text-slate-500 font-medium mb-6 leading-relaxed">{error}</p>
         <button
           onClick={onRetry}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors mx-auto"
+          className="flex items-center gap-2 px-8 py-3.5 bg-slate-900 text-white rounded-xl font-bold shadow-lg shadow-slate-200 hover:scale-[1.02] active:scale-[0.98] transition-all mx-auto"
         >
           <RefreshCw className="w-5 h-5" />
           Tentar Novamente
@@ -92,10 +89,6 @@ function ErrorState({ error, onRetry }: { error: string; onRetry: () => void }) 
   );
 }
 
-// =============================================================================
-// DASHBOARD DO GESTOR (cliente normal)
-// =============================================================================
-
 function GestorDashboard() {
   const router = useRouter();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
@@ -103,284 +96,211 @@ function GestorDashboard() {
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-
       const [metricsData, leadsData, sellersData] = await Promise.all([
         getMetrics(),
         getLeads({ page: 1 }),
         getSellers(),
       ]);
-
-      // ✅ VALIDAÇÃO: Verifica se dados vieram corretamente
-      if (!metricsData) {
-        throw new Error('Métricas não disponíveis');
-      }
-
+      if (!metricsData) throw new Error('Métricas não disponíveis');
       setMetrics(metricsData as Metrics);
       setLeads((leadsData as { items: Lead[] }).items || []);
-      setSellers((sellersData as any).sellers || []);
-      setRetryCount(0); // Reset retry count on success
-    } catch (err: any) {
-      console.error('❌ Erro ao carregar dashboard:', err);
-      
-      // Mensagens de erro específicas
-      if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
-        setError('Sessão expirada. Faça login novamente.');
+      setSellers((sellersData as { sellers: Seller[] }).sellers || []);
+    } catch (err: unknown) {
+      console.error('Erro dashboard:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar dados';
+      if (errorMessage.includes('401')) {
+        setError('Sessão expirada. Redirecionando...');
         setTimeout(() => router.push('/login'), 2000);
-      } else if (err.message?.includes('Failed to fetch')) {
-        setError('Sem conexão com servidor. Verifique sua internet.');
       } else {
-        setError(err.message || 'Erro desconhecido. Tente novamente.');
+        setError(errorMessage);
       }
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
-  // ✅ RETRY AUTOMÁTICO (após 3 segundos, máximo 3 tentativas)
-  useEffect(() => {
-    if (error && retryCount < 3) {
-      const timer = setTimeout(() => {
-        console.log(`🔄 Tentativa ${retryCount + 1}/3 de reconexão...`);
-        setRetryCount(prev => prev + 1);
-        loadData();
-      }, 3000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [error, retryCount]);
-
-  // Estados de loading e erro
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <div className="text-gray-500">Carregando dashboard...</div>
-          {retryCount > 0 && (
-            <div className="text-sm text-gray-400">
-              Tentativa {retryCount}/3
-            </div>
-          )}
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <div className="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+        <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Sincronizando Dashboard...</p>
       </div>
     );
   }
 
-  if (error) {
-    return <ErrorState error={error} onRetry={loadData} />;
-  }
+  if (error) return <ErrorState error={error} onRetry={loadData} />;
+  if (!metrics) return null;
 
-  if (!metrics) {
-    return <ErrorState error="Nenhum dado disponível" onRetry={loadData} />;
-  }
-
-  // ✅ VALORES SEGUROS (com fallbacks)
-  const leadsHot = metrics.by_qualification?.quente || 0;
-  const leadsCold = metrics.by_qualification?.frio || 0;
+  const leadsHot = metrics.by_qualification?.quente || metrics.by_qualification?.hot || 0;
+  const leadsCold = metrics.by_qualification?.frio || metrics.by_qualification?.cold || 0;
   const timeSaved = metrics.time_saved || { hours_saved: 0, cost_saved_brl: 0, leads_handled: 0 };
-  const afterHoursLeads = metrics.after_hours_leads || 0;
-  const growthPercentage = metrics.growth_percentage || 0;
   const hotLeadsWaiting = metrics.hot_leads_waiting || 0;
   const avgResponseTime = metrics.avg_response_time_minutes || 0;
-  const engagementRate = metrics.engagement_rate || 0;
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500">Acompanhe o desempenho da sua IA de atendimento</p>
+    <div className="space-y-8 animate-in fade-in duration-700">
+      {/* Header Premium */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Visão Geral</h1>
+          <p className="text-slate-500 font-medium">Análise estratégica de desempenho do Velaris AI</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="bg-white border border-slate-200 rounded-xl px-4 py-2 shadow-sm flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Sistema Operante</span>
+          </div>
+        </div>
       </div>
 
-      {/* Cards principais */}
+      {/* Métricas Principais Consolidadas */}
       <MetricsCards metrics={metrics} />
 
-      {/* CARDS DE VALOR AGREGADO */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-
-        {/* 1. Economia de Tempo */}
-        <Card>
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-green-100 to-emerald-100 rounded-xl">
-                <Clock className="w-6 h-6 text-green-600" />
-              </div>
-              {growthPercentage > 0 && (
-                <div className="flex items-center gap-1 text-green-600 text-sm font-semibold">
-                  <TrendingUp className="w-4 h-4" />
-                  +{growthPercentage.toFixed(0)}%
-                </div>
-              )}
-            </div>
-            <h3 className="text-sm font-medium text-gray-600 mb-2">Tempo Economizado</h3>
-            <p className="text-3xl font-bold text-gray-900 mb-1">
-              {timeSaved.hours_saved.toFixed(1)}h
-            </p>
-            <p className="text-xs text-gray-500">
-              Este mês • {timeSaved.leads_handled} leads atendidos
-            </p>
-          </div>
-        </Card>
-
-        {/* 2. Economia em R$ */}
-        <Card>
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl">
-                <DollarSign className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-            <h3 className="text-sm font-medium text-gray-600 mb-2">Economia em Dinheiro</h3>
-            <p className="text-3xl font-bold text-blue-600 mb-1">
-              R$ {timeSaved.cost_saved_brl.toFixed(0)}
-            </p>
-            <p className="text-xs text-gray-500">
-              vs atendimento humano tradicional
-            </p>
-          </div>
-        </Card>
-
-        {/* 3. Leads Fora do Horário */}
-        <Card>
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl">
-                <Moon className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-            <h3 className="text-sm font-medium text-gray-600 mb-2">Leads Fora do Horário</h3>
-            <p className="text-3xl font-bold text-purple-600 mb-1">
-              {afterHoursLeads}
-            </p>
-            <p className="text-xs text-gray-500">
-              Capturados fora do expediente
-            </p>
-          </div>
-        </Card>
-
-        {/* 4. Velocidade de Resposta */}
-        <Card>
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-gradient-to-br from-orange-100 to-red-100 rounded-xl">
-                <Zap className="w-6 h-6 text-orange-600" />
-              </div>
-            </div>
-            <h3 className="text-sm font-medium text-gray-600 mb-2">Velocidade de Resposta</h3>
-            <p className="text-3xl font-bold text-orange-600 mb-1">
-              {avgResponseTime.toFixed(1)}min
-            </p>
-            <p className="text-xs text-gray-500">
-              Resposta instantânea 24/7
-            </p>
-          </div>
-        </Card>
-      </div>
-
-      {/* CTA: LEADS QUENTES AGUARDANDO */}
+      {/* CTA Leads Quentes (Destaque Crítico) */}
       {hotLeadsWaiting > 0 && (
-        <Card className="border-2 border-red-200 bg-gradient-to-r from-red-50 to-orange-50">
-          <div className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-4 bg-red-100 rounded-full animate-pulse">
-                  <Flame className="w-8 h-8 text-red-600" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-1">
-                    {hotLeadsWaiting} Lead{hotLeadsWaiting !== 1 ? 's' : ''} Quente{hotLeadsWaiting !== 1 ? 's' : ''} Aguardando!
-                  </h3>
-                  <p className="text-gray-600">
-                    Esses leads estão prontos para fechar. Entre em contato agora!
-                  </p>
-                </div>
+        <div className="relative group overflow-hidden rounded-3xl">
+          <div className="absolute inset-0 bg-gradient-to-r from-rose-600 to-orange-500 animate-gradient-x"></div>
+          <div className="relative p-6 flex flex-col md:flex-row items-center justify-between gap-6 backdrop-blur-sm bg-black/10">
+            <div className="flex items-center gap-5">
+              <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shadow-2xl">
+                <Flame className="w-8 h-8 text-white animate-bounce" />
               </div>
-              <button
-                onClick={() => router.push('/dashboard/leads?qualification=quente')}
-                className="flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
-              >
-                Ver Leads Quentes
-                <ArrowRight className="w-5 h-5" />
-              </button>
+              <div className="text-white">
+                <h3 className="text-2xl font-extrabold tracking-tight">
+                  {hotLeadsWaiting} Lead{hotLeadsWaiting !== 1 ? 's' : ''} Quente{hotLeadsWaiting !== 1 ? 's' : ''} Aguardando!
+                </h3>
+                <p className="text-white/80 font-medium">Momentum ideal para fechamento detectado pela IA.</p>
+              </div>
             </div>
+            <button
+              onClick={() => router.push('/dashboard/leads?qualification=quente')}
+              className="px-8 py-4 bg-white text-rose-600 rounded-2xl font-extrabold shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-3 group/btn"
+            >
+              Atender Agora
+              <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+            </button>
           </div>
-        </Card>
+        </div>
       )}
 
-      {/* Seção de destaque - ROI, Qualificação e Uso do Plano */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Card de ROI */}
-        <ROICard
-          totalLeads={metrics.total_leads}
-          leadsFiltered={leadsCold}
-          leadsHot={leadsHot}
-        />
+      {/* Seção Impacto Velaris (IA Value) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-8 space-y-6">
+          <Card className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-3xl">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center border border-blue-100">
+                  <Sparkles className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-widest">Impacto Velaris IA</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">ROI e Eficiência Operacional</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+              {/* Tempo */}
+              <div className="relative p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all">
+                <div className="absolute top-4 right-4 text-emerald-500 flex items-center gap-1 font-bold text-xs uppercase">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  Ativo
+                </div>
+                <Clock className="w-6 h-6 text-slate-400 mb-4" />
+                <p className="text-4xl font-extrabold text-slate-900 leading-none mb-2">{timeSaved.hours_saved.toFixed(1)}h</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">Tempo Economizado Este Mês</p>
+              </div>
 
-        {/* Card de Qualificação */}
-        <Card>
-          <CardHeader
-            title="Qualificação dos Leads"
-            subtitle="Distribuição por temperatura"
+              {/* ROI Financeiro */}
+              <div className="relative p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all">
+                <DollarSign className="w-6 h-6 text-slate-400 mb-4" />
+                <p className="text-4xl font-extrabold text-blue-600 leading-none mb-2">R$ {timeSaved.cost_saved_brl.toFixed(0)}</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">Economia Estimada em R$</p>
+              </div>
+
+              {/* Resposta */}
+              <div className="relative p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all">
+                <Zap className="w-6 h-6 text-slate-400 mb-4" />
+                <p className="text-4xl font-extrabold text-amber-500 leading-none mb-2">{avgResponseTime.toFixed(1)}m</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">Tempo de Resposta 24/7</p>
+              </div>
+            </div>
+          </Card>
+
+          <ROICard
+            totalLeads={metrics.total_leads}
+            leadsFiltered={leadsCold}
+            leadsHot={leadsHot}
           />
-          <QualificationDonut data={metrics.by_qualification} />
-        </Card>
+        </div>
 
-        {/* Card de Uso do Plano */}
-        <PlanUsageCard />
+        <div className="lg:col-span-4 space-y-6">
+          <Card className="bg-white border-slate-200 shadow-sm rounded-3xl overflow-hidden h-full">
+            <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
+              <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-widest">Qualificação</h3>
+            </div>
+            <div className="p-6">
+              <QualificationDonut data={metrics.by_qualification} />
+            </div>
+          </Card>
+        </div>
       </div>
 
-      {/* Leads Recentes */}
-      <Card overflow>
-        <CardHeader
-          title="Leads Recentes"
-          subtitle="Últimos leads que entraram em contato"
-        />
-        <LeadsTable
-          leads={leads.slice(0, 5)}
-          sellers={sellers}
-        />
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-4">
+          <PlanUsageCard />
+        </div>
+        <div className="lg:col-span-8">
+          <Card className="bg-white border-slate-200 shadow-sm rounded-3xl overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-widest">Leads Recentes</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Últimas 5 interações</p>
+              </div>
+              <button
+                onClick={() => router.push('/dashboard/leads')}
+                className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"
+              >
+                Ver Todos
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-0">
+              <LeadsTable
+                leads={leads.slice(0, 5)}
+                sellers={sellers}
+              />
+            </div>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
 
-// =============================================================================
-// PÁGINA PRINCIPAL - DETECTA ROLE
-// =============================================================================
-
 export default function DashboardPage() {
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const user = getUser();
-    setIsSuperAdmin(user?.role === 'superadmin');
-    setLoading(false);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setUserRole(user?.role || 'guest');
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  if (userRole === undefined) return null;
 
-  // Se for SUPERADMIN, mostra o Dashboard CEO
-  if (isSuperAdmin) {
-    return <CEODashboard />;
-  }
-
-  // Se for gestor normal, mostra o Dashboard padrão
-  return <GestorDashboard />;
+  const isSuperAdmin = userRole === 'superadmin';
+  return (
+    <div className="p-4 md:p-8 max-w-7xl mx-auto">
+      {isSuperAdmin ? <CEODashboard /> : <GestorDashboard />}
+    </div>
+  );
 }
