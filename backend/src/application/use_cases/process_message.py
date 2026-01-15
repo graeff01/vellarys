@@ -964,7 +964,7 @@ async def process_message(
             
             # --- NOVO: Se extraiu o nome e temos imóvel, dispara notificação ---
             if imovel_portal or product_detected:
-                from src.api.routes.dialog360_webhook import GestorNotificationService
+                from src.infrastructure.services.dialog360_service import GestorNotificationService
                 # Pega API Key do tenant
                 api_key = (tenant.settings or {}).get("dialog360_api_key")
                 if api_key:

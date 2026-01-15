@@ -123,9 +123,12 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> List[str]:
         """Retorna lista de origens CORS permitidas"""
+        if not self.cors_origins:
+            return ["*"]
         if self.cors_origins == "*":
             return ["*"]
-        return [origin.strip() for origin in self.cors_origins.split(",")]
+        # Filtra strings vazias e remove espaços
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 @lru_cache
