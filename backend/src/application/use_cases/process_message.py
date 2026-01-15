@@ -956,30 +956,36 @@ async def process_message(
     sentiment = await detect_sentiment(content)
     
     # =========================================================================
-    # 18.5. EXTRAÇÃO AUTOMÁTICA DE NOME
+    # 18.7. NOTIFICAÇÃO DE INTERESSE EM IMÓVEL (RAIO-X)
     # =========================================================================
-    if not lead.name and message_count < 10:  # Só tenta nas primeiras 10 msgs
-        nome_extraido = extrair_nome_simples(content)
-        if nome_extraido:
-            lead.name = nome_extraido
-            logger.info(f"✨ Nome extraído: {nome_extraido}")
+    # Dispara quando temos: Nome do Lead + (Imóvel Portal ou Produto)
+    if lead.name and (imovel_portal or product_detected):
+        # Evita duplicar notificação para o MESMO imóvel nesta conversa
+        codigo_atual = str(imovel_portal.get("codigo") if imovel_portal else product_detected.slug)
+        ja_notificado = lead.custom_data.get("notificado_imovel_codigo") == codigo_atual
+        
+        if not ja_notificado:
+            from src.infrastructure.services.dialog360_service import GestorNotificationService
+            api_key = (tenant.settings or {}).get("dialog360_api_key")
             
-            # --- NOVO: Se extraiu o nome e temos imóvel, dispara notificação ---
-            if imovel_portal or product_detected:
-                from src.infrastructure.services.dialog360_service import GestorNotificationService
-                # Pega API Key do tenant
-                api_key = (tenant.settings or {}).get("dialog360_api_key")
-                if api_key:
-                    target_prod = product_detected
-                    if not target_prod and lead.custom_data.get("product_id"):
-                        # Busca o produto se não estiver na memória mas tiver ID
-                        res_p = await db.execute(select(Product).where(Product.id == lead.custom_data["product_id"]))
-                        target_prod = res_p.scalar_one_or_none()
-                    
-                    if target_prod:
-                        await GestorNotificationService.notify_gestor(
-                            db=db, api_key=api_key, lead=lead, product=target_prod
-                        )
+            if api_key:
+                target_prod = product_detected
+                if not target_prod and lead.custom_data.get("product_id"):
+                    res_p = await db.execute(select(Product).where(Product.id == lead.custom_data["product_id"]))
+                    target_prod = res_p.scalar_one_or_none()
+                
+                # Se não temos produto mas temos imóvel portal, precisamos de um Product "dummy" ou genérico
+                # Mas aqui o GestorNotificationService.notify_gestor espera um Product object.
+                # Se target_prod ainda for None, tentamos buscar um produto genérico ou o que estiver associado ao tenant
+                if target_prod:
+                    logger.info(f"📲 Disparando Raio-X para {lead.name} no produto {target_prod.name}")
+                    success = await GestorNotificationService.notify_gestor(
+                        db=db, api_key=api_key, lead=lead, product=target_prod
+                    )
+                    if success:
+                        if not lead.custom_data: lead.custom_data = {}
+                        lead.custom_data["notificado_imovel_codigo"] = codigo_atual
+                        flag_modified(lead, "custom_data")
     
     # =========================================================================
     # 18.6. PROTEÇÃO ANTI-SPAM (REPETIÇÃO)
