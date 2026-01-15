@@ -3,6 +3,12 @@ import { getToken, getUser } from './auth';
 // ✅ CORREÇÃO 1: Remover /v1 da base URL
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
+// ✅ RESTAURAR: Função getTenantSlug (removida por engano pelo Jules)
+function getTenantSlug(): string {
+  if (typeof window === 'undefined') return '';
+  const user = getUser();
+  return user?.tenant?.slug || '';
+}
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const token = typeof window !== 'undefined' ? getToken() : null;
