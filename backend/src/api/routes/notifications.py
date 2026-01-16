@@ -24,7 +24,9 @@ router = APIRouter(prefix="/notifications", tags=["Notificações"])
 async def get_vapid_public_key():
     """Retorna a chave pública VAPID para registro no navegador."""
     settings = get_settings()
-    return {"public_key": settings.vapid_public_key}
+    # Limpa possíveis aspas ou espaços que o usuário possa ter colado no Railway
+    clean_key = settings.vapid_public_key.strip().replace("'", "").replace('"', "") if settings.vapid_public_key else ""
+    return {"public_key": clean_key}
 
 
 # =============================================================================

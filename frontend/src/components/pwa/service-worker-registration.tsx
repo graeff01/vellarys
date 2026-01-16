@@ -112,9 +112,23 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
 
     // Limpa a chave de possíveis aspas ou espaços que o usuário possa ter colado no Railway
     const cleanKey = vapidPublicKey.trim().replace(/['"]/g, '');
-    console.log(`📏 VAPID Key Length: ${cleanKey.length}`);
 
-    const applicationServerKey = urlBase64ToUint8Array(cleanKey);
+    let applicationServerKey: Uint8Array;
+    try {
+      applicationServerKey = urlBase64ToUint8Array(cleanKey);
+    } catch (e) {
+      console.error('❌ Erro ao decodificar VAPID key (Base64 inválido):', e);
+      return null;
+    }
+
+    console.log(`📏 VAPID Key Length (decoded): ${applicationServerKey.length} bytes`);
+
+    // Validação estrita para P-256 (deve ser 65 bytes)
+    if (applicationServerKey.length !== 65) {
+      console.error(`❌ Tamanho da chave inválido: ${applicationServerKey.length} bytes. Esperado: 65 bytes.`);
+      console.error('📋 Chave recebida (limpa):', cleanKey);
+      return null;
+    }
 
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
@@ -147,7 +161,7 @@ export async function unsubscribeFromPush(): Promise<boolean> {
   }
 }
 
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
+export function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding)
     .replace(/-/g, '+')
