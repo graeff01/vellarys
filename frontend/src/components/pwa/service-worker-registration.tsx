@@ -99,6 +99,7 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
         const response = await fetch(`${API_URL}/notifications/vapid-public-key`);
         const data = await response.json();
         vapidPublicKey = data.public_key;
+        console.log('🔑 Key obtida do backend:', vapidPublicKey?.substring(0, 10) + '...');
       } catch (error) {
         console.error('Erro ao buscar VAPID key do backend:', error);
       }
@@ -109,7 +110,11 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
       return null;
     }
 
-    const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+    // Limpa a chave de possíveis aspas ou espaços que o usuário possa ter colado no Railway
+    const cleanKey = vapidPublicKey.trim().replace(/['"]/g, '');
+    console.log(`📏 VAPID Key Length: ${cleanKey.length}`);
+
+    const applicationServerKey = urlBase64ToUint8Array(cleanKey);
 
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
