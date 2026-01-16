@@ -967,45 +967,64 @@ async def process_message(
     # 18.7. NOTIFICAÇÃO DE INTERESSE EM IMÓVEL (RAIO-X)
     # =========================================================================
     # Dispara quando temos: Nome do Lead + (Imóvel Portal ou Produto)
-    if lead.name and (imovel_portal or product_detected):
-        # Evita duplicar notificação para o MESMO imóvel nesta conversa
-        codigo_atual = str(imovel_portal.get("codigo") if imovel_portal else product_detected.slug)
-        ja_notificado = lead.custom_data.get("notificado_imovel_codigo") == codigo_atual
-        
-        logger.info(f"🔍 [RAIO-X] Candidato: {codigo_atual} | Ja notificado? {ja_notificado}")
-        
         if not ja_notificado:
-            from src.infrastructure.services.dialog360_service import GestorNotificationService
-            api_key = (tenant.settings or {}).get("dialog360_api_key")
-            
-            # Pegamos o corretor do portal se existir nos dados do lead (salvo no passo 13)
-            # ou usamos o gestor como fallback
-            
-            # Buscamos a configuração do tenant sobre para quem enviar
+            # Buscamos as configurações de distribuição/notificação
             settings_dist = tenant.settings.get("distribution", {}) if tenant.settings else {}
-            notify_broker_raiox = settings_dist.get("notify_broker_raiox", True) # Default True para manter o comportamento desejado
+            notify_broker_raiox = settings_dist.get("notify_broker_raiox", True)
+            min_messages_broker = settings_dist.get("min_messages_broker_raiox", 3) # Default 3 mensagens
             
-            # Chama o serviço de notificação padrão do Velaris (que usa Z-API)
-            await notify_gestor(
-                db=db,
-                tenant=tenant,
-                lead=lead,
-                notification_type="lead_hot", # Usamos o tipo HOT lead para o Raio-X
-                product=product_detected,
-                extra_context={
-                    "is_raiox": True,
-                    "target_broker": notify_broker_raiox
-                }
-            )
+            # 1. Fluxo do GESTOR (Sempre imediato se não notificado)
+            ja_notificado_gestor = lead.custom_data.get("notificado_gestor_codigo") == codigo_atual
+            if not ja_notificado_gestor:
+                logger.info(f"📲 [RAIO-X] Notificando GESTOR imediatamente: {codigo_atual}")
+                await notify_gestor(
+                    db=db,
+                    tenant=tenant,
+                    lead=lead,
+                    notification_type="lead_hot",
+                    product=product_detected,
+                    extra_context={
+                        "is_raiox": True,
+                        "target_broker": False # Forçamos para o gestor neste primeiro envio
+                    }
+                )
+                lead.custom_data["notificado_gestor_codigo"] = codigo_atual
+                flag_modified(lead, "custom_data")
             
-            # Marca como notificado para não repetir
-            if not lead.custom_data:
-                lead.custom_data = {}
-            lead.custom_data["notificado_imovel_codigo"] = codigo_atual
-            flag_modified(lead, "custom_data")
+            # 2. Fluxo do CORRETOR (Delayed baseado no número de mensagens)
+            if notify_broker_raiox:
+                ja_notificado_corretor = lead.custom_data.get("notificado_corretor_codigo") == codigo_atual
+                if not ja_notificado_corretor:
+                    # Contamos mensagens do lead no histórico (user messages)
+                    user_msgs_count = sum(1 for m in history if m.get("role") == "user") + 1 # +1 pela mensagem atual
+                    
+                    if user_msgs_count >= min_messages_broker:
+                        logger.info(f"📲 [RAIO-X] Threshold atingido ({user_msgs_count}/{min_messages_broker}). Notificando CORRETOR: {codigo_atual}")
+                        await notify_gestor(
+                            db=db,
+                            tenant=tenant,
+                            lead=lead,
+                            notification_type="lead_hot",
+                            product=product_detected,
+                            extra_context={
+                                "is_raiox": True,
+                                "target_broker": True # Aqui tentamos o corretor
+                            }
+                        )
+                        lead.custom_data["notificado_corretor_codigo"] = codigo_atual
+                        flag_modified(lead, "custom_data")
+                    else:
+                        logger.info(f"⏳ [RAIO-X] Aguardando mais mensagens para Broker ({user_msgs_count}/{min_messages_broker})")
+            
+            # Marca flag legado para compatibilidade se ambos estiverem ok ou se broker desativado
+            gestor_ok = lead.custom_data.get("notificado_gestor_codigo") == codigo_atual
+            broker_ok = not notify_broker_raiox or lead.custom_data.get("notificado_corretor_codigo") == codigo_atual
+            
+            if gestor_ok and broker_ok:
+                lead.custom_data["notificado_imovel_codigo"] = codigo_atual
+                flag_modified(lead, "custom_data")
+            
             await db.commit()
-            
-            logger.info(f"✅ [RAIO-X] Notificação enviada para {codigo_atual}")
     
     # =========================================================================
     # 18.6. PROTEÇÃO ANTI-SPAM (REPETIÇÃO)

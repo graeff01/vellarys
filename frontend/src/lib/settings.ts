@@ -98,6 +98,7 @@ export interface DistributionSettings {
   respect_availability: boolean;
   notify_manager_copy: boolean;
   notify_broker_raiox: boolean;
+  min_messages_broker_raiox: number;
   last_seller_index: number;
 }
 

@@ -184,6 +184,7 @@ export default function SettingsPage() {
   const [respectAvailability, setRespectAvailability] = useState(true);
   const [notifyManagerCopy, setNotifyManagerCopy] = useState(false);
   const [notifyBrokerRaiox, setNotifyBrokerRaiox] = useState(true);
+  const [minMessagesBrokerRaiox, setMinMessagesBrokerRaiox] = useState(3);
 
   // GUARDRAILS
   const [priceGuardEnabled, setPriceGuardEnabled] = useState(true);
@@ -370,6 +371,7 @@ export default function SettingsPage() {
         setRespectAvailability(dist.respect_availability ?? true);
         setNotifyManagerCopy(dist.notify_manager_copy ?? false);
         setNotifyBrokerRaiox(dist.notify_broker_raiox ?? true);
+        setMinMessagesBrokerRaiox(dist.min_messages_broker_raiox ?? 3);
 
         // Guardrails
         const guards = s.guardrails || {};
@@ -431,6 +433,7 @@ export default function SettingsPage() {
           respect_availability: respectAvailability,
           notify_manager_copy: notifyManagerCopy,
           notify_broker_raiox: notifyBrokerRaiox,
+          min_messages_broker_raiox: minMessagesBrokerRaiox,
           last_seller_index: 0
         },
         guardrails: {
@@ -790,6 +793,24 @@ export default function SettingsPage() {
               <ToggleSwitch checked={respectAvailability} onChange={setRespectAvailability} label="Respeitar disponibilidade" description="Não enviar para vendedores indisponíveis" />
               <ToggleSwitch checked={notifyManagerCopy} onChange={setNotifyManagerCopy} label="Notificar gestor" description="Gestor recebe cópia de todas as notificações" />
               <ToggleSwitch checked={notifyBrokerRaiox} onChange={setNotifyBrokerRaiox} label="Notificar corretor no Raio-X" description="Enviar resumo detalhado diretamente para o corretor responsável pelo imóvel" />
+
+              {notifyBrokerRaiox && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Mensagens mínimas para Corretor</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={minMessagesBrokerRaiox}
+                      onChange={(e) => setMinMessagesBrokerRaiox(parseInt(e.target.value))}
+                      className="w-24 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-500">A IA enviará o Raio-X para o corretor somente após o lead enviar {minMessagesBrokerRaiox} mensagens.</span>
+                  </div>
+                  <p className="mt-2 text-xs text-amber-600">O Gestor continuará recebendo o alerta imediatamente (na 1ª mensagem).</p>
+                </div>
+              )}
             </div>
           </Card>
         </div>
