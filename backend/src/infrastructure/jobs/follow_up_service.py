@@ -644,11 +644,42 @@ follow_up_service = FollowUpService()
 # =============================================================================
 
 async def run_follow_up_job():
-    """Função que o scheduler vai chamar a cada hora."""
+    """Função corrigida - cria sessão isolada"""
     print("⏰ Scheduler chamou run_follow_up_job()")
-    return await follow_up_service.process_all_tenants()
-
-
-async def send_manual_follow_up(lead_id: int, message: str = None):
-    """Função helper para enviar follow-up manual."""
-    return await follow_up_service.send_manual_follow_up(lead_id, message)
+    print("=" * 60)
+    
+    # CRIAR ENGINE E SESSÃO ISOLADAS (correção crítica)
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker
+    from config import DATABASE_URL
+    
+    engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        pool_pre_ping=True,
+        pool_recycle=3600,
+    )
+    
+    async_session_factory = sessionmaker(
+        engine,
+        class_=AsyncSession,
+        expire_on_commit=False
+    )
+    
+    result = {'processados': 0, 'enviados': 0, 'pulados': 0, 'erros': 0}
+    
+    try:
+        async with async_session_factory() as session:
+            # PASSAR SESSÃO PARA O SERVIÇO
+            result = await follow_up_service.process_all_tenants(session)
+            await session.commit()
+    except Exception as e:
+        print(f"❌ Erro: {str(e)}")
+    finally:
+        await engine.dispose()
+        print("=" * 60)
+        print("✅ JOB FINALIZADO")
+        print(f"   Enviados: {result.get('enviados', 0)}")
+        print("=" * 60)
+    
+    return result
