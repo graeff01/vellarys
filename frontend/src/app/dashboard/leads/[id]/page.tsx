@@ -35,11 +35,9 @@ import {
   Zap,
   TrendingUp,
   UserCheck,
-  Calendar,
   Tag as TagIcon,
   FileText,
-  Building2,
-  Hash
+  Info
 } from 'lucide-react';
 
 interface Lead {
@@ -121,7 +119,7 @@ function formatDateLabel(dateString: string, originalDate: string): string {
 }
 
 function getEventIcon(eventType: string) {
-  const iconClass = "w-3.5 h-3.5";
+  const iconClass = "w-3 h-3";
   switch (eventType) {
     case 'status_change': return <TrendingUp className={`${iconClass} text-blue-600`} />;
     case 'qualification_change': return <Zap className={`${iconClass} text-purple-600`} />;
@@ -171,6 +169,7 @@ export default function LeadDetailPage() {
   const [events, setEvents] = useState<LeadEvent[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'messages' | 'info' | 'notes'>('messages');
 
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [editandoNome, setEditandoNome] = useState(false);
@@ -210,10 +209,10 @@ export default function LeadDetailPage() {
   }, [params.id]);
 
   useEffect(() => {
-    if (!loading && chatEndRef.current) {
+    if (!loading && chatEndRef.current && activeTab === 'messages') {
       chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [loading, messages]);
+  }, [loading, messages, activeTab]);
 
   const handleScroll = () => {
     if (chatContainerRef.current) {
@@ -354,7 +353,7 @@ export default function LeadDetailPage() {
       setLead(leadAtualizado as Lead);
       const novosEventos = await getLeadEvents(lead.id);
       setEvents(novosEventos as LeadEvent[]);
-      mostrarSucesso('Vendedor atribuído com sucesso');
+      mostrarSucesso('Vendedor atribuído');
     } catch {
       alert('Erro ao atribuir vendedor');
     } finally {
@@ -377,10 +376,10 @@ export default function LeadDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
-          <span className="text-slate-600 font-semibold">Carregando informações...</span>
+      <div className="flex items-center justify-center h-screen bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+          <span className="text-slate-600 font-semibold text-sm">Carregando...</span>
         </div>
       </div>
     );
@@ -388,14 +387,11 @@ export default function LeadDetailPage() {
 
   if (!lead) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-6 bg-slate-50">
-        <div className="text-center">
-          <h3 className="text-2xl font-bold text-slate-900 mb-2">Lead não encontrado</h3>
-          <p className="text-slate-500">O lead que você procura não existe ou foi removido.</p>
-        </div>
+      <div className="flex flex-col items-center justify-center h-screen gap-4 bg-slate-50">
+        <h3 className="text-xl font-bold text-slate-900">Lead não encontrado</h3>
         <button
           onClick={() => router.back()}
-          className="px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100"
+          className="px-6 py-2 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors"
         >
           Voltar
         </button>
@@ -408,488 +404,379 @@ export default function LeadDetailPage() {
   const statusBadge = getStatusBadge(lead.status);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100/50">
-      {/* Toast de Sucesso */}
+    <div className="h-screen flex flex-col bg-slate-50 overflow-hidden">
+      {/* Toast */}
       {mensagemSucesso && (
-        <div className="fixed top-6 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="bg-white rounded-2xl px-6 py-4 shadow-2xl border border-slate-200 flex items-center gap-4 min-w-[300px]">
-            <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center">
-              <CheckCircle2 className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <p className="text-slate-900 font-semibold">Sucesso</p>
-              <p className="text-slate-600 text-sm">{mensagemSucesso}</p>
-            </div>
+        <div className="fixed top-4 right-4 z-50 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="bg-white rounded-xl px-5 py-3 shadow-xl border border-slate-200 flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-green-500" />
+            <span className="text-sm font-medium text-slate-900">{mensagemSucesso}</span>
           </div>
         </div>
       )}
 
-      {/* Header com breadcrumb e ações */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-40">
-        <div className="max-w-[1800px] mx-auto px-6 py-4">
-          <div className="flex items-center justify-between gap-6 flex-wrap">
-            {/* Lado esquerdo - Breadcrumb */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.back()}
-                className="p-2 hover:bg-slate-100 rounded-xl transition-all group"
-              >
-                <ArrowLeft className="w-5 h-5 text-slate-600 group-hover:text-blue-600 transition-colors" />
-              </button>
+      {/* Header Compacto */}
+      <div className="bg-white border-b border-slate-200 flex-shrink-0">
+        <div className="px-6 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0 flex-1">
+            <button
+              onClick={() => router.back()}
+              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5 text-slate-600" />
+            </button>
 
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-slate-400">Leads</span>
-                <span className="text-slate-300">/</span>
-                <span className="text-slate-900 font-semibold">{lead.name || 'Lead'}</span>
-              </div>
-            </div>
+            <div className="min-w-0 flex-1">
+              {editandoNome ? (
+                <input
+                  type="text"
+                  value={nomeTemp}
+                  onChange={(e) => setNomeTemp(e.target.value)}
+                  onBlur={salvarNome}
+                  onKeyDown={(e) => e.key === 'Enter' && salvarNome()}
+                  className="text-lg font-bold text-slate-900 w-full border-b-2 border-blue-600 outline-none bg-transparent"
+                  autoFocus
+                />
+              ) : (
+                <div className="flex items-center gap-2 group cursor-pointer" onClick={() => { setNomeTemp(lead.name || ''); setEditandoNome(true); }}>
+                  <h1 className="text-lg font-bold text-slate-900 truncate">{lead.name || 'Lead sem nome'}</h1>
+                  <Edit2 className="w-3.5 h-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              )}
 
-            {/* Lado direito - Badges de status */}
-            <div className="flex items-center gap-3">
-              <div className="relative group">
-                <select
-                  value={lead.status}
-                  onChange={(e) => atualizarStatus(e.target.value)}
-                  className={`${statusBadge.bg} ${statusBadge.text} px-4 py-2 rounded-xl font-semibold text-sm cursor-pointer border-0 appearance-none pr-8 hover:opacity-90 transition-opacity`}
-                >
-                  <option value="new">Novo</option>
-                  <option value="in_progress">Atendimento</option>
-                  <option value="qualified">Qualificado</option>
-                  <option value="lost">Perdido</option>
-                </select>
-                <ChevronDown className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-
-              <div className="relative group">
-                <select
-                  value={lead.qualification}
-                  onChange={(e) => atualizarQualificacao(e.target.value)}
-                  className={`${qualBadge.bg} ${qualBadge.text} px-4 py-2 rounded-xl font-semibold text-sm cursor-pointer border-0 appearance-none pr-8 hover:opacity-90 transition-opacity`}
-                >
-                  <option value="cold">{qualBadge.icon} Frio</option>
-                  <option value="warm">⚡ Morno</option>
-                  <option value="hot">🔥 Quente</option>
-                </select>
-                <ChevronDown className="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-white" />
+              {/* Tags inline */}
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {(lead.custom_data?.tags || []).map((tag: string) => (
+                  <Badge key={tag} className="flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 text-xs font-medium rounded-md">
+                    {tag}
+                    <button onClick={() => removerTag(tag)} className="hover:text-red-600">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                ))}
+                {adicionandoTag ? (
+                  <input
+                    type="text"
+                    value={novaTag}
+                    onChange={(e) => setNovaTag(e.target.value)}
+                    onBlur={adicionarTag}
+                    onKeyDown={(e) => e.key === 'Enter' && adicionarTag()}
+                    placeholder="Tag..."
+                    className="border border-blue-400 rounded-md px-2 py-0.5 text-xs w-20 outline-none"
+                    autoFocus
+                  />
+                ) : (
+                  <button onClick={() => setAdicionandoTag(true)} className="text-xs font-semibold text-blue-600 hover:text-blue-700 px-2 py-0.5 bg-blue-50 rounded-md">
+                    + Tag
+                  </button>
+                )}
               </div>
             </div>
           </div>
+
+          {/* Status badges compactos */}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <select
+                value={lead.status}
+                onChange={(e) => atualizarStatus(e.target.value)}
+                className={`${statusBadge.bg} ${statusBadge.text} px-3 py-1.5 rounded-lg font-semibold text-xs cursor-pointer border-0 appearance-none pr-7`}
+              >
+                <option value="new">Novo</option>
+                <option value="in_progress">Atendimento</option>
+                <option value="qualified">Qualificado</option>
+                <option value="lost">Perdido</option>
+              </select>
+              <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            <div className="relative">
+              <select
+                value={lead.qualification}
+                onChange={(e) => atualizarQualificacao(e.target.value)}
+                className={`${qualBadge.bg} ${qualBadge.text} px-3 py-1.5 rounded-lg font-semibold text-xs cursor-pointer border-0 appearance-none pr-7`}
+              >
+                <option value="cold">❄️ Frio</option>
+                <option value="warm">⚡ Morno</option>
+                <option value="hot">🔥 Quente</option>
+              </select>
+              <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-white" />
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="px-6 flex gap-1 border-t border-slate-100">
+          <button
+            onClick={() => setActiveTab('messages')}
+            className={`px-4 py-2.5 text-sm font-semibold transition-colors relative ${
+              activeTab === 'messages'
+                ? 'text-blue-600'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4 inline mr-1.5" />
+            Mensagens
+            {activeTab === 'messages' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />}
+          </button>
+          <button
+            onClick={() => setActiveTab('info')}
+            className={`px-4 py-2.5 text-sm font-semibold transition-colors relative ${
+              activeTab === 'info'
+                ? 'text-blue-600'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Info className="w-4 h-4 inline mr-1.5" />
+            Informações
+            {activeTab === 'info' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />}
+          </button>
+          <button
+            onClick={() => setActiveTab('notes')}
+            className={`px-4 py-2.5 text-sm font-semibold transition-colors relative ${
+              activeTab === 'notes'
+                ? 'text-blue-600'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <FileText className="w-4 h-4 inline mr-1.5" />
+            Notas
+            {activeTab === 'notes' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />}
+          </button>
         </div>
       </div>
 
-      {/* Conteúdo Principal */}
-      <div className="max-w-[1800px] mx-auto p-6">
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Sidebar Esquerda - Informações */}
-          <div className="xl:col-span-1 space-y-6">
-            {/* Card: Nome e Tags */}
-            <Card className="bg-white border-slate-200 shadow-sm">
-              <div className="p-6">
-                {/* Nome editável */}
-                <div className="mb-4">
-                  {editandoNome ? (
-                    <input
-                      type="text"
-                      value={nomeTemp}
-                      onChange={(e) => setNomeTemp(e.target.value)}
-                      onBlur={salvarNome}
-                      onKeyDown={(e) => e.key === 'Enter' && salvarNome()}
-                      className="text-2xl font-bold text-slate-900 w-full border-b-2 border-blue-600 outline-none bg-transparent"
-                      autoFocus
-                    />
-                  ) : (
-                    <div className="flex items-center gap-2 group cursor-pointer" onClick={() => { setNomeTemp(lead.name || ''); setEditandoNome(true); }}>
-                      <h2 className="text-2xl font-bold text-slate-900">{lead.name || 'Lead sem nome'}</h2>
-                      <Edit2 className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  )}
-                </div>
-
-                {/* Tags */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {(lead.custom_data?.tags || []).map((tag: string) => (
-                    <Badge
-                      key={tag}
-                      className="flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 font-medium rounded-lg hover:bg-blue-100 transition-colors group"
-                    >
-                      <TagIcon className="w-3 h-3" />
-                      {tag}
-                      <button onClick={() => removerTag(tag)} className="hover:text-red-600 transition-colors ml-1">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </Badge>
-                  ))}
-
-                  {adicionandoTag ? (
-                    <input
-                      type="text"
-                      value={novaTag}
-                      onChange={(e) => setNovaTag(e.target.value)}
-                      onBlur={adicionarTag}
-                      onKeyDown={(e) => e.key === 'Enter' && adicionarTag()}
-                      placeholder="Nova tag..."
-                      className="border border-blue-400 rounded-lg px-2 py-1 text-sm w-32 outline-none"
-                      autoFocus
-                    />
-                  ) : (
-                    <button
-                      onClick={() => setAdicionandoTag(true)}
-                      className="text-sm font-semibold text-blue-600 hover:text-blue-700 px-3 py-1 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-                    >
-                      + Tag
-                    </button>
-                  )}
-                </div>
-
-                {/* Data de criação */}
-                <div className="flex items-center gap-2 text-sm text-slate-500 pt-4 border-t border-slate-100">
-                  <Calendar className="w-4 h-4" />
-                  <span>Criado em {new Date(lead.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
-                </div>
+      {/* Conteúdo das Tabs */}
+      <div className="flex-1 overflow-hidden">
+        {/* Tab: Mensagens */}
+        {activeTab === 'messages' && (
+          <div
+            ref={chatContainerRef}
+            onScroll={handleScroll}
+            className="h-full overflow-y-auto p-6 space-y-4 bg-slate-50"
+          >
+            {messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                <MessageSquare className="w-12 h-12 mb-3 opacity-20" />
+                <p className="text-sm font-semibold text-slate-500">Nenhuma mensagem</p>
               </div>
-            </Card>
-
-            {/* Card: Informações de Contato */}
-            <Card className="bg-white border-slate-200 shadow-sm">
-              <div className="p-6">
-                <h3 className="font-bold text-sm text-slate-900 mb-4 flex items-center gap-2">
-                  <Building2 className="w-4 h-4 text-blue-600" />
-                  Informações de Contato
-                </h3>
-
-                <div className="space-y-3">
-                  {lead.phone && (
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors group">
-                      <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center border border-slate-200 group-hover:border-blue-300 transition-colors">
-                        <Phone className="w-4 h-4 text-slate-600 group-hover:text-blue-600 transition-colors" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 font-medium">Telefone</p>
-                        <p className="text-slate-900 font-semibold">{lead.phone}</p>
-                      </div>
+            ) : (
+              <>
+                {Array.from(messageGroups.entries()).map(([date, dateMessages]) => (
+                  <div key={date}>
+                    <div className="flex items-center justify-center my-6">
+                      <span className="px-3 py-1 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-full">
+                        {formatDateLabel(date, dateMessages[0].created_at)}
+                      </span>
                     </div>
-                  )}
 
-                  {lead.email && (
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors group">
-                      <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center border border-slate-200 group-hover:border-blue-300 transition-colors">
-                        <Mail className="w-4 h-4 text-slate-600 group-hover:text-blue-600 transition-colors" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs text-slate-500 font-medium">E-mail</p>
-                        <p className="text-slate-900 font-semibold truncate">{lead.email}</p>
-                      </div>
-                    </div>
-                  )}
+                    <div className="space-y-3">
+                      {dateMessages.map((msg, idx) => {
+                        const isAssistant = msg.role === 'assistant';
+                        const showAvatar = idx === 0 || dateMessages[idx - 1]?.role !== msg.role;
 
-                  {lead.city && (
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors group">
-                      <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center border border-slate-200 group-hover:border-blue-300 transition-colors">
-                        <MapPin className="w-4 h-4 text-slate-600 group-hover:text-blue-600 transition-colors" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 font-medium">Cidade</p>
-                        <p className="text-slate-900 font-semibold">{lead.city}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Card>
+                        return (
+                          <div key={msg.id} className={`flex ${isAssistant ? 'justify-start' : 'justify-end'}`}>
+                            {isAssistant && (
+                              <div className={`flex-shrink-0 mr-2 ${showAvatar ? 'visible' : 'invisible'}`}>
+                                <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center">
+                                  <Bot className="w-4 h-4 text-white" />
+                                </div>
+                              </div>
+                            )}
 
-            {/* Card: Resumo da IA */}
-            {lead.summary && (
-              <Card className="bg-gradient-to-br from-violet-50 to-purple-50 border-violet-200 shadow-sm">
-                <div className="p-6">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center">
-                      <Sparkles className="w-4 h-4 text-white" />
+                            <div className={`
+                              max-w-[70%] px-4 py-2.5 rounded-2xl text-sm
+                              ${isAssistant
+                                ? 'bg-white text-slate-700 border border-slate-200 rounded-tl-sm'
+                                : 'bg-blue-600 text-white rounded-tr-sm'
+                              }
+                            `}>
+                              <p className="leading-relaxed">{msg.content}</p>
+                              <div className={`flex items-center gap-1 mt-1.5 text-xs ${isAssistant ? 'text-slate-400' : 'text-blue-100'}`}>
+                                <Clock className="w-3 h-3" />
+                                <span>{new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                              </div>
+                            </div>
+
+                            {!isAssistant && (
+                              <div className={`flex-shrink-0 ml-2 ${showAvatar ? 'visible' : 'invisible'}`}>
+                                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center border border-blue-200">
+                                  <User className="w-4 h-4 text-blue-600" />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                    <h3 className="font-bold text-sm text-violet-900">Resumo Inteligente</h3>
                   </div>
-                  <p className="text-violet-900 text-sm leading-relaxed italic">&quot;{lead.summary}&quot;</p>
+                ))}
+              </>
+            )}
+            <div ref={chatEndRef} />
+
+            {showScrollButton && (
+              <button
+                onClick={scrollToBottom}
+                className="fixed bottom-6 right-6 p-3 bg-white border border-slate-300 rounded-full shadow-xl text-blue-600 hover:bg-blue-50 transition-all"
+              >
+                <ChevronDown className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Informações */}
+        {activeTab === 'info' && (
+          <div className="h-full overflow-y-auto p-6 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Contato */}
+              <Card className="bg-white border-slate-200 p-4">
+                <h3 className="text-xs font-bold text-slate-900 mb-3 uppercase tracking-wider">Contato</h3>
+                <div className="space-y-2">
+                  {lead.phone && (
+                    <div className="flex items-center gap-3">
+                      <Phone className="w-4 h-4 text-slate-400" />
+                      <span className="text-sm text-slate-900">{lead.phone}</span>
+                    </div>
+                  )}
+                  {lead.email && (
+                    <div className="flex items-center gap-3">
+                      <Mail className="w-4 h-4 text-slate-400" />
+                      <span className="text-sm text-slate-900 truncate">{lead.email}</span>
+                    </div>
+                  )}
+                  {lead.city && (
+                    <div className="flex items-center gap-3">
+                      <MapPin className="w-4 h-4 text-slate-400" />
+                      <span className="text-sm text-slate-900">{lead.city}</span>
+                    </div>
+                  )}
                 </div>
               </Card>
-            )}
 
-            {/* Card: Atribuição de Vendedor */}
-            <Card className="bg-white border-slate-200 shadow-sm">
-              <div className="p-6">
-                <h3 className="font-bold text-sm text-slate-900 mb-4 flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-green-600" />
-                  Vendedor Responsável
+              {/* Vendedor */}
+              <Card className="bg-white border-slate-200 p-4">
+                <h3 className="text-xs font-bold text-slate-900 mb-3 uppercase tracking-wider flex items-center gap-2">
+                  <UserCheck className="w-3.5 h-3.5 text-green-600" />
+                  Vendedor
                 </h3>
-
                 {lead.assigned_seller ? (
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center text-white font-bold">
-                          {lead.assigned_seller.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-900">{lead.assigned_seller.name}</p>
-                          <p className="text-sm text-green-700">{lead.assigned_seller.whatsapp}</p>
-                        </div>
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center text-white font-bold text-xs">
+                        {lead.assigned_seller.name.charAt(0).toUpperCase()}
                       </div>
-                      <button
-                        onClick={removerAtribuicao}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div>
+                        <p className="font-semibold text-sm text-slate-900">{lead.assigned_seller.name}</p>
+                        <p className="text-xs text-green-700">{lead.assigned_seller.whatsapp}</p>
+                      </div>
                     </div>
+                    <button onClick={removerAtribuicao} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    <select
-                      onChange={(e) => atribuirVendedor(parseInt(e.target.value))}
-                      disabled={atribuindoVendedor}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 outline-none hover:border-blue-300 transition-colors cursor-pointer disabled:opacity-50"
-                    >
-                      <option value="">Selecionar vendedor...</option>
-                      {sellers.map(s => (
-                        <option key={s.id} value={s.id}>{s.name}</option>
-                      ))}
-                    </select>
-
-                    <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <Zap className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                      <p className="text-xs text-blue-700">Vendedor será notificado via WhatsApp</p>
-                    </div>
-                  </div>
+                  <select
+                    onChange={(e) => atribuirVendedor(parseInt(e.target.value))}
+                    disabled={atribuindoVendedor}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 outline-none"
+                  >
+                    <option value="">Selecionar...</option>
+                    {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
                 )}
-              </div>
-            </Card>
+              </Card>
 
-            {/* Card: Timeline de Eventos */}
-            {events.length > 0 && (
-              <Card className="bg-white border-slate-200 shadow-sm">
-                <div className="p-6">
-                  <h3 className="font-bold text-sm text-slate-900 mb-4 flex items-center gap-2">
-                    <History className="w-4 h-4 text-slate-600" />
-                    Histórico de Atividades
+              {/* Resumo IA */}
+              {lead.summary && (
+                <Card className="bg-gradient-to-br from-violet-50 to-purple-50 border-violet-200 p-4 md:col-span-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles className="w-4 h-4 text-violet-600" />
+                    <h3 className="text-xs font-bold text-violet-900 uppercase tracking-wider">Resumo IA</h3>
+                  </div>
+                  <p className="text-violet-900 text-sm leading-relaxed italic">&quot;{lead.summary}&quot;</p>
+                </Card>
+              )}
+
+              {/* Timeline */}
+              {events.length > 0 && (
+                <Card className="bg-white border-slate-200 p-4 md:col-span-2">
+                  <h3 className="text-xs font-bold text-slate-900 mb-3 uppercase tracking-wider flex items-center gap-2">
+                    <History className="w-3.5 h-3.5 text-slate-600" />
+                    Atividades Recentes
                   </h3>
-
-                  <div className="relative space-y-4 before:absolute before:left-[15px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                    {events.slice(0, 5).map((event) => (
-                      <div key={event.id} className="relative pl-10 pb-4 last:pb-0">
-                        <div className="absolute left-0 top-0 w-8 h-8 bg-white border-2 border-slate-200 rounded-full flex items-center justify-center">
-                          {getEventIcon(event.event_type)}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-slate-900">{event.description}</p>
-                          <p className="text-xs text-slate-500 mt-1">
-                            {new Date(event.created_at).toLocaleDateString('pt-BR', {
-                              day: '2-digit',
-                              month: 'short',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
+                  <div className="space-y-2">
+                    {events.slice(0, 4).map((event) => (
+                      <div key={event.id} className="flex items-start gap-3 text-sm">
+                        <div className="mt-1">{getEventIcon(event.event_type)}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-slate-900 font-medium">{event.description}</p>
+                          <p className="text-xs text-slate-500">
+                            {new Date(event.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
                       </div>
                     ))}
                   </div>
-                </div>
-              </Card>
-            )}
-
-            {/* Card: Notas Internas */}
-            <Card className="bg-white border-slate-200 shadow-sm">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-amber-600" />
-                    Notas Internas
-                  </h3>
-                  <button
-                    onClick={() => setEditandoNota(true)}
-                    className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                  >
-                    + Adicionar
-                  </button>
-                </div>
-
-                {editandoNota && (
-                  <div className="mb-4 space-y-3">
-                    <textarea
-                      value={novaNota}
-                      onChange={(e) => setNovaNota(e.target.value)}
-                      placeholder="Digite sua nota..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm outline-none focus:border-blue-400 resize-none"
-                      rows={3}
-                    />
-                    <div className="flex gap-2">
-                      <button
-                        onClick={salvarNota}
-                        className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
-                      >
-                        Salvar
-                      </button>
-                      <button
-                        onClick={() => { setEditandoNota(false); setNovaNota(''); }}
-                        className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  {(lead.custom_data?.notas || []).length === 0 && !editandoNota && (
-                    <p className="text-sm text-slate-400 text-center py-4">Nenhuma nota adicionada</p>
-                  )}
-
-                  {(lead.custom_data?.notas || []).map((nota: Note) => (
-                    <div
-                      key={nota.id}
-                      className="group p-3 bg-slate-50 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors"
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-xs text-slate-500 font-medium">{nota.created_by}</span>
-                        <button
-                          onClick={() => deletarNota(nota.id)}
-                          className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-600 transition-all"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                      <p className="text-sm text-slate-700 leading-relaxed">{nota.content}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Card>
+                </Card>
+              )}
+            </div>
           </div>
+        )}
 
-          {/* Área Principal - Chat de Mensagens */}
-          <div className="xl:col-span-2">
-            <Card className="bg-white border-slate-200 shadow-sm h-[calc(100vh-180px)] flex flex-col">
-              {/* Header do Chat */}
-              <div className="p-6 border-b border-slate-200 flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
-                      <MessageSquare className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-lg text-slate-900">Histórico de Mensagens</h3>
-                      <p className="text-sm text-slate-500">Sincronizado via WhatsApp</p>
-                    </div>
+        {/* Tab: Notas */}
+        {activeTab === 'notes' && (
+          <div className="h-full overflow-y-auto p-6">
+            <div className="max-w-3xl mx-auto space-y-4">
+              {editandoNota && (
+                <Card className="bg-white border-slate-200 p-4">
+                  <textarea
+                    value={novaNota}
+                    onChange={(e) => setNovaNota(e.target.value)}
+                    placeholder="Digite sua nota..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm outline-none resize-none"
+                    rows={4}
+                  />
+                  <div className="flex gap-2 mt-3">
+                    <button onClick={salvarNota} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700">
+                      Salvar
+                    </button>
+                    <button onClick={() => { setEditandoNota(false); setNovaNota(''); }} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">
+                      Cancelar
+                    </button>
                   </div>
-                  <Badge className="bg-slate-100 text-slate-700 px-4 py-2 font-semibold">
-                    <Hash className="w-3 h-3 mr-1" />
-                    {messages.length} mensagens
-                  </Badge>
-                </div>
-              </div>
+                </Card>
+              )}
 
-              {/* Container de Mensagens */}
-              <div
-                ref={chatContainerRef}
-                onScroll={handleScroll}
-                className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30"
-              >
-                {messages.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                    <MessageSquare className="w-16 h-16 mb-4 opacity-20" />
-                    <p className="text-lg font-semibold text-slate-500">Nenhuma mensagem ainda</p>
-                    <p className="text-sm text-slate-400">As conversas aparecerão aqui</p>
-                  </div>
-                ) : (
-                  <>
-                    {Array.from(messageGroups.entries()).map(([date, dateMessages]) => (
-                      <div key={date} className="space-y-4">
-                        {/* Separador de data */}
-                        <div className="flex items-center justify-center my-8">
-                          <div className="flex-1 h-px bg-slate-200" />
-                          <span className="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-full mx-4">
-                            {formatDateLabel(date, dateMessages[0].created_at)}
-                          </span>
-                          <div className="flex-1 h-px bg-slate-200" />
-                        </div>
-
-                        {/* Mensagens do dia */}
-                        <div className="space-y-4">
-                          {dateMessages.map((msg, idx) => {
-                            const isAssistant = msg.role === 'assistant';
-                            const showAvatar = idx === 0 || dateMessages[idx - 1]?.role !== msg.role;
-
-                            return (
-                              <div
-                                key={msg.id}
-                                className={`flex ${isAssistant ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-3 duration-300`}
-                              >
-                                {/* Avatar do bot */}
-                                {isAssistant && (
-                                  <div className={`flex-shrink-0 mr-3 ${showAvatar ? 'visible' : 'invisible'}`}>
-                                    <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shadow-lg">
-                                      <Bot className="w-5 h-5 text-white" />
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Bolha de mensagem */}
-                                <div className={`
-                                  max-w-[75%] px-5 py-3 rounded-2xl text-sm leading-relaxed
-                                  ${isAssistant
-                                    ? 'bg-white text-slate-700 shadow-sm border border-slate-200 rounded-tl-sm'
-                                    : 'bg-blue-600 text-white shadow-lg rounded-tr-sm'
-                                  }
-                                `}>
-                                  <p>{msg.content}</p>
-                                  <div className={`flex items-center gap-1.5 mt-2 text-xs ${isAssistant ? 'text-slate-400' : 'text-blue-100'}`}>
-                                    <Clock className="w-3 h-3" />
-                                    <span>
-                                      {new Date(msg.created_at).toLocaleTimeString('pt-BR', {
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Avatar do usuário */}
-                                {!isAssistant && (
-                                  <div className={`flex-shrink-0 ml-3 ${showAvatar ? 'visible' : 'invisible'}`}>
-                                    <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center border-2 border-blue-200">
-                                      <User className="w-5 h-5 text-blue-600" />
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </>
-                )}
-                <div ref={chatEndRef} />
-              </div>
-
-              {/* Footer do Chat */}
-              <div className="p-4 border-t border-slate-200 bg-slate-50/50 flex items-center justify-center flex-shrink-0">
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <Sparkles className="w-4 h-4 text-blue-600" />
-                  <span className="font-medium">Conversas sincronizadas automaticamente</span>
-                </div>
-              </div>
-
-              {/* Botão scroll to bottom */}
-              {showScrollButton && (
+              {!editandoNota && (
                 <button
-                  onClick={scrollToBottom}
-                  className="absolute bottom-24 right-8 p-3 bg-white border border-slate-300 rounded-full shadow-xl text-blue-600 hover:bg-blue-50 transition-all hover:scale-110"
+                  onClick={() => setEditandoNota(true)}
+                  className="w-full py-3 border-2 border-dashed border-slate-300 rounded-lg text-sm font-semibold text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-colors"
                 >
-                  <ChevronDown className="w-5 h-5" />
+                  + Adicionar Nota
                 </button>
               )}
-            </Card>
+
+              {(lead.custom_data?.notas || []).length === 0 && !editandoNota && (
+                <p className="text-sm text-slate-400 text-center py-8">Nenhuma nota criada</p>
+              )}
+
+              {(lead.custom_data?.notas || []).map((nota: Note) => (
+                <Card key={nota.id} className="bg-white border-slate-200 p-4 group hover:border-slate-300">
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-xs text-slate-500 font-medium">{nota.created_by}</span>
+                    <button onClick={() => deletarNota(nota.id)} className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-600">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <p className="text-sm text-slate-700 leading-relaxed">{nota.content}</p>
+                </Card>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
