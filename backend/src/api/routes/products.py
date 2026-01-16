@@ -213,6 +213,21 @@ async def create_product(
     return product
 
 
+@router.get("/check-access")
+async def check_access(
+    user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
+):
+    """Verifica se o tenant tem acesso ao módulo de produtos/imóveis."""
+    # Por padrão, no Vellarys, quase todos têm acesso. 
+    # Podemos colocar lógica de plano aqui no futuro.
+    return {
+        "has_access": True,
+        "niche": tenant.settings.get("basic", {}).get("niche", "services") if tenant.settings else "services"
+    }
+
+
 @router.get("/{product_id}")
 async def get_product(
     product_id: int,

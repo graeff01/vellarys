@@ -17,12 +17,9 @@ import {
 
 } from '@/lib/settings';
 import {
-  Save, Plus, X, Phone, User, MessageSquare,
-  Clock, HelpCircle, Shield, Users, RefreshCw,
-  Building2, Target, Sparkles, AlertTriangle,
-  CheckCircle2, Info, ChevronDown, ChevronUp,
-  Home, Edit2, Trash2, Eye, EyeOff, MapPin,
-  DollarSign, Calendar, UserCheck, Building, Package
+  Save, X, Phone,
+  Shield, CheckCircle2, ChevronDown,
+  Trash2, Package, Library, Sparkles
 } from 'lucide-react';
 
 // Adicionar esses imports
@@ -120,7 +117,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [activeTab, setActiveTab] = useState('identidade');
+  const [activeTab, setActiveTab] = useState('perfil');
 
 
   // IDENTIDADE
@@ -489,17 +486,10 @@ export default function SettingsPage() {
   if (loading) return <div className="flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
 
   const tabs = [
-    { id: 'identidade', label: 'Identidade', icon: Building2 },
-    { id: 'comunicacao', label: 'Comunicação', icon: MessageSquare },
-    { id: 'qualificacao', label: 'Qualificação', icon: Target },
-    ...(hasProductsAccess ? [{ id: 'products', label: 'Produtos', icon: Package }] : []),
-    { id: 'distribuicao', label: 'Distribuição', icon: Users },
-    { id: 'handoff', label: 'Transferência', icon: Phone },
-    { id: 'horario', label: 'Horário', icon: Clock },
-    { id: 'faq', label: 'FAQ', icon: HelpCircle },
-    { id: 'escopo', label: 'Escopo', icon: Shield },
-    { id: 'guardrails', label: 'Proteções', icon: AlertTriangle },
-    { id: 'followup', label: 'Follow-up', icon: RefreshCw },
+    { id: 'perfil', label: 'Perfil da IA', icon: Sparkles },
+    { id: 'atendimento', label: 'Fluxo Comercial', icon: Phone },
+    { id: 'conhecimento', label: 'Conhecimento', icon: Library },
+    { id: 'avancado', label: 'Avançado', icon: Shield },
   ];
 
   async function handleEnableNotifications() {
@@ -561,606 +551,289 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* TAB: IDENTIDADE */}
-      {activeTab === 'identidade' && (
-        <div className="space-y-6">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-6">
-            <div className="flex items-start gap-4">
-              <div className="bg-blue-100 rounded-lg p-3"><Building2 className="w-6 h-6 text-blue-600" /></div>
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Identidade da Empresa</h2>
-                <p className="text-gray-600">Quanto mais detalhes você fornecer, mais inteligente e alinhada ao seu negócio a IA será.</p>
-              </div>
-            </div>
-          </div>
-
-          <Card>
-            <CardHeader title="Dados Básicos" subtitle="Informações essenciais" />
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nome da Empresa *</label>
-                <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Ex: Clínica Sorrir" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nicho de Atuação *</label>
-                <select
-                  value={niche}
-                  onChange={(e) => setNiche(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white appearance-none cursor-pointer"
-                  style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '1.25rem', paddingRight: '2.5rem' }}
-                >
-                  {niches.length === 0 ? (
-                    <option value="">Carregando nichos...</option>
-                  ) : (
-                    niches.map((n) => (
-                      <option key={n.id} value={n.id}>
-                        {n.icon ? `${n.icon} ` : ''}{n.name}{n.description ? ` - ${n.description}` : ''}
-                      </option>
-                    ))
-                  )}
-                </select>
-                {niches.length === 0 && (
-                  <p className="text-xs text-amber-600 mt-1">Não foi possível carregar os nichos. Verifique sua conexão.</p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Descrição da Empresa</label>
-                <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" rows={3} placeholder="Ex: Clínica odontológica especializada em implantes..." />
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <CardHeader title="Produtos e Serviços" subtitle="O que sua empresa oferece" />
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Produtos/Serviços Oferecidos</label>
-                <TagInput tags={productsServices} onChange={setProductsServices} placeholder="Ex: Implante, Clareamento..." />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">O que NÃO Oferecemos</label>
-                <TagInput tags={notOffered} onChange={setNotOffered} placeholder="Ex: Convênios, Urgência..." />
-                <p className="text-xs text-gray-500 mt-1">Evita que a IA prometa algo que você não faz</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <CardHeader title="Diferenciais" subtitle="O que faz sua empresa única" />
-            <TagInput tags={differentials} onChange={setDifferentials} placeholder="Ex: Atendimento humanizado, 15 anos de experiência..." />
-          </Card>
-
-          <Card>
-            <CardHeader title="Palavras-chave do Negócio" subtitle="Termos importantes" />
-            <TagInput tags={keywords} onChange={setKeywords} placeholder="Ex: implante, prótese, faceta..." />
-          </Card>
-
-          <Card>
-            <CardHeader title="Contexto Adicional" subtitle="Informações extras" />
-            <textarea value={additionalContext} onChange={(e) => setAdditionalContext(e.target.value)} className="w-full px-4 py-2 border rounded-lg" rows={4} placeholder="Qualquer informação adicional..." />
-          </Card>
-        </div>
-      )}
-
-      {/* TAB: COMUNICAÇÃO */}
-      {activeTab === 'comunicacao' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader title="Tom de Voz" subtitle="Como a IA deve se comunicar" />
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">Estilo Principal</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {toneOptions.map((t) => (
-                    <button key={t.id} type="button" onClick={() => setTone(t.id as typeof tone)} className={`p-4 border-2 rounded-lg text-left ${tone === t.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{t.icon}</span>
-                        <div><p className="font-medium">{t.name}</p><p className="text-sm text-gray-500">{t.description}</p></div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">Traços de Personalidade (máx. 4)</label>
-                <div className="flex flex-wrap gap-2">
-                  {personalityOptions.map((trait) => (
-                    <button key={trait.id} type="button" onClick={() => togglePersonalityTrait(trait.id)} disabled={!personalityTraits.includes(trait.id) && personalityTraits.length >= 4} className={`px-4 py-2 rounded-full text-sm font-medium ${personalityTraits.includes(trait.id) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50'}`}>
-                      {trait.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Estilo de Comunicação</label>
-                <textarea value={communicationStyle} onChange={(e) => setCommunicationStyle(e.target.value)} className="w-full px-4 py-2 border rounded-lg" rows={2} placeholder="Ex: Comunicação direta mas acolhedora..." />
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <CardHeader title="Linguagem" subtitle="Palavras que a IA deve usar ou evitar" />
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Expressões Preferidas</label>
-                <TagInput tags={usePhrases} onChange={setUsePhrases} placeholder="Ex: Fico feliz em ajudar..." />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Expressões a Evitar</label>
-                <TagInput tags={avoidPhrases} onChange={setAvoidPhrases} placeholder="Ex: Infelizmente, Impossível..." />
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <CardHeader title="Público-Alvo" subtitle="Para quem a IA está conversando" />
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Descrição do Público</label>
-                <input type="text" value={targetAudienceDesc} onChange={(e) => setTargetAudienceDesc(e.target.value)} className="w-full px-4 py-2 border rounded-lg" placeholder="Ex: Mulheres 30-50 anos, classe A/B" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Segmentos de Clientes</label>
-                <TagInput tags={targetSegments} onChange={setTargetSegments} placeholder="Ex: Premium, Primeira consulta..." />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Dores/Necessidades do Cliente</label>
-                <TagInput tags={painPoints} onChange={setPainPoints} placeholder="Ex: Medo de dentista, Falta de tempo..." />
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* TAB: QUALIFICAÇÃO */}
-      {activeTab === 'qualificacao' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader title="Regras de Negócio" subtitle="Instruções que a IA deve seguir" />
-            <div className="space-y-4">
-              <TagInput tags={businessRules} onChange={setBusinessRules} placeholder="Ex: Nunca passar valores, Sempre pedir data..." />
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                <div className="flex gap-3">
-                  <Info className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                  <div className="text-sm text-amber-800">
-                    <p className="font-medium mb-1">Exemplos:</p>
-                    <ul className="list-disc list-inside text-amber-700">
-                      <li>Nunca passar valores por mensagem</li>
-                      <li>Sempre perguntar a cidade</li>
-                      <li>Pedir fotos de referência</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <CardHeader title="Informações Obrigatórias" subtitle="Dados que a IA deve coletar" />
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {requiredInfoOptions.map((info) => (
-                <button key={info.id} type="button" onClick={() => toggleRequiredInfo(info.id)} className={`p-3 border-2 rounded-lg text-left ${requiredInfo.includes(info.id) ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <p className="font-medium text-sm">{info.name}</p>
-                  <p className="text-xs text-gray-500">{info.description}</p>
-                </button>
-              ))}
-            </div>
-          </Card>
-
-          <Card>
-            <CardHeader title="Perguntas Personalizadas" subtitle="Perguntas extras" />
-            <TagInput tags={requiredQuestions} onChange={setRequiredQuestions} placeholder="Ex: Qual procedimento tem interesse?" />
-          </Card>
-        </div>
-      )}
-
-      {/* TAB: DISTRIBUIÇÃO */}
-      {activeTab === 'distribuicao' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader title="Distribuição de Leads" subtitle="Configure como os leads são distribuídos" />
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">Método de Distribuição</label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {distributionMethods.map((method) => (
-                    <button key={method.id} type="button" onClick={() => setDistributionMethod(method.id)} className={`p-4 border-2 rounded-lg text-left ${distributionMethod === method.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{method.icon}</span>
-                        <div><p className="font-medium">{method.name}</p><p className="text-sm text-gray-500">{method.description}</p></div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">Fallback</label>
-                <div className="space-y-2">
-                  {fallbackOptions.map((opt) => (
-                    <label key={opt.id} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer ${distributionFallback === opt.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
-                      <input type="radio" name="fallback" value={opt.id} checked={distributionFallback === opt.id} onChange={(e) => setDistributionFallback(e.target.value)} className="w-4 h-4 text-blue-600" />
-                      <div><p className="font-medium">{opt.name}</p><p className="text-sm text-gray-500">{opt.description}</p></div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </Card>
-          <Card>
-            <CardHeader title="Opções Avançadas" />
-            <div className="space-y-4">
-              <ToggleSwitch checked={respectDailyLimit} onChange={setRespectDailyLimit} label="Respeitar limite diário" description="Não enviar para vendedores que atingiram o limite" />
-              <ToggleSwitch checked={respectAvailability} onChange={setRespectAvailability} label="Respeitar disponibilidade" description="Não enviar para vendedores indisponíveis" />
-              <ToggleSwitch checked={notifyManagerCopy} onChange={setNotifyManagerCopy} label="Notificar gestor" description="Gestor recebe cópia de todas as notificações" />
-              <ToggleSwitch checked={notifyBrokerRaiox} onChange={setNotifyBrokerRaiox} label="Notificar corretor no Raio-X" description="Enviar resumo detalhado diretamente para o corretor responsável pelo imóvel" />
-
-              {notifyBrokerRaiox && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Mensagens mínimas para Corretor</label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="number"
-                      min={1}
-                      max={20}
-                      value={minMessagesBrokerRaiox}
-                      onChange={(e) => setMinMessagesBrokerRaiox(parseInt(e.target.value))}
-                      className="w-24 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-500">A IA enviará o Raio-X para o corretor somente após o lead enviar {minMessagesBrokerRaiox} mensagens.</span>
-                  </div>
-                  <p className="mt-2 text-xs text-amber-600">O Gestor continuará recebendo o alerta imediatamente (na 1ª mensagem).</p>
-                </div>
-              )}
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* TAB: HANDOFF */}
-      {activeTab === 'handoff' && (
-        <Card>
-          <CardHeader title="Transferência para Humano" subtitle="Configure quando e para quem transferir" />
-          <div className="space-y-4">
-            <ToggleSwitch checked={handoffEnabled} onChange={setHandoffEnabled} label="Transferência automática" description="Transferir leads quentes automaticamente" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">WhatsApp do Gestor</label>
-                <input type="text" value={managerWhatsapp} onChange={(e) => setManagerWhatsapp(e.target.value)} className="w-full px-4 py-2 border rounded-lg" placeholder="5511999999999" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nome do Gestor</label>
-                <input type="text" value={managerName} onChange={(e) => setManagerName(e.target.value)} className="w-full px-4 py-2 border rounded-lg" placeholder="Ex: João" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Limite de mensagens</label>
-              <input type="number" value={maxMessages} onChange={(e) => setMaxMessages(parseInt(e.target.value) || 15)} className="w-full px-4 py-2 border rounded-lg" min={5} max={50} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Frases que acionam transferência</label>
-              <TagInput tags={handoffTriggers} onChange={setHandoffTriggers} placeholder="Ex: quero falar com humano" />
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* TAB: HORÁRIO */}
-      {activeTab === 'horario' && (
-        <Card>
-          <CardHeader title="Horário de Atendimento" subtitle="Configure quando a IA deve atender" />
-          <div className="space-y-4">
-            <ToggleSwitch checked={businessHoursEnabled} onChange={setBusinessHoursEnabled} label="Restringir horário" description="IA só responde dentro do horário" />
-            {businessHoursEnabled && (
-              <>
-                <div className="space-y-3">
-                  {Object.entries(businessHours).map(([day, config]) => (
-                    <div key={day} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                      <label className="flex items-center gap-2 w-36">
-                        <input type="checkbox" checked={config.enabled} onChange={(e) => updateBusinessHour(day, 'enabled', e.target.checked)} className="w-4 h-4" />
-                        <span className="text-sm">{dayNames[day]}</span>
-                      </label>
-                      {config.enabled && (
-                        <>
-                          <input type="time" value={config.open} onChange={(e) => updateBusinessHour(day, 'open', e.target.value)} className="px-2 py-1 border rounded" />
-                          <span>até</span>
-                          <input type="time" value={config.close} onChange={(e) => updateBusinessHour(day, 'close', e.target.value)} className="px-2 py-1 border rounded" />
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Mensagem fora do horário</label>
-                  <textarea value={outOfHoursMessage} onChange={(e) => setOutOfHoursMessage(e.target.value)} className="w-full px-4 py-2 border rounded-lg" rows={3} placeholder="Olá! No momento estamos fora do horário..." />
-                </div>
-              </>
-            )}
-          </div>
-        </Card>
-      )}
-
-      {/* TAB: FAQ */}
-      {activeTab === 'faq' && (
-        <Card>
-          <CardHeader title="Perguntas Frequentes (FAQ)" subtitle="Respostas prontas para perguntas comuns" />
-          <div className="space-y-4">
-            <ToggleSwitch checked={faqEnabled} onChange={setFaqEnabled} label="FAQ ativo" description="IA usa respostas prontas quando aplicável" />
-            {faqItems.map((item, i) => (
-              <div key={i} className="bg-gray-50 p-4 rounded-lg">
-                <div className="flex justify-between mb-2">
-                  <span className="font-medium">P: {item.question}</span>
-                  <button onClick={() => removeFaq(i)} className="text-red-500"><X className="w-5 h-5" /></button>
-                </div>
-                <p className="text-gray-600">R: {item.answer}</p>
-              </div>
-            ))}
-            <div className="border-t pt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Nova pergunta</label>
-              <input type="text" value={newFaqQuestion} onChange={(e) => setNewFaqQuestion(e.target.value)} className="w-full px-4 py-2 border rounded-lg mb-2" placeholder="Ex: Qual o horário de funcionamento?" />
-              <label className="block text-sm font-medium text-gray-700 mb-2">Resposta</label>
-              <textarea value={newFaqAnswer} onChange={(e) => setNewFaqAnswer(e.target.value)} className="w-full px-4 py-2 border rounded-lg mb-2" rows={2} placeholder="Ex: Funcionamos de segunda a sexta..." />
-              <button onClick={addFaq} className="flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-lg hover:bg-gray-200"><Plus className="w-5 h-5" /> Adicionar FAQ</button>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* TAB: ESCOPO */}
-      {activeTab === 'escopo' && (
-        <Card>
-          <CardHeader title="Escopo da IA" subtitle="Defina sobre o que a IA pode responder" />
-          <div className="space-y-4">
-            <ToggleSwitch checked={scopeEnabled} onChange={setScopeEnabled} label="Limitar escopo" description="IA recusa perguntas fora do contexto" />
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Descrição do escopo</label>
-              <textarea value={scopeDescription} onChange={(e) => setScopeDescription(e.target.value)} className="w-full px-4 py-2 border rounded-lg" rows={4} placeholder="Ex: Venda e aluguel de imóveis em São Paulo..." />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tópicos Permitidos</label>
-              <TagInput tags={allowedTopics} onChange={setAllowedTopics} placeholder="Ex: Preços, Agendamento, Localização..." />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tópicos Bloqueados</label>
-              <TagInput tags={blockedTopics} onChange={setBlockedTopics} placeholder="Ex: Política, Concorrentes..." />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Mensagem fora do escopo</label>
-              <textarea value={outOfScopeMessage} onChange={(e) => setOutOfScopeMessage(e.target.value)} className="w-full px-4 py-2 border rounded-lg" rows={2} placeholder="Ex: Desculpe, não tenho informações sobre isso..." />
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* TAB: GUARDRAILS */}
-      {activeTab === 'guardrails' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader title="Proteção de Preços" subtitle="Como a IA lida com perguntas sobre valores" />
-            <div className="space-y-4">
-              <ToggleSwitch checked={priceGuardEnabled} onChange={setPriceGuardEnabled} label="Proteção ativa" description="IA não passa valores diretamente" />
-              {priceGuardEnabled && (
-                <>
+      {/* TAB: PERFIL (Identidade + Comunicação) */}
+      {activeTab === 'perfil' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader title="Identidade da Marca" subtitle="Como sua empresa se apresenta" />
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Comportamento</label>
-                    <select value={priceGuardBehavior} onChange={(e) => setPriceGuardBehavior(e.target.value as typeof priceGuardBehavior)} className="w-full px-4 py-2 border rounded-lg">
-                      <option value="redirect">Redirecionar para qualificação</option>
-                      <option value="collect_first">Coletar dados antes</option>
-                      <option value="allow">Permitir (dar valores)</option>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Nome da Empresa</label>
+                    <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Nicho de Atuação</label>
+                    <select value={niche} onChange={(e) => setNiche(e.target.value)} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white">
+                      {niches.map((n) => <option key={n.id} value={n.id}>{n.icon} {n.name}</option>)}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Mensagem</label>
-                    <textarea value={priceGuardMessage} onChange={(e) => setPriceGuardMessage(e.target.value)} className="w-full px-4 py-2 border rounded-lg" rows={2} placeholder="Para valores, preciso entender melhor sua necessidade..." />
-                  </div>
-                </>
-              )}
-            </div>
-          </Card>
-          <Card>
-            <CardHeader title="Proteção de Escopo" subtitle="Rigidez da IA em manter o foco" />
-            <div className="space-y-4">
-              <ToggleSwitch checked={scopeGuardEnabled} onChange={setScopeGuardEnabled} label="Proteção ativa" />
-              {scopeGuardEnabled && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Nível de rigidez</label>
-                  <select value={scopeGuardStrictness} onChange={(e) => setScopeGuardStrictness(e.target.value as typeof scopeGuardStrictness)} className="w-full px-4 py-2 border rounded-lg">
-                    <option value="low">Baixo - Mais flexível</option>
-                    <option value="medium">Médio - Balanceado</option>
-                    <option value="high">Alto - Bem restrito</option>
-                  </select>
                 </div>
-              )}
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* TAB: FOLLOW-UP */}
-      {activeTab === 'followup' && (
-        <div className="space-y-6">
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-100 rounded-xl p-6">
-            <div className="flex items-start gap-4">
-              <div className="bg-green-100 rounded-lg p-3"><RefreshCw className="w-6 h-6 text-green-600" /></div>
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">Follow-up Automático</h2>
-                <p className="text-gray-600">Reengaje leads que pararam de responder com mensagens automáticas personalizadas.</p>
-              </div>
-            </div>
-          </div>
-
-          <Card>
-            <CardHeader title="Configuração Geral" subtitle="Ative e configure o comportamento do follow-up" />
-            <div className="space-y-4">
-              <ToggleSwitch
-                checked={followUpEnabled}
-                onChange={setFollowUpEnabled}
-                label="Follow-up automático ativo"
-                description="Envia mensagens automáticas para leads inativos"
-              />
-
-              {followUpEnabled && (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Tempo de inatividade (horas)</label>
-                      <input
-                        type="number"
-                        value={followUpInactivityHours}
-                        onChange={(e) => setFollowUpInactivityHours(parseInt(e.target.value) || 24)}
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
-                        min={1}
-                        max={168}
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Após quantas horas sem resposta enviar follow-up</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Máximo de tentativas</label>
-                      <input
-                        type="number"
-                        value={followUpMaxAttempts}
-                        onChange={(e) => setFollowUpMaxAttempts(parseInt(e.target.value) || 3)}
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
-                        min={1}
-                        max={5}
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Quantos follow-ups enviar antes de desistir</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Intervalo entre tentativas (horas)</label>
-                      <input
-                        type="number"
-                        value={followUpIntervalHours}
-                        onChange={(e) => setFollowUpIntervalHours(parseInt(e.target.value) || 24)}
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
-                        min={1}
-                        max={168}
-                      />
-                      <p className="text-xs text-gray-500 mt-1">Tempo entre cada tentativa de follow-up</p>
-                    </div>
-                  </div>
-
-                  <ToggleSwitch
-                    checked={followUpRespectBusinessHours}
-                    onChange={setFollowUpRespectBusinessHours}
-                    label="Respeitar horário comercial"
-                    description="Só envia follow-up durante o horário de atendimento configurado"
-                  />
-                </>
-              )}
-            </div>
-          </Card>
-
-          {followUpEnabled && (
-            <Card>
-              <CardHeader title="Mensagens de Follow-up" subtitle="Personalize as mensagens para cada tentativa" />
-              <div className="space-y-4">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <div className="flex gap-3">
-                    <Info className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                    <div className="text-sm text-blue-800">
-                      <p className="font-medium mb-1">Variáveis disponíveis:</p>
-                      <ul className="list-disc list-inside text-blue-700">
-                        <li><code className="bg-blue-100 px-1 rounded">{'{nome}'}</code> - Nome do lead</li>
-                        <li><code className="bg-blue-100 px-1 rounded">{'{interesse}'}</code> - Interesse detectado do lead</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <span className="inline-flex items-center gap-2">
-                      <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold">1ª</span>
-                      Primeira tentativa
-                    </span>
-                  </label>
-                  <textarea
-                    value={followUpMessages.attempt_1}
-                    onChange={(e) => setFollowUpMessages({ ...followUpMessages, attempt_1: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
-                    rows={2}
-                    placeholder="Oi {nome}! Vi que você se interessou..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <span className="inline-flex items-center gap-2">
-                      <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded text-xs font-bold">2ª</span>
-                      Segunda tentativa
-                    </span>
-                  </label>
-                  <textarea
-                    value={followUpMessages.attempt_2}
-                    onChange={(e) => setFollowUpMessages({ ...followUpMessages, attempt_2: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
-                    rows={2}
-                    placeholder="Oi {nome}! Ainda está procurando..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <span className="inline-flex items-center gap-2">
-                      <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-bold">3ª</span>
-                      Terceira tentativa (final)
-                    </span>
-                  </label>
-                  <textarea
-                    value={followUpMessages.attempt_3}
-                    onChange={(e) => setFollowUpMessages({ ...followUpMessages, attempt_3: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
-                    rows={2}
-                    placeholder="{nome}, vou encerrar nosso atendimento..."
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Descrição Curta</label>
+                  <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" rows={2} placeholder="O que sua empresa faz..." />
                 </div>
               </div>
             </Card>
-          )}
 
-          {followUpEnabled && (
             <Card>
-              <CardHeader title="Exclusões" subtitle="Leads que NÃO devem receber follow-up" />
+              <CardHeader title="Público-Alvo" subtitle="Com quem a IA está falando" />
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">Status excluídos</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Quem é o cliente ideal?</label>
+                  <input type="text" value={targetAudienceDesc} onChange={(e) => setTargetAudienceDesc(e.target.value)} className="w-full px-4 py-2 border rounded-lg" placeholder="Ex: Mulheres 30+, classe A/B" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Dores e Necessidades</label>
+                  <TagInput tags={painPoints} onChange={setPainPoints} placeholder="Ex: falta de tempo, medo de dentista..." />
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card>
+              <CardHeader title="Personalidade & Tom" subtitle="O 'jeito' da IA conversar" />
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-2">
+                  {toneOptions.map((t) => (
+                    <button key={t.id} onClick={() => setTone(t.id as typeof tone)} className={`p-3 border rounded-lg text-sm text-left transition-all ${tone === t.id ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <span className="text-xl block mb-1">{t.icon}</span>
+                      <span className="font-semibold block">{t.name}</span>
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">Traços de Caráter (até 4)</label>
                   <div className="flex flex-wrap gap-2">
-                    {['new', 'in_conversation', 'qualified', 'converted', 'lost', 'handed_off'].map((status) => (
-                      <button
-                        key={status}
-                        type="button"
-                        onClick={() => {
-                          if (followUpExcludeStatuses.includes(status)) {
-                            setFollowUpExcludeStatuses(followUpExcludeStatuses.filter(s => s !== status));
-                          } else {
-                            setFollowUpExcludeStatuses([...followUpExcludeStatuses, status]);
-                          }
-                        }}
-                        className={`px-4 py-2 rounded-full text-sm font-medium ${followUpExcludeStatuses.includes(status)
-                          ? 'bg-red-100 text-red-700 border-2 border-red-300'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                      >
-                        {status === 'new' && '🆕 Novo'}
-                        {status === 'in_conversation' && '💬 Em conversa'}
-                        {status === 'qualified' && '⭐ Qualificado'}
-                        {status === 'converted' && '✅ Convertido'}
-                        {status === 'lost' && '❌ Perdido'}
-                        {status === 'handed_off' && '🤝 Transferido'}
+                    {personalityOptions.map((trait) => (
+                      <button key={trait.id} onClick={() => togglePersonalityTrait(trait.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${personalityTraits.includes(trait.id) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                        {trait.name}
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">Leads com estes status NÃO receberão follow-up automático</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Instruções de Linguagem</label>
+                  <div className="space-y-3">
+                    <TagInput tags={usePhrases} onChange={setUsePhrases} placeholder="Use frases como..." />
+                    <TagInput tags={avoidPhrases} onChange={setAvoidPhrases} placeholder="EVITE frases como..." />
+                  </div>
                 </div>
               </div>
             </Card>
-          )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB: ATENDIMENTO (Distribuição + Handoff + Horário + Follow-up) */}
+      {activeTab === 'atendimento' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader title="Distribuição & Notificação" subtitle="Para quem o lead vai?" />
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-2">
+                  {distributionMethods.map((m) => (
+                    <button key={m.id} onClick={() => setDistributionMethod(m.id)} className={`p-3 border rounded-lg text-sm text-left ${distributionMethod === m.id ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <span className="text-xl block mb-1">{m.icon}</span>
+                      <span className="font-semibold block">{m.name}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="p-3 bg-gray-50 rounded-lg space-y-3">
+                  <ToggleSwitch checked={notifyManagerCopy} onChange={setNotifyManagerCopy} label="Cópia para o Gestor" description="Gestor recebe tudo" />
+                  <ToggleSwitch checked={notifyBrokerRaiox} onChange={setNotifyBrokerRaiox} label="Notificar Corretor no Raio-X" />
+                  {notifyBrokerRaiox && (
+                    <div className="pl-4 border-l-2 border-indigo-200">
+                      <label className="text-xs font-medium text-gray-500">Mínimo de mensagens para o Corretor</label>
+                      <input type="number" value={minMessagesBrokerRaiox} onChange={(e) => setMinMessagesBrokerRaiox(parseInt(e.target.value))} className="w-full mt-1 px-3 py-1 text-sm border rounded" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <CardHeader title="Transferência (Handoff)" subtitle="Quando o humano assume?" />
+              <div className="space-y-4">
+                <ToggleSwitch checked={handoffEnabled} onChange={setHandoffEnabled} label="Handoff Automático" description="Transferir quando lead estiver quente" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp Gestor</label>
+                    <input type="text" value={managerWhatsapp} onChange={(e) => setManagerWhatsapp(e.target.value)} className="w-full px-4 py-2 border rounded-lg text-sm" placeholder="55..." />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Máx. Mensagens</label>
+                    <input type="number" value={maxMessages} onChange={(e) => setMaxMessages(parseInt(e.target.value))} className="w-full px-4 py-2 border rounded-lg text-sm" />
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader title="Horário & Follow-up" subtitle="Automação fora do expediente" />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="space-y-4 border-r pr-8">
+                <ToggleSwitch checked={businessHoursEnabled} onChange={setBusinessHoursEnabled} label="Restringir Horário" />
+                {businessHoursEnabled && (
+                  <div className="grid grid-cols-1 gap-2">
+                    {Object.entries(businessHours).map(([day, config]) => (
+                      <div key={day} className="flex items-center justify-between text-xs py-1">
+                        <span className="w-20 font-medium">{dayNames[day]}</span>
+                        <div className="flex items-center gap-2">
+                          <input type="checkbox" checked={config.enabled} onChange={(e) => updateBusinessHour(day, 'enabled', e.target.checked)} />
+                          {config.enabled && <span className="text-gray-500">{config.open} - {config.close}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-4">
+                <ToggleSwitch checked={followUpEnabled} onChange={setFollowUpEnabled} label="Follow-up Ativo" description="Reengajamento automático" />
+                {followUpEnabled && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-gray-500 italic">Inatividade (h)</label>
+                        <input type="number" value={followUpInactivityHours} onChange={(e) => setFollowUpInactivityHours(parseInt(e.target.value))} className="w-full px-3 py-1 text-sm border rounded" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 italic">Intervalo (h)</label>
+                        <input type="number" value={followUpIntervalHours} onChange={(e) => setFollowUpIntervalHours(parseInt(e.target.value))} className="w-full px-3 py-1 text-sm border rounded" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* TAB: CONHECIMENTO (FAQ + Escopo + Produtos + Diferenciais) */}
+      {activeTab === 'conhecimento' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <Card>
+                <CardHeader title="Escopo de Atendimento" subtitle="O que a IA pode e não pode falar" />
+                <div className="space-y-4">
+                  <textarea value={scopeDescription} onChange={(e) => setScopeDescription(e.target.value)} className="w-full px-4 py-2 border rounded-lg min-h-[100px]" placeholder="Ex: Focamos apenas em vendas no litoral..." />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-green-600 block mb-1">TÓPICOS PERMITIDOS</label>
+                      <TagInput tags={allowedTopics} onChange={setAllowedTopics} placeholder="Preços, Visitas..." />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-red-600 block mb-1">TÓPICOS BLOQUEADOS</label>
+                      <TagInput tags={blockedTopics} onChange={setBlockedTopics} placeholder="Política, Religião..." />
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              <Card>
+                <CardHeader title="Base de Perguntas (FAQ)" subtitle="Respostas treinadas" />
+                <div className="space-y-4">
+                  <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
+                    {faqItems.map((item, i) => (
+                      <div key={i} className="p-3 bg-gray-50 rounded-lg border flex justify-between gap-4">
+                        <div className="text-sm">
+                          <p className="font-bold text-gray-800">P: {item.question}</p>
+                          <p className="text-gray-600">R: {item.answer}</p>
+                        </div>
+                        <button onClick={() => removeFaq(i)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-4 border-2 border-dashed rounded-lg bg-gray-50/50">
+                    <input type="text" value={newFaqQuestion} onChange={(e) => setNewFaqQuestion(e.target.value)} className="w-full px-3 py-2 text-sm border rounded-lg mb-2" placeholder="Pergunta nova..." />
+                    <textarea value={newFaqAnswer} onChange={(e) => setNewFaqAnswer(e.target.value)} className="w-full px-3 py-2 text-sm border rounded-lg mb-2" rows={2} placeholder="Sua resposta..." />
+                    <button onClick={addFaq} className="w-full py-2 bg-indigo-50 text-indigo-600 font-bold rounded hover:bg-indigo-100 transition-all">+ Adicionar à Base</button>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            <div className="space-y-6">
+              <Card>
+                <CardHeader title="Catálogo & Atributos" />
+                <div className="space-y-6">
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">Produtos/Serviços</label>
+                    <TagInput tags={productsServices} onChange={setProductsServices} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">Diferenciais</label>
+                    <TagInput tags={differentials} onChange={setDifferentials} />
+                  </div>
+                  {hasProductsAccess && (
+                    <div className="pt-4 border-t">
+                      <button onClick={() => setActiveTab('products')} className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-lg font-bold shadow-lg hover:bg-blue-700 transition-all">
+                        <Package className="w-5 h-5" /> Gerenciar Imóveis
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: AVANÇADO (Proteções + Regras) */}
+      {activeTab === 'avancado' && (
+        <div className="space-y-6 max-w-4xl mx-auto">
+          <Card>
+            <CardHeader title="Regras de Negócio Críticas" subtitle="O que a IA NUNCA deve esquecer" />
+            <div className="space-y-4">
+              <TagInput tags={businessRules} onChange={setBusinessRules} placeholder="Ex: Nunca passar valor de condomínio..." />
+              <div className="p-4 bg-amber-50 rounded-lg border border-amber-100 italic text-sm text-amber-800">
+                Estas regras têm prioridade máxima sobre o comportamento da IA. Use para travas de segurança.
+              </div>
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader title="Proteção de Preços" />
+              <div className="space-y-4">
+                <ToggleSwitch checked={priceGuardEnabled} onChange={setPriceGuardEnabled} label="Esconder Preços" />
+                {priceGuardEnabled && (
+                  <select value={priceGuardBehavior} onChange={(e) => setPriceGuardBehavior(e.target.value as any)} className="w-full px-3 py-2 text-sm border rounded-lg">
+                    <option value="redirect">Redirecionar para Humano</option>
+                    <option value="collect_first">Coletar dados antes</option>
+                  </select>
+                )}
+              </div>
+            </Card>
+
+            <Card>
+              <CardHeader title="Coleta Obrigatória" />
+              <div className="flex flex-wrap gap-2">
+                {requiredInfoOptions.map((info) => (
+                  <button key={info.id} onClick={() => toggleRequiredInfo(info.id)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${requiredInfo.includes(info.id) ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-500'}`}>
+                    {info.name}
+                  </button>
+                ))}
+              </div>
+            </Card>
+          </div>
         </div>
       )}
 
       {/* TAB: PRODUTOS */}
       {activeTab === 'products' && (
-        <ProductsTab sellers={sellers} />
+        <div className="space-y-4">
+          <button onClick={() => setActiveTab('conhecimento')} className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium">
+            <ChevronDown className="w-4 h-4 rotate-90" /> Voltar para Configurações
+          </button>
+          <ProductsTab sellers={sellers} />
+        </div>
       )}
     </div>
   );
