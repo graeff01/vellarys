@@ -123,7 +123,13 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
 
     console.log(`📏 VAPID Key Length (decoded): ${applicationServerKey.length} bytes`);
 
-    // Validação estrita para P-256 (deve ser 65 bytes)
+    // Validação e Correção para P-256 (deve ser 65 bytes)
+    // Se tiver 66 bytes e começar com 0x04, provavelmente é um byte de padding extra do Base64
+    if (applicationServerKey.length === 66 && applicationServerKey[0] === 4) {
+      console.warn('⚠️ Chave tem 66 bytes. Realizando truncamento seguro para 65 bytes...');
+      applicationServerKey = applicationServerKey.slice(0, 65);
+    }
+
     if (applicationServerKey.length !== 65) {
       console.error(`❌ Tamanho da chave inválido: ${applicationServerKey.length} bytes. Esperado: 65 bytes.`);
       console.error('📋 Chave recebida (limpa):', cleanKey);
