@@ -530,8 +530,32 @@ async def detect_property_context(
     return imovel_portal
 
 
+def detect_warm_lead_signals(content: str, history_len: int = 0) -> bool:
+    """Detecta sinais de lead MORNO (engajamento/interesse)."""
+    content_lower = content.lower()
+    
+    warm_signals = [
+        r"quanto\s+custa", r"valor", r"preço", r"visita", r"agendar",
+        r"fotos", r"vídeo", r"v[íi]deo", r"mais\s+info", r"detalhes",
+        r"onde\s+fica", r"bairro", r"localização", r"mapa",
+        r"entrada", r"parcela", r"financiamento", r"fgts",
+        r"permuta", r"troca", r"aceita\s+carro"
+    ]
+    
+    # 1. Busca por palavras-chave de interesse
+    for signal in warm_signals:
+        if re.search(signal, content_lower):
+            return True
+            
+    # 2. Engajamento por volume (mais de 4 mensagens)
+    if history_len >= 4:
+        return True
+        
+    return False
+
+
 def detect_hot_lead_signals(content: str) -> bool:
-    """Detecta sinais de lead QUENTE na mensagem."""
+    """Detecta sinais de lead QUENTE (intenção clara de compra)."""
     content_lower = content.lower()
     
     hot_signals = [
@@ -540,6 +564,7 @@ def detect_hot_lead_signals(content: str) -> bool:
         r"\bquero\s+fechar\b",
         r"\bvou\s+fechar\b",
         r"\bquero\s+visitar\b",
+        r"\bmarcar\s+visita\b",
         r"\btenho.*\bdinheiro\b",
         r"\bdinheiro.*\bvista\b",
         r"\btenho.*\baprovado\b",
@@ -547,7 +572,9 @@ def detect_hot_lead_signals(content: str) -> bool:
         r"\burgente\b",
         r"\bquando.*\bposso.*\bvisitar\b",
         r"\bquero\s+ir\s+a[ií]\b",
-        r"\bendere[çc]o.*\bimobili[aá]ria\b",
+        r"\bandamento\s+no\s+cr[eé]dito\b",
+        r"\bsimulacao\s+aprovada\b",
+        r"\bquero\s+falar\s+com\s+corretor\b"
     ]
     
     for pattern in hot_signals:
@@ -1054,20 +1081,55 @@ async def process_message(
         }
     
     # =========================================================================
-    # 19. DETECÇÃO DE LEAD QUENTE
+    # 19. QUALIFICAÇÃO AUTOMÁTICA (INTELIGÊNCIA DE VENDAS)
     # =========================================================================
+    qualification_changed = False
+    old_qualification = lead.qualification
+    
+    # 1. Verifica sinais QUENTES (Hot Lead)
     is_hot_lead = detect_hot_lead_signals(content)
     
-    if is_hot_lead and lead.qualification not in ["quente", "hot"]:
-        logger.warning(f"🔥 LEAD QUENTE DETECTADO: '{content[:50]}...'")
-        
+    # 2. Verifica sinais MORNOS (Warm Lead)
+    is_warm_lead = False
+    if not is_hot_lead:
+        is_warm_lead = detect_warm_lead_signals(content, len(history))
+        # Se temos imóvel portal, ele é no mínimo MORNO
+        if imovel_portal or product_detected:
+            is_warm_lead = True
+
+    # Aplica mudanças de qualificação (apenas para cima)
+    if is_hot_lead and lead.qualification != "quente":
+        logger.warning(f"🔥 PROMOÇÃO: Lead {lead.id} -> QUENTE")
         lead.qualification = "quente"
-        
+        qualification_changed = True
+    elif is_warm_lead and lead.qualification not in ["quente", "morno"]:
+        logger.info(f"☀️ PROMOÇÃO: Lead {lead.id} -> MORNO")
+        lead.qualification = "morno"
+        qualification_changed = True
+    elif not lead.qualification:
+        # Padrão para qualquer lead que começou a falar
+        lead.qualification = "frio"
+        qualification_changed = True
+
+    # Registra evento de mudança de qualificação
+    if qualification_changed:
+        event = LeadEvent(
+            lead_id=lead.id,
+            event_type=EventType.QUALIFICATION_CHANGE.value,
+            old_value=old_qualification,
+            new_value=lead.qualification,
+            description="Qualificação atualizada automaticamente por IA"
+        )
+        db.add(event)
+        flag_modified(lead, "qualification")
+
+    # 3. Lógica de Handoff para Leads Quentes
+    if is_hot_lead and old_qualification != "quente":
         if lead.name:
             first_name = lead.name.split()[0]
-            hot_response = f"Perfeito, {first_name}! Vou te passar pro corretor agora!"
+            hot_response = f"Perfeito, {first_name}! Vou te passar pro corretor agora mesmo!"
         else:
-            hot_response = "Show! Vou te passar pro corretor. Qual seu nome?"
+            hot_response = "Entendi perfeitamente! Vou te passar agora para um de nossos especialistas. Qual seu nome para eu avisar ele?"
         
         assistant_message = Message(
             lead_id=lead.id,
@@ -1089,7 +1151,7 @@ async def process_message(
         
         await db.commit()
         
-        logger.info(f"🔥 Lead {lead.id} transferido por sinal quente")
+        logger.info(f"🔥 Lead {lead.id} transferido por sinal quente (Auto-Qualify)")
         
         return {
             "success": True,
