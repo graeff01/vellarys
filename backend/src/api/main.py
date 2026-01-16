@@ -115,6 +115,14 @@ async def lifespan(app: FastAPI):
         
     print("🚀 Iniciando Velaris API...")
 
+    # ============================================================
+    # 🔔 PUSH NOTIFICATIONS (VAPID)
+    # ============================================================
+    if settings.vapid_configured:
+        print("🔔 Push Notifications (VAPID) configuradas!")
+    else:
+        print("⚠️ VAPID keys não configuradas. Push notifications desativadas.")
+
     await init_db()
     print("✅ Tabelas criadas!")
 

@@ -15,8 +15,16 @@ from pydantic import BaseModel
 from src.infrastructure.database import get_db
 from src.domain.entities import Notification, User, Tenant
 from src.api.dependencies import get_current_user, get_current_tenant
+from src.config import get_settings
 
 router = APIRouter(prefix="/notifications", tags=["Notificações"])
+
+
+@router.get("/vapid-public-key")
+async def get_vapid_public_key():
+    """Retorna a chave pública VAPID para registro no navegador."""
+    settings = get_settings()
+    return {"public_key": settings.vapid_public_key}
 
 
 # =============================================================================

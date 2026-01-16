@@ -90,7 +90,19 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
   try {
     const registration = await navigator.serviceWorker.ready;
 
-    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    let vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+
+    if (!vapidPublicKey) {
+      console.warn('VAPID public key não encontrada no env, buscando do backend...');
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+        const response = await fetch(`${API_URL}/notifications/vapid-public-key`);
+        const data = await response.json();
+        vapidPublicKey = data.public_key;
+      } catch (error) {
+        console.error('Erro ao buscar VAPID key do backend:', error);
+      }
+    }
 
     if (!vapidPublicKey) {
       console.warn('VAPID public key não configurada');
@@ -100,9 +112,9 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
 
     const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: applicationServerKey as BufferSource,
-        });
+      userVisibleOnly: true,
+      applicationServerKey: applicationServerKey as BufferSource,
+    });
 
     console.log('✅ Inscrito para push notifications:', subscription);
     return subscription;
