@@ -158,7 +158,7 @@ function GestorDashboard() {
   const avgResponseTime = metrics.avg_response_time_minutes || 0;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-700">
+    <div className="space-y-4 animate-in fade-in duration-700">
       {/* Header Premium */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -204,8 +204,8 @@ function GestorDashboard() {
       )}
 
       {/* Seção Impacto Velaris (IA Value) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        <div className="lg:col-span-8 space-y-5">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="lg:col-span-8 space-y-4">
           <Card className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-3xl">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center gap-3">
@@ -262,8 +262,8 @@ function GestorDashboard() {
                 </div>
               </div>
             </div>
-            <div className="p-6">
-              <div className="flex flex-col gap-3">
+            <div className="p-5">
+              <div className="flex flex-col gap-2.5">
                 {[
                   { label: 'Leads Captados', value: metrics.funnel?.total || 0, icon: Users, color: 'bg-slate-200' },
                   { label: 'Engajados (2+ msgs)', value: metrics.funnel?.engaged || 0, icon: MessageSquare, color: 'bg-blue-400' },
@@ -294,17 +294,17 @@ function GestorDashboard() {
           </Card>
         </div>
 
-        <div className="lg:col-span-4 space-y-5">
+        <div className="lg:col-span-4 space-y-4">
           {/* NOVO: HEATMAP DE INTERESSES */}
           <Card className="bg-white border-slate-200 shadow-sm rounded-3xl overflow-hidden">
-            <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
+            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50">
               <div className="flex items-center gap-3">
                 <BarChart3 className="w-5 h-5 text-slate-600" />
                 <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-widest">Interesses / Dúvidas</h3>
               </div>
             </div>
-            <div className="p-6">
-              <div className="flex flex-wrap gap-2">
+            <div className="p-5">
+              <div className="flex flex-wrap gap-1.5">
                 {metrics.top_topics && metrics.top_topics.length > 0 ? (
                   metrics.top_topics.map((topic, i) => (
                     <div
@@ -337,11 +337,11 @@ function GestorDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        <div className="lg:col-span-3">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div className="lg:col-span-4">
           <PlanUsageCard />
         </div>
-        <div className="lg:col-span-9">
+        <div className="lg:col-span-8">
           <Card className="bg-white border-slate-200 shadow-sm rounded-3xl overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
               <div>
@@ -382,7 +382,7 @@ export default function DashboardPage() {
 
   const isSuperAdmin = userRole === 'superadmin';
   return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 max-w-screen-2xl mx-auto">
       {isSuperAdmin ? <CEODashboard /> : <GestorDashboard />}
     </div>
   );
