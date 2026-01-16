@@ -322,18 +322,12 @@ function GestorDashboard() {
                   <p className="text-xs text-slate-400 italic">Analisando primeiras interações...</p>
                 )}
               </div>
-              <div className="mt-6 pt-6 border-t border-slate-50">
+              <div className="mt-4 pt-4 border-t border-slate-50">
                 <p className="text-[10px] text-slate-400 font-bold uppercase mb-3">Qualificação</p>
                 <QualificationDonut data={metrics.by_qualification} />
               </div>
             </div>
           </Card>
-
-          <ROICard
-            totalLeads={metrics.total_leads}
-            leadsFiltered={leadsCold}
-            leadsHot={leadsHot}
-          />
         </div>
       </div>
 
