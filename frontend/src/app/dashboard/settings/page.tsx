@@ -19,7 +19,8 @@ import {
 import {
   Save, X, Phone,
   Shield, CheckCircle2, ChevronDown,
-  Trash2, Package, Library, Sparkles
+  Trash2, Package, Library, Sparkles,
+  Bell
 } from 'lucide-react';
 
 // Adicionar esses imports
@@ -33,6 +34,7 @@ import {
   toggleProductStatus,
   Product,
   ProductCreate,
+  savePushSubscription,
 } from '@/lib/api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
@@ -501,9 +503,18 @@ export default function SettingsPage() {
     }
 
     const subscription = await subscribeToPush();
-    console.log('PUSH SUBSCRIPTION:', subscription);
 
-    alert('Notificações ativadas com sucesso!');
+    if (subscription) {
+      try {
+        await savePushSubscription(subscription);
+        alert('Notificações ativadas com sucesso! 🎉');
+      } catch (error) {
+        console.error('Erro ao salvar subscription:', error);
+        alert('As notificações foram habilitadas no navegador, mas houve um erro ao sincronizar com o servidor.');
+      }
+    } else {
+      alert('Não foi possível gerar a inscrição de push. Tente recarregar a página ou verifique se as chaves VAPID estão configuradas.');
+    }
   }
 
 
@@ -785,9 +796,31 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* TAB: AVANÇADO (Proteções + Regras) */}
       {activeTab === 'avancado' && (
         <div className="space-y-6 max-w-4xl mx-auto">
+          <Card className="bg-indigo-50/50 border-indigo-100">
+            <CardHeader
+              title="Notificações do Sistema"
+              subtitle="Receba alertas de novos leads diretamente no seu celular ou computador"
+            />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="text-sm text-indigo-900">
+                <p>Para funcionar no <strong>iPhone (iOS)</strong>:</p>
+                <ol className="list-decimal ml-4 mt-1 space-y-1">
+                  <li>Clique em compartilhar no Safari</li>
+                  <li>Selecione "Adicionar à Tela de Início"</li>
+                  <li>Abra o app pela tela de início e clique no botão ao lado</li>
+                </ol>
+              </div>
+              <button
+                onClick={handleEnableNotifications}
+                className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-indigo-700 shadow-md transition-all whitespace-nowrap"
+              >
+                <Bell className="w-5 h-5" /> Ativar Notificações Real-Time
+              </button>
+            </div>
+          </Card>
+
           <Card>
             <CardHeader title="Regras de Negócio Críticas" subtitle="O que a IA NUNCA deve esquecer" />
             <div className="space-y-4">

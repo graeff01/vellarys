@@ -280,3 +280,11 @@ export async function getSellers() {
   const slug = getTenantSlug();
   return request(`/sellers?tenant_slug=${slug}`);
 }
+
+// === PUSH NOTIFICATIONS ===
+export async function savePushSubscription(subscription: any) {
+  return request('/notifications/subscribe', {
+    method: 'POST',
+    body: JSON.stringify(subscription),
+  });
+}
