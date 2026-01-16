@@ -20,7 +20,7 @@ import {
   Save, X, Phone,
   Shield, CheckCircle2, ChevronDown,
   Trash2, Package, Library, Sparkles,
-  Bell
+  Bell, Target, Zap, Brain, Clock, Rocket
 } from 'lucide-react';
 
 // Adicionar esses imports
@@ -139,6 +139,9 @@ export default function SettingsPage() {
   const [businessRules, setBusinessRules] = useState<string[]>([]);
   const [differentials, setDifferentials] = useState<string[]>([]);
   const [keywords, setKeywords] = useState<string[]>([]);
+  const [atendimentoGuidelines, setAtendimentoGuidelines] = useState('');
+  const [publicoAlvoConsolidado, setPublicoAlvoConsolidado] = useState('');
+  const [atendimentoStrategy, setAtendimentoStrategy] = useState<'vendedor_ativo' | 'qualificacao_inteligente' | 'agendador' | 'manual'>('qualificacao_inteligente');
   const [requiredQuestions, setRequiredQuestions] = useState<string[]>([]);
   const [requiredInfo, setRequiredInfo] = useState<string[]>([]);
   const [additionalContext, setAdditionalContext] = useState('');
@@ -229,6 +232,12 @@ export default function SettingsPage() {
     { id: 'profissional', name: 'Profissional', description: 'Mantém formalidade' },
     { id: 'empatico', name: 'Empático', description: 'Demonstra compreensão' },
     { id: 'proativo', name: 'Proativo', description: 'Antecipa necessidades' },
+  ]);
+  const [strategies, setStrategies] = useState([
+    { id: 'vendedor_ativo', name: '🚀 Vendedor Ativo', description: 'IA qualifica rápido e já manda para o corretor. Ideal para fechar rápido.', icon: Rocket },
+    { id: 'qualificacao_inteligente', name: '🧠 Qualificação Inteligente', description: 'A IA tira todas as dúvidas e só passa o lead quando ele estiver realmente pronto.', icon: Brain },
+    { id: 'agendador', name: '📅 Agendador', description: 'O foco total da IA é marcar uma visita ou reunião com o cliente.', icon: Clock },
+    { id: 'manual', name: '✋ Fluxo Manual', description: 'Você decide manualmente quando e para quem enviar cada lead.', icon: Target },
   ]);
   const [distributionMethods, setDistributionMethods] = useState<DistributionMethod[]>([
     { id: 'round_robin', name: 'Rodízio', description: 'Distribui igualmente entre todos', icon: '🔄' },
@@ -325,9 +334,32 @@ export default function SettingsPage() {
         setCommunicationStyle(identity.tone_style?.communication_style || '');
         setAvoidPhrases(identity.tone_style?.avoid_phrases || []);
         setUsePhrases(identity.tone_style?.use_phrases || []);
+
+        // Consolidar diretrizes para a nova UI
+        const traitsStr = (identity.tone_style?.personality_traits || []).join(', ');
+        const useStr = (identity.tone_style?.use_phrases || []).join(', ');
+        const avoidStr = (identity.tone_style?.avoid_phrases || []).join(', ');
+
+        let guidelines = identity.additional_context || '';
+        if (traitsStr) guidelines += `\nPersonalidade: ${traitsStr}`;
+        if (useStr) guidelines += `\nUse frases como: ${useStr}`;
+        if (avoidStr) guidelines += `\nEvite frases: ${avoidStr}`;
+        setAtendimentoGuidelines(guidelines.trim());
+
         setTargetAudienceDesc(identity.target_audience?.description || '');
         setTargetSegments(identity.target_audience?.segments || []);
         setPainPoints(identity.target_audience?.pain_points || []);
+
+        // Consolidar público para a nova UI
+        let audience = identity.target_audience?.description || '';
+        if ((identity.target_audience?.segments || []).length > 0) {
+          audience += `\nSegmentos: ${(identity.target_audience?.segments || []).join(', ')}`;
+        }
+        if ((identity.target_audience?.pain_points || []).length > 0) {
+          audience += `\nDores: ${(identity.target_audience?.pain_points || []).join(', ')}`;
+        }
+        setPublicoAlvoConsolidado(audience.trim());
+
         setBusinessRules(identity.business_rules || []);
         setDifferentials(identity.differentials || []);
         setKeywords(identity.keywords || []);
@@ -371,6 +403,12 @@ export default function SettingsPage() {
         setNotifyManagerCopy(dist.notify_manager_copy ?? false);
         setNotifyBrokerRaiox(dist.notify_broker_raiox ?? true);
         setMinMessagesBrokerRaiox(dist.min_messages_broker_raiox ?? 3);
+
+        // Inferir estratégia do atendimento
+        const maxMsgs = handoff.max_messages_before_handoff || 15;
+        if (maxMsgs <= 2) setAtendimentoStrategy('vendedor_ativo');
+        else if (maxMsgs >= 15) setAtendimentoStrategy('qualificacao_inteligente');
+        else setAtendimentoStrategy('manual');
 
         // Guardrails
         const guards = s.guardrails || {};
@@ -417,11 +455,33 @@ export default function SettingsPage() {
         basic: { niche, company_name: companyName },
         identity: {
           description, products_services: productsServices, not_offered: notOffered,
-          tone_style: { tone, personality_traits: personalityTraits, communication_style: communicationStyle, avoid_phrases: avoidPhrases, use_phrases: usePhrases },
-          target_audience: { description: targetAudienceDesc, segments: targetSegments, pain_points: painPoints },
-          business_rules: businessRules, differentials, keywords, required_questions: requiredQuestions, required_info: requiredInfo, additional_context: additionalContext,
+          tone_style: {
+            tone,
+            personality_traits: personalityTraits,
+            communication_style: communicationStyle,
+            avoid_phrases: avoidPhrases,
+            use_phrases: usePhrases
+          },
+          target_audience: {
+            description: publicoAlvoConsolidado,
+            segments: targetSegments,
+            pain_points: painPoints
+          },
+          business_rules: businessRules,
+          differentials,
+          keywords,
+          required_questions: requiredQuestions,
+          required_info: requiredInfo,
+          additional_context: atendimentoGuidelines,
         },
-        handoff: { enabled: handoffEnabled, manager_whatsapp: managerWhatsapp, manager_name: managerName, triggers: handoffTriggers, max_messages_before_handoff: maxMessages, transfer_message: '' },
+        handoff: {
+          enabled: handoffEnabled,
+          manager_whatsapp: managerWhatsapp,
+          manager_name: managerName,
+          triggers: handoffTriggers,
+          max_messages_before_handoff: atendimentoStrategy === 'vendedor_ativo' ? 2 : (atendimentoStrategy === 'qualificacao_inteligente' ? 20 : maxMessages),
+          transfer_message: ''
+        },
         business_hours: { enabled: businessHoursEnabled, timezone: 'America/Sao_Paulo', schedule: businessHours, out_of_hours_message: outOfHoursMessage, out_of_hours_behavior: 'message_only' },
         faq: { enabled: faqEnabled, items: faqItems },
         scope: { enabled: scopeEnabled, description: scopeDescription, allowed_topics: allowedTopics, blocked_topics: blockedTopics, out_of_scope_message: outOfScopeMessage },
@@ -527,13 +587,6 @@ export default function SettingsPage() {
           <p className="text-gray-500">
             Configure a identidade e comportamento da sua IA atendente
           </p>
-
-          <button
-            onClick={handleEnableNotifications}
-            className="mt-3 inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
-          >
-            🔔 Ativar notificações
-          </button>
         </div>
 
 
@@ -562,7 +615,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* TAB: PERFIL (Identidade + Comunicação) */}
+      {/* TAB: PERFIL (Identidade + Diretrizes) */}
       {activeTab === 'perfil' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-6">
@@ -582,22 +635,27 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Descrição Curta</label>
-                  <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" rows={2} placeholder="O que sua empresa faz..." />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">O que sua empresa faz?</label>
+                  <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" rows={3} placeholder="Descreva brevemente seus serviços ou imóveis..." />
                 </div>
               </div>
             </Card>
 
             <Card>
-              <CardHeader title="Público-Alvo" subtitle="Com quem a IA está falando" />
+              <CardHeader title="Diretrizes de Atendimento" subtitle="Instruções de comportamento para a IA" />
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Quem é o cliente ideal?</label>
-                  <input type="text" value={targetAudienceDesc} onChange={(e) => setTargetAudienceDesc(e.target.value)} className="w-full px-4 py-2 border rounded-lg" placeholder="Ex: Mulheres 30+, classe A/B" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Dores e Necessidades</label>
-                  <TagInput tags={painPoints} onChange={setPainPoints} placeholder="Ex: falta de tempo, medo de dentista..." />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Como a IA deve se comportar?</label>
+                  <textarea
+                    value={atendimentoGuidelines}
+                    onChange={(e) => setAtendimentoGuidelines(e.target.value)}
+                    className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                    rows={8}
+                    placeholder="Ex: Seja muito cordial e prestativo. Use emojis moderadamente. Sempre tente levar a conversa para o agendamento de uma visita. Nunca fale sobre valores de condomínio ou IPTU antes de qualificar o cliente."
+                  />
+                  <p className="mt-2 text-xs text-gray-400">
+                    Dica: Escreva como se estivesse treinando um novo funcionário.
+                  </p>
                 </div>
               </div>
             </Card>
@@ -605,32 +663,37 @@ export default function SettingsPage() {
 
           <div className="space-y-6">
             <Card>
-              <CardHeader title="Personalidade & Tom" subtitle="O 'jeito' da IA conversar" />
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-2">
-                  {toneOptions.map((t) => (
-                    <button key={t.id} onClick={() => setTone(t.id as typeof tone)} className={`p-3 border rounded-lg text-sm text-left transition-all ${tone === t.id ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:border-gray-300'}`}>
-                      <span className="text-xl block mb-1">{t.icon}</span>
-                      <span className="font-semibold block">{t.name}</span>
-                    </button>
-                  ))}
+              <CardHeader title="Público-Alvo" subtitle="Com quem a IA está falando" />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Descreva seu cliente ideal</label>
+                  <textarea
+                    value={publicoAlvoConsolidado}
+                    onChange={(e) => setPublicoAlvoConsolidado(e.target.value)}
+                    className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    rows={4}
+                    placeholder="Ex: Investidores em busca de rentabilidade, famílias procurando o primeiro imóvel, etc."
+                  />
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <CardHeader title="Informações Adicionais" subtitle="O que mais a IA precisa saber?" />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Perguntas Obrigatórias</label>
+                  <TagInput tags={requiredQuestions} onChange={setRequiredQuestions} placeholder="O que a IA deve perguntar?" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">Traços de Caráter (até 4)</label>
-                  <div className="flex flex-wrap gap-2">
-                    {personalityOptions.map((trait) => (
-                      <button key={trait.id} onClick={() => togglePersonalityTrait(trait.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${personalityTraits.includes(trait.id) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                        {trait.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Instruções de Linguagem</label>
-                  <div className="space-y-3">
-                    <TagInput tags={usePhrases} onChange={setUsePhrases} placeholder="Use frases como..." />
-                    <TagInput tags={avoidPhrases} onChange={setAvoidPhrases} placeholder="EVITE frases como..." />
-                  </div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Conteúdo de Apoio (Contexto)</label>
+                  <textarea
+                    value={additionalContext}
+                    onChange={(e) => setAdditionalContext(e.target.value)}
+                    className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                    rows={4}
+                    placeholder="Cole aqui informações extras sobre a empresa, política de preços ou links úteis."
+                  />
                 </div>
               </div>
             </Card>
@@ -638,224 +701,220 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* TAB: ATENDIMENTO (Distribuição + Handoff + Horário + Follow-up) */}
+      {/* TAB: ATENDIMENTO (Estratégia + Horário + Follow-up) */}
       {activeTab === 'atendimento' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader title="Distribuição & Notificação" subtitle="Para quem o lead vai?" />
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-2">
-                  {distributionMethods.map((m) => (
-                    <button key={m.id} onClick={() => setDistributionMethod(m.id)} className={`p-3 border rounded-lg text-sm text-left ${distributionMethod === m.id ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500' : 'border-gray-200 hover:border-gray-300'}`}>
-                      <span className="text-xl block mb-1">{m.icon}</span>
-                      <span className="font-semibold block">{m.name}</span>
-                    </button>
-                  ))}
-                </div>
-                <div className="p-3 bg-gray-50 rounded-lg space-y-3">
-                  <ToggleSwitch checked={notifyManagerCopy} onChange={setNotifyManagerCopy} label="Cópia para o Gestor" description="Gestor recebe tudo" />
-                  <ToggleSwitch checked={notifyBrokerRaiox} onChange={setNotifyBrokerRaiox} label="Notificar Corretor no Raio-X" />
-                  {notifyBrokerRaiox && (
-                    <div className="pl-4 border-l-2 border-indigo-200">
-                      <label className="text-xs font-medium text-gray-500">Mínimo de mensagens para o Corretor</label>
-                      <input type="number" value={minMessagesBrokerRaiox} onChange={(e) => setMinMessagesBrokerRaiox(parseInt(e.target.value))} className="w-full mt-1 px-3 py-1 text-sm border rounded" />
+          <Card className="bg-blue-50/30 border-blue-100">
+            <CardHeader title="Estratégia de Atendimento" subtitle="Escolha como a IA deve conduzir as conversas" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {strategies.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => setAtendimentoStrategy(s.id as any)}
+                  className={`p-4 border rounded-xl text-left transition-all relative ${atendimentoStrategy === s.id ? 'border-blue-600 bg-white shadow-md ring-2 ring-blue-600 ring-opacity-50' : 'border-gray-200 bg-white hover:border-blue-300'}`}
+                >
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${atendimentoStrategy === s.id ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                    <s.icon className="w-6 h-6" />
+                  </div>
+                  <p className="font-bold text-gray-900 text-sm mb-1">{s.name}</p>
+                  <p className="text-xs text-gray-500 leading-relaxed">{s.description}</p>
+                  {atendimentoStrategy === s.id && (
+                    <div className="absolute top-2 right-2">
+                      <CheckCircle2 className="w-4 h-4 text-blue-600" />
                     </div>
                   )}
-                </div>
-              </div>
-            </Card>
-
-            <Card>
-              <CardHeader title="Transferência (Handoff)" subtitle="Quando o humano assume?" />
-              <div className="space-y-4">
-                <ToggleSwitch checked={handoffEnabled} onChange={setHandoffEnabled} label="Handoff Automático" description="Transferir quando lead estiver quente" />
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp Gestor</label>
-                    <input type="text" value={managerWhatsapp} onChange={(e) => setManagerWhatsapp(e.target.value)} className="w-full px-4 py-2 border rounded-lg text-sm" placeholder="55..." />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Máx. Mensagens</label>
-                    <input type="number" value={maxMessages} onChange={(e) => setMaxMessages(parseInt(e.target.value))} className="w-full px-4 py-2 border rounded-lg text-sm" />
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader title="Horário & Follow-up" subtitle="Automação fora do expediente" />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="space-y-4 border-r pr-8">
-                <ToggleSwitch checked={businessHoursEnabled} onChange={setBusinessHoursEnabled} label="Restringir Horário" />
-                {businessHoursEnabled && (
-                  <div className="grid grid-cols-1 gap-2">
-                    {Object.entries(businessHours).map(([day, config]) => (
-                      <div key={day} className="flex items-center justify-between text-xs py-1">
-                        <span className="w-20 font-medium">{dayNames[day]}</span>
-                        <div className="flex items-center gap-2">
-                          <input type="checkbox" checked={config.enabled} onChange={(e) => updateBusinessHour(day, 'enabled', e.target.checked)} />
-                          {config.enabled && <span className="text-gray-500">{config.open} - {config.close}</span>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="space-y-4">
-                <ToggleSwitch checked={followUpEnabled} onChange={setFollowUpEnabled} label="Follow-up Ativo" description="Reengajamento automático" />
-                {followUpEnabled && (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-gray-500 italic">Inatividade (h)</label>
-                        <input type="number" value={followUpInactivityHours} onChange={(e) => setFollowUpInactivityHours(parseInt(e.target.value))} className="w-full px-3 py-1 text-sm border rounded" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-500 italic">Intervalo (h)</label>
-                        <input type="number" value={followUpIntervalHours} onChange={(e) => setFollowUpIntervalHours(parseInt(e.target.value))} className="w-full px-3 py-1 text-sm border rounded" />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+                </button>
+              ))}
             </div>
           </Card>
-        </div>
-      )}
 
-      {/* TAB: CONHECIMENTO (FAQ + Escopo + Produtos + Diferenciais) */}
-      {activeTab === 'conhecimento' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-6">
               <Card>
-                <CardHeader title="Escopo de Atendimento" subtitle="O que a IA pode e não pode falar" />
+                <CardHeader title="Configurações de Envio" subtitle="Para onde enviar o lead?" />
                 <div className="space-y-4">
-                  <textarea value={scopeDescription} onChange={(e) => setScopeDescription(e.target.value)} className="w-full px-4 py-2 border rounded-lg min-h-[100px]" placeholder="Ex: Focamos apenas em vendas no litoral..." />
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-bold text-green-600 block mb-1">TÓPICOS PERMITIDOS</label>
-                      <TagInput tags={allowedTopics} onChange={setAllowedTopics} placeholder="Preços, Visitas..." />
+                      <label className="block text-sm font-medium text-gray-700 mb-2">WhatsApp do Gestor</label>
+                      <input type="text" value={managerWhatsapp} onChange={(e) => setManagerWhatsapp(e.target.value)} className="w-full px-4 py-2 border rounded-lg" placeholder="Ex: 55519..." />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-red-600 block mb-1">TÓPICOS BLOQUEADOS</label>
-                      <TagInput tags={blockedTopics} onChange={setBlockedTopics} placeholder="Política, Religião..." />
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Nome do Gestor</label>
+                      <input type="text" value={managerName} onChange={(e) => setManagerName(e.target.value)} className="w-full px-4 py-2 border rounded-lg" placeholder="Nome para o lead" />
                     </div>
+                  </div>
+
+                  <div className="pt-4 border-t space-y-3">
+                    <ToggleSwitch checked={notifyManagerCopy} onChange={setNotifyManagerCopy} label="Cópia para o Gestor" description="Receba todos os leads mesmo se atribuídos" />
+                    <ToggleSwitch checked={notifyBrokerRaiox} onChange={setNotifyBrokerRaiox} label="Notificar Corretor no Raio-X" />
+                    {notifyBrokerRaiox && (
+                      <div className="pl-4 border-l-2 border-blue-200">
+                        <label className="text-xs font-medium text-gray-500">Mínimo de mensagens para o Corretor</label>
+                        <input type="number" value={minMessagesBrokerRaiox} onChange={(e) => setMinMessagesBrokerRaiox(parseInt(e.target.value))} className="w-20 px-3 py-1 text-sm border rounded ml-2" />
+                      </div>
+                    )}
                   </div>
                 </div>
               </Card>
 
               <Card>
-                <CardHeader title="Base de Perguntas (FAQ)" subtitle="Respostas treinadas" />
+                <CardHeader title="Horário de Atendimento" subtitle="Controle quando a IA atua" />
                 <div className="space-y-4">
-                  <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
-                    {faqItems.map((item, i) => (
-                      <div key={i} className="p-3 bg-gray-50 rounded-lg border flex justify-between gap-4">
-                        <div className="text-sm">
-                          <p className="font-bold text-gray-800">P: {item.question}</p>
-                          <p className="text-gray-600">R: {item.answer}</p>
+                  <ToggleSwitch checked={businessHoursEnabled} onChange={setBusinessHoursEnabled} label="Restringir Horário" description="IA avisa que estão fora do horário" />
+                  {businessHoursEnabled && (
+                    <div className="space-y-3 pt-2">
+                      {Object.entries(businessHours).slice(0, 5).map(([day, schedule]) => (
+                        <div key={day} className="flex items-center justify-between text-sm">
+                          <span className="w-20 font-medium capitalize">{dayNames[day]}</span>
+                          <div className="flex items-center gap-2">
+                            <input type="time" value={schedule.open} onChange={(e) => updateBusinessHour(day, 'open', e.target.value)} className="px-2 py-1 border rounded" />
+                            <span>às</span>
+                            <input type="time" value={schedule.close} onChange={(e) => updateBusinessHour(day, 'close', e.target.value)} className="px-2 py-1 border rounded" />
+                          </div>
                         </div>
-                        <button onClick={() => removeFaq(i)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="p-4 border-2 border-dashed rounded-lg bg-gray-50/50">
-                    <input type="text" value={newFaqQuestion} onChange={(e) => setNewFaqQuestion(e.target.value)} className="w-full px-3 py-2 text-sm border rounded-lg mb-2" placeholder="Pergunta nova..." />
-                    <textarea value={newFaqAnswer} onChange={(e) => setNewFaqAnswer(e.target.value)} className="w-full px-3 py-2 text-sm border rounded-lg mb-2" rows={2} placeholder="Sua resposta..." />
-                    <button onClick={addFaq} className="w-full py-2 bg-indigo-50 text-indigo-600 font-bold rounded hover:bg-indigo-100 transition-all">+ Adicionar à Base</button>
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </Card>
             </div>
 
             <div className="space-y-6">
               <Card>
-                <CardHeader title="Catálogo & Atributos" />
-                <div className="space-y-6">
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">Produtos/Serviços</label>
-                    <TagInput tags={productsServices} onChange={setProductsServices} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">Diferenciais</label>
-                    <TagInput tags={differentials} onChange={setDifferentials} />
-                  </div>
-                  {hasProductsAccess && (
-                    <div className="pt-4 border-t">
-                      <button onClick={() => setActiveTab('products')} className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-lg font-bold shadow-lg hover:bg-blue-700 transition-all">
-                        <Package className="w-5 h-5" /> Gerenciar Imóveis
-                      </button>
+                <CardHeader title="Follow-up Automático" subtitle="Não deixe o lead esfriar" />
+                <div className="space-y-4">
+                  <ToggleSwitch checked={followUpEnabled} onChange={setFollowUpEnabled} label="Ativar Recontato" description="IA manda msg se o lead parar de responder" />
+                  {followUpEnabled && (
+                    <div className="space-y-4 pt-2">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Aguardar (horas)</label>
+                          <input type="number" value={followUpInactivityHours} onChange={(e) => setFollowUpInactivityHours(parseInt(e.target.value))} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Máximo de tentativas</label>
+                          <input type="number" value={followUpMaxAttempts} onChange={(e) => setFollowUpMaxAttempts(parseInt(e.target.value))} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                        </div>
+                      </div>
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <p className="text-xs font-bold text-gray-400 uppercase mb-2">Mensagem de Exemplo</p>
+                        <p className="text-sm text-gray-600 italic">"{followUpMessages.attempt_1}"</p>
+                      </div>
                     </div>
                   )}
+                </div>
+              </Card>
+
+              <Card>
+                <CardHeader title="Handoff (Transferência)" subtitle="Quando a IA deve parar" />
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Gatilhos de Emergência</label>
+                    <TagInput tags={handoffTriggers} onChange={setHandoffTriggers} placeholder="Ex: falar com humano, reclamar..." />
+                  </div>
                 </div>
               </Card>
             </div>
           </div>
         </div>
       )}
+      {/* TAB: CONHECIMENTO */}
+      {activeTab === 'conhecimento' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader title="Base de Perguntas (FAQ)" subtitle="Respostas treinadas para dúvidas comuns" />
+              <div className="space-y-4">
+                <div className="max-h-[400px] overflow-y-auto space-y-2 pr-2">
+                  {faqItems.map((item, i) => (
+                    <div key={i} className="p-3 bg-gray-50 rounded-lg border flex justify-between gap-4">
+                      <div className="text-sm">
+                        <p className="font-bold text-gray-800">P: {item.question}</p>
+                        <p className="text-gray-600">R: {item.answer}</p>
+                      </div>
+                      <button onClick={() => removeFaq(i)} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  ))}
+                </div>
+                <div className="p-4 border-2 border-dashed rounded-lg bg-indigo-50/10">
+                  <input type="text" value={newFaqQuestion} onChange={(e) => setNewFaqQuestion(e.target.value)} className="w-full px-3 py-2 text-sm border rounded-lg mb-2" placeholder="Pergunta que o cliente faz..." />
+                  <textarea value={newFaqAnswer} onChange={(e) => setNewFaqAnswer(e.target.value)} className="w-full px-3 py-2 text-sm border rounded-lg mb-2" rows={2} placeholder="Sua resposta memorizada..." />
+                  <button onClick={addFaq} className="w-full py-2 bg-indigo-600 text-white font-bold rounded hover:bg-indigo-700 transition-all">+ Adicionar à Base</button>
+                </div>
+              </div>
+            </Card>
+          </div>
 
+          <div className="space-y-6">
+            <Card>
+              <CardHeader title="Catálogo de Ofertas" subtitle="O que você vende ou aluga" />
+              <div className="space-y-6">
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">Produtos/Serviços</label>
+                  <TagInput tags={productsServices} onChange={setProductsServices} />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">Nossos Diferenciais</label>
+                  <TagInput tags={differentials} onChange={setDifferentials} />
+                </div>
+                {hasProductsAccess && (
+                  <div className="pt-4 border-t">
+                    <button onClick={() => setActiveTab('products')} className="w-full flex items-center justify-center gap-2 py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-all">
+                      <Package className="w-5 h-5" /> Gerenciar Detalhes dos Imóveis
+                    </button>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* TAB: AVANÇADO */}
       {activeTab === 'avancado' && (
         <div className="space-y-6 max-w-4xl mx-auto">
           <Card className="bg-indigo-50/50 border-indigo-100">
             <CardHeader
               title="Notificações do Sistema"
-              subtitle="Receba alertas de novos leads diretamente no seu celular ou computador"
+              subtitle="Receba alertas de novos leads diretamente no celular"
             />
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-2">
               <div className="text-sm text-indigo-900">
-                <p>Para funcionar no <strong>iPhone (iOS)</strong>:</p>
-                <ol className="list-decimal ml-4 mt-1 space-y-1">
-                  <li>Clique em compartilhar no Safari</li>
-                  <li>Selecione "Adicionar à Tela de Início"</li>
-                  <li>Abra o app pela tela de início e clique no botão ao lado</li>
+                <p className="font-bold mb-1">Passo a passo para iPhone:</p>
+                <ol className="list-decimal ml-4 space-y-1">
+                  <li>Compartilhar &rarr; "Adicionar à Tela de Início"</li>
+                  <li>Abra o App pela tela inicial e ative aqui:</li>
                 </ol>
               </div>
               <button
                 onClick={handleEnableNotifications}
-                className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-indigo-700 shadow-md transition-all whitespace-nowrap"
+                className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold hover:bg-indigo-700 shadow-xl transition-all"
               >
-                <Bell className="w-5 h-5" /> Ativar Notificações Real-Time
+                <Bell className="w-6 h-6" /> Ativar Push Notifications
               </button>
             </div>
           </Card>
 
           <Card>
-            <CardHeader title="Regras de Negócio Críticas" subtitle="O que a IA NUNCA deve esquecer" />
+            <CardHeader title="Regras de Ouro" subtitle="O que a IA NUNCA deve fazer ou dizer" />
             <div className="space-y-4">
-              <TagInput tags={businessRules} onChange={setBusinessRules} placeholder="Ex: Nunca passar valor de condomínio..." />
+              <TagInput tags={businessRules} onChange={setBusinessRules} placeholder="Ex: Nunca falar sobre parcerias, nunca dar descontos..." />
               <div className="p-4 bg-amber-50 rounded-lg border border-amber-100 italic text-sm text-amber-800">
-                Estas regras têm prioridade máxima sobre o comportamento da IA. Use para travas de segurança.
+                Estas regras têm prioridade total. A IA será proibida de descumprir estes itens.
               </div>
             </div>
           </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader title="Proteção de Preços" />
-              <div className="space-y-4">
-                <ToggleSwitch checked={priceGuardEnabled} onChange={setPriceGuardEnabled} label="Esconder Preços" />
-                {priceGuardEnabled && (
-                  <select value={priceGuardBehavior} onChange={(e) => setPriceGuardBehavior(e.target.value as any)} className="w-full px-3 py-2 text-sm border rounded-lg">
-                    <option value="redirect">Redirecionar para Humano</option>
-                    <option value="collect_first">Coletar dados antes</option>
-                  </select>
-                )}
-              </div>
-            </Card>
-
-            <Card>
-              <CardHeader title="Coleta Obrigatória" />
-              <div className="flex flex-wrap gap-2">
-                {requiredInfoOptions.map((info) => (
-                  <button key={info.id} onClick={() => toggleRequiredInfo(info.id)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${requiredInfo.includes(info.id) ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-500'}`}>
-                    {info.name}
-                  </button>
-                ))}
-              </div>
-            </Card>
-          </div>
+          <Card>
+            <CardHeader title="Coleta de Dados" subtitle="O que é obrigatório perguntar?" />
+            <div className="flex flex-wrap gap-2">
+              {requiredInfoOptions.map((info) => (
+                <button key={info.id} onClick={() => toggleRequiredInfo(info.id)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${requiredInfo.includes(info.id) ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                  {info.name}
+                </button>
+              ))}
+            </div>
+          </Card>
         </div>
       )}
 

@@ -22,7 +22,11 @@ import {
   AlertCircle,
   RefreshCw,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  Filter,
+  BarChart3,
+  MessageSquare,
+  Users
 } from 'lucide-react';
 
 interface TimeSaved {
@@ -46,6 +50,13 @@ interface Metrics {
   after_hours_leads: number;
   growth_percentage: number;
   hot_leads_waiting: number;
+  funnel?: {
+    total: number;
+    engaged: number;
+    qualified: number;
+    converted: number;
+  };
+  top_topics?: { topic: string; count: number }[];
 }
 
 interface Lead {
@@ -209,7 +220,7 @@ function GestorDashboard() {
             </div>
             <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-8">
               {/* Tempo */}
-              <div className="relative p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all">
+              <div className="relative p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all cursor-default">
                 <div className="absolute top-4 right-4 text-emerald-500 flex items-center gap-1 font-bold text-xs uppercase">
                   <TrendingUp className="w-3.5 h-3.5" />
                   Ativo
@@ -220,17 +231,105 @@ function GestorDashboard() {
               </div>
 
               {/* ROI Financeiro */}
-              <div className="relative p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all">
-                <DollarSign className="w-6 h-6 text-slate-400 mb-4" />
-                <p className="text-4xl font-extrabold text-blue-600 leading-none mb-2">R$ {timeSaved.cost_saved_brl.toFixed(0)}</p>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">Economia Estimada em R$</p>
+              <div className="relative p-6 rounded-2xl bg-white border-2 border-indigo-100 shadow-lg shadow-indigo-50 hover:scale-[1.02] transition-all cursor-default overflow-hidden group">
+                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform">
+                  <DollarSign className="w-12 h-12 text-indigo-600" />
+                </div>
+                <DollarSign className="w-6 h-6 text-indigo-500 mb-4" />
+                <p className="text-4xl font-extrabold text-indigo-600 leading-none mb-2">R$ {timeSaved.cost_saved_brl.toFixed(0)}</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">Economia em Salários</p>
               </div>
 
               {/* Resposta */}
-              <div className="relative p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all">
-                <Zap className="w-6 h-6 text-slate-400 mb-4" />
-                <p className="text-4xl font-extrabold text-amber-500 leading-none mb-2">{avgResponseTime.toFixed(1)}m</p>
+              <div className="relative p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:border-amber-200 transition-all cursor-default">
+                <Zap className="w-6 h-6 text-amber-500 mb-4" />
+                <p className="text-4xl font-extrabold text-slate-900 leading-none mb-2">{avgResponseTime.toFixed(1)}m</p>
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">Tempo de Resposta 24/7</p>
+              </div>
+            </div>
+          </Card>
+
+          {/* NOVO: FUNIL DE CONVERSÃO */}
+          <Card className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-3xl">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100">
+                  <Filter className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-widest">Funil de Atendimento</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Conversão em tempo real</p>
+                </div>
+              </div>
+            </div>
+            <div className="p-8">
+              <div className="flex flex-col gap-4">
+                {[
+                  { label: 'Leads Captados', value: metrics.funnel?.total || 0, icon: Users, color: 'bg-slate-200' },
+                  { label: 'Engajados (2+ msgs)', value: metrics.funnel?.engaged || 0, icon: MessageSquare, color: 'bg-blue-400' },
+                  { label: 'Qualificados (Quentes)', value: metrics.funnel?.qualified || 0, icon: Flame, color: 'bg-orange-500' },
+                  { label: 'Oportunidades (Handoff)', value: metrics.funnel?.converted || 0, icon: Zap, color: 'bg-emerald-500' },
+                ].map((item, idx, arr) => {
+                  const percentage = arr[0].value > 0 ? (item.value / arr[0].value) * 100 : 0;
+                  return (
+                    <div key={item.label} className="relative">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <item.icon className="w-4 h-4 text-slate-400" />
+                          <span className="text-sm font-bold text-slate-700">{item.label}</span>
+                        </div>
+                        <span className="text-sm font-black text-slate-900">{item.value}</span>
+                      </div>
+                      <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${item.color} transition-all duration-1000 ease-out`}
+                          style={{ width: `${Math.max(percentage, 2)}%` }}
+                        />
+                      </div>
+                      {idx < arr.length - 1 && (
+                        <div className="flex justify-center -my-1">
+                          <div className="w-px h-4 border-l border-dashed border-slate-300"></div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        <div className="lg:col-span-4 space-y-6">
+          {/* NOVO: HEATMAP DE INTERESSES */}
+          <Card className="bg-white border-slate-200 shadow-sm rounded-3xl overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <BarChart3 className="w-5 h-5 text-slate-600" />
+                <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-widest">Interesses / Dúvidas</h3>
+              </div>
+            </div>
+            <div className="p-6">
+              <div className="flex flex-wrap gap-2">
+                {metrics.top_topics && metrics.top_topics.length > 0 ? (
+                  metrics.top_topics.map((topic, i) => (
+                    <div
+                      key={topic.topic}
+                      className="px-4 py-2 rounded-xl border border-slate-100 font-bold text-sm transition-all hover:scale-105 cursor-default bg-slate-50 text-slate-600"
+                      style={{
+                        opacity: 1 - (i * 0.08),
+                        fontSize: `${Math.max(14 - i, 10)}px`
+                      }}
+                    >
+                      {topic.topic}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-400 italic">Analisando primeiras interações...</p>
+                )}
+              </div>
+              <div className="mt-6 pt-6 border-t border-slate-50">
+                <p className="text-[10px] text-slate-400 font-bold uppercase mb-3">Qualificação</p>
+                <QualificationDonut data={metrics.by_qualification} />
               </div>
             </div>
           </Card>
@@ -240,17 +339,6 @@ function GestorDashboard() {
             leadsFiltered={leadsCold}
             leadsHot={leadsHot}
           />
-        </div>
-
-        <div className="lg:col-span-4 space-y-6">
-          <Card className="bg-white border-slate-200 shadow-sm rounded-3xl overflow-hidden h-full">
-            <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
-              <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-widest">Qualificação</h3>
-            </div>
-            <div className="p-6">
-              <QualificationDonut data={metrics.by_qualification} />
-            </div>
-          </Card>
         </div>
       </div>
 

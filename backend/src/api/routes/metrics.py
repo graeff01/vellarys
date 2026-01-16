@@ -25,6 +25,8 @@ from src.domain.entities import Lead, Tenant, LeadEvent, Message, User
 from src.domain.entities.enums import LeadStatus
 from src.api.dependencies import get_current_user
 from src.api.schemas import DashboardMetrics, LeadsByPeriod
+import re
+from collections import Counter
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])  # ✅ CORRIGIDO!
 
@@ -93,6 +95,22 @@ def get_date_ranges():
         "last_week_start": last_week_start,
         "last_month_start": last_month_start,
     }
+
+def extract_topics(messages: list[str]) -> list[dict]:
+    """Extrai tópicos frequentes das mensagens (simples heatmap)."""
+    # Lista de stopwords simples
+    stopwords = {'a', 'o', 'e', 'de', 'do', 'da', 'em', 'um', 'para', 'com', 'não', 'uma', 'os', 'as', 'no', 'na', 'por', 'mais', 'como', 'me', 'meu', 'minha', 'tem', 'quero', 'sou', 'vcs', 'vocês', 'boa', 'tarde', 'dia', 'noite', 'ola', 'olá', 'oi'}
+    
+    words = []
+    for msg in messages:
+        # Limpar e tokenizar
+        clean_msg = re.sub(r'[^\w\s]', '', msg.lower())
+        for word in clean_msg.split():
+            if len(word) > 3 and word not in stopwords:
+                words.append(word)
+    
+    most_common = Counter(words).most_common(10)
+    return [{"topic": word, "count": count} for word, count in most_common]
 
 
 # ============================================
@@ -320,6 +338,52 @@ async def get_dashboard_metrics(
         )
         avg_qual_seconds = avg_time_result.scalar()
         avg_qualification_time_hours = round((avg_qual_seconds / 3600), 2) if avg_qual_seconds else 1.0
+
+        # =============================================
+        # FUNIL DE CONVERSÃO (NOVO)
+        # =============================================
+        # Estágios do Funil:
+        # 1. Total (leads_this_month)
+        # 2. Engajados (engaged_leads)
+        # 3. Qualificados (leads_hot_month)
+        # 4. Convertidos/Handoff (converted_month)
+
+        leads_hot_month_result = await db.execute(
+            select(func.count(Lead.id))
+            .where(Lead.tenant_id == tenant_id)
+            .where(Lead.created_at >= dates["month_start"])
+            .where(or_(Lead.qualification == "quente", Lead.qualification == "hot"))
+        )
+        leads_hot_month = leads_hot_month_result.scalar() or 0
+
+        converted_month_result = await db.execute(
+            select(func.count(Lead.id))
+            .where(Lead.tenant_id == tenant_id)
+            .where(Lead.created_at >= dates["month_start"])
+            .where(Lead.status == LeadStatus.HANDED_OFF.value)
+        )
+        converted_month = converted_month_result.scalar() or 0
+
+        funnel_data = {
+            "total": leads_this_month,
+            "engaged": engaged_leads,
+            "qualified": leads_hot_month,
+            "converted": converted_month
+        }
+
+        # =============================================
+        # EXTRAÇÃO DE TÓPICOS (HEATMAP)
+        # =============================================
+        recent_msgs_result = await db.execute(
+            select(Message.content)
+            .join(Lead, Message.lead_id == Lead.id)
+            .where(Lead.tenant_id == tenant_id)
+            .where(Message.role == "user")
+            .where(Lead.created_at >= dates["month_start"])
+            .limit(200)
+        )
+        recent_msgs = [row[0] for row in recent_msgs_result.all()]
+        top_topics = extract_topics(recent_msgs)
         
         # =============================================
         # RESPOSTA FINAL
@@ -348,6 +412,8 @@ async def get_dashboard_metrics(
             "after_hours_leads": after_hours_count,
             "growth_percentage": round(growth_percentage, 1),
             "hot_leads_waiting": hot_leads_waiting,
+            "funnel": funnel_data,
+            "top_topics": top_topics,
         }
         
     except HTTPException:
