@@ -158,7 +158,7 @@ function GestorDashboard() {
   const avgResponseTime = metrics.avg_response_time_minutes || 0;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
+    <div className="space-y-6 animate-in fade-in duration-700">
       {/* Header Premium */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -204,8 +204,8 @@ function GestorDashboard() {
       )}
 
       {/* Seção Impacto Velaris (IA Value) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-8 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <div className="lg:col-span-8 space-y-5">
           <Card className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-3xl">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center gap-3">
@@ -218,33 +218,33 @@ function GestorDashboard() {
                 </div>
               </div>
             </div>
-            <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Tempo */}
-              <div className="relative p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all cursor-default">
-                <div className="absolute top-4 right-4 text-emerald-500 flex items-center gap-1 font-bold text-xs uppercase">
+              <div className="relative p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all cursor-default">
+                <div className="absolute top-4 right-4 text-emerald-500 flex items-center gap-1 font-bold text-[10px] uppercase">
                   <TrendingUp className="w-3.5 h-3.5" />
                   Ativo
                 </div>
-                <Clock className="w-6 h-6 text-slate-400 mb-4" />
-                <p className="text-4xl font-extrabold text-slate-900 leading-none mb-2">{timeSaved.hours_saved.toFixed(1)}h</p>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">Tempo Economizado Este Mês</p>
+                <Clock className="w-5 h-5 text-slate-400 mb-3" />
+                <p className="text-3xl font-extrabold text-slate-900 leading-none mb-1">{timeSaved.hours_saved.toFixed(1)}h</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">Tempo Economizado</p>
               </div>
 
               {/* ROI Financeiro */}
-              <div className="relative p-6 rounded-2xl bg-white border-2 border-indigo-100 shadow-lg shadow-indigo-50 hover:scale-[1.02] transition-all cursor-default overflow-hidden group">
+              <div className="relative p-5 rounded-2xl bg-white border-2 border-indigo-100 shadow-md shadow-indigo-50 hover:scale-[1.02] transition-all cursor-default overflow-hidden group">
                 <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform">
-                  <DollarSign className="w-12 h-12 text-indigo-600" />
+                  <DollarSign className="w-10 h-10 text-indigo-600" />
                 </div>
-                <DollarSign className="w-6 h-6 text-indigo-500 mb-4" />
-                <p className="text-4xl font-extrabold text-indigo-600 leading-none mb-2">R$ {timeSaved.cost_saved_brl.toFixed(0)}</p>
+                <DollarSign className="w-5 h-5 text-indigo-500 mb-3" />
+                <p className="text-3xl font-extrabold text-indigo-600 leading-none mb-1">R$ {timeSaved.cost_saved_brl.toFixed(0)}</p>
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">Economia em Salários</p>
               </div>
 
               {/* Resposta */}
-              <div className="relative p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:border-amber-200 transition-all cursor-default">
-                <Zap className="w-6 h-6 text-amber-500 mb-4" />
-                <p className="text-4xl font-extrabold text-slate-900 leading-none mb-2">{avgResponseTime.toFixed(1)}m</p>
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">Tempo de Resposta 24/7</p>
+              <div className="relative p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-amber-200 transition-all cursor-default">
+                <Zap className="w-5 h-5 text-amber-500 mb-3" />
+                <p className="text-3xl font-extrabold text-slate-900 leading-none mb-1">{avgResponseTime.toFixed(1)}m</p>
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">Tempo de Resposta</p>
               </div>
             </div>
           </Card>
@@ -262,8 +262,8 @@ function GestorDashboard() {
                 </div>
               </div>
             </div>
-            <div className="p-8">
-              <div className="flex flex-col gap-4">
+            <div className="p-6">
+              <div className="flex flex-col gap-3">
                 {[
                   { label: 'Leads Captados', value: metrics.funnel?.total || 0, icon: Users, color: 'bg-slate-200' },
                   { label: 'Engajados (2+ msgs)', value: metrics.funnel?.engaged || 0, icon: MessageSquare, color: 'bg-blue-400' },
@@ -273,24 +273,19 @@ function GestorDashboard() {
                   const percentage = arr[0].value > 0 ? (item.value / arr[0].value) * 100 : 0;
                   return (
                     <div key={item.label} className="relative">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                          <item.icon className="w-4 h-4 text-slate-400" />
-                          <span className="text-sm font-bold text-slate-700">{item.label}</span>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <item.icon className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="text-xs font-bold text-slate-600 tracking-tight">{item.label}</span>
                         </div>
-                        <span className="text-sm font-black text-slate-900">{item.value}</span>
+                        <span className="text-sm font-black text-slate-800">{item.value}</span>
                       </div>
-                      <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
                         <div
                           className={`h-full ${item.color} transition-all duration-1000 ease-out`}
                           style={{ width: `${Math.max(percentage, 2)}%` }}
                         />
                       </div>
-                      {idx < arr.length - 1 && (
-                        <div className="flex justify-center -my-1">
-                          <div className="w-px h-4 border-l border-dashed border-slate-300"></div>
-                        </div>
-                      )}
                     </div>
                   );
                 })}
@@ -299,7 +294,7 @@ function GestorDashboard() {
           </Card>
         </div>
 
-        <div className="lg:col-span-4 space-y-6">
+        <div className="lg:col-span-4 space-y-5">
           {/* NOVO: HEATMAP DE INTERESSES */}
           <Card className="bg-white border-slate-200 shadow-sm rounded-3xl overflow-hidden">
             <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50">
@@ -342,16 +337,16 @@ function GestorDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <div className="lg:col-span-3">
           <PlanUsageCard />
         </div>
-        <div className="lg:col-span-8">
+        <div className="lg:col-span-9">
           <Card className="bg-white border-slate-200 shadow-sm rounded-3xl overflow-hidden">
-            <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
               <div>
                 <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-widest">Leads Recentes</h3>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Últimas 5 interações</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Últimas interações</p>
               </div>
               <button
                 onClick={() => router.push('/dashboard/leads')}
