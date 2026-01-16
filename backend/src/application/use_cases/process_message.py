@@ -967,6 +967,11 @@ async def process_message(
     # 18.7. NOTIFICAÇÃO DE INTERESSE EM IMÓVEL (RAIO-X)
     # =========================================================================
     # Dispara quando temos: Nome do Lead + (Imóvel Portal ou Produto)
+    if lead.name and (imovel_portal or product_detected):
+        # Evita duplicar notificação para o MESMO imóvel nesta conversa
+        codigo_atual = str(imovel_portal.get("codigo") if imovel_portal else product_detected.slug)
+        ja_notificado = lead.custom_data.get("notificado_imovel_codigo") == codigo_atual
+        
         if not ja_notificado:
             # Buscamos as configurações de distribuição/notificação
             settings_dist = tenant.settings.get("distribution", {}) if tenant.settings else {}
