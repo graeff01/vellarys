@@ -10,7 +10,7 @@ CORREÇÃO: Campo settings agora usa MutableDict para
 from sqlalchemy import func
 from datetime import datetime
 from typing import List, Optional, Dict, Any, TYPE_CHECKING
-from sqlalchemy import String, Boolean, ForeignKey, Text, Integer, DateTime, Table, Column
+from sqlalchemy import String, Boolean, ForeignKey, Text, Integer, DateTime, Table, Column, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.ext.mutable import MutableDict  # ← ADICIONADO!
@@ -225,6 +225,15 @@ class Lead(Base, TimestampMixin):
     assigned_seller: Mapped[Optional["Seller"]] = relationship(foreign_keys=[assigned_seller_id])
     assignments: Mapped[list["LeadAssignment"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
 
+    # ==========================================
+    # ÍNDICES DE PERFORMANCE
+    # ==========================================
+    __table_args__ = (
+        Index("ix_leads_tenant_created", "tenant_id", "created_at"),
+        Index("ix_leads_tenant_status", "tenant_id", "status"),
+        Index("ix_leads_tenant_qual", "tenant_id", "qualification"),
+    )
+
 
 # ============================================
 # NOTIFICATION - Notificações
@@ -259,11 +268,20 @@ class Message(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
+    external_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)  # ✨ NOVO: Idempotência
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     tokens_used: Mapped[int] = mapped_column(Integer, default=0)
 
     lead: Mapped["Lead"] = relationship(back_populates="messages")
+
+    # ==========================================
+    # ÍNDICES DE PERFORMANCE E SEGURANÇA
+    # ==========================================
+    __table_args__ = (
+        Index("ix_messages_lead_created", "lead_id", "created_at"),
+        Index("ix_messages_lead_external", "lead_id", "external_id", unique=True),
+    )
 
 
 # ============================================

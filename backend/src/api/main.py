@@ -12,6 +12,9 @@ from src.api.routes.debug_portal import router as debug_portal_router
 from src.config import get_settings
 from src.infrastructure.database import init_db, async_session
 
+# Sentry
+import sentry_sdk
+
 # Routers
 from src.api.routes.messages import router as messages_router
 from src.api.routes.zapi_routes import router as zapi_router
@@ -95,6 +98,21 @@ from src.infrastructure.logging_config import setup_logging
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    
+    # ============================================================
+    # 🛡️ SENTRY (MONITORAMENTO)
+    # ============================================================
+    if settings.sentry_dsn:
+        print(f"🛡️ Sentry ativo em: {settings.environment}")
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            environment=settings.environment,
+            traces_sample_rate=1.0 if settings.is_development else 0.1,
+            profiles_sample_rate=1.0 if settings.is_development else 0.1,
+        )
+    else:
+        print("⚠️ Sentry DSN não configurado. Monitoramento desativado.")
+        
     print("🚀 Iniciando Velaris API...")
 
     await init_db()

@@ -348,6 +348,7 @@ async def receive_webhook(
                             content=content,
                             sender_phone=from_phone,
                             source="whatsapp_360dialog",
+                            external_message_id=msg_id,
                         )
                         
                         ai_reply = result.get("reply")

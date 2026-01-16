@@ -650,6 +650,7 @@ async def process_message(
     sender_phone: str = None,
     source: str = "organico",
     campaign: str = None,
+    external_message_id: str = None, # ✨ NOVO: Idempotência
 ) -> dict:
     """Processa uma mensagem recebida de um lead."""
     
@@ -783,6 +784,19 @@ async def process_message(
     # =========================================================================
     # 8. PRÉ-CARREGA HISTÓRICO E CONTAGEM
     # =========================================================================
+    # 🕵️ CHECK IDEMPOTÊNCIA (Evita responder 2x a mesma msg do WhatsApp)
+    if external_message_id:
+        result = await db.execute(
+            select(Message).where(Message.lead_id == lead.id, Message.external_id == external_message_id)
+        )
+        if result.scalar_one_or_none():
+            logger.warning(f"♻️ Mensagem duplicada ignorada: {external_message_id}")
+            return {
+                "success": True,
+                "reply": None,
+                "idempotency_skip": True
+            }
+
     history = await get_conversation_history(db, lead.id)
     message_count = await count_lead_messages(db, lead.id)
     
@@ -849,7 +863,13 @@ async def process_message(
     if lgpd_request:
         logger.info(f"🔒 LGPD request: {lgpd_request}")
         
-        user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
+        user_message = Message(
+            lead_id=lead.id, 
+            role="user", 
+            content=content, 
+            tokens_used=0,
+            external_id=external_message_id
+        )
         db.add(user_message)
         
         lgpd_reply = get_lgpd_response(lgpd_request, tenant_name=settings["company_name"])
@@ -872,7 +892,13 @@ async def process_message(
     if lead.status == LeadStatus.HANDED_OFF.value or lead.handed_off_at is not None:
         logger.warning(f"⚠️ Lead {lead.id} já foi transferido! Ignorando mensagem.")
         
-        user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
+        user_message = Message(
+            lead_id=lead.id, 
+            role="user", 
+            content=content, 
+            tokens_used=0,
+            external_id=external_message_id
+        )
         db.add(user_message)
         await db.commit()
         
@@ -920,7 +946,13 @@ async def process_message(
     if trigger_found:
         logger.info(f"🔔 Handoff trigger: {trigger_matched}")
         
-        user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
+        user_message = Message(
+            lead_id=lead.id, 
+            role="user", 
+            content=content, 
+            tokens_used=0,
+            external_id=external_message_id
+        )
         db.add(user_message)
         await db.flush()
         
@@ -958,7 +990,13 @@ async def process_message(
     # =========================================================================
     # 16. SALVA MENSAGEM DO USUÁRIO
     # =========================================================================
-    user_message = Message(lead_id=lead.id, role="user", content=content, tokens_used=0)
+    user_message = Message(
+        lead_id=lead.id, 
+        role="user", 
+        content=content, 
+        tokens_used=0,
+        external_id=external_message_id
+    )
     db.add(user_message)
     await db.flush()
 

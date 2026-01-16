@@ -286,6 +286,7 @@ async def zapi_receive_message(
                         content=message_text,
                         sender_name=sender_name,
                         sender_phone=phone,
+                        external_message_id=message_id,
                     ),
                     timeout=30.0
                 )

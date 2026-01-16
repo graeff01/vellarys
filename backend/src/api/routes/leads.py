@@ -185,20 +185,15 @@ async def get_lead(
 @router.patch("/{lead_id}")
 async def update_lead(
     lead_id: int,
-    tenant_slug: str,
     payload: LeadUpdate,
     db: AsyncSession = Depends(get_db),
+    current_tenant: Tenant = Depends(get_current_tenant),
 ):
     """Atualiza dados de um lead."""
     try:
-        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
-        tenant = result.scalar_one_or_none()
-        if not tenant:
-            raise HTTPException(404, "Tenant não encontrado")
-
         result = await db.execute(
             select(Lead)
-            .where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
+            .where(Lead.id == lead_id, Lead.tenant_id == current_tenant.id)
             .options(selectinload(Lead.assigned_seller))
         )
         lead = result.scalar_one_or_none()
@@ -226,32 +221,22 @@ async def update_lead(
 @router.get("/{lead_id}/messages")
 async def get_lead_messages(
     lead_id: int,
-    tenant_slug: str,
     db: AsyncSession = Depends(get_db),
+    current_tenant: Tenant = Depends(get_current_tenant),
 ):
     """
     Retorna mensagens de um lead.
-    
-    CORREÇÃO: Não usa mais MessageResponse.model_validate()
-    que estava causando erro 500.
     """
     try:
-        logger.info(f"Buscando mensagens do lead {lead_id} - tenant: {tenant_slug}")
+        logger.info(f"Buscando mensagens do lead {lead_id} - tenant: {current_tenant.slug}")
         
-        # Busca tenant
-        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
-        tenant = result.scalar_one_or_none()
-        if not tenant:
-            logger.warning(f"Tenant não encontrado: {tenant_slug}")
-            raise HTTPException(404, "Tenant não encontrado")
-
         # Verifica se lead existe e pertence ao tenant
         result = await db.execute(
-            select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
+            select(Lead).where(Lead.id == lead_id, Lead.tenant_id == current_tenant.id)
         )
         lead = result.scalar_one_or_none()
         if not lead:
-            logger.warning(f"Lead não encontrado: {lead_id} para tenant {tenant.id}")
+            logger.warning(f"Lead não encontrado: {lead_id} para tenant {current_tenant.id}")
             raise HTTPException(404, "Lead não encontrado")
 
         # Busca mensagens
@@ -280,18 +265,13 @@ async def get_lead_messages(
 @router.get("/{lead_id}/events")
 async def get_lead_events(
     lead_id: int,
-    tenant_slug: str,
     db: AsyncSession = Depends(get_db),
+    current_tenant: Tenant = Depends(get_current_tenant),
 ):
     """Retorna histórico de eventos do lead."""
     try:
-        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
-        tenant = result.scalar_one_or_none()
-        if not tenant:
-            raise HTTPException(404, "Tenant não encontrado")
-
         result = await db.execute(
-            select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
+            select(Lead).where(Lead.id == lead_id, Lead.tenant_id == current_tenant.id)
         )
         if not result.scalar_one_or_none():
             raise HTTPException(404, "Lead não encontrado")
@@ -329,19 +309,14 @@ async def get_lead_events(
 @router.post("/{lead_id}/handoff")
 async def handoff_lead(
     lead_id: int,
-    tenant_slug: str,
     user_id: int = Query(...),
     db: AsyncSession = Depends(get_db),
+    current_tenant: Tenant = Depends(get_current_tenant),
 ):
     """Transfere lead para atendimento humano."""
     try:
-        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
-        tenant = result.scalar_one_or_none()
-        if not tenant:
-            raise HTTPException(404, "Tenant não encontrado")
-
         result = await db.execute(
-            select(Lead).where(Lead.id == lead_id, Lead.tenant_id == tenant.id)
+            select(Lead).where(Lead.id == lead_id, Lead.tenant_id == current_tenant.id)
         )
         lead = result.scalar_one_or_none()
         if not lead:
@@ -465,44 +440,39 @@ async def unassign_lead_from_seller(
 # ===============================
 @router.get("/stats/summary")
 async def get_leads_summary(
-    tenant_slug: str,
     db: AsyncSession = Depends(get_db),
+    current_tenant: Tenant = Depends(get_current_tenant),
 ):
     """Retorna resumo de leads do tenant."""
     try:
-        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
-        tenant = result.scalar_one_or_none()
-        if not tenant:
-            raise HTTPException(404, "Tenant não encontrado")
-
         # Total de leads
         total = (await db.execute(
-            select(func.count(Lead.id)).where(Lead.tenant_id == tenant.id)
+            select(func.count(Lead.id)).where(Lead.tenant_id == current_tenant.id)
         )).scalar() or 0
 
         # Por qualificação
         quente = (await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == current_tenant.id)
             .where(Lead.qualification.in_(["quente", "hot"]))
         )).scalar() or 0
 
         morno = (await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == current_tenant.id)
             .where(Lead.qualification.in_(["morno", "warm"]))
         )).scalar() or 0
 
         frio = (await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == current_tenant.id)
             .where(Lead.qualification.in_(["frio", "cold", None]))
         )).scalar() or 0
 
         # Sem atribuição
         unassigned = (await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == current_tenant.id)
             .where(Lead.assigned_seller_id.is_(None))
         )).scalar() or 0
 
@@ -525,18 +495,13 @@ async def get_leads_summary(
 # ===============================
 @router.get("/metrics")
 async def get_metrics(
-    tenant_slug: str,
     db: AsyncSession = Depends(get_db),
+    current_tenant: Tenant = Depends(get_current_tenant),
 ):
     """Retorna métricas completas para o dashboard."""
     try:
         from datetime import timedelta
         
-        result = await db.execute(select(Tenant).where(Tenant.slug == tenant_slug))
-        tenant = result.scalar_one_or_none()
-        if not tenant:
-            raise HTTPException(404, "Tenant não encontrado")
-
         now = datetime.utcnow()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_start = today_start - timedelta(days=now.weekday())
@@ -545,27 +510,27 @@ async def get_metrics(
         # Total de leads
         total = (await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == current_tenant.id)
         )).scalar() or 0
         
         # Leads hoje
         today = (await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == current_tenant.id)
             .where(Lead.created_at >= today_start)
         )).scalar() or 0
         
         # Leads esta semana
         week = (await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == current_tenant.id)
             .where(Lead.created_at >= week_start)
         )).scalar() or 0
         
         # Leads este mês
         month = (await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == current_tenant.id)
             .where(Lead.created_at >= month_start)
         )).scalar() or 0
         
@@ -575,7 +540,7 @@ async def get_metrics(
                 Lead.qualification,
                 func.count(Lead.id).label('count')
             )
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == current_tenant.id)
             .group_by(Lead.qualification)
         )
         
@@ -595,7 +560,7 @@ async def get_metrics(
                 Lead.status,
                 func.count(Lead.id).label('count')
             )
-            .where(Lead.tenant_id == tenant.id)
+            .where(Lead.tenant_id == current_tenant.id)
             .group_by(Lead.status)
         )
         by_status = {row.status: row.count for row in result}
