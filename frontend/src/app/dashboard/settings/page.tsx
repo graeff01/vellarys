@@ -183,6 +183,7 @@ export default function SettingsPage() {
   const [respectDailyLimit, setRespectDailyLimit] = useState(true);
   const [respectAvailability, setRespectAvailability] = useState(true);
   const [notifyManagerCopy, setNotifyManagerCopy] = useState(false);
+  const [notifyBrokerRaiox, setNotifyBrokerRaiox] = useState(true);
 
   // GUARDRAILS
   const [priceGuardEnabled, setPriceGuardEnabled] = useState(true);
@@ -368,6 +369,7 @@ export default function SettingsPage() {
         setRespectDailyLimit(dist.respect_daily_limit ?? true);
         setRespectAvailability(dist.respect_availability ?? true);
         setNotifyManagerCopy(dist.notify_manager_copy ?? false);
+        setNotifyBrokerRaiox(dist.notify_broker_raiox ?? true);
 
         // Guardrails
         const guards = s.guardrails || {};
@@ -422,7 +424,15 @@ export default function SettingsPage() {
         business_hours: { enabled: businessHoursEnabled, timezone: 'America/Sao_Paulo', schedule: businessHours, out_of_hours_message: outOfHoursMessage, out_of_hours_behavior: 'message_only' },
         faq: { enabled: faqEnabled, items: faqItems },
         scope: { enabled: scopeEnabled, description: scopeDescription, allowed_topics: allowedTopics, blocked_topics: blockedTopics, out_of_scope_message: outOfScopeMessage },
-        distribution: { method: distributionMethod, fallback: distributionFallback, respect_daily_limit: respectDailyLimit, respect_availability: respectAvailability, notify_manager_copy: notifyManagerCopy, last_seller_index: 0 },
+        distribution: {
+          method: distributionMethod,
+          fallback: distributionFallback,
+          respect_daily_limit: respectDailyLimit,
+          respect_availability: respectAvailability,
+          notify_manager_copy: notifyManagerCopy,
+          notify_broker_raiox: notifyBrokerRaiox,
+          last_seller_index: 0
+        },
         guardrails: {
           price_guard: { enabled: priceGuardEnabled, behavior: priceGuardBehavior, message: priceGuardMessage },
           competitor_guard: { enabled: false, competitors: [], behavior: 'neutral' },
@@ -779,6 +789,7 @@ export default function SettingsPage() {
               <ToggleSwitch checked={respectDailyLimit} onChange={setRespectDailyLimit} label="Respeitar limite diário" description="Não enviar para vendedores que atingiram o limite" />
               <ToggleSwitch checked={respectAvailability} onChange={setRespectAvailability} label="Respeitar disponibilidade" description="Não enviar para vendedores indisponíveis" />
               <ToggleSwitch checked={notifyManagerCopy} onChange={setNotifyManagerCopy} label="Notificar gestor" description="Gestor recebe cópia de todas as notificações" />
+              <ToggleSwitch checked={notifyBrokerRaiox} onChange={setNotifyBrokerRaiox} label="Notificar corretor no Raio-X" description="Enviar resumo detalhado diretamente para o corretor responsável pelo imóvel" />
             </div>
           </Card>
         </div>

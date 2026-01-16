@@ -565,18 +565,40 @@ async def notify_gestor_whatsapp(
     """Envia notificação WhatsApp para o gestor via Z-API."""
 
     manager_whatsapp = None
+    portal_broker_phone = None
+    portal_broker_name = None
 
-    if product and hasattr(product, 'whatsapp_notification'):
-        manager_whatsapp = product.whatsapp_notification
+    # Verifica se é uma notificação de Raio-X e se deve ir para o corretor
+    is_raiox = extra_context.get("is_raiox", False) if extra_context else False
+    target_broker = extra_context.get("target_broker", True) if extra_context else True
 
+    # Dados do portal (maior prioridade para Raio-X)
+    portal_data = lead.custom_data.get("imovel_portal") if lead.custom_data else None
+    if portal_data:
+        portal_broker_phone = portal_data.get("corretor_whatsapp")
+        portal_broker_name = portal_data.get("corretor_nome")
+
+    # 1. Se for Raio-X e tivermos corretor do portal, ele é o alvo prioritário
+    if is_raiox and target_broker and portal_broker_phone:
+        manager_whatsapp = portal_broker_phone
+        logger.info(f"🎯 [RAIO-X] Alvo definido como corretor do portal: {portal_broker_name} ({manager_whatsapp})")
+
+    # 2. Se não definido, tenta do produto local
+    if not manager_whatsapp and product:
+        if hasattr(product, 'whatsapp_notification') and product.whatsapp_notification:
+            manager_whatsapp = product.whatsapp_notification
+        elif hasattr(product, 'attributes') and product.attributes:
+            manager_whatsapp = product.attributes.get("whatsapp_notification")
+
+    # 3. Fallback final para o gestor do tenant
     if not manager_whatsapp:
         settings = tenant.settings or {}
         handoff_config = settings.get("handoff", {})
         manager_whatsapp = handoff_config.get("manager_whatsapp")
 
     if not manager_whatsapp:
-        logger.warning(f"WhatsApp do gestor não configurado para tenant {tenant.slug}")
-        return {"success": False, "error": "WhatsApp do gestor não configurado"}
+        logger.warning(f"WhatsApp do destinatário não configurado para tenant {tenant.slug}")
+        return {"success": False, "error": "WhatsApp não configurado"}
 
     message = await build_whatsapp_notification_message(
         db=db,

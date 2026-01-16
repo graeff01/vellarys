@@ -97,6 +97,7 @@ export interface DistributionSettings {
   respect_daily_limit: boolean;
   respect_availability: boolean;
   notify_manager_copy: boolean;
+  notify_broker_raiox: boolean;
   last_seller_index: number;
 }
 
@@ -278,7 +279,7 @@ export interface UpdateResponse {
 
 export async function getSettings(): Promise<SettingsResponse> {
   const token = getToken();
-  
+
   const response = await fetch(`${API_URL}/settings`, {
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -295,7 +296,7 @@ export async function getSettings(): Promise<SettingsResponse> {
 
 export async function updateSettings(data: Partial<TenantSettings> & { tenant_name?: string }): Promise<UpdateResponse> {
   const token = getToken();
-  
+
   const response = await fetch(`${API_URL}/settings`, {
     method: 'PATCH',
     headers: {
@@ -314,7 +315,7 @@ export async function updateSettings(data: Partial<TenantSettings> & { tenant_na
 
 export async function getIdentitySettings(): Promise<IdentityResponse> {
   const token = getToken();
-  
+
   const response = await fetch(`${API_URL}/settings/identity`, {
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -334,7 +335,7 @@ export async function updateIdentitySettings(data: {
   basic?: Partial<BasicSettings>;
 }): Promise<{ success: boolean; identity: IdentitySettings; basic: BasicSettings }> {
   const token = getToken();
-  
+
   const response = await fetch(`${API_URL}/settings/identity`, {
     method: 'PATCH',
     headers: {
@@ -353,7 +354,7 @@ export async function updateIdentitySettings(data: {
 
 export async function getAIContext(): Promise<Record<string, unknown>> {
   const token = getToken();
-  
+
   const response = await fetch(`${API_URL}/settings/ai-context`, {
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -370,7 +371,7 @@ export async function getAIContext(): Promise<Record<string, unknown>> {
 
 export async function getNiches(): Promise<NicheOption[]> {
   const token = getToken();
-  
+
   const response = await fetch(`${API_URL}/settings/niches`, {
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -390,7 +391,7 @@ export async function getDistributionOptions(): Promise<{
   fallbacks: FallbackOption[];
 }> {
   const token = getToken();
-  
+
   const response = await fetch(`${API_URL}/settings/distribution-options`, {
     headers: {
       'Authorization': `Bearer ${token}`,

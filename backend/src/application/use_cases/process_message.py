@@ -978,24 +978,34 @@ async def process_message(
             from src.infrastructure.services.dialog360_service import GestorNotificationService
             api_key = (tenant.settings or {}).get("dialog360_api_key")
             
-            if api_key:
-                target_prod = product_detected
-                if not target_prod and lead.custom_data.get("product_id"):
-                    res_p = await db.execute(select(Product).where(Product.id == lead.custom_data["product_id"]))
-                    target_prod = res_p.scalar_one_or_none()
-                
-                # Se não temos produto mas temos imóvel portal, o notify_gestor usará dados do portal/tenant
-                logger.info(f"📲 Disparando Raio-X para {lead.name}")
-                success = await GestorNotificationService.notify_gestor(
-                    db=db, api_key=api_key, lead=lead, tenant=tenant, product=target_prod
-                )
-                if success:
-                    logger.info(f"✅ Raio-X enviado com sucesso!")
-                    if not lead.custom_data: lead.custom_data = {}
-                    lead.custom_data["notificado_imovel_codigo"] = codigo_atual
-                    flag_modified(lead, "custom_data")
-                else:
-                    logger.warning(f"❌ Falha ao enviar Raio-X (Lead {lead.id})")
+            # Pegamos o corretor do portal se existir nos dados do lead (salvo no passo 13)
+            # ou usamos o gestor como fallback
+            
+            # Buscamos a configuração do tenant sobre para quem enviar
+            settings_dist = tenant.settings.get("distribution", {}) if tenant.settings else {}
+            notify_broker_raiox = settings_dist.get("notify_broker_raiox", True) # Default True para manter o comportamento desejado
+            
+            # Chama o serviço de notificação padrão do Velaris (que usa Z-API)
+            await notify_gestor(
+                db=db,
+                tenant=tenant,
+                lead=lead,
+                notification_type="lead_hot", # Usamos o tipo HOT lead para o Raio-X
+                product=product_detected,
+                extra_context={
+                    "is_raiox": True,
+                    "target_broker": notify_broker_raiox
+                }
+            )
+            
+            # Marca como notificado para não repetir
+            if not lead.custom_data:
+                lead.custom_data = {}
+            lead.custom_data["notificado_imovel_codigo"] = codigo_atual
+            flag_modified(lead, "custom_data")
+            await db.commit()
+            
+            logger.info(f"✅ [RAIO-X] Notificação enviada para {codigo_atual}")
     
     # =========================================================================
     # 18.6. PROTEÇÃO ANTI-SPAM (REPETIÇÃO)
