@@ -12,6 +12,9 @@ interface NotificationState {
   permission: NotificationPermission | 'unsupported';
   loading: boolean;
   subscribed: boolean;
+  isIOS: boolean;
+  isPWA: boolean;
+  needsPWAInstall: boolean;
 }
 
 interface UseNotificationsReturn extends NotificationState {
@@ -69,15 +72,41 @@ function getApplicationServerKey(vapidPublicKey: string): ArrayBuffer {
 }
 
 // =============================================================================
+// DETECÇÃO DE PLATAFORMA
+// =============================================================================
+
+function detectIOSAndPWA() {
+  if (typeof window === 'undefined') {
+    return { isIOS: false, isPWA: false };
+  }
+
+  // Detecta iOS
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  // Detecta se está rodando como PWA (instalado na home screen)
+  const isPWA =
+    ('standalone' in window.navigator && (window.navigator as any).standalone === true) || // iOS
+    window.matchMedia('(display-mode: standalone)').matches; // Android/Desktop
+
+  return { isIOS, isPWA };
+}
+
+// =============================================================================
 // HOOK PRINCIPAL
 // =============================================================================
 
 export function useNotifications(): UseNotificationsReturn {
+  const { isIOS, isPWA } = detectIOSAndPWA();
+
   const [state, setState] = useState<NotificationState>({
     supported: false,
     permission: 'unsupported',
     loading: true,
     subscribed: false,
+    isIOS,
+    isPWA,
+    needsPWAInstall: isIOS && !isPWA,
   });
 
   // ---------------------------------------------------------------------------
@@ -90,21 +119,45 @@ export function useNotifications(): UseNotificationsReturn {
       return;
     }
 
-    const supported =
-      'Notification' in window &&
+    // Para iOS não-PWA, suporta apenas notificações básicas (sem Push)
+    const basicNotificationSupport = 'Notification' in window;
+
+    // Push notifications completo (precisa de Service Worker + PushManager)
+    const fullPushSupport =
+      basicNotificationSupport &&
       'serviceWorker' in navigator &&
       'PushManager' in window;
 
-    if (!supported) {
+    // iOS no Safari (não-PWA) não tem PushManager, mas pode ter notificações básicas
+    if (!basicNotificationSupport) {
       setState({
         supported: false,
         permission: 'unsupported',
         loading: false,
         subscribed: false,
+        isIOS,
+        isPWA,
+        needsPWAInstall: isIOS && !isPWA,
       });
       return;
     }
 
+    // Se tem suporte básico mas não tem Push (iOS Safari), ainda marca como "suportado"
+    // mas subscribed será false
+    if (!fullPushSupport) {
+      setState({
+        supported: true,
+        permission: Notification.permission,
+        loading: false,
+        subscribed: false,
+        isIOS,
+        isPWA,
+        needsPWAInstall: isIOS && !isPWA,
+      });
+      return;
+    }
+
+    // Se tem suporte completo, verifica subscription
     navigator.serviceWorker.ready.then(async (registration) => {
       const subscription = await registration.pushManager.getSubscription();
 
@@ -113,9 +166,12 @@ export function useNotifications(): UseNotificationsReturn {
         permission: Notification.permission,
         loading: false,
         subscribed: !!subscription,
+        isIOS,
+        isPWA,
+        needsPWAInstall: isIOS && !isPWA,
       });
     });
-  }, []);
+  }, [isIOS, isPWA]);
 
   // ---------------------------------------------------------------------------
   // Solicitar permissão

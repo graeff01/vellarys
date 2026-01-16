@@ -73,6 +73,19 @@ export async function requestNotificationPermission(): Promise<boolean> {
     return false;
   }
 
+  // Detecta iOS
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  const isPWA =
+    ('standalone' in window.navigator && (window.navigator as any).standalone === true) ||
+    window.matchMedia('(display-mode: standalone)').matches;
+
+  // iOS Safari (não-PWA) tem suporte limitado
+  if (isIOS && !isPWA) {
+    console.warn('⚠️ iOS Safari: Instale o app na tela inicial para notificações push completas');
+  }
+
   if (Notification.permission === 'granted') {
     return true;
   }
@@ -88,6 +101,12 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
 export async function subscribeToPush(): Promise<PushSubscription | null> {
   try {
+    // Verifica se PushManager está disponível (não está no iOS Safari)
+    if (!('PushManager' in window)) {
+      console.error('❌ PushManager não disponível (iOS Safari não suporta)');
+      return null;
+    }
+
     const registration = await navigator.serviceWorker.ready;
 
     let vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
