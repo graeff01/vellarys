@@ -15,6 +15,7 @@ Documentacao: https://developer.z-api.io/webhooks/introduction
 import logging
 import asyncio
 import hashlib
+import base64
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
 from fastapi import APIRouter, Request, Depends, BackgroundTasks
@@ -29,6 +30,7 @@ from src.infrastructure.services import (
     analyze_property_image,
 )
 from src.infrastructure.services.zapi_service import get_zapi_client
+from src.infrastructure.services.tts_service import get_tts_service
 
 logger = logging.getLogger(__name__)
 
@@ -305,34 +307,109 @@ async def zapi_receive_message(
                 logger.info(f"🔓 Lock liberado para {phone}")
         
         # ════════════════════════════════════════════════════════════════
-        # PASSO 6: ENVIA RESPOSTA
+        # PASSO 6: ENVIA RESPOSTA (COM VOICE-FIRST)
         # ════════════════════════════════════════════════════════════════
-        
+
         if result.get("reply"):
             zapi_instance = None
             zapi_token = None
-            
+
             if channel.config:
                 zapi_instance = channel.config.get("instance_id") or channel.config.get("zapi_instance_id")
                 zapi_token = channel.config.get("token") or channel.config.get("zapi_token")
-            
+
             zapi = get_zapi_client(instance_id=zapi_instance, token=zapi_token)
-            
+
             typing_delay = result.get("typing_delay", 2)
             if typing_delay > 0:
                 logger.info(f"💬 Aguardando {typing_delay}s (simulando digitação)...")
                 await asyncio.sleep(min(typing_delay, 5))
-            
-            send_result = await zapi.send_text(
-                phone=phone, 
-                message=result["reply"],
-                delay_message=2
-            )
-            
+
+            # ════════════════════════════════════════════════════════════════
+            # 🎙️ VOICE-FIRST: Verifica se deve responder com áudio
+            # ════════════════════════════════════════════════════════════════
+            is_audio_message = payload.get("audio") is not None
+            voice_settings = (tenant.settings or {}).get("voice_response", {})
+            voice_enabled = voice_settings.get("enabled", False)
+            always_audio = voice_settings.get("always_audio", False)
+            max_chars = voice_settings.get("max_chars_for_audio", 500)
+
+            reply_text = result["reply"]
+            should_send_audio = False
+
+            # Decide se envia áudio
+            if voice_enabled:
+                if always_audio or is_audio_message:
+                    # Só envia áudio se a resposta não for muito longa
+                    if len(reply_text) <= max_chars:
+                        should_send_audio = True
+                        logger.info(f"🎙️ Voice-First ATIVADO: Respondendo com áudio")
+                    else:
+                        logger.info(f"🎙️ Resposta muito longa ({len(reply_text)} chars), enviando texto")
+
+            if should_send_audio:
+                # Gera áudio com TTS
+                try:
+                    voice = voice_settings.get("voice", "nova")
+                    speed = voice_settings.get("speed", 1.0)
+
+                    tts = get_tts_service()
+                    audio_bytes = await tts.generate_audio_bytes(
+                        text=reply_text,
+                        voice=voice,
+                        speed=speed,
+                        output_format="mp3"  # MP3 para melhor compatibilidade
+                    )
+
+                    if audio_bytes:
+                        # Converte para base64
+                        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+
+                        # Envia áudio
+                        send_result = await zapi.send_audio_base64(
+                            phone=phone,
+                            audio_base64=audio_b64,
+                            mime_type="audio/mpeg"
+                        )
+
+                        if send_result.get("success"):
+                            logger.info(f"✅ Áudio enviado com sucesso para {phone}")
+                        else:
+                            # Fallback: envia como texto
+                            logger.warning(f"⚠️ Falha no áudio, enviando texto: {send_result.get('error')}")
+                            send_result = await zapi.send_text(
+                                phone=phone,
+                                message=reply_text,
+                                delay_message=2
+                            )
+                    else:
+                        # Fallback: envia como texto
+                        logger.warning("⚠️ TTS retornou vazio, enviando texto")
+                        send_result = await zapi.send_text(
+                            phone=phone,
+                            message=reply_text,
+                            delay_message=2
+                        )
+
+                except Exception as e:
+                    logger.error(f"❌ Erro no TTS: {e}, enviando texto")
+                    send_result = await zapi.send_text(
+                        phone=phone,
+                        message=reply_text,
+                        delay_message=2
+                    )
+            else:
+                # Envia resposta normal (texto)
+                send_result = await zapi.send_text(
+                    phone=phone,
+                    message=reply_text,
+                    delay_message=2
+                )
+
             if not send_result.get("success"):
                 logger.error(f"❌ Erro enviando resposta: {send_result.get('error')}")
 
-            # 🚀 NOVO: Se houver localização, envia o GPS
+            # 🚀 Se houver localização, envia o GPS
             location = result.get("location")
             if location:
                 logger.info(f"📍 Disparando GPS para {phone}...")

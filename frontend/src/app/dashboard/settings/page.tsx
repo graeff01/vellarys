@@ -14,10 +14,10 @@ import {
   SettingsResponse, TenantSettings,
   ToneOption, PersonalityTrait,
   DistributionMethod, FallbackOption, NicheOption,
-  RequiredInfoOption, FAQItem,
-  DEFAULT_IDENTITY,
-
+  RequiredInfoOption, FAQItem, VoiceOption, VoiceResponseSettings,
+  DEFAULT_IDENTITY, DEFAULT_VOICE_RESPONSE, DEFAULT_VOICE_OPTIONS,
 } from '@/lib/settings';
+import VoiceResponseSettingsCard from '@/components/dashboard/VoiceResponseSettings';
 import {
   Save, X, Phone,
   Shield, CheckCircle2, ChevronDown,
@@ -237,6 +237,10 @@ function SettingsContent() {
     attempt_3: "{nome}, vou encerrar nosso atendimento por aqui. Se precisar, é só chamar novamente! 👋",
   });
   const [followUpExcludeStatuses, setFollowUpExcludeStatuses] = useState<string[]>(['converted', 'lost', 'handed_off']);
+
+  // VOICE-FIRST
+  const [voiceResponse, setVoiceResponse] = useState<VoiceResponseSettings>(DEFAULT_VOICE_RESPONSE);
+  const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>(DEFAULT_VOICE_OPTIONS);
 
   // Após os outros estados, adicionar:
   const [hasProductsAccess, setHasProductsAccess] = useState(false);
@@ -495,6 +499,10 @@ function SettingsContent() {
         if (followUp.messages) setFollowUpMessages(followUp.messages);
         if (followUp.exclude_statuses) setFollowUpExcludeStatuses(followUp.exclude_statuses);
 
+        // Voice-First
+        const voiceResp = s.voice_response || DEFAULT_VOICE_RESPONSE;
+        setVoiceResponse(voiceResp);
+
         // Options - sobrescreve com dados da API se existirem
         const opts = response.options || {};
         // ⭐ REMOVIDO: Nichos agora vêm do endpoint /tenants/niches
@@ -503,6 +511,7 @@ function SettingsContent() {
         if (opts.distribution_methods && opts.distribution_methods.length > 0) setDistributionMethods(opts.distribution_methods);
         if (opts.fallback_options && opts.fallback_options.length > 0) setFallbackOptions(opts.fallback_options);
         if (opts.required_info_options && opts.required_info_options.length > 0) setRequiredInfoOptions(opts.required_info_options);
+        if (opts.voice_options && opts.voice_options.length > 0) setVoiceOptions(opts.voice_options);
       } catch (error) {
         console.error('Erro ao carregar:', error);
       } finally {
@@ -581,6 +590,7 @@ function SettingsContent() {
         },
         ai_behavior: { custom_questions: [], custom_rules: [], greeting_message: '', farewell_message: '' },
         messages: { greeting: '', farewell: '', out_of_hours: outOfHoursMessage, out_of_scope: outOfScopeMessage, handoff_notice: '', qualification_complete: '', waiting_response: '' },
+        voice_response: voiceResponse,
       }, targetTenantId || undefined);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -1020,6 +1030,13 @@ function SettingsContent() {
       {/* TAB: AVANÇADO */}
       {activeTab === 'avancado' && (
         <div className="space-y-6 max-w-4xl mx-auto">
+          {/* VOICE-FIRST */}
+          <VoiceResponseSettingsCard
+            settings={voiceResponse}
+            voiceOptions={voiceOptions}
+            onChange={setVoiceResponse}
+          />
+
           <Card className="bg-indigo-50/50 border-indigo-100">
             <CardHeader
               title="Notificações do Sistema"

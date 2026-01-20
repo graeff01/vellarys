@@ -238,6 +238,33 @@ DEFAULT_SETTINGS = {
         "qualification_complete": "",
         "waiting_response": "",
     },
+
+    # =========================================================================
+    # VOICE-FIRST / RESPOSTA EM ÁUDIO (NOVO)
+    # =========================================================================
+    "voice_response": {
+        # Se ativado, quando o cliente enviar ÁUDIO, a IA responde com ÁUDIO
+        "enabled": False,
+
+        # Voz do OpenAI TTS a usar
+        # Opções: nova (feminina jovem), shimmer (feminina suave),
+        #         alloy (neutra), echo (masculina), onyx (masculina grave), fable (britânica)
+        "voice": "nova",
+
+        # Velocidade da fala (0.25 a 4.0, padrão 1.0)
+        "speed": 1.0,
+
+        # Se True, SEMPRE responde com áudio (mesmo se cliente mandou texto)
+        # Se False, só responde áudio quando cliente manda áudio
+        "always_audio": False,
+
+        # Mensagem máxima para converter em áudio (caracteres)
+        # Mensagens maiores são enviadas como texto
+        "max_chars_for_audio": 500,
+
+        # Nome da persona de voz (exibido no admin)
+        "persona_name": "Ana",
+    },
 }
 
 
@@ -361,6 +388,58 @@ REQUIRED_INFO_OPTIONS = [
     {"id": "orcamento", "name": "Orçamento", "description": "Faixa de orçamento"},
     {"id": "urgencia", "name": "Urgência", "description": "Nível de urgência"},
     {"id": "como_conheceu", "name": "Como Conheceu", "description": "Como conheceu a empresa"},
+]
+
+# Opções de voz para Voice-First (OpenAI TTS)
+VOICE_OPTIONS = [
+    {
+        "id": "nova",
+        "name": "Nova",
+        "description": "Feminina, jovem e acolhedora",
+        "gender": "female",
+        "recommended": True,
+        "preview_text": "Olá! Sou a Ana, sua assistente virtual. Como posso ajudar?",
+    },
+    {
+        "id": "shimmer",
+        "name": "Shimmer",
+        "description": "Feminina, suave e profissional",
+        "gender": "female",
+        "recommended": False,
+        "preview_text": "Olá! Estou aqui para ajudar você a encontrar o imóvel ideal.",
+    },
+    {
+        "id": "alloy",
+        "name": "Alloy",
+        "description": "Neutra, equilibrada e versátil",
+        "gender": "neutral",
+        "recommended": False,
+        "preview_text": "Olá! Como posso ajudar você hoje?",
+    },
+    {
+        "id": "echo",
+        "name": "Echo",
+        "description": "Masculina, grave e confiante",
+        "gender": "male",
+        "recommended": False,
+        "preview_text": "Olá! Sou o assistente virtual. Em que posso ajudar?",
+    },
+    {
+        "id": "onyx",
+        "name": "Onyx",
+        "description": "Masculina, profunda e séria",
+        "gender": "male",
+        "recommended": False,
+        "preview_text": "Olá! Estou aqui para ajudar com suas dúvidas.",
+    },
+    {
+        "id": "fable",
+        "name": "Fable",
+        "description": "Expressiva, articulada e dinâmica",
+        "gender": "neutral",
+        "recommended": False,
+        "preview_text": "Olá! Que bom falar com você! Como posso ajudar?",
+    },
 ]
 
 
@@ -550,6 +629,7 @@ async def get_settings(
             "distribution_methods": DISTRIBUTION_METHODS,
             "fallback_options": FALLBACK_OPTIONS,
             "required_info_options": REQUIRED_INFO_OPTIONS,
+            "voice_options": VOICE_OPTIONS,  # Voice-First
         },
     }
 
@@ -611,6 +691,7 @@ async def update_settings(
             "guardrails",
             "follow_up",
             "messages",
+            "voice_response",  # Voice-First
         ]
         
         # Merge das seções

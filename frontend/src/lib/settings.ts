@@ -170,6 +170,28 @@ export interface FollowUpSettings {
 }
 
 // =============================================================================
+// TYPES - VOICE-FIRST / RESPOSTA EM ÁUDIO (NOVO)
+// =============================================================================
+
+export interface VoiceResponseSettings {
+  enabled: boolean;
+  voice: string;
+  speed: number;
+  always_audio: boolean;
+  max_chars_for_audio: number;
+  persona_name: string;
+}
+
+export interface VoiceOption {
+  id: string;
+  name: string;
+  description: string;
+  gender: string;
+  recommended: boolean;
+  preview_text?: string;
+}
+
+// =============================================================================
 // TYPES - SETTINGS COMPLETO
 // =============================================================================
 
@@ -184,7 +206,8 @@ export interface TenantSettings {
   distribution: DistributionSettings;
   guardrails: GuardrailsSettings;
   messages: MessagesSettings;
-  follow_up: FollowUpSettings;  // NOVO
+  follow_up: FollowUpSettings;
+  voice_response: VoiceResponseSettings;  // Voice-First
 }
 
 // =============================================================================
@@ -238,6 +261,7 @@ export interface SettingsOptions {
   distribution_methods: DistributionMethod[];
   fallback_options: FallbackOption[];
   required_info_options: RequiredInfoOption[];
+  voice_options: VoiceOption[];  // Voice-First
 }
 
 // =============================================================================
@@ -490,3 +514,57 @@ export const DEFAULT_FOLLOW_UP: FollowUpSettings = {
     end: "20:00",
   },
 };
+
+export const DEFAULT_VOICE_RESPONSE: VoiceResponseSettings = {
+  enabled: false,
+  voice: 'nova',
+  speed: 1.0,
+  always_audio: false,
+  max_chars_for_audio: 500,
+  persona_name: 'Ana',
+};
+
+export const DEFAULT_VOICE_OPTIONS: VoiceOption[] = [
+  {
+    id: 'nova',
+    name: 'Nova',
+    description: 'Feminina, jovem e acolhedora',
+    gender: 'female',
+    recommended: true,
+  },
+  {
+    id: 'shimmer',
+    name: 'Shimmer',
+    description: 'Feminina, suave e profissional',
+    gender: 'female',
+    recommended: false,
+  },
+  {
+    id: 'alloy',
+    name: 'Alloy',
+    description: 'Neutra, equilibrada e versátil',
+    gender: 'neutral',
+    recommended: false,
+  },
+  {
+    id: 'echo',
+    name: 'Echo',
+    description: 'Masculina, grave e confiante',
+    gender: 'male',
+    recommended: false,
+  },
+  {
+    id: 'onyx',
+    name: 'Onyx',
+    description: 'Masculina, profunda e séria',
+    gender: 'male',
+    recommended: false,
+  },
+  {
+    id: 'fable',
+    name: 'Fable',
+    description: 'Expressiva, articulada e dinâmica',
+    gender: 'neutral',
+    recommended: false,
+  },
+];

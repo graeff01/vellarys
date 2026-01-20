@@ -188,22 +188,22 @@ class ZAPIService:
                 return {"success": False, "error": str(e)}
     
     async def send_audio(self, phone: str, audio_url: str) -> dict:
-        """Envia audio."""
+        """Envia audio via URL."""
         if not self.is_configured():
             return {"success": False, "error": "Z-API nao configurado"}
-        
+
         url = f"{self.base_url}/send-audio"
-        
+
         payload = {
             "phone": self._format_phone(phone),
             "audio": audio_url
         }
-        
+
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(
-                    url, 
-                    json=payload, 
+                    url,
+                    json=payload,
                     headers=self._get_headers(),
                     timeout=30
                 )
@@ -211,6 +211,105 @@ class ZAPIService:
                 return {"success": True, "data": response.json()}
             except Exception as e:
                 logger.error(f"Z-API erro audio: {e}")
+                return {"success": False, "error": str(e)}
+
+    async def send_audio_base64(
+        self,
+        phone: str,
+        audio_base64: str,
+        mime_type: str = "audio/ogg"
+    ) -> dict:
+        """
+        Envia audio via base64.
+
+        Args:
+            phone: Numero do destinatario (ex: 5551999999999)
+            audio_base64: Audio codificado em base64
+            mime_type: Tipo do audio (audio/ogg, audio/mp3, audio/mpeg)
+
+        Returns:
+            {"success": True/False, "data": {...}, "error": "..."}
+        """
+        if not self.is_configured():
+            return {"success": False, "error": "Z-API nao configurado"}
+
+        url = f"{self.base_url}/send-audio"
+
+        # Formato base64 com data URI
+        audio_data = f"data:{mime_type};base64,{audio_base64}"
+
+        payload = {
+            "phone": self._format_phone(phone),
+            "audio": audio_data
+        }
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers=self._get_headers(),
+                    timeout=60  # Timeout maior para audio
+                )
+                response.raise_for_status()
+                logger.info(f"Z-API: Audio enviado para {phone[:8]}***")
+                return {"success": True, "data": response.json()}
+            except httpx.HTTPStatusError as e:
+                logger.error(f"Z-API audio base64 HTTP erro: {e.response.status_code} - {e.response.text}")
+                return {"success": False, "error": f"HTTP {e.response.status_code}: {e.response.text}"}
+            except Exception as e:
+                logger.error(f"Z-API erro audio base64: {e}")
+                return {"success": False, "error": str(e)}
+
+    async def send_ptt(
+        self,
+        phone: str,
+        audio_base64: str,
+        mime_type: str = "audio/ogg"
+    ) -> dict:
+        """
+        Envia audio como PTT (Push-to-Talk / mensagem de voz).
+        Aparece como "bolinha" de audio no WhatsApp.
+
+        Args:
+            phone: Numero do destinatario
+            audio_base64: Audio codificado em base64
+            mime_type: Tipo do audio
+
+        Returns:
+            {"success": True/False, "data": {...}, "error": "..."}
+        """
+        if not self.is_configured():
+            return {"success": False, "error": "Z-API nao configurado"}
+
+        # Endpoint específico para PTT (áudio de voz)
+        url = f"{self.base_url}/send-audio"
+
+        # Formato base64 com data URI
+        audio_data = f"data:{mime_type};base64,{audio_base64}"
+
+        payload = {
+            "phone": self._format_phone(phone),
+            "audio": audio_data,
+            "messageId": None  # Opcional: para rastrear a mensagem
+        }
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers=self._get_headers(),
+                    timeout=60
+                )
+                response.raise_for_status()
+                logger.info(f"Z-API: PTT enviado para {phone[:8]}***")
+                return {"success": True, "data": response.json()}
+            except httpx.HTTPStatusError as e:
+                logger.error(f"Z-API PTT HTTP erro: {e.response.status_code}")
+                return {"success": False, "error": f"HTTP {e.response.status_code}"}
+            except Exception as e:
+                logger.error(f"Z-API erro PTT: {e}")
                 return {"success": False, "error": str(e)}
     
     async def send_link(
