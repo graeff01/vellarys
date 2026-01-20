@@ -678,30 +678,21 @@ function SettingsContent() {
             {showTenantSelector && (
               <div className="absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-2 animate-in fade-in slide-in-from-top-2">
                 <div className="px-3 pb-2 mb-2 border-b border-gray-100">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase">Selecione para configurar</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">Selecione o Cliente</p>
                 </div>
                 <div className="max-h-64 overflow-y-auto">
-                  <button
-                    onClick={() => {
-                      const url = new URL(window.location.href);
-                      url.searchParams.delete('target_tenant_id');
-                      window.location.href = url.pathname + url.search;
-                    }}
-                    className={`w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center justify-between ${!targetTenantId ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-700'}`}
-                  >
-                    Meu Próprio Perfil
-                    {!targetTenantId && <CheckCircle2 className="w-4 h-4" />}
-                  </button>
-                  {availableTenants.map((tenant) => (
-                    <button
-                      key={tenant.id}
-                      onClick={() => handleTenantChange(tenant.id)}
-                      className={`w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center justify-between ${targetTenantId === tenant.id ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-700'}`}
-                    >
-                      {tenant.name}
-                      {targetTenantId === tenant.id && <CheckCircle2 className="w-4 h-4" />}
-                    </button>
-                  ))}
+                  {availableTenants
+                    .filter(t => t.id !== getUser()?.tenant_id) // Filter out admin's own tenant
+                    .map((tenant) => (
+                      <button
+                        key={tenant.id}
+                        onClick={() => handleTenantChange(tenant.id)}
+                        className={`w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center justify-between ${targetTenantId === tenant.id ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-700'}`}
+                      >
+                        {tenant.name}
+                        {targetTenantId === tenant.id && <CheckCircle2 className="w-4 h-4" />}
+                      </button>
+                    ))}
                 </div>
               </div>
             )}

@@ -7,7 +7,7 @@ import { getToken, getUser } from '@/lib/auth';
 import {
   Bot, Send, Trash2, Sparkles, Loader2, User,
   MessageSquare, Zap, ThermometerSun, Info,
-  AlertTriangle, CheckCircle2, ChevronRight, Settings
+  AlertTriangle, CheckCircle2, ChevronRight, Settings, ChevronDown
 } from 'lucide-react';
 
 declare const process: any;
@@ -51,7 +51,28 @@ function SimulatorContent() {
   const [lastQualification, setLastQualification] = useState<string>('');
   const [suggestions, setSuggestions] = useState<SuggestionCategory[]>([]);
   const [tenantName, setTenantName] = useState<string>('');
+  const [availableTenants, setAvailableTenants] = useState<any[]>([]);
+  const [showTenantSelector, setShowTenantSelector] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    async function fetchTenants() {
+      if (!isSuperAdmin) return;
+      try {
+        const token = getToken();
+        const response = await fetch(`${API_URL}/admin/tenants`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableTenants(data.tenants || []);
+        }
+      } catch (error) {
+        console.error('Error fetching tenants:', error);
+      }
+    }
+    fetchTenants();
+  }, [isSuperAdmin]);
 
   // Auto-scroll
   useEffect(() => {
@@ -226,29 +247,86 @@ function SimulatorContent() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl shadow-lg shadow-purple-200">
-              <Sparkles className="w-8 h-8 text-white" />
-            </div>
-            Simulador Live
-          </h1>
-          <p className="text-gray-500 mt-1">
-            {targetTenantId ? 'Ambiente de demonstração personalizada' : 'Teste como sua IA vai responder aos clientes'}
-          </p>
+      <div className="flex flex-col gap-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl shadow-lg shadow-purple-200">
+                <Sparkles className="w-8 h-8 text-white" />
+              </div>
+              Simulador Live
+            </h1>
+            <p className="text-gray-500 mt-1">
+              {targetTenantId ? 'Ambiente de demonstração personalizada' : 'Teste como sua IA vai responder aos clientes'}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {messages.length > 0 && (
+              <button
+                onClick={clearChat}
+                className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
+              >
+                Resetar Conversa
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {messages.length > 0 && (
-            <button
-              onClick={clearChat}
-              className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"
-            >
-              Resetar Conversa
-            </button>
-          )}
-        </div>
+        {/* Seletor de Cliente (Apenas SuperAdmin) */}
+        {isSuperAdmin && (
+          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between group animate-in fade-in slide-in-from-top-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                <User className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Cliente Selecionado</p>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-gray-900">
+                    {targetTenantId ? (availableTenants.find(t => t.id === parseInt(targetTenantId))?.name || `ID: ${targetTenantId}`) : 'Selecione um cliente para simular'}
+                  </h3>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative">
+              <button
+                onClick={() => setShowTenantSelector(!showTenantSelector)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors border border-gray-100"
+              >
+                Trocar Cliente
+                <ChevronDown className={`w-4 h-4 transition-transform ${showTenantSelector ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showTenantSelector && (
+                <div className="absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-2 animate-in fade-in slide-in-from-top-2">
+                  <div className="px-3 pb-2 mb-2 border-b border-gray-100">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase">Disponíveis para Simulação</p>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {availableTenants
+                      .filter(t => t.id !== user?.tenant_id)
+                      .map((tenant) => (
+                        <button
+                          key={tenant.id}
+                          onClick={() => {
+                            const url = new URL(window.location.href);
+                            url.searchParams.set('target_tenant_id', tenant.id.toString());
+                            window.location.href = url.pathname + url.search;
+                          }}
+                          className={`w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center justify-between ${targetTenantId === tenant.id.toString() ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-700'}`}
+                        >
+                          {tenant.name}
+                          {targetTenantId === tenant.id.toString() && <CheckCircle2 className="w-4 h-4" />}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Layout Principal */}
