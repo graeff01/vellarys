@@ -18,6 +18,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from src.infrastructure.database import get_db
 from src.domain.entities import User, Tenant, DataSource, DataSourceType
+from src.domain.entities.enums import UserRole
 from src.api.dependencies import get_current_user, get_current_tenant
 from src.infrastructure.services.encryption_service import (
     encrypt_credentials,
@@ -131,17 +132,28 @@ def source_to_response(source: DataSource) -> Dict[str, Any]:
     }
 
 
+async def check_superadmin(user: User):
+    """Garante que o usuário é um superadmin."""
+    if user.role != UserRole.SUPERADMIN.value:
+        logger.warning(f"🚫 Tentativa de acesso não autorizado: User {user.id} ({user.role}) tentou acessar configurações de Data Source")
+        raise HTTPException(
+            status_code=403,
+            detail="Acesso restrito apenas ao Admin Master (Superadmin)."
+        )
+
+
 # ==========================================
 # ENDPOINTS: TIPOS
 # ==========================================
 
 @router.get("/types")
-async def list_data_source_types():
+async def list_data_source_types(user: User = Depends(get_current_user)):
     """
     Lista tipos de data source disponíveis.
 
     Retorna informações sobre cada tipo suportado.
     """
+    await check_superadmin(user)
     return {
         "types": [
             {
@@ -190,6 +202,7 @@ async def list_data_sources(
     """
     Lista todas as fontes de dados do tenant.
     """
+    await check_superadmin(user)
     query = select(DataSource).where(DataSource.tenant_id == tenant.id)
 
     if active_only:
@@ -216,6 +229,7 @@ async def create_data_source(
     """
     Cria uma nova fonte de dados.
     """
+    await check_superadmin(user)
     # Gera slug
     slug = slugify(payload.name)
 
@@ -277,6 +291,7 @@ async def get_data_source(
     """
     Obtém detalhes de uma fonte de dados.
     """
+    await check_superadmin(user)
     result = await db.execute(
         select(DataSource)
         .where(DataSource.id == source_id)
@@ -301,6 +316,7 @@ async def update_data_source(
     """
     Atualiza uma fonte de dados.
     """
+    await check_superadmin(user)
     result = await db.execute(
         select(DataSource)
         .where(DataSource.id == source_id)
@@ -358,6 +374,7 @@ async def delete_data_source(
     """
     Remove uma fonte de dados.
     """
+    await check_superadmin(user)
     result = await db.execute(
         select(DataSource)
         .where(DataSource.id == source_id)
@@ -393,6 +410,7 @@ async def test_data_source(
     """
     Testa conexão com a fonte de dados.
     """
+    await check_superadmin(user)
     result = await db.execute(
         select(DataSource)
         .where(DataSource.id == source_id)
@@ -452,6 +470,7 @@ async def sync_data_source(
     """
     Inicia sincronização da fonte de dados (em background).
     """
+    await check_superadmin(user)
     result = await db.execute(
         select(DataSource)
         .where(DataSource.id == source_id)
@@ -571,6 +590,7 @@ async def lookup_property(
 
     Útil para debug e teste de configurações.
     """
+    await check_superadmin(user)
     result = await db.execute(
         select(DataSource)
         .where(DataSource.id == source_id)

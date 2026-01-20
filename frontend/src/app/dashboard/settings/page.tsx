@@ -4,7 +4,7 @@
 import ProductsTab from '@/components/dashboard/ProductsTab';
 import DataSourcesTab from '@/components/dashboard/DataSourcesTab';
 import { getSellers } from '@/lib/sellers';
-import { getToken } from '@/lib/auth';
+import { getToken, getUser } from '@/lib/auth';
 import { useEffect, useState, useCallback } from 'react';
 import { Card, CardHeader } from '@/components/ui/card';
 import { requestNotificationPermission, subscribeToPush } from '@/components/pwa/service-worker-registration';
@@ -211,6 +211,7 @@ export default function SettingsPage() {
 
   // Após os outros estados, adicionar:
   const [hasProductsAccess, setHasProductsAccess] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [sellers, setSellers] = useState<Array<{ id: number; name: string }>>([]);
 
 
@@ -299,6 +300,10 @@ export default function SettingsPage() {
       try {
         // ⭐ Busca nichos do banco primeiro
         await fetchNiches();
+
+        // Verifica se é superadmin
+        const user = getUser();
+        setIsSuperAdmin(user?.role === 'superadmin');
 
         const response = await getSettings();
         setData(response);
@@ -553,7 +558,7 @@ export default function SettingsPage() {
     { id: 'atendimento', label: 'Fluxo Comercial', icon: Phone },
     { id: 'conhecimento', label: 'Conhecimento', icon: Library },
     { id: 'avancado', label: 'Avancado', icon: Shield },
-    { id: 'datasources', label: 'Fontes de Dados', icon: Database },
+    ...(isSuperAdmin ? [{ id: 'datasources', label: 'Fontes de Dados', icon: Database }] : []),
   ];
 
   async function handleEnableNotifications() {
