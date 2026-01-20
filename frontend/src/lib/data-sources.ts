@@ -7,6 +7,8 @@
 
 import { getToken } from './auth';
 
+declare const process: any;
+
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/v1$/, '');
 
 // =============================================================================

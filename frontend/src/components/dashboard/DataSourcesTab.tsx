@@ -5,8 +5,9 @@ import { Card, CardHeader } from '@/components/ui/card';
 import {
   Plus, X, Settings, Trash2, RefreshCw, Play,
   Globe, Code, Webhook, Database, CheckCircle2, XCircle,
-  ChevronDown, ChevronUp, AlertTriangle, Info
+  ChevronDown, ChevronUp, AlertTriangle, Info, LucideIcon
 } from 'lucide-react';
+import { type ElementType, type ChangeEvent, type FormEvent } from 'react';
 import {
   getDataSources,
   createDataSource,
@@ -25,7 +26,7 @@ import {
 // HELPERS
 // =============================================================================
 
-const TYPE_ICONS: Record<DataSourceType, React.ElementType> = {
+const TYPE_ICONS: Record<DataSourceType, LucideIcon> = {
   portal_api: Globe,
   custom_api: Code,
   webhook: Webhook,
@@ -117,7 +118,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
     setShowForm(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     try {
@@ -409,7 +410,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                   <input
                     type="text"
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Ex: Portal Investimento"
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     required
@@ -420,7 +421,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                   <input
                     type="number"
                     value={formData.priority}
-                    onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, priority: parseInt(e.target.value) || 0 })}
                     min={0}
                     max={100}
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -433,7 +434,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                 <input
                   type="text"
                   value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Descricao breve da fonte"
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
@@ -448,7 +449,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                     <input
                       type="url"
                       value={formData.config.base_url || ''}
-                      onChange={(e) => setFormData({ ...formData, config: { ...formData.config, base_url: e.target.value } })}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, config: { ...formData.config, base_url: e.target.value } })}
                       placeholder="https://portalinvestimento.com"
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
@@ -458,7 +459,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                     <input
                       type="text"
                       value={(formData.config.regions || []).join(', ')}
-                      onChange={(e) => setFormData({
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({
                         ...formData,
                         config: {
                           ...formData.config,
@@ -474,7 +475,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                     <input
                       type="text"
                       value={formData.config.url_pattern || ''}
-                      onChange={(e) => setFormData({ ...formData, config: { ...formData.config, url_pattern: e.target.value } })}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, config: { ...formData.config, url_pattern: e.target.value } })}
                       placeholder="/imoveis/{region}/{region}.json"
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
@@ -490,7 +491,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                     <input
                       type="url"
                       value={formData.config.endpoint || ''}
-                      onChange={(e) => setFormData({ ...formData, config: { ...formData.config, endpoint: e.target.value } })}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, config: { ...formData.config, endpoint: e.target.value } })}
                       placeholder="https://api.cliente.com/properties"
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
@@ -500,7 +501,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                       <label className="block text-sm font-medium text-gray-700 mb-2">Metodo</label>
                       <select
                         value={formData.config.method || 'GET'}
-                        onChange={(e) => setFormData({ ...formData, config: { ...formData.config, method: e.target.value } })}
+                        onChange={(e: ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, config: { ...formData.config, method: e.target.value } })}
                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="GET">GET</option>
@@ -511,7 +512,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                       <label className="block text-sm font-medium text-gray-700 mb-2">Autenticacao</label>
                       <select
                         value={formData.config.auth_type || 'none'}
-                        onChange={(e) => setFormData({ ...formData, config: { ...formData.config, auth_type: e.target.value } })}
+                        onChange={(e: ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, config: { ...formData.config, auth_type: e.target.value } })}
                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="none">Nenhuma</option>
@@ -530,7 +531,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                       <input
                         type="password"
                         value={formData.credentials?.api_key || formData.credentials?.token || ''}
-                        onChange={(e) => setFormData({
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({
                           ...formData,
                           credentials: { ...formData.credentials, api_key: e.target.value, token: e.target.value }
                         })}
@@ -544,7 +545,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                     <input
                       type="text"
                       value={formData.config.response_path || ''}
-                      onChange={(e) => setFormData({ ...formData, config: { ...formData.config, response_path: e.target.value } })}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, config: { ...formData.config, response_path: e.target.value } })}
                       placeholder="data.items"
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
@@ -565,7 +566,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                     <input
                       type="text"
                       value={formData.config.secret_key || ''}
-                      onChange={(e) => setFormData({ ...formData, config: { ...formData.config, secret_key: e.target.value } })}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, config: { ...formData.config, secret_key: e.target.value } })}
                       placeholder="Chave secreta para validar requests"
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
@@ -590,7 +591,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                   <input
                     type="number"
                     value={formData.cache_ttl_seconds}
-                    onChange={(e) => setFormData({ ...formData, cache_ttl_seconds: parseInt(e.target.value) || 300 })}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, cache_ttl_seconds: parseInt(e.target.value) || 300 })}
                     min={0}
                     max={86400}
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -600,7 +601,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                   <label className="block text-sm font-medium text-gray-700 mb-2">Estrategia de Cache</label>
                   <select
                     value={formData.cache_strategy}
-                    onChange={(e) => setFormData({ ...formData, cache_strategy: e.target.value as any })}
+                    onChange={(e: ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, cache_strategy: e.target.value as any })}
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="memory">Memoria</option>

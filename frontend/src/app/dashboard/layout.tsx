@@ -25,12 +25,16 @@ import { getToken, getUser, logout, User } from '@/lib/auth';
 import { NotificationBell } from '@/components/dashboard/notification-bell';
 import { ServiceWorkerRegistration } from '@/components/pwa/service-worker-registration';
 
+declare const process: any;
+
 // Menus para GESTOR (cliente normal)
 const gestorMenuItems = [
   { href: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard },
   { href: '/dashboard/leads', label: 'Leads', icon: Users },
+
   { href: '/dashboard/sellers', label: 'Vendedores', icon: UserCheck },
   { href: '/dashboard/export', label: 'Relatórios', icon: FileDown },
+  { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot },
 ];
 
 // Menus para SUPERADMIN (você)
@@ -42,6 +46,7 @@ const superadminMenuItems = [
   { href: '/dashboard/settings', label: 'Configurações', icon: Settings },
   { href: '/dashboard/export', label: 'Relatórios', icon: FileDown },
   { href: '/dashboard/logs', label: 'Logs', icon: ScrollText },
+  { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot },
 ];
 
 // =============================================================================

@@ -7,8 +7,10 @@ import { getToken, getUser } from '@/lib/auth';
 import {
   Bot, Send, Trash2, Sparkles, Loader2, User,
   MessageSquare, Zap, ThermometerSun, Info,
-  AlertTriangle, CheckCircle2, ChevronRight
+  AlertTriangle, CheckCircle2, ChevronRight, Settings
 } from 'lucide-react';
+
+declare const process: any;
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -19,6 +21,11 @@ interface SimulatorMessage {
   timestamp: Date;
   sentiment?: string;
   qualificationHint?: string;
+}
+
+interface SuggestionCategory {
+  category: string;
+  messages: string[];
 }
 
 export default function SimulatorPage() {
@@ -38,10 +45,12 @@ function SimulatorContent() {
   const [messages, setMessages] = useState<SimulatorMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+
   const [sessionId] = useState(() => `sim_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const [lastSentiment, setLastSentiment] = useState<string>('neutral');
   const [lastQualification, setLastQualification] = useState<string>('');
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<SuggestionCategory[]>([]);
+  const [tenantName, setTenantName] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll
@@ -70,6 +79,31 @@ function SimulatorContent() {
     }
     fetchSuggestions();
   }, [targetTenantId]);
+
+  // Fetch Tenant Name if in Masquerade mode
+  useEffect(() => {
+    async function fetchTenantName() {
+      if (!targetTenantId) return;
+      try {
+        const token = getToken();
+        // Since we don't have a direct public "get tenant name" endpoint easily accessible without auth complex,
+        // we can reuse the /admin/tenants endpoint if superadmin, or just fetch from settings/profile context if possible.
+        // For now, let's try to get it from the settings endpoint which supports masquerading.
+        const response = await fetch(`${API_URL}/settings?target_tenant_id=${targetTenantId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setTenantName(data.tenant?.name || `ID: ${targetTenantId}`);
+        }
+      } catch (error) {
+        console.error('Error fetching tenant name:', error);
+      }
+    }
+    if (isSuperAdmin && targetTenantId) {
+      fetchTenantName();
+    }
+  }, [targetTenantId, isSuperAdmin]);
 
   async function handleSend() {
     if (!input.trim() || loading) return;
@@ -169,16 +203,25 @@ function SimulatorContent() {
     <div className="space-y-6">
       {/* SuperAdmin Banner */}
       {isSuperAdmin && targetTenantId && (
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="bg-amber-100 p-2 rounded-lg">
-            <AlertTriangle className="w-5 h-5 text-amber-600" />
+        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl flex items-center justify-between animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="flex items-center gap-4">
+            <div className="bg-amber-100 p-2 rounded-lg">
+              <AlertTriangle className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <h4 className="text-amber-900 font-bold uppercase text-xs tracking-wider">Modo Demonstração Ativo</h4>
+              <p className="text-amber-700 text-sm">
+                Você está simulando o atendimento para o cliente <span className="font-bold underline">{tenantName || `ID: ${targetTenantId}`}</span>.
+              </p>
+            </div>
           </div>
-          <div>
-            <h4 className="text-amber-900 font-bold uppercase text-xs tracking-wider">Modo Demonstração Ativo</h4>
-            <p className="text-amber-700 text-sm">
-              Você está simulando o atendimento para o cliente <span className="font-bold underline">ID: {targetTenantId}</span>.
-            </p>
-          </div>
+          <a
+            href={`/dashboard/settings?target_tenant_id=${targetTenantId}`}
+            className="flex items-center gap-2 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg text-sm font-medium transition-colors"
+          >
+            <Settings className="w-4 h-4" />
+            Configurações
+          </a>
         </div>
       )}
 
@@ -299,8 +342,8 @@ function SimulatorContent() {
                     {/* Balão */}
                     <div
                       className={`max-w-[80%] px-4 py-3 rounded-2xl ${msg.role === 'assistant'
-                          ? 'bg-white text-gray-800 border border-gray-200 rounded-tl-md shadow-sm'
-                          : 'bg-blue-600 text-white rounded-tr-md shadow-sm'
+                        ? 'bg-white text-gray-800 border border-gray-200 rounded-tl-md shadow-sm'
+                        : 'bg-blue-600 text-white rounded-tr-md shadow-sm'
                         }`}
                     >
                       <p className="text-sm leading-relaxed whitespace-pre-wrap">
