@@ -301,9 +301,9 @@ export default function SettingsPage() {
         // ⭐ Busca nichos do banco primeiro
         await fetchNiches();
 
-        // Verifica se é superadmin
+        // Verifica se é superadmin (usando a flag explícita do backend ou o role)
         const user = getUser();
-        setIsSuperAdmin(user?.role === 'superadmin');
+        setIsSuperAdmin(!!user?.is_superadmin || user?.role === 'superadmin');
 
         const response = await getSettings();
         setData(response);

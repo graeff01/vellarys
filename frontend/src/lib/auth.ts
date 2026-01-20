@@ -5,6 +5,7 @@ export interface User {
   name: string;
   email: string;
   role: string;
+  is_superadmin?: boolean;
   tenant: {
     id: number;
     name: string;
@@ -36,7 +37,7 @@ export async function login(email: string, password: string): Promise<LoginRespo
 
 export async function getMe(token: string): Promise<User> {
   const response = await fetch(`${API_URL}/auth/me`, {
-    headers: { 
+    headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
