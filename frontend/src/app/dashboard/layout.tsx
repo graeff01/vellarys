@@ -18,7 +18,8 @@ import {
   CreditCard,
   Menu,
   X,
-  Bot
+  Bot,
+  Database
 } from 'lucide-react';
 import { getToken, getUser, logout, User } from '@/lib/auth';
 import { NotificationBell } from '@/components/dashboard/notification-bell';
@@ -40,6 +41,8 @@ const superadminMenuItems = [
   { href: '/dashboard/clients', label: 'Clientes', icon: Building2 },
   { href: '/dashboard/plans', label: 'Planos', icon: CreditCard },
   { href: '/dashboard/niches', label: 'Nichos', icon: Layers },
+  { href: '/dashboard/datasources', label: 'Fontes de Dados', icon: Database },
+  { href: '/dashboard/settings', label: 'Configurações', icon: Settings },
   { href: '/dashboard/export', label: 'Relatórios', icon: FileDown },
   { href: '/dashboard/logs', label: 'Logs', icon: ScrollText },
 ];
@@ -80,7 +83,7 @@ function useNotificationSound() {
         if (!token) return;
 
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1';
-        
+
         const response = await fetch(`${apiUrl}/notifications/count`, {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -96,7 +99,7 @@ function useNotificationSound() {
         if (!isFirstLoad && newCount > lastCount) {
           console.log('🔔 Nova notificação detectada! Tocando som...');
           playSound();
-          
+
           // Mostrar notificação do navegador também
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('🔔 Velaris', {
@@ -167,7 +170,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     } else {
       document.body.style.overflow = 'unset';
     }
-    
+
     return () => {
       document.body.style.overflow = 'unset';
     };
@@ -236,16 +239,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {menuItems.map((item) => {
               const isActive = pathname === item.href ||
                 (item.href !== '/dashboard' && pathname.startsWith(item.href));
-              
+
               // Destaque especial para o Simulador
               const isSimulator = item.href === '/dashboard/simulator';
-              
+
               return (
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                      isActive
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive
                         ? isSuperAdmin
                           ? 'bg-purple-50 text-purple-600'
                           : isSimulator
@@ -254,7 +256,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         : isSimulator
                           ? 'text-purple-600 hover:bg-purple-50'
                           : 'text-gray-600 hover:bg-gray-50'
-                    }`}
+                      }`}
                   >
                     <item.icon className={`w-5 h-5 ${isSimulator && !isActive ? 'text-purple-500' : ''}`} />
                     <span className={isSimulator ? 'font-medium' : ''}>{item.label}</span>

@@ -5,7 +5,8 @@ import ProductsTab from '@/components/dashboard/ProductsTab';
 import DataSourcesTab from '@/components/dashboard/DataSourcesTab';
 import { getSellers } from '@/lib/sellers';
 import { getToken, getUser } from '@/lib/auth';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardHeader } from '@/components/ui/card';
 import { requestNotificationPermission, subscribeToPush } from '@/components/pwa/service-worker-registration';
 import {
@@ -116,11 +117,27 @@ function ToggleSwitch({ checked, onChange, label, description }: ToggleSwitchPro
 
 
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div>Carregando...</div>}>
+      <SettingsContent />
+    </Suspense>
+  );
+}
+
+function SettingsContent() {
   const [data, setData] = useState<SettingsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState('perfil');
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
 
   // IDENTIDADE
