@@ -127,6 +127,9 @@ async def list_tenants(
     if active is not None:
         query = query.where(Tenant.active == active)
     
+    # Exclui o próprio admin da lista (God Mode)
+    query = query.where(Tenant.slug != "velaris-admin")
+
     # Ordenação e paginação
     query = query.order_by(Tenant.created_at.desc()).offset(skip).limit(limit)
     

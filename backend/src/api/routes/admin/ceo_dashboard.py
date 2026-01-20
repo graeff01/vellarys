@@ -140,12 +140,16 @@ async def get_ceo_metrics(
     # 1. MÉTRICAS BASE (Leads, Tenants, Msgs)
     # --------------------------------------------------------------------------
     
-    # Total de tenants
-    total_tenants_result = await db.execute(select(func.count(Tenant.id)))
+    # Total de tenants (excluindo admin)
+    total_tenants_result = await db.execute(
+        select(func.count(Tenant.id)).where(Tenant.slug != "velaris-admin")
+    )
     total_clients = total_tenants_result.scalar() or 0
     
     active_tenants_result = await db.execute(
-        select(func.count(Tenant.id)).where(Tenant.active == True)
+        select(func.count(Tenant.id)).where(
+            and_(Tenant.active == True, Tenant.slug != "velaris-admin")
+        )
     )
     active_clients = active_tenants_result.scalar() or 0
     inactive_clients = total_clients - active_clients
@@ -212,9 +216,10 @@ async def get_ceo_metrics(
     
     three_days_ago = now - timedelta(days=3)
     
-    # Busca tenant plans e status para cálculo financeiro
+    # Busca tenant plans e status para cálculo financeiro (excluindo admin)
     tenants_data_result = await db.execute(
         select(Tenant.id, Tenant.active, Tenant.plan)
+        .where(Tenant.slug != "velaris-admin")
     )
     tenants_data = tenants_data_result.all()
     
@@ -344,9 +349,9 @@ async def get_clients_health(
     month_ago = now - timedelta(days=30)
     three_days_ago = now - timedelta(days=3)
     
-    # Busca todos os tenants
+    # Busca todos os tenants (excluindo admin)
     tenants_result = await db.execute(
-        select(Tenant).order_by(Tenant.name)
+        select(Tenant).where(Tenant.slug != "velaris-admin").order_by(Tenant.name)
     )
     tenants = tenants_result.scalars().all()
     
@@ -465,9 +470,11 @@ async def get_alerts(
     
     alerts = []
     
-    # Busca tenants ativos
+    # Busca tenants ativos (excluindo admin)
     tenants_result = await db.execute(
-        select(Tenant).where(Tenant.active == True)
+        select(Tenant).where(
+            and_(Tenant.active == True, Tenant.slug != "velaris-admin")
+        )
     )
     tenants = tenants_result.scalars().all()
     
