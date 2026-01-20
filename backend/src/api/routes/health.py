@@ -269,9 +269,10 @@ async def health_check_detailed(db: AsyncSession = Depends(get_db)):
         
         # OpenAI
         try:
-            from src.infrastructure.services.openai_service import openai_client
-            if openai_client:
-                health_data["checks"]["openai"] = {"status": "configured"}
+            from src.infrastructure.llm import LLMFactory
+            provider = LLMFactory.get_provider()
+            if provider:
+                health_data["checks"]["openai"] = {"status": "configured", "model": settings.openai_model}
             else:
                 health_data["checks"]["openai"] = {"status": "not_configured"}
                 health_data["warnings"].append("OpenAI not configured")
