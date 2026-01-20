@@ -47,6 +47,7 @@ class AIContext:
     scope_description: str = ""
     out_of_scope_message: str = ""
     custom_prompt: Optional[str] = None
+    niche_template: Optional[str] = None
 
 
 @dataclass
@@ -161,7 +162,7 @@ def migrate_settings_if_needed(settings: dict) -> dict:
         return settings
 
 
-def extract_ai_context(tenant_name: str, settings: dict) -> AIContext:
+def extract_ai_context(tenant_name: str, settings: dict, niche_template: str = None) -> AIContext:
     """
     Extrai contexto completo para a IA a partir dos settings.
     """
@@ -207,6 +208,7 @@ def extract_ai_context(tenant_name: str, settings: dict) -> AIContext:
             scope_description=scope_description,
             out_of_scope_message=out_of_scope_message,
             custom_prompt=settings.get("custom_prompt"),
+            niche_template=niche_template,
         )
     except Exception as e:
         logger.error(f"Erro extraindo contexto IA: {e}")
@@ -406,6 +408,7 @@ def build_complete_prompt(
         lead_context=None,  # Já adicionamos separadamente
         identity=ai_context.identity,
         scope_config=ai_context.scope_config,
+        niche_template=ai_context.niche_template,
     )
     
     original_base_length = len(base_prompt)

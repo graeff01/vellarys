@@ -36,7 +36,7 @@ from src.infrastructure.services.property_lookup_service import (
 )
 
 from src.domain.entities import (
-    Tenant, Lead, Message, Channel, LeadEvent, Notification, Product
+    Tenant, Lead, Message, Channel, LeadEvent, Notification, Product, Niche
 )
 from src.domain.entities.enums import LeadStatus, EventType
 
@@ -1225,10 +1225,24 @@ async def process_message(
     # =========================================================================
     logger.info(f"🤖 Preparando contexto centralizado...")
     
-    from src.application.services.ai_context_builder import extract_ai_context, build_complete_prompt
+    # --- NOVO: Busca o Template do Nicho no Banco ---
+    niche_template = None
+    niche_slug = tenant.settings.get("basic", {}).get("niche") or tenant.settings.get("niche") or "services"
     
+    try:
+        from src.domain.entities import Niche
+        res_niche = await db.execute(select(Niche).where(Niche.slug == niche_slug))
+        niche_obj = res_niche.scalar_one_or_none()
+        if niche_obj:
+            niche_template = niche_obj.prompt_template
+            logger.info(f"✨ Template do nicho '{niche_slug}' carregado com sucesso.")
+        else:
+            logger.warning(f"⚠️ Nicho '{niche_slug}' não encontrado no banco. Usando fallback.")
+    except Exception as e:
+        logger.error(f"❌ Erro ao buscar nicho: {e}")
+
     # Prepara os contextos
-    ai_context = extract_ai_context(tenant.name, tenant.settings)
+    ai_context = extract_ai_context(tenant.name, tenant.settings, niche_template=niche_template)
     lead_ctx = lead_to_context(lead, message_count)
     prod_ctx = product_to_context(product_detected) if product_detected else None
     imovel_ctx = imovel_dict_to_context(imovel_portal) if imovel_portal else None

@@ -69,6 +69,7 @@ def build_system_prompt(
     lead_context: Optional[Any] = None,
     identity: Optional[Dict] = None,
     scope_config: Optional[Dict] = None,
+    niche_template: Optional[str] = None,
 ) -> str:
     """
     Constrói o prompt de sistema (base) para a IA.
@@ -100,17 +101,33 @@ def build_system_prompt(
     if identity and identity.get("required_questions"):
         questions_to_ask.extend(identity.get("required_questions"))
 
-    # 4. MONTAGEM DO PROMPT
-    prompt_lines = [
-        "# PERSONA",
-        "\n".join(persona_rules),
-        "",
-        "# REGRAS DE OURO",
-        "- NUNCA negocie descontos.",
-        "- NUNCA diga endereço exato do imóvel (se for imobiliário).",
-        "- SEJA DIRETO: No WhatsApp, menos é mais. Máximo 3 parágrafos.",
-        "- NÃO peça o telefone de volta (você já está no WhatsApp!).",
-    ]
+    # --- NOVO: Se houver um template de nicho, use-o como base! ---
+    if niche_template:
+        system_base = niche_template
+        # Injeta variáveis básicas no template ({{campo}})
+        replacements = {
+            "company_name": company_name,
+            "tone": tone,
+            "niche": niche_id,
+        }
+        for key, val in replacements.items():
+            placeholder = "{{" + key + "}}"
+            if placeholder in system_base:
+                system_base = system_base.replace(placeholder, str(val))
+        
+        prompt_lines = [system_base]
+    else:
+        # Fallback para o prompt hardcoded (legado)
+        prompt_lines = [
+            "# PERSONA",
+            "\n".join(persona_rules),
+            "",
+            "# REGRAS DE OURO",
+            "- NUNCA negocie descontos.",
+            "- NUNCA diga endereço exato do imóvel (se for imobiliário).",
+            "- SEJA DIRETO: No WhatsApp, menos é mais. Máximo 3 parágrafos.",
+            "- NÃO peça o telefone de volta (você já está no WhatsApp!).",
+        ]
 
     if business_rules:
         prompt_lines.append("\n# REGRAS ESPECÍFICAS")
