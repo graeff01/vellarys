@@ -40,6 +40,7 @@ def make_aware(dt: datetime) -> datetime:
     return dt
 
 
+
 # =============================================================================
 # SCHEMAS
 # =============================================================================
@@ -57,6 +58,22 @@ class TenantHealth(BaseModel):
     days_since_activity: int
     conversion_rate: float
     plan: Optional[str]
+
+
+class FinancialMetrics(BaseModel):
+    mrr_estimated: float
+    burn_rate_today: float
+    gross_margin_percent: float
+    projected_cost_monthly: float
+
+
+class InfraMetrics(BaseModel):
+    openai_latency_ms: int
+    db_latency_ms: int
+    active_workers: int
+    error_rate_percent: float
+    queue_size: int
+    status_global: str  # healthy, degraded, down
 
 
 class CEOMetrics(BaseModel):
@@ -80,6 +97,10 @@ class CEOMetrics(BaseModel):
     clients_healthy: int
     clients_warning: int
     clients_critical: int
+    
+    # God Mode Metrics
+    financial: FinancialMetrics
+    infra: InfraMetrics
 
 
 class Alert(BaseModel):
@@ -113,6 +134,11 @@ async def get_ceo_metrics(
     week_ago = now - timedelta(days=7)
     month_ago = now - timedelta(days=30)
     two_months_ago = now - timedelta(days=60)
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # --------------------------------------------------------------------------
+    # 1. MÉTRICAS BASE (Leads, Tenants, Msgs)
+    # --------------------------------------------------------------------------
     
     # Total de tenants
     total_tenants_result = await db.execute(select(func.count(Tenant.id)))
@@ -179,44 +205,111 @@ async def get_ceo_metrics(
         select(func.count(Lead.id)).where(Lead.status == "handed_off")
     )
     total_handoffs = handoffs_result.scalar() or 0
+
+    # --------------------------------------------------------------------------
+    # 2. SAÚDE DOS TENANTS
+    # --------------------------------------------------------------------------
     
-    # Contar clientes por saúde
     three_days_ago = now - timedelta(days=3)
     
-    # Busca última atividade de cada tenant
-    tenants_result = await db.execute(
-        select(Tenant.id, Tenant.active)
+    # Busca tenant plans e status para cálculo financeiro
+    tenants_data_result = await db.execute(
+        select(Tenant.id, Tenant.active, Tenant.plan)
     )
-    tenants = tenants_result.all()
+    tenants_data = tenants_data_result.all()
     
     clients_healthy = 0
     clients_warning = 0
     clients_critical = 0
     
-    for tenant_id, tenant_active in tenants:
-        if not tenant_active:
-            clients_critical += 1
-            continue
+    # Map para preços de plano (mockado por enquanto)
+    PLAN_PRICES = {
+        "starter": 297.00,
+        "pro": 497.00,
+        "enterprise": 997.00,
+        "custom": 1500.00
+    }
+    
+    estimated_mrr = 0.0
+    
+    # Verifica saúde e calcula MRR
+    for t_id, t_active, t_plan in tenants_data:
+        if t_active:
+            estimated_mrr += PLAN_PRICES.get(t_plan, 297.00)
             
-        # Busca última mensagem do tenant
-        last_msg_result = await db.execute(
-            select(func.max(Message.created_at))
-            .join(Lead, Message.lead_id == Lead.id)
-            .where(Lead.tenant_id == tenant_id)
-        )
-        last_activity = last_msg_result.scalar()
-        
-        if last_activity is None:
-            clients_critical += 1
-        else:
-            # Converte para timezone-aware se necessário
-            last_activity = make_aware(last_activity)
-            if last_activity >= three_days_ago:
-                clients_healthy += 1
-            elif last_activity >= week_ago:
-                clients_warning += 1
+            # Saúde do tenant
+            last_msg_result = await db.execute(
+                select(func.max(Message.created_at))
+                .join(Lead, Message.lead_id == Lead.id)
+                .where(Lead.tenant_id == t_id)
+            )
+            last_activity_val = last_msg_result.scalar()
+            
+            if last_activity_val:
+                last_activity_val = make_aware(last_activity_val)
+                if last_activity_val >= three_days_ago:
+                    clients_healthy += 1
+                elif last_activity_val >= week_ago:
+                    clients_warning += 1
+                else:
+                    clients_critical += 1
             else:
                 clients_critical += 1
+        else:
+            clients_critical += 1
+
+    # --------------------------------------------------------------------------
+    # 3. FINANCEIRO & INFRA (GOD MODE)
+    # --------------------------------------------------------------------------
+    
+    # BURN RATE (Calculado pelo uso de tokens hoje)
+    # Custo médio input/output gpt-4o-mini ~ USD 0.60 / 1M tokens => R$ 3.50 / 1M tokens
+    COST_PER_TOKEN_BRL = 0.0000035  
+    
+    tokens_today_result = await db.execute(
+        select(func.sum(Message.tokens_used)).where(Message.created_at >= start_of_day)
+    )
+    tokens_today = tokens_today_result.scalar() or 0
+    burn_rate_today = tokens_today * COST_PER_TOKEN_BRL
+    
+    # Projetado mensal (Burn Rate do dia * 30 + Custos Fixos de Servidor)
+    SERVER_COST = 350.00 # Railway + DB estimattiva
+    projected_cost = (burn_rate_today * 30) + SERVER_COST
+    
+    # Margem Bruta
+    gross_margin = 0.0
+    if estimated_mrr > 0:
+        gross_margin = ((estimated_mrr - projected_cost) / estimated_mrr) * 100
+
+    # LATÊNCIA DB (Ping real)
+    import time
+    start_time = time.time()
+    await db.execute(select(1))
+    db_latency = int((time.time() - start_time) * 1000)
+    
+    # Simulação de latência OpenAI (pegar média se tivesse log, por enquanto mock realista)
+    openai_latency = 1240  # 1.2s médio
+    
+    # Status Global
+    status_global = "healthy"
+    if db_latency > 200 or openai_latency > 4000:
+        status_global = "degraded"
+    
+    financial_metrics = FinancialMetrics(
+        mrr_estimated=round(estimated_mrr, 2),
+        burn_rate_today=round(burn_rate_today, 2),
+        gross_margin_percent=round(gross_margin, 1),
+        projected_cost_monthly=round(projected_cost, 2)
+    )
+    
+    infra_metrics = InfraMetrics(
+        openai_latency_ms=openai_latency,
+        db_latency_ms=db_latency,
+        active_workers=4, # Mock
+        error_rate_percent=0.2, # Mock
+        queue_size=12, # Mock
+        status_global=status_global
+    )
     
     return CEOMetrics(
         total_clients=total_clients,
@@ -233,6 +326,8 @@ async def get_ceo_metrics(
         clients_healthy=clients_healthy,
         clients_warning=clients_warning,
         clients_critical=clients_critical,
+        financial=financial_metrics,
+        infra=infra_metrics
     )
 
 
@@ -517,3 +612,24 @@ async def trigger_follow_up(
             "success": False,
             "error": str(e)
         }
+
+@router.post("/kill-switch")
+async def kill_switch_system(
+    enable: bool,
+    current_user: User = Depends(get_current_superadmin)
+):
+    """
+    [GOD MODE] Pausa o processamento de mensagens em todo o sistema.
+    """
+    # TO-DO: Implementar integração com Redis para setar flag de pausa global
+    # await redis.set("system:kill_switch", "true" if enable else "false")
+    return {"status": "success", "system_paused": enable, "message": "Kill switch logic to be implemented with Redis"}
+
+@router.post("/force-restart-workers")
+async def force_restart_workers(
+    current_user: User = Depends(get_current_superadmin)
+):
+    """
+    [GOD MODE] Força o reinício dos workers (simulado).
+    """
+    return {"status": "success", "message": "Signal sent to restart workers (simulated)"}

@@ -28,6 +28,27 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1
 // TIPOS
 // =============================================================================
 
+
+// =============================================================================
+// TIPOS
+// =============================================================================
+
+interface FinancialMetrics {
+  mrr_estimated: number;
+  burn_rate_today: number;
+  gross_margin_percent: number;
+  projected_cost_monthly: number;
+}
+
+interface InfraMetrics {
+  openai_latency_ms: number;
+  db_latency_ms: number;
+  active_workers: number;
+  error_rate_percent: number;
+  queue_size: number;
+  status_global: 'healthy' | 'degraded' | 'down';
+}
+
 interface CEOMetrics {
   total_clients: number;
   active_clients: number;
@@ -43,6 +64,8 @@ interface CEOMetrics {
   clients_healthy: number;
   clients_warning: number;
   clients_critical: number;
+  financial: FinancialMetrics;
+  infra: InfraMetrics;
 }
 
 interface TenantHealth {
@@ -182,7 +205,7 @@ export function CEODashboard() {
 
   async function handleTriggerFollowUp() {
     if (triggeringFollowUp) return;
-    
+
     setTriggeringFollowUp(true);
     try {
       const result = await triggerFollowUp();
@@ -212,26 +235,122 @@ export function CEODashboard() {
   const maxLeads = Math.max(...growth.map(g => g.leads), 1);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-700">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Dashboard Executivo</h1>
-          <p className="text-gray-500">Visão geral do seu negócio SaaS</p>
+          <p className="text-gray-500">Visão geral e controle total do negócio (God Mode)</p>
         </div>
         <button
           onClick={loadData}
-          className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200"
         >
           <RefreshCw className="w-4 h-4" />
           Atualizar
         </button>
       </div>
 
-      {/* Cards Principais */}
+      {/* GOD MODE: HEAD-UP DISPLAY (Financeiro & Infra) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* MRR Card */}
+        <Card className="p-6 border-l-4 border-l-emerald-500 shadow-md">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-emerald-100 rounded-lg">
+                <Target className="w-5 h-5 text-emerald-600" />
+              </div>
+              <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">MRR Estimado</span>
+            </div>
+          </div>
+          <p className="text-3xl font-black text-gray-900">
+            R$ {metrics?.financial?.mrr_estimated?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
+          </p>
+          <div className="mt-2 text-xs flex items-center justify-between">
+            <span className="text-gray-500">Renda Mensal Recorrente</span>
+            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-bold">
+              {metrics?.financial?.gross_margin_percent || 0}% Margem
+            </span>
+          </div>
+        </Card>
+
+        {/* Burn Rate Card */}
+        <Card className="p-6 border-l-4 border-l-orange-500 shadow-md">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <Zap className="w-5 h-5 text-orange-600" />
+              </div>
+              <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">Burn Rate (Hoje)</span>
+            </div>
+          </div>
+          <p className="text-3xl font-black text-gray-900">
+            R$ {metrics?.financial?.burn_rate_today?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
+          </p>
+          <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
+            <span>Custo projetado mês:</span>
+            <span className="font-bold text-gray-700">R$ {metrics?.financial?.projected_cost_monthly.toFixed(2)}</span>
+          </div>
+        </Card>
+
+        {/* Infra Status Card */}
+        <Card className="p-6 border-l-4 border-l-blue-500 shadow-md">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Activity className="w-5 h-5 text-blue-600" />
+              </div>
+              <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">Infra Status</span>
+            </div>
+            <div className={`w-3 h-3 rounded-full animate-pulse ${metrics?.infra?.status_global === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`} />
+          </div>
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <div>
+              <p className="text-xs text-gray-500 uppercase font-bold">Latency DB</p>
+              <p className="text-lg font-mono font-bold text-gray-800">{metrics?.infra?.db_latency_ms || 0}ms</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 uppercase font-bold">OpenAI</p>
+              <p className="text-lg font-mono font-bold text-gray-800">{metrics?.infra?.openai_latency_ms || 0}ms</p>
+            </div>
+          </div>
+        </Card>
+
+        {/* God Actions */}
+        <Card className="p-6 border-l-4 border-l-purple-600 shadow-md bg-purple-50">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-purple-200 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-purple-700" />
+              </div>
+              <span className="text-sm font-bold text-purple-800 uppercase tracking-wider">Controle</span>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => alert("Kill switch simulated")}
+              className="flex-1 px-3 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition shadow-sm"
+              title="Pausar todas as IAs"
+            >
+              KILL SWITCH
+            </button>
+            <button
+              onClick={() => alert("Restart simulated")}
+              className="flex-1 px-3 py-2 bg-white text-purple-700 border border-purple-200 text-xs font-bold rounded-lg hover:bg-purple-100 transition shadow-sm"
+              title="Reiniciar Workers"
+            >
+              RESTART
+            </button>
+          </div>
+        </Card>
+      </div>
+
+      <div className="h-px bg-gray-200"></div>
+
+      {/* Cards KPI Operacionais */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Clientes */}
-        <Card className="p-6">
+        <Card className="p-6 hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-purple-100 rounded-xl">
               <Building2 className="w-6 h-6 text-purple-600" />
@@ -246,21 +365,21 @@ export function CEODashboard() {
           <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-              {metrics?.clients_healthy || 0} saudáveis
+              {metrics?.clients_healthy || 0}
             </span>
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
-              {metrics?.clients_warning || 0} atenção
+              {metrics?.clients_warning || 0}
             </span>
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-              {metrics?.clients_critical || 0} críticos
+              {metrics?.clients_critical || 0}
             </span>
           </div>
         </Card>
 
         {/* Leads */}
-        <Card className="p-6">
+        <Card className="p-6 hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-blue-100 rounded-xl">
               <Users className="w-6 h-6 text-blue-600" />
@@ -280,13 +399,12 @@ export function CEODashboard() {
           <h3 className="text-sm font-medium text-gray-500">Total de Leads</h3>
           <p className="text-3xl font-bold text-gray-900">{metrics?.total_leads?.toLocaleString() || 0}</p>
           <div className="mt-2 text-xs text-gray-500">
-            <span className="text-blue-600 font-medium">{metrics?.leads_this_week || 0}</span> esta semana •{' '}
-            <span className="text-blue-600 font-medium">{metrics?.leads_this_month || 0}</span> este mês
+            <span className="text-blue-600 font-medium">{metrics?.leads_this_week || 0}</span> esta semana
           </div>
         </Card>
 
         {/* Mensagens */}
-        <Card className="p-6">
+        <Card className="p-6 hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-green-100 rounded-xl">
               <MessageSquare className="w-6 h-6 text-green-600" />
@@ -300,16 +418,16 @@ export function CEODashboard() {
         </Card>
 
         {/* Conversão */}
-        <Card className="p-6">
+        <Card className="p-6 hover:shadow-lg transition-shadow">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-orange-100 rounded-xl">
               <Target className="w-6 h-6 text-orange-600" />
             </div>
           </div>
-          <h3 className="text-sm font-medium text-gray-500">Taxa de Conversão Média</h3>
+          <h3 className="text-sm font-medium text-gray-500">Taxa de Conversão</h3>
           <p className="text-3xl font-bold text-orange-600">{metrics?.avg_conversion_rate || 0}%</p>
           <div className="mt-2 text-xs text-gray-500">
-            <span className="text-orange-600 font-medium">{metrics?.total_handoffs || 0}</span> handoffs realizados
+            <span className="text-orange-600 font-medium">{metrics?.total_handoffs || 0}</span> handoffs
           </div>
         </Card>
       </div>
@@ -338,18 +456,17 @@ export function CEODashboard() {
                 className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
               >
                 <div className="flex items-center gap-4">
-                  <div className={`w-3 h-3 rounded-full ${
-                    client.status === 'healthy' ? 'bg-green-500' :
-                    client.status === 'warning' ? 'bg-yellow-500' :
-                    client.status === 'critical' ? 'bg-red-500' :
-                    'bg-gray-400'
-                  }`} />
+                  <div className={`w-3 h-3 rounded-full ${client.status === 'healthy' ? 'bg-green-500' :
+                      client.status === 'warning' ? 'bg-yellow-500' :
+                        client.status === 'critical' ? 'bg-red-500' :
+                          'bg-gray-400'
+                    }`} />
                   <div>
                     <p className="font-medium text-gray-900">{client.name}</p>
                     <p className="text-xs text-gray-500">
-                      {client.days_since_activity === 999 
-                        ? 'Nunca ativo' 
-                        : client.days_since_activity === 0 
+                      {client.days_since_activity === 999
+                        ? 'Nunca ativo'
+                        : client.days_since_activity === 0
                           ? 'Ativo hoje'
                           : `Há ${client.days_since_activity} dias`
                       }
@@ -366,17 +483,16 @@ export function CEODashboard() {
                     <p className="text-xs text-gray-500">semana</p>
                   </div>
                   <div className="text-center">
-                    <p className={`font-semibold ${
-                      client.conversion_rate >= 30 ? 'text-green-600' :
-                      client.conversion_rate >= 15 ? 'text-yellow-600' :
-                      'text-gray-600'
-                    }`}>{client.conversion_rate}%</p>
+                    <p className={`font-semibold ${client.conversion_rate >= 30 ? 'text-green-600' :
+                        client.conversion_rate >= 15 ? 'text-yellow-600' :
+                          'text-gray-600'
+                      }`}>{client.conversion_rate}%</p>
                     <p className="text-xs text-gray-500">conversão</p>
                   </div>
                 </div>
               </div>
             ))}
-            
+
             {clients.length === 0 && (
               <div className="text-center py-8 text-gray-500">
                 Nenhum cliente cadastrado ainda
@@ -388,22 +504,21 @@ export function CEODashboard() {
         {/* Ações Rápidas */}
         <Card className="p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-6">Ações Rápidas</h2>
-          
+
           <div className="space-y-4">
             {/* Status do Scheduler */}
             <div className="p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-700">Scheduler</span>
-                <span className={`flex items-center gap-1 text-xs font-medium ${
-                  scheduler?.running ? 'text-green-600' : 'text-red-600'
-                }`}>
+                <span className={`flex items-center gap-1 text-xs font-medium ${scheduler?.running ? 'text-green-600' : 'text-red-600'
+                  }`}>
                   <Activity className="w-3 h-3" />
                   {scheduler?.running ? 'Ativo' : 'Inativo'}
                 </span>
               </div>
               {scheduler?.jobs?.follow_up_job && (
                 <p className="text-xs text-gray-500">
-                  Último run: {scheduler.jobs.follow_up_job.last_run 
+                  Último run: {scheduler.jobs.follow_up_job.last_run
                     ? new Date(scheduler.jobs.follow_up_job.last_run).toLocaleString('pt-BR')
                     : 'Nunca executou'
                   }
@@ -464,13 +579,13 @@ export function CEODashboard() {
         <Card className="p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-2">Crescimento Semanal</h2>
           <p className="text-sm text-gray-500 mb-6">Leads captados por semana (todos os clientes)</p>
-          
+
           <div className="h-48 flex items-end justify-between gap-2">
             {growth.map((week, index) => (
               <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                <div 
+                <div
                   className="w-full bg-purple-500 rounded-t transition-all hover:bg-purple-600"
-                  style={{ 
+                  style={{
                     height: `${(week.leads / maxLeads) * 100}%`,
                     minHeight: week.leads > 0 ? '8px' : '2px'
                   }}
@@ -480,7 +595,7 @@ export function CEODashboard() {
               </div>
             ))}
           </div>
-          
+
           <div className="mt-4 pt-4 border-t flex items-center justify-between text-sm">
             <span className="text-gray-500">Total no período</span>
             <span className="font-semibold text-purple-600">
@@ -507,13 +622,12 @@ export function CEODashboard() {
             {alerts.map((alert, index) => (
               <div
                 key={index}
-                className={`p-4 rounded-lg border-l-4 ${
-                  alert.type === 'critical' 
-                    ? 'bg-red-50 border-red-500' 
+                className={`p-4 rounded-lg border-l-4 ${alert.type === 'critical'
+                    ? 'bg-red-50 border-red-500'
                     : alert.type === 'warning'
                       ? 'bg-yellow-50 border-yellow-500'
                       : 'bg-blue-50 border-blue-500'
-                }`}
+                  }`}
               >
                 <div className="flex items-start gap-3">
                   {alert.type === 'critical' ? (
@@ -530,7 +644,7 @@ export function CEODashboard() {
                 </div>
               </div>
             ))}
-            
+
             {alerts.length === 0 && (
               <div className="text-center py-8">
                 <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
