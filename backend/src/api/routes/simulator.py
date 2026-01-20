@@ -203,24 +203,26 @@ def detect_imovel_portal_for_simulator(
 @router.post("/chat", response_model=SimulatorChatResponse)
 async def simulator_chat(
     payload: SimulatorChatRequest,
+    target_tenant_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Simula uma conversa com a IA usando as configurações do tenant.
     
-    IMPORTANTE: Usa EXATAMENTE a mesma lógica de construção de prompt
-    que o process_message em produção. Isso garante que o teste seja
-    fiel ao comportamento real.
-    
-    Não cria leads nem salva mensagens - apenas para teste.
+    Superadmin pode passar target_tenant_id para gerenciar outro cliente.
     """
     
-    # =========================================================================
     # 1. BUSCA TENANT
-    # =========================================================================
+    active_tenant_id = current_user.tenant_id
+    
+    # Se for superadmin e tiver target_tenant_id, troca o tenant de contexto
+    if target_tenant_id and current_user.role == "superadmin":
+        active_tenant_id = target_tenant_id
+        logger.info(f"Superadmin {current_user.email} simulando para tenant_id {target_tenant_id}")
+
     tenant_result = await db.execute(
-        select(Tenant).where(Tenant.id == current_user.tenant_id)
+        select(Tenant).where(Tenant.id == active_tenant_id)
     )
     tenant = tenant_result.scalar_one_or_none()
     
@@ -395,6 +397,7 @@ async def simulator_chat(
 
 @router.get("/debug-settings", response_model=SimulatorDebugResponse)
 async def debug_settings(
+    target_tenant_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -403,8 +406,12 @@ async def debug_settings(
     
     Mostra exatamente o que será usado para construir o prompt.
     """
+    active_tenant_id = current_user.tenant_id
+    if target_tenant_id and current_user.role == "superadmin":
+        active_tenant_id = target_tenant_id
+
     tenant_result = await db.execute(
-        select(Tenant).where(Tenant.id == current_user.tenant_id)
+        select(Tenant).where(Tenant.id == active_tenant_id)
     )
     tenant = tenant_result.scalar_one_or_none()
     
@@ -469,17 +476,20 @@ async def debug_settings(
 
 @router.get("/suggestions")
 async def get_simulator_suggestions(
+    target_tenant_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Retorna sugestões de mensagens para testar o simulador.
-    
-    Inclui sugestões específicas baseadas no nicho do tenant.
     """
     # Busca tenant para personalizar sugestões
+    active_tenant_id = current_user.tenant_id
+    if target_tenant_id and current_user.role == "superadmin":
+        active_tenant_id = target_tenant_id
+
     tenant_result = await db.execute(
-        select(Tenant).where(Tenant.id == current_user.tenant_id)
+        select(Tenant).where(Tenant.id == active_tenant_id)
     )
     tenant = tenant_result.scalar_one_or_none()
     

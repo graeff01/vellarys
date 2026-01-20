@@ -18,7 +18,8 @@ import {
   Key,
   Edit,
   Smartphone,
-  Bot
+  Bot,
+  Sparkles
 } from 'lucide-react';
 import { getToken, getUser } from '@/lib/auth';
 
@@ -626,6 +627,13 @@ export default function ClientsPage() {
                         title="Configurar IA"
                       >
                         <Bot className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => router.push(`/dashboard/simulator?target_tenant_id=${tenant.id}`)}
+                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Simular IA (Venda Live)"
+                      >
+                        <Sparkles className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => toggleTenant(tenant)}
