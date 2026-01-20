@@ -18,6 +18,7 @@ from .dialog360_webhook import router as dialog360_webhook_router
 from .products import router as products_router
 from .handoff_routes import router as handoff_router  # ← NOVO
 from src.api.routes.health import router as health_router  # ← ADICIONADO
+from .data_sources import router as data_sources_router  # ← DATA SOURCES
 
 # Admin routes
 from .admin import (
@@ -48,7 +49,8 @@ __all__ = [
     "simulator_router",
     "products_router",
     "handoff_router",
-    "health_router",  # ← ADICIONE ESTA LINHA
+    "health_router",
+    "data_sources_router",
     # Admin
     "admin_dashboard_router",
     "admin_tenants_router",

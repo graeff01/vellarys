@@ -440,7 +440,7 @@ async def detect_property_context(
     if codigo_na_mensagem:
         if codigo_na_mensagem != codigo_salvo:
             logger.info(f"🆕 Novo código: {codigo_na_mensagem}")
-            imovel_portal = buscar_imovel_na_mensagem(content)
+            imovel_portal = await buscar_imovel_na_mensagem(content, db=db, tenant_id=lead.tenant_id)
             
             # 🛡️ SANITIZA DADOS DO PORTAL!
             if imovel_portal:
@@ -924,13 +924,13 @@ async def process_message(
     if imovel_portal:
         logger.info(f"🏠 Imóvel portal: {imovel_portal.get('codigo')}")
     else:
-        # 1. Tenta por critérios (bairro, preço, quartos)
-        imoveis_sugeridos = buscar_imoveis_por_criterios(content)
+        # 1. Tira por critérios (bairro, preço, quartos)
+        imoveis_sugeridos = await buscar_imoveis_por_criterios(content, db=db, tenant_id=tenant.id)
         
         # 2. SE não achou por critérios, TENTA BUSCA SEMÂNTICA (RAG)
         if not imoveis_sugeridos and len(content.strip()) > 10:
             logger.info("🧠 Critérios não retornaram nada. Iniciando busca semântica...")
-            imoveis_sugeridos = await buscar_imoveis_semantico(content)
+            imoveis_sugeridos = await buscar_imoveis_semantico(content, db=db, tenant_id=tenant.id)
             
         if imoveis_sugeridos:
             logger.info(f"🔎 Encontrados {len(imoveis_sugeridos)} imóveis para sugestão")

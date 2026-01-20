@@ -2,6 +2,7 @@
 
 // Adicionar esses imports
 import ProductsTab from '@/components/dashboard/ProductsTab';
+import DataSourcesTab from '@/components/dashboard/DataSourcesTab';
 import { getSellers } from '@/lib/sellers';
 import { getToken } from '@/lib/auth';
 import { useEffect, useState, useCallback } from 'react';
@@ -20,7 +21,7 @@ import {
   Save, X, Phone,
   Shield, CheckCircle2, ChevronDown,
   Trash2, Package, Library, Sparkles,
-  Bell, Target, Zap, Brain, Clock, Rocket
+  Bell, Target, Zap, Brain, Clock, Rocket, Database
 } from 'lucide-react';
 
 // Adicionar esses imports
@@ -551,7 +552,8 @@ export default function SettingsPage() {
     { id: 'perfil', label: 'Perfil da IA', icon: Sparkles },
     { id: 'atendimento', label: 'Fluxo Comercial', icon: Phone },
     { id: 'conhecimento', label: 'Conhecimento', icon: Library },
-    { id: 'avancado', label: 'Avançado', icon: Shield },
+    { id: 'avancado', label: 'Avancado', icon: Shield },
+    { id: 'datasources', label: 'Fontes de Dados', icon: Database },
   ];
 
   async function handleEnableNotifications() {
@@ -590,7 +592,7 @@ export default function SettingsPage() {
         </div>
 
 
-        {activeTab !== 'products' && (
+        {activeTab !== 'products' && activeTab !== 'datasources' && (
           <button onClick={handleSave} disabled={saving} className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50">
             {saving ? <><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>Salvando...</> : <><Save className="w-5 h-5" />Salvar</>}
           </button>
@@ -922,10 +924,15 @@ export default function SettingsPage() {
       {activeTab === 'products' && (
         <div className="space-y-4">
           <button onClick={() => setActiveTab('conhecimento')} className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium">
-            <ChevronDown className="w-4 h-4 rotate-90" /> Voltar para Configurações
+            <ChevronDown className="w-4 h-4 rotate-90" /> Voltar para Configuracoes
           </button>
           <ProductsTab sellers={sellers} />
         </div>
+      )}
+
+      {/* TAB: FONTES DE DADOS */}
+      {activeTab === 'datasources' && (
+        <DataSourcesTab />
       )}
     </div>
   );

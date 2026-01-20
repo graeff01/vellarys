@@ -22,6 +22,7 @@ from .enums import LeadStatus, LeadQualification, LeadSource, UserRole
 if TYPE_CHECKING:
     from .tenant_subscription import TenantSubscription
     from .tenant_usage import TenantUsage
+    from .data_source import DataSource
 
 
 # ============================================
@@ -72,11 +73,17 @@ class Tenant(Base, TimestampMixin):
 
     # Relacionamentos de assinatura e uso
     subscription: Mapped[Optional["TenantSubscription"]] = relationship(
-        back_populates="tenant", 
+        back_populates="tenant",
         uselist=False,
         cascade="all, delete-orphan"
     )
     usage_records: Mapped[list["TenantUsage"]] = relationship(
+        back_populates="tenant",
+        cascade="all, delete-orphan"
+    )
+
+    # Fontes de dados configuráveis
+    data_sources: Mapped[list["DataSource"]] = relationship(
         back_populates="tenant",
         cascade="all, delete-orphan"
     )

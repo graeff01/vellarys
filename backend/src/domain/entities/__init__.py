@@ -35,6 +35,7 @@ from .push_subscription import PushSubscription
 from .refresh_token import RefreshToken
 from .password_reset_token import PasswordResetToken
 from .message_template import MessageTemplate
+from .data_source import DataSource, DataSourceType
 
 __all__ = [
     # Base
@@ -78,4 +79,7 @@ __all__ = [
     "PasswordResetToken",
     # Templates
     "MessageTemplate",
+    # Data Sources
+    "DataSource",
+    "DataSourceType",
 ]
