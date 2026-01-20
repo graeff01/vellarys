@@ -30,7 +30,6 @@ const gestorMenuItems = [
   { href: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard },
   { href: '/dashboard/leads', label: 'Leads', icon: Users },
   { href: '/dashboard/sellers', label: 'Vendedores', icon: UserCheck },
-  { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot },
   { href: '/dashboard/export', label: 'Relatórios', icon: FileDown },
 ];
 
