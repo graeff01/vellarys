@@ -39,7 +39,6 @@ const superadminMenuItems = [
   { href: '/dashboard/clients', label: 'Clientes', icon: Building2 },
   { href: '/dashboard/plans', label: 'Planos', icon: CreditCard },
   { href: '/dashboard/niches', label: 'Nichos', icon: Layers },
-  { href: '/dashboard/datasources', label: 'Fontes de Dados', icon: Database },
   { href: '/dashboard/settings', label: 'Configurações', icon: Settings },
   { href: '/dashboard/export', label: 'Relatórios', icon: FileDown },
   { href: '/dashboard/logs', label: 'Logs', icon: ScrollText },

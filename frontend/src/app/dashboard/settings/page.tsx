@@ -22,7 +22,7 @@ import {
   Save, X, Phone,
   Shield, CheckCircle2, ChevronDown,
   Trash2, Package, Library, Sparkles,
-  Bell, Target, Zap, Brain, Clock, Rocket, Database
+  Bell, Target, Zap, Brain, Clock, Rocket, Database, Bot, Users
 } from 'lucide-react';
 
 // Adicionar esses imports
@@ -39,7 +39,7 @@ import {
   savePushSubscription,
 } from '@/lib/api';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/v1$/, '');
 
 interface TagInputProps {
   tags: string[];
@@ -131,6 +131,8 @@ function SettingsContent() {
   const [success, setSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState('perfil');
   const [targetTenantId, setTargetTenantId] = useState<number | null>(null);
+  const [availableTenants, setAvailableTenants] = useState<any[]>([]);
+  const [showTenantSelector, setShowTenantSelector] = useState(false);
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -299,7 +301,7 @@ function SettingsContent() {
     try {
       const token = getToken();
       // ⭐ MUDANÇA PRINCIPAL: Usa /tenants/niches ao invés de /admin/niches
-      const response = await fetch(`${API_URL}/tenants/niches`, {
+      const response = await fetch(`${API_URL}/v1/tenants/niches`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (response.ok) {
@@ -318,6 +320,28 @@ function SettingsContent() {
     }
   }
 
+  // BUSCAR TENANTS (Para SuperAdmin)
+  const fetchTenants = useCallback(async () => {
+    try {
+      const token = getToken();
+      const response = await fetch(`${API_URL}/v1/admin/tenants`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAvailableTenants(data.tenants || []);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar clientes:', error);
+    }
+  }, []);
+
+  const handleTenantChange = (id: number) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('target_tenant_id', id.toString());
+    window.location.href = url.pathname + url.search;
+  };
+
   // LOAD
   useEffect(() => {
     async function loadSettings() {
@@ -327,7 +351,12 @@ function SettingsContent() {
 
         // Verifica se é superadmin (usando a flag explícita do backend ou o role)
         const user = getUser();
-        setIsSuperAdmin(!!user?.is_superadmin || user?.role === 'superadmin');
+        const superPowa = !!user?.is_superadmin || user?.role === 'superadmin';
+        setIsSuperAdmin(superPowa);
+
+        if (superPowa) {
+          fetchTenants();
+        }
 
         // Se tiver targetTenantId mas não for superadmin, remove
         if (targetTenantId && user?.role !== 'superadmin') {
@@ -614,19 +643,80 @@ function SettingsContent() {
   }
 
 
+
   return (
     <div className="space-y-6">
-      {/* Alerta de Gerenciamento de Terceiros */}
-      {targetTenantId && data && (
-        <div className="mb-6 bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-center justify-between">
+      {/* Seletor de Cliente (Apenas SuperAdmin) */}
+      {isSuperAdmin && (
+        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between group">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-              <Bot className="w-5 h-5 text-purple-600" />
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+              <Users className="w-5 h-5" />
             </div>
             <div>
-              <p className="font-semibold text-purple-900">Modo Admin Master</p>
-              <p className="text-sm text-purple-700">
-                Você está configurando a IA do cliente: <span className="font-bold">{data.tenant.name}</span>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Configurar Cliente</p>
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-gray-900">
+                  {targetTenantId ? (availableTenants.find(t => t.id === targetTenantId)?.name || `ID: ${targetTenantId}`) : 'Meu Próprio Perfil'}
+                </h3>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={() => setShowTenantSelector(!showTenantSelector)}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors border border-gray-100"
+            >
+              Trocar Cliente
+              <ChevronDown className={`w-4 h-4 transition-transform ${showTenantSelector ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showTenantSelector && (
+              <div className="absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-2 animate-in fade-in slide-in-from-top-2">
+                <div className="px-3 pb-2 mb-2 border-b border-gray-100">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">Selecione para configurar</p>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  <button
+                    onClick={() => {
+                      const url = new URL(window.location.href);
+                      url.searchParams.delete('target_tenant_id');
+                      window.location.href = url.pathname + url.search;
+                    }}
+                    className={`w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center justify-between ${!targetTenantId ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-700'}`}
+                  >
+                    Meu Próprio Perfil
+                    {!targetTenantId && <CheckCircle2 className="w-4 h-4" />}
+                  </button>
+                  {availableTenants.map((tenant) => (
+                    <button
+                      key={tenant.id}
+                      onClick={() => handleTenantChange(tenant.id)}
+                      className={`w-full text-left px-4 py-2 text-sm hover:bg-blue-50 flex items-center justify-between ${targetTenantId === tenant.id ? 'bg-blue-50 text-blue-700 font-bold' : 'text-gray-700'}`}
+                    >
+                      {tenant.name}
+                      {targetTenantId === tenant.id && <CheckCircle2 className="w-4 h-4" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Alerta de Gerenciamento de Terceiros */}
+      {targetTenantId && data && (
+        <div className="bg-purple-600 text-white rounded-xl p-4 flex items-center justify-between shadow-lg shadow-purple-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+              <Bot className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="font-bold">Modo Admin Master Ativo</p>
+              <p className="text-sm text-purple-100">
+                Alterando configurações para <span className="underline">{data.tenant.name}</span>
               </p>
             </div>
           </div>
@@ -636,9 +726,9 @@ function SettingsContent() {
               url.searchParams.delete('target_tenant_id');
               window.location.href = url.pathname + url.search;
             }}
-            className="text-sm font-medium text-purple-600 hover:text-purple-800"
+            className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors"
           >
-            Sair do modo edição
+            Encerrar Edição
           </button>
         </div>
       )}
@@ -993,7 +1083,7 @@ function SettingsContent() {
 
       {/* TAB: FONTES DE DADOS */}
       {activeTab === 'datasources' && (
-        <DataSourcesTab />
+        <DataSourcesTab targetTenantId={targetTenantId} />
       )}
     </div>
   );

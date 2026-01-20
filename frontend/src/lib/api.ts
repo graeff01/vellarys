@@ -1,7 +1,7 @@
 import { getToken, getUser } from './auth';
 
 // ✅ CORREÇÃO 1: Remover /v1 da base URL
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/v1$/, '');
 
 // ✅ RESTAURAR: Função getTenantSlug (removida por engano pelo Jules)
 function getTenantSlug(): string {
@@ -46,12 +46,12 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
 
 // ✅ CORREÇÃO 2 e 3: Endpoint correto + sem tenant_slug (usa token)
 export async function getMetrics() {
-  return request('/dashboard/metrics');  // ✅ Token já tem tenant_id!
+  return request('/v1/dashboard/metrics');  // ✅ Token já tem tenant_id!
 }
 
 // ✅ CORREÇÃO 4: Atualizar também leads-by-day
 export async function getLeadsByDay(days: number = 7) {
-  return request<any[]>(`/dashboard/leads-by-day?days=${days}`);  // ✅ Sem tenant_slug
+  return request<any[]>(`/v1/dashboard/leads-by-day?days=${days}`);  // ✅ Sem tenant_slug
 }
 
 // === LEADS ===
@@ -69,22 +69,22 @@ export async function getLeads(params?: {
   if (params?.search) searchParams.set('search', params.search);
 
   const queryString = searchParams.toString();
-  return request(`/leads${queryString ? `?${queryString}` : ''}`);
+  return request(`/v1/leads${queryString ? `?${queryString}` : ''}`);
 }
 
 export async function getLead(id: number) {
   const slug = getTenantSlug();
-  return request(`/leads/${id}?tenant_slug=${slug}`);
+  return request(`/v1/leads/${id}?tenant_slug=${slug}`);
 }
 
 export async function getLeadMessages(id: number) {
   const slug = getTenantSlug();
-  return request(`/leads/${id}/messages?tenant_slug=${slug}`);
+  return request(`/v1/leads/${id}/messages?tenant_slug=${slug}`);
 }
 
 export async function updateLead(id: number, data: Record<string, unknown>) {
   const slug = getTenantSlug();
-  return request(`/leads/${id}?tenant_slug=${slug}`, {
+  return request(`/v1/leads/${id}?tenant_slug=${slug}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
@@ -92,7 +92,7 @@ export async function updateLead(id: number, data: Record<string, unknown>) {
 
 // NOVA FUNÇÃO — ATRIBUIÇÃO MANUAL DE VENDEDOR
 export async function assignLeadToSeller(leadId: number, sellerId: number) {
-  return request(`/${leadId}/assign`, {
+  return request(`/v1/${leadId}/assign`, {
     method: 'POST',
     body: JSON.stringify({ seller_id: sellerId }),
   });
@@ -100,7 +100,7 @@ export async function assignLeadToSeller(leadId: number, sellerId: number) {
 
 // Função para remover atribuição (caso precise no futuro)
 export async function unassignLeadFromSeller(leadId: number) {
-  return request(`/${leadId}/assign-seller`, {
+  return request(`/v1/${leadId}/assign-seller`, {
     method: 'DELETE',
   });
 }
@@ -108,11 +108,11 @@ export async function unassignLeadFromSeller(leadId: number) {
 // === TENANTS ===
 export async function getTenant() {
   const slug = getTenantSlug();
-  return request(`/tenants/${slug}`);
+  return request(`/v1/tenants/${slug}`);
 }
 
 export async function getNiches() {
-  return request('/tenants/niches');
+  return request('/v1/tenants/niches');
 }
 
 // === PRODUCTS (Genérico) ===
@@ -165,12 +165,12 @@ export type EmpreendimentoCreate = ProductCreate;
 
 // Verifica se tenant tem acesso a produtos
 export async function checkProductsAccess(): Promise<{ has_access: boolean; niche: string }> {
-  return request('/products/check-access');
+  return request('/v1/products/check-access');
 }
 
 // Estatísticas dos produtos
 export async function getProductsStats() {
-  return request('/products/stats');
+  return request('/v1/products/stats');
 }
 
 // Lista produtos
@@ -186,17 +186,17 @@ export async function getProducts(params?: {
   if (params?.search) searchParams.set('search', params.search);
 
   const query = searchParams.toString();
-  return request(`/products${query ? `?${query}` : ''}`);
+  return request(`/v1/products${query ? `?${query}` : ''}`);
 }
 
 // Busca produto por ID
 export async function getProduct(id: number): Promise<Product> {
-  return request(`/products/${id}`);
+  return request(`/v1/products/${id}`);
 }
 
 // Cria produto
 export async function createProduct(data: ProductCreate) {
-  return request('/products', {
+  return request('/v1/products', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -204,7 +204,7 @@ export async function createProduct(data: ProductCreate) {
 
 // Atualiza produto
 export async function updateProduct(id: number, data: Partial<ProductCreate>) {
-  return request(`/products/${id}`, {
+  return request(`/v1/products/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
@@ -212,21 +212,21 @@ export async function updateProduct(id: number, data: Partial<ProductCreate>) {
 
 // Remove produto
 export async function deleteProduct(id: number) {
-  return request(`/products/${id}`, {
+  return request(`/v1/products/${id}`, {
     method: 'DELETE',
   });
 }
 
 // Ativa/desativa produto
 export async function toggleProductStatus(id: number) {
-  return request(`/products/${id}/toggle-status`, {
+  return request(`/v1/products/${id}/toggle-status`, {
     method: 'POST',
   });
 }
 
 // Testa detecção de gatilhos (debug)
 export async function detectProduct(message: string) {
-  return request(`/products/detect?message=${encodeURIComponent(message)}`, {
+  return request(`/v1/products/detect?message=${encodeURIComponent(message)}`, {
     method: 'POST',
   });
 }
@@ -245,12 +245,12 @@ export const toggleEmpreendimentoStatus = toggleProductStatus;
 // Busca eventos/timeline do lead
 export async function getLeadEvents(leadId: number) {
   const slug = getTenantSlug();
-  return request(`/leads/${leadId}/events?tenant_slug=${slug}`);
+  return request(`/v1/leads/${leadId}/events?tenant_slug=${slug}`);
 }
 
 // Atribui vendedor ao lead (COM NOTIFICAÇÃO AUTOMÁTICA!)
 export async function assignSellerToLead(leadId: number, sellerId: number, reason?: string) {
-  return request(`/leads/${leadId}/assign-seller`, {
+  return request(`/v1/leads/${leadId}/assign-seller`, {
     method: 'POST',
     body: JSON.stringify({
       seller_id: sellerId,
@@ -261,7 +261,7 @@ export async function assignSellerToLead(leadId: number, sellerId: number, reaso
 
 // Remove atribuição de vendedor
 export async function unassignSellerFromLead(leadId: number) {
-  return request(`/leads/${leadId}/assign-seller`, {
+  return request(`/v1/leads/${leadId}/assign-seller`, {
     method: 'DELETE',
   });
 }
@@ -269,7 +269,7 @@ export async function unassignSellerFromLead(leadId: number) {
 // Atualiza custom_data (para notas e tags)
 export async function updateLeadCustomData(leadId: number, customData: Record<string, any>) {
   const slug = getTenantSlug();
-  return request(`/leads/${leadId}?tenant_slug=${slug}`, {
+  return request(`/v1/leads/${leadId}?tenant_slug=${slug}`, {
     method: 'PATCH',
     body: JSON.stringify({ custom_data: customData }),
   });
@@ -278,7 +278,7 @@ export async function updateLeadCustomData(leadId: number, customData: Record<st
 // Busca lista de vendedores
 export async function getSellers() {
   const slug = getTenantSlug();
-  return request(`/sellers?tenant_slug=${slug}`);
+  return request(`/v1/sellers?tenant_slug=${slug}`);
 }
 
 // === PUSH NOTIFICATIONS ===

@@ -43,7 +43,11 @@ const TYPE_COLORS: Record<DataSourceType, string> = {
 // COMPONENTE PRINCIPAL
 // =============================================================================
 
-export default function DataSourcesTab() {
+interface DataSourcesTabProps {
+  targetTenantId?: number | null;
+}
+
+export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) {
   const [sources, setSources] = useState<DataSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -67,14 +71,14 @@ export default function DataSourcesTab() {
 
   const loadSources = useCallback(async () => {
     try {
-      const response = await getDataSources();
+      const response = await getDataSources(false, targetTenantId || undefined);
       setSources(response.data_sources);
     } catch (error) {
       console.error('Erro ao carregar fontes:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [targetTenantId]);
 
   useEffect(() => {
     loadSources();
@@ -118,9 +122,9 @@ export default function DataSourcesTab() {
 
     try {
       if (editingSource) {
-        await updateDataSource(editingSource.id, formData);
+        await updateDataSource(editingSource.id, formData, targetTenantId || undefined);
       } else {
-        await createDataSource(formData);
+        await createDataSource(formData, targetTenantId || undefined);
       }
 
       setShowForm(false);
@@ -136,7 +140,7 @@ export default function DataSourcesTab() {
     if (!confirm('Tem certeza que deseja remover esta fonte de dados?')) return;
 
     try {
-      await deleteDataSource(id);
+      await deleteDataSource(id, targetTenantId || undefined);
       setSources(sources.filter(s => s.id !== id));
     } catch (error) {
       console.error('Erro ao remover:', error);
@@ -147,7 +151,7 @@ export default function DataSourcesTab() {
     setTestResults(prev => ({ ...prev, [id]: { testing: true } }));
 
     try {
-      const result = await testDataSource(id);
+      const result = await testDataSource(id, targetTenantId || undefined);
       setTestResults(prev => ({ ...prev, [id]: result }));
     } catch (error) {
       setTestResults(prev => ({
@@ -159,7 +163,7 @@ export default function DataSourcesTab() {
 
   const handleSync = async (id: number) => {
     try {
-      await syncDataSource(id);
+      await syncDataSource(id, targetTenantId || undefined);
       alert('Sincronizacao iniciada em segundo plano');
       // Recarrega apos alguns segundos
       setTimeout(loadSources, 3000);
@@ -170,7 +174,7 @@ export default function DataSourcesTab() {
 
   const handleToggleActive = async (source: DataSource) => {
     try {
-      await updateDataSource(source.id, { active: !source.active });
+      await updateDataSource(source.id, { active: !source.active }, targetTenantId || undefined);
       setSources(sources.map(s =>
         s.id === source.id ? { ...s, active: !s.active } : s
       ));
@@ -521,7 +525,7 @@ export default function DataSourcesTab() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         {formData.config.auth_type === 'bearer' ? 'Token' :
-                         formData.config.auth_type === 'api_key' ? 'API Key' : 'Credenciais'}
+                          formData.config.auth_type === 'api_key' ? 'API Key' : 'Credenciais'}
                       </label>
                       <input
                         type="password"

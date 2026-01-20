@@ -29,6 +29,29 @@ from src.infrastructure.data_sources import DataSourceFactory, DataSourceConfig
 
 logger = logging.getLogger(__name__)
 
+
+async def get_tenant_context(
+    target_tenant_id: Optional[int] = None,
+    user: User = Depends(get_current_user),
+    current_tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
+) -> Tenant:
+    """
+    Retorna o tenant alvo se for superadmin e tiver target_tenant_id,
+    caso contrário retorna o tenant atual do usuário.
+    """
+    if target_tenant_id:
+        if user.role != UserRole.SUPERADMIN.value:
+             return current_tenant
+        
+        result = await db.execute(select(Tenant).where(Tenant.id == target_tenant_id))
+        target = result.scalar_one_or_none()
+        if target:
+            return target
+        raise HTTPException(status_code=404, detail="Tenant alvo não encontrado")
+        
+    return current_tenant
+
 router = APIRouter(prefix="/data-sources", tags=["Data Sources"])
 
 
@@ -195,7 +218,7 @@ async def list_data_source_types(user: User = Depends(get_current_user)):
 @router.get("")
 async def list_data_sources(
     user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_tenant_context),
     db: AsyncSession = Depends(get_db),
     active_only: bool = False,
 ):
@@ -223,7 +246,7 @@ async def list_data_sources(
 async def create_data_source(
     payload: DataSourceCreate,
     user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_tenant_context),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -285,7 +308,7 @@ async def create_data_source(
 async def get_data_source(
     source_id: int,
     user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_tenant_context),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -310,7 +333,7 @@ async def update_data_source(
     source_id: int,
     payload: DataSourceUpdate,
     user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_tenant_context),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -368,7 +391,7 @@ async def update_data_source(
 async def delete_data_source(
     source_id: int,
     user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_tenant_context),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -404,7 +427,7 @@ async def delete_data_source(
 async def test_data_source(
     source_id: int,
     user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_tenant_context),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -464,7 +487,7 @@ async def sync_data_source(
     source_id: int,
     background_tasks: BackgroundTasks,
     user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_tenant_context),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -582,7 +605,7 @@ async def lookup_property(
     source_id: int,
     code: str,
     user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_tenant_context),
     db: AsyncSession = Depends(get_db),
 ):
     """

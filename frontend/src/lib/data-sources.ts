@@ -7,7 +7,7 @@
 
 import { getToken } from './auth';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/v1$/, '');
 
 // =============================================================================
 // TIPOS
@@ -50,7 +50,7 @@ export interface DataSourceCreate {
   cache_strategy?: 'memory' | 'redis' | 'none';
 }
 
-export interface DataSourceUpdate extends Partial<DataSourceCreate> {}
+export interface DataSourceUpdate extends Partial<DataSourceCreate> { }
 
 export interface DataSourceTestResult {
   success: boolean;
@@ -124,12 +124,15 @@ export async function getDataSourceTypes(): Promise<{ types: DataSourceTypeInfo[
 /**
  * Lista todas as fontes de dados do tenant
  */
-export async function getDataSources(activeOnly: boolean = false): Promise<{
+export async function getDataSources(activeOnly: boolean = false, tenantId?: number): Promise<{
   data_sources: DataSource[];
   total: number;
 }> {
-  const params = activeOnly ? '?active_only=true' : '';
-  return request(`/v1/data-sources${params}`);
+  const params = new URLSearchParams();
+  if (activeOnly) params.append('active_only', 'true');
+  if (tenantId) params.append('target_tenant_id', tenantId.toString());
+
+  return request(`/v1/data-sources?${params.toString()}`);
 }
 
 /**
@@ -142,11 +145,12 @@ export async function getDataSource(id: number): Promise<DataSource> {
 /**
  * Cria uma nova fonte de dados
  */
-export async function createDataSource(data: DataSourceCreate): Promise<{
+export async function createDataSource(data: DataSourceCreate, tenantId?: number): Promise<{
   success: boolean;
   data_source: DataSource;
 }> {
-  return request('/v1/data-sources', {
+  const query = tenantId ? `?target_tenant_id=${tenantId}` : '';
+  return request(`/v1/data-sources${query}`, {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -155,11 +159,12 @@ export async function createDataSource(data: DataSourceCreate): Promise<{
 /**
  * Atualiza uma fonte de dados
  */
-export async function updateDataSource(id: number, data: DataSourceUpdate): Promise<{
+export async function updateDataSource(id: number, data: DataSourceUpdate, tenantId?: number): Promise<{
   success: boolean;
   data_source: DataSource;
 }> {
-  return request(`/v1/data-sources/${id}`, {
+  const query = tenantId ? `?target_tenant_id=${tenantId}` : '';
+  return request(`/v1/data-sources/${id}${query}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
@@ -168,11 +173,12 @@ export async function updateDataSource(id: number, data: DataSourceUpdate): Prom
 /**
  * Remove uma fonte de dados
  */
-export async function deleteDataSource(id: number): Promise<{
+export async function deleteDataSource(id: number, tenantId?: number): Promise<{
   success: boolean;
   message: string;
 }> {
-  return request(`/v1/data-sources/${id}`, {
+  const query = tenantId ? `?target_tenant_id=${tenantId}` : '';
+  return request(`/v1/data-sources/${id}${query}`, {
     method: 'DELETE',
   });
 }
@@ -180,8 +186,9 @@ export async function deleteDataSource(id: number): Promise<{
 /**
  * Testa conexão com uma fonte de dados
  */
-export async function testDataSource(id: number): Promise<DataSourceTestResult> {
-  return request(`/v1/data-sources/${id}/test`, {
+export async function testDataSource(id: number, tenantId?: number): Promise<DataSourceTestResult> {
+  const query = tenantId ? `?target_tenant_id=${tenantId}` : '';
+  return request(`/v1/data-sources/${id}/test${query}`, {
     method: 'POST',
   });
 }
@@ -189,12 +196,13 @@ export async function testDataSource(id: number): Promise<DataSourceTestResult> 
 /**
  * Inicia sincronização de uma fonte de dados
  */
-export async function syncDataSource(id: number): Promise<{
+export async function syncDataSource(id: number, tenantId?: number): Promise<{
   success: boolean;
   message: string;
   source_id: number;
 }> {
-  return request(`/v1/data-sources/${id}/sync`, {
+  const query = tenantId ? `?target_tenant_id=${tenantId}` : '';
+  return request(`/v1/data-sources/${id}/sync${query}`, {
     method: 'POST',
   });
 }
