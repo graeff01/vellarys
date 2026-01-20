@@ -46,6 +46,19 @@ class Settings(BaseSettings):
     debug: bool = False
     
     # ===========================================
+    # REDIS (Cache & Rate Limiting)
+    # ===========================================
+    redis_url: Optional[str] = None  # Ex: redis://default:xxx@xxx.railway.app:6379
+    
+    # ===========================================
+    # DATABASE POOL (Escalabilidade)
+    # ===========================================
+    db_pool_size: int = 15  # Conexões permanentes
+    db_max_overflow: int = 30  # Conexões extras em pico
+    db_pool_recycle: int = 3600  # Recicla conexões após 1h
+    db_pool_timeout: int = 30  # Timeout para obter conexão
+    
+    # ===========================================
     # CORS
     # ===========================================
     cors_origins: str = "http://localhost:3000,http://localhost:5173,http://localhost:8080,https://vellarys-production.up.railway.app,https://velaris.app"

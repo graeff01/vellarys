@@ -93,6 +93,24 @@ from .audit_service import (
     AuditSeverity,
 )
 
+# Redis (Cache & Rate Limiting Distribuído)
+from .redis_service import (
+    get_redis,
+    close_redis,
+    cache_get,
+    cache_set,
+    cache_delete,
+    cache_get_json,
+    cache_tenant_settings,
+    get_cached_tenant_settings,
+    invalidate_tenant_cache,
+    rate_limit_check,
+    rate_limit_reset,
+    increment_metric,
+    get_metric,
+    redis_health_check,
+)
+
 # =============================================================================
 # NEGÓCIO - Guards, Handoff, Distribution, Reengagement
 # =============================================================================
@@ -233,6 +251,22 @@ __all__ = [
     "get_audit_logs",
     "AuditAction",
     "AuditSeverity",
+
+    # REDIS (Cache & Rate Limiting)
+    "get_redis",
+    "close_redis",
+    "cache_get",
+    "cache_set",
+    "cache_delete",
+    "cache_get_json",
+    "cache_tenant_settings",
+    "get_cached_tenant_settings",
+    "invalidate_tenant_cache",
+    "rate_limit_check",
+    "rate_limit_reset",
+    "increment_metric",
+    "get_metric",
+    "redis_health_check",
 
     # BUSINESS
     "run_ai_guards",

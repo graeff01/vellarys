@@ -17,8 +17,10 @@ engine = create_async_engine(
     database_url,
     echo=settings.debug,
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=settings.db_pool_size,        # Configurável via env
+    max_overflow=settings.db_max_overflow,  # Configurável via env
+    pool_recycle=settings.db_pool_recycle,  # Recicla conexões velhas
+    pool_timeout=settings.db_pool_timeout,  # Timeout para obter conexão
 )
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

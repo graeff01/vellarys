@@ -78,7 +78,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         
         # 3. Timestamp atual
         checks["timestamp"] = datetime.now(timezone.utc).isoformat()
-        checks["environment"] = settings.ENVIRONMENT
+        checks["environment"] = settings.environment
         
         # Se status unhealthy, retorna 503
         if status == "unhealthy":
@@ -125,7 +125,7 @@ async def health_check_detailed(db: AsyncSession = Depends(get_db)):
         health_data = {
             "status": "healthy",
             "timestamp": now.isoformat(),
-            "environment": settings.ENVIRONMENT,
+            "environment": settings.environment,
             "uptime": "TODO",  # Implementar depois
             "checks": {},
             "metrics": {},
@@ -289,6 +289,24 @@ async def health_check_detailed(db: AsyncSession = Depends(get_db)):
                 health_data["warnings"].append("WhatsApp/Z-API not configured")
         except Exception as e:
             health_data["checks"]["whatsapp"] = {"status": "error", "error": str(e)}
+        
+        # =====================================================================
+        # 6. REDIS (Cache & Rate Limiting)
+        # =====================================================================
+        try:
+            from src.infrastructure.services.redis_service import redis_health_check
+            redis_status = await redis_health_check()
+            
+            health_data["checks"]["redis"] = redis_status
+            
+            if redis_status["status"] == "disabled":
+                health_data["warnings"].append("Redis not configured - using in-memory rate limiting (not scalable)")
+            elif redis_status["status"] == "error":
+                health_data["warnings"].append(f"Redis error: {redis_status.get('message', 'unknown')}")
+                
+        except Exception as e:
+            health_data["checks"]["redis"] = {"status": "error", "error": str(e)}
+            health_data["warnings"].append(f"Redis check failed: {e}")
         
         # =====================================================================
         # STATUS FINAL
