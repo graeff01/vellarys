@@ -31,7 +31,6 @@ const gestorMenuItems = [
   { href: '/dashboard/leads', label: 'Leads', icon: Users },
   { href: '/dashboard/sellers', label: 'Vendedores', icon: UserCheck },
   { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot },
-  { href: '/dashboard/settings', label: 'Configurações', icon: Settings },
   { href: '/dashboard/export', label: 'Relatórios', icon: FileDown },
 ];
 
@@ -248,14 +247,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <Link
                     href={item.href}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive
-                        ? isSuperAdmin
-                          ? 'bg-purple-50 text-purple-600'
-                          : isSimulator
-                            ? 'bg-gradient-to-r from-purple-50 to-blue-50 text-purple-600'
-                            : 'bg-blue-50 text-blue-600'
+                      ? isSuperAdmin
+                        ? 'bg-purple-50 text-purple-600'
                         : isSimulator
-                          ? 'text-purple-600 hover:bg-purple-50'
-                          : 'text-gray-600 hover:bg-gray-50'
+                          ? 'bg-gradient-to-r from-purple-50 to-blue-50 text-purple-600'
+                          : 'bg-blue-50 text-blue-600'
+                      : isSimulator
+                        ? 'text-purple-600 hover:bg-purple-50'
+                        : 'text-gray-600 hover:bg-gray-50'
                       }`}
                   >
                     <item.icon className={`w-5 h-5 ${isSimulator && !isActive ? 'text-purple-500' : ''}`} />

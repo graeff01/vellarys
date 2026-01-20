@@ -130,12 +130,19 @@ function SettingsContent() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState('perfil');
+  const [targetTenantId, setTargetTenantId] = useState<number | null>(null);
   const searchParams = useSearchParams();
 
   useEffect(() => {
     const tab = searchParams.get('tab');
     if (tab) {
       setActiveTab(tab);
+    }
+
+    // Pega tenant_id se for superadmin gerenciando cliente
+    const tid = searchParams.get('target_tenant_id');
+    if (tid) {
+      setTargetTenantId(parseInt(tid));
     }
   }, [searchParams]);
 
@@ -322,7 +329,12 @@ function SettingsContent() {
         const user = getUser();
         setIsSuperAdmin(!!user?.is_superadmin || user?.role === 'superadmin');
 
-        const response = await getSettings();
+        // Se tiver targetTenantId mas não for superadmin, remove
+        if (targetTenantId && user?.role !== 'superadmin') {
+          setTargetTenantId(null);
+        }
+
+        const response = await getSettings(targetTenantId || undefined);
         setData(response);
         const s = response.settings;
 
@@ -537,7 +549,7 @@ function SettingsContent() {
         },
         ai_behavior: { custom_questions: [], custom_rules: [], greeting_message: '', farewell_message: '' },
         messages: { greeting: '', farewell: '', out_of_hours: outOfHoursMessage, out_of_scope: outOfScopeMessage, handoff_notice: '', qualification_complete: '', waiting_response: '' },
-      });
+      }, targetTenantId || undefined);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
@@ -604,6 +616,33 @@ function SettingsContent() {
 
   return (
     <div className="space-y-6">
+      {/* Alerta de Gerenciamento de Terceiros */}
+      {targetTenantId && data && (
+        <div className="mb-6 bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+              <Bot className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-purple-900">Modo Admin Master</p>
+              <p className="text-sm text-purple-700">
+                Você está configurando a IA do cliente: <span className="font-bold">{data.tenant.name}</span>
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const url = new URL(window.location.href);
+              url.searchParams.delete('target_tenant_id');
+              window.location.href = url.pathname + url.search;
+            }}
+            className="text-sm font-medium text-purple-600 hover:text-purple-800"
+          >
+            Sair do modo edição
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

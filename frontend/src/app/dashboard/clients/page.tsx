@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Building2, 
-  Plus, 
+import {
+  Building2,
+  Plus,
   Search,
   Check,
   X,
@@ -17,7 +17,8 @@ import {
   Phone,
   Key,
   Edit,
-  Smartphone
+  Smartphone,
+  Bot
 } from 'lucide-react';
 import { getToken, getUser } from '@/lib/auth';
 
@@ -56,11 +57,11 @@ interface TenantFormState {
   // Integração WhatsApp
   whatsapp_provider: WhatsAppProvider;
   whatsapp_number: string;
-  
+
   // 360dialog
   dialog360_api_key: string;
   webhook_verify_token: string;
-  
+
   // Z-API
   zapi_instance_id: string;
   zapi_token: string;
@@ -91,7 +92,7 @@ export default function ClientsPage() {
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
+
   // Modo: criar ou editar
   const [editingTenantId, setEditingTenantId] = useState<number | null>(null);
   const [formData, setFormData] = useState<TenantFormState>(initialFormState);
@@ -113,7 +114,7 @@ export default function ClientsPage() {
       const token = getToken();
       const params = new URLSearchParams();
       if (search) params.set('search', search);
-      
+
       const response = await fetch(`${API_URL}/admin/tenants?${params}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -172,14 +173,14 @@ export default function ClientsPage() {
   async function openEditModal(tenant: Tenant) {
     // Busca detalhes completos do tenant
     const details = await fetchTenantDetails(tenant.id);
-    
+
     if (!details) {
       alert('Erro ao carregar dados do cliente');
       return;
     }
 
     const settings = details.settings || {};
-    
+
     // Determina qual provider está configurado
     let provider: WhatsAppProvider = 'none';
     if (settings.zapi_instance_id && settings.zapi_token) {
@@ -296,7 +297,7 @@ export default function ClientsPage() {
       const result = await response.json();
 
       let successMessage = `Cliente criado com sucesso!\n\nEmail de acesso: ${result.user.email}`;
-      
+
       if (result.whatsapp?.configured) {
         successMessage += `\n\n📱 WhatsApp configurado!\nWebhook URL: ${result.whatsapp.webhook_url}`;
       }
@@ -405,10 +406,10 @@ export default function ClientsPage() {
   async function updateWhatsAppChannel(tenantId: number, data: TenantFormState) {
     try {
       const token = getToken();
-      
+
       // Monta config do canal baseado no provider
       let channelConfig: Record<string, unknown> = {};
-      
+
       if (data.whatsapp_provider === '360dialog') {
         channelConfig = {
           provider: '360dialog',
@@ -572,9 +573,8 @@ export default function ClientsPage() {
                   </td>
                   <td className="px-6 py-4">
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        planColors[tenant.plan] || 'bg-gray-100 text-gray-700'
-                      }`}
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${planColors[tenant.plan] || 'bg-gray-100 text-gray-700'
+                        }`}
                     >
                       {planLabels[tenant.plan] || tenant.plan}
                     </span>
@@ -621,12 +621,18 @@ export default function ClientsPage() {
                         <Eye className="w-4 h-4" />
                       </button>
                       <button
+                        onClick={() => router.push(`/dashboard/settings?target_tenant_id=${tenant.id}`)}
+                        className="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                        title="Configurar IA"
+                      >
+                        <Bot className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => toggleTenant(tenant)}
-                        className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                          tenant.active
-                            ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                            : 'bg-green-50 text-green-600 hover:bg-green-100'
-                        }`}
+                        className={`px-3 py-1 rounded text-sm font-medium transition-colors ${tenant.active
+                          ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                          : 'bg-green-50 text-green-600 hover:bg-green-100'
+                          }`}
                       >
                         {tenant.active ? 'Desativar' : 'Ativar'}
                       </button>
@@ -646,7 +652,7 @@ export default function ClientsPage() {
             <h2 className="text-xl font-bold text-gray-900 mb-6">
               {isEditing ? 'Editar Cliente' : 'Novo Cliente'}
             </h2>
-            
+
             {/* Dados da Empresa */}
             <div className="mb-6">
               <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
@@ -820,7 +826,7 @@ export default function ClientsPage() {
                 <Smartphone className="w-4 h-4" />
                 Integração WhatsApp
               </h3>
-              
+
               {/* Seletor de Provider */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -830,33 +836,30 @@ export default function ClientsPage() {
                   <button
                     type="button"
                     onClick={() => setFormData((prev) => ({ ...prev, whatsapp_provider: 'none' }))}
-                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      formData.whatsapp_provider === 'none'
-                        ? 'border-purple-500 bg-purple-50 text-purple-700'
-                        : 'border-gray-300 text-gray-700 hover:border-gray-400'
-                    }`}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${formData.whatsapp_provider === 'none'
+                      ? 'border-purple-500 bg-purple-50 text-purple-700'
+                      : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                      }`}
                   >
                     Nenhum
                   </button>
                   <button
                     type="button"
                     onClick={() => setFormData((prev) => ({ ...prev, whatsapp_provider: '360dialog' }))}
-                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      formData.whatsapp_provider === '360dialog'
-                        ? 'border-purple-500 bg-purple-50 text-purple-700'
-                        : 'border-gray-300 text-gray-700 hover:border-gray-400'
-                    }`}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${formData.whatsapp_provider === '360dialog'
+                      ? 'border-purple-500 bg-purple-50 text-purple-700'
+                      : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                      }`}
                   >
                     360dialog
                   </button>
                   <button
                     type="button"
                     onClick={() => setFormData((prev) => ({ ...prev, whatsapp_provider: 'zapi' }))}
-                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      formData.whatsapp_provider === 'zapi'
-                        ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-gray-300 text-gray-700 hover:border-gray-400'
-                    }`}
+                    className={`px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${formData.whatsapp_provider === 'zapi'
+                      ? 'border-green-500 bg-green-50 text-green-700'
+                      : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                      }`}
                   >
                     Z-API
                   </button>

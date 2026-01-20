@@ -496,6 +496,7 @@ def migrate_legacy_settings(settings: dict) -> dict:
 
 @router.get("")
 async def get_settings(
+    target_tenant_id: Optional[int] = None,
     user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db),
@@ -503,7 +504,19 @@ async def get_settings(
     """
     Retorna configurações atuais do tenant.
     Faz migração automática se necessário.
+    
+    Superadmin pode passar target_tenant_id para gerenciar outro cliente.
     """
+    
+    # Se for superadmin e tiver target_tenant_id, troca o tenant de contexto
+    if target_tenant_id and user.role == "superadmin":
+        logger.info(f"Superadmin {user.email} gerenciando settings do tenant_id {target_tenant_id}")
+        result = await db.execute(select(Tenant).where(Tenant.id == target_tenant_id))
+        target_tenant = result.scalar_one_or_none()
+        if not target_tenant:
+            raise HTTPException(404, "Tenant alvo não encontrado")
+        tenant = target_tenant
+
     logger.info(f"Carregando settings para tenant {tenant.slug}")
     
     # Migra configurações antigas se necessário
@@ -544,6 +557,7 @@ async def get_settings(
 @router.patch("")
 async def update_settings(
     payload: dict,
+    target_tenant_id: Optional[int] = None,
     user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db),
@@ -552,9 +566,21 @@ async def update_settings(
     Atualiza configurações do tenant.
     Aceita atualizações parciais em qualquer nível.
     
+    Superadmin pode passar target_tenant_id para gerenciar outro cliente.
+    
     IMPORTANTE: Usa flag_modified para garantir que SQLAlchemy
     detecte mudanças em campos JSON/JSONB.
     """
+    
+    # Se for superadmin e tiver target_tenant_id, troca o tenant de contexto
+    if target_tenant_id and user.role == "superadmin":
+        logger.info(f"Superadmin {user.email} salvando settings do tenant_id {target_tenant_id}")
+        result = await db.execute(select(Tenant).where(Tenant.id == target_tenant_id))
+        target_tenant = result.scalar_one_or_none()
+        if not target_tenant:
+            raise HTTPException(404, "Tenant alvo não encontrado")
+        tenant = target_tenant
+
     logger.info(f"Atualizando settings para tenant {tenant.slug}")
     logger.info(f"Payload recebido: {list(payload.keys())}")
     
@@ -631,13 +657,22 @@ async def update_settings(
 
 @router.get("/identity")
 async def get_identity_settings(
+    target_tenant_id: Optional[int] = None,
     user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Retorna apenas as configurações de identidade empresarial.
     Útil para o painel simplificado.
     """
+    if target_tenant_id and user.role == "superadmin":
+        result = await db.execute(select(Tenant).where(Tenant.id == target_tenant_id))
+        target_tenant = result.scalar_one_or_none()
+        if not target_tenant:
+            raise HTTPException(404, "Tenant alvo não encontrado")
+        tenant = target_tenant
+
     raw_settings = tenant.settings or {}
     migrated_settings = migrate_legacy_settings(raw_settings)
     settings = deep_merge(DEFAULT_SETTINGS, migrated_settings)
@@ -656,6 +691,7 @@ async def get_identity_settings(
 @router.patch("/identity")
 async def update_identity_settings(
     payload: dict,
+    target_tenant_id: Optional[int] = None,
     user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db),
@@ -663,6 +699,13 @@ async def update_identity_settings(
     """
     Atualiza apenas as configurações de identidade empresarial.
     """
+    if target_tenant_id and user.role == "superadmin":
+        result = await db.execute(select(Tenant).where(Tenant.id == target_tenant_id))
+        target_tenant = result.scalar_one_or_none()
+        if not target_tenant:
+            raise HTTPException(404, "Tenant alvo não encontrado")
+        tenant = target_tenant
+
     raw_settings = tenant.settings or {}
     current_settings = migrate_legacy_settings(raw_settings)
     current_settings = deep_merge(DEFAULT_SETTINGS, current_settings)
@@ -682,6 +725,8 @@ async def update_identity_settings(
         )
     
     tenant.settings = current_settings
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(tenant, "settings")
     
     await db.commit()
     await db.refresh(tenant)

@@ -278,10 +278,14 @@ export interface UpdateResponse {
 // API FUNCTIONS
 // =============================================================================
 
-export async function getSettings(): Promise<SettingsResponse> {
+export async function getSettings(targetTenantId?: number): Promise<SettingsResponse> {
   const token = getToken();
+  const url = new URL(`${API_URL}/settings`);
+  if (targetTenantId) {
+    url.searchParams.set('target_tenant_id', targetTenantId.toString());
+  }
 
-  const response = await fetch(`${API_URL}/settings`, {
+  const response = await fetch(url.toString(), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -295,10 +299,17 @@ export async function getSettings(): Promise<SettingsResponse> {
   return response.json();
 }
 
-export async function updateSettings(data: Partial<TenantSettings> & { tenant_name?: string }): Promise<UpdateResponse> {
+export async function updateSettings(
+  data: Partial<TenantSettings> & { tenant_name?: string },
+  targetTenantId?: number
+): Promise<UpdateResponse> {
   const token = getToken();
+  const url = new URL(`${API_URL}/settings`);
+  if (targetTenantId) {
+    url.searchParams.set('target_tenant_id', targetTenantId.toString());
+  }
 
-  const response = await fetch(`${API_URL}/settings`, {
+  const response = await fetch(url.toString(), {
     method: 'PATCH',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -314,10 +325,14 @@ export async function updateSettings(data: Partial<TenantSettings> & { tenant_na
   return response.json();
 }
 
-export async function getIdentitySettings(): Promise<IdentityResponse> {
+export async function getIdentitySettings(targetTenantId?: number): Promise<IdentityResponse> {
   const token = getToken();
+  const url = new URL(`${API_URL}/settings/identity`);
+  if (targetTenantId) {
+    url.searchParams.set('target_tenant_id', targetTenantId.toString());
+  }
 
-  const response = await fetch(`${API_URL}/settings/identity`, {
+  const response = await fetch(url.toString(), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
