@@ -41,7 +41,8 @@ from src.api.routes import (
     admin_niches_router,
     admin_logs_router,
     admin_plans_router,
-    health_router,  # ← ADICIONE ESTA LINHA
+    health_router,
+    data_sources_router,
 )
 
 # Domain
@@ -185,6 +186,7 @@ app.include_router(usage_router, prefix="/api/v1")
 app.include_router(simulator_router, prefix="/api/v1")
 app.include_router(twilio_webhook_router, prefix="/api/v1")
 app.include_router(handoff_router, prefix="/api/v1")
+app.include_router(data_sources_router, prefix="/api/v1")
 
 # Admin
 app.include_router(admin_dashboard_router, prefix="/api/v1")
