@@ -32,3 +32,6 @@ Thumbs.db
 *.db
 *.sqlite
 "@ | Out-File -Encoding UTF8 .gitignore
+
+.claude/
+nul

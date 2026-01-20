@@ -443,7 +443,15 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
               {/* Config por tipo */}
               {formData.type === 'portal_api' && (
                 <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
-                  <h3 className="font-medium text-gray-900">Configuracao do Portal</h3>
+                  <h3 className="font-medium text-gray-900">Configuração do Portal</h3>
+                  {formData.config.base_url && formData.config.url_pattern && (formData.config.regions as string[] | undefined)?.length ? (
+                    <div className="bg-green-50 border border-green-200 rounded p-3 text-sm">
+                      <p className="font-medium text-green-800 mb-1">URL que será acessada:</p>
+                      <code className="text-green-700 break-all">
+                        {formData.config.base_url}{(formData.config.url_pattern as string).replace(/\{region\}/g, (formData.config.regions as string[])[0] || 'regiao')}
+                      </code>
+                    </div>
+                  ) : null}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">URL Base</label>
                     <input
@@ -471,7 +479,7 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Padrao de URL (opcional)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Padrão de URL (caminho relativo)</label>
                     <input
                       type="text"
                       value={formData.config.url_pattern || ''}
@@ -479,6 +487,9 @@ export default function DataSourcesTab({ targetTenantId }: DataSourcesTabProps) 
                       placeholder="/imoveis/{region}/{region}.json"
                       className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Use apenas o caminho, NÃO a URL completa. Ex: <code className="bg-gray-100 px-1 rounded">/imoveis/&#123;region&#125;/&#123;region&#125;.json</code>
+                    </p>
                   </div>
                 </div>
               )}
