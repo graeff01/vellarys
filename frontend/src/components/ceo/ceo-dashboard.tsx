@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  Clock,
   Zap,
   PlayCircle,
   Activity,
@@ -19,6 +18,7 @@ import {
   ArrowRight,
   RefreshCw,
   Target,
+
 } from 'lucide-react';
 import { getToken } from '@/lib/auth';
 
@@ -47,6 +47,7 @@ interface InfraMetrics {
   error_rate_percent: number;
   queue_size: number;
   status_global: 'healthy' | 'degraded' | 'down';
+  kill_switch_active: boolean;
 }
 
 interface CEOMetrics {
@@ -103,6 +104,26 @@ interface SchedulerStatus {
   running: boolean;
   timezone?: string;
   jobs?: Record<string, { interval_minutes: number; last_run: string | null }>;
+}
+
+interface ChurnRiskClient {
+  id: number;
+  name: string;
+  plan: string;
+  days_inactive: number;
+  usage_trend: string;
+  risk_level: string;
+  last_interaction: string | null;
+}
+
+interface UpsellOpportunity {
+  id: number;
+  name: string;
+  current_plan: string;
+  usage_percent: number;
+  messages_month: number;
+  leads_month: number;
+  suggested_plan: string;
 }
 
 // =============================================================================
@@ -163,6 +184,42 @@ async function triggerFollowUp(): Promise<{ success: boolean; message?: string }
   return res.json();
 }
 
+async function fetchChurnRisk(): Promise<ChurnRiskClient[]> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/admin/ceo/churn-risk`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Erro ao carregar churn risk');
+  return res.json();
+}
+
+async function fetchUpsellOpportunities(): Promise<UpsellOpportunity[]> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/admin/ceo/upsell-opportunities`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error('Erro ao carregar upsell opportunities');
+  return res.json();
+}
+
+async function triggerKillSwitch(enable: boolean): Promise<{ status: string; message: string }> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/admin/ceo/kill-switch?enable=${enable}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.json();
+}
+
+async function triggerRestartWorkers(): Promise<{ status: string; message: string }> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/admin/ceo/force-restart-workers`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.json();
+}
+
 // =============================================================================
 // COMPONENTE PRINCIPAL
 // =============================================================================
@@ -173,8 +230,11 @@ export function CEODashboard() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [growth, setGrowth] = useState<WeeklyGrowth[]>([]);
   const [scheduler, setScheduler] = useState<SchedulerStatus | null>(null);
+  const [churnRisk, setChurnRisk] = useState<ChurnRiskClient[]>([]);
+  const [upsell, setUpsell] = useState<UpsellOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [triggeringFollowUp, setTriggeringFollowUp] = useState(false);
+  const [isKillingSwitch, setIsKillingSwitch] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -183,12 +243,22 @@ export function CEODashboard() {
   async function loadData() {
     try {
       setLoading(true);
-      const [metricsData, clientsData, alertsData, growthData, schedulerData] = await Promise.all([
+      const [
+        metricsData,
+        clientsData,
+        alertsData,
+        growthData,
+        schedulerData,
+        churnData,
+        upsellData
+      ] = await Promise.all([
         fetchCEOMetrics().catch(() => null),
         fetchClientsHealth().catch(() => []),
         fetchAlerts().catch(() => []),
         fetchWeeklyGrowth().catch(() => []),
         fetchSchedulerStatus().catch(() => ({ success: false, running: false })),
+        fetchChurnRisk().catch(() => []),
+        fetchUpsellOpportunities().catch(() => [])
       ]);
 
       setMetrics(metricsData);
@@ -196,6 +266,8 @@ export function CEODashboard() {
       setAlerts(alertsData);
       setGrowth(growthData);
       setScheduler(schedulerData);
+      setChurnRisk(churnData);
+      setUpsell(upsellData);
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
     } finally {
@@ -218,6 +290,47 @@ export function CEODashboard() {
       alert('❌ Erro ao disparar follow-up');
     } finally {
       setTriggeringFollowUp(false);
+    }
+  }
+
+  async function handleKillSwitch() {
+    if (isKillingSwitch) return;
+
+    const isCurrentlyActive = metrics?.infra?.kill_switch_active || false;
+    const action = isCurrentlyActive ? 'RETOMAR' : 'PAUSAR';
+
+    const confirm = window.confirm(`⚠️ TEM CERTEZA? Deseja ${action} o sistema?`);
+    if (!confirm) return;
+
+    setIsKillingSwitch(true);
+    try {
+      const result = await triggerKillSwitch(!isCurrentlyActive);
+      if (result.status === 'success') {
+        alert(`✅ SUCESSO! Sistema ${isCurrentlyActive ? 'retomado' : 'pausado'}.`);
+        loadData(); // Reload to update UI state
+      } else {
+        alert('❌ Erro: ' + result.message);
+      }
+    } catch (error) {
+      alert('❌ Erro de conexão');
+    } finally {
+      setIsKillingSwitch(false);
+    }
+  }
+
+  async function handleRestartWorkers() {
+    const confirm = window.confirm('Reiniciar todos os workers? Isso pode interromper processamentos atuais.');
+    if (!confirm) return;
+
+    try {
+      const result = await triggerRestartWorkers();
+      if (result.status === 'success') {
+        alert('✅ Sinal de reinício enviado para os workers.');
+      } else {
+        alert('❌ Erro: ' + result.message);
+      }
+    } catch (error) {
+      alert('❌ Erro de conexão');
     }
   }
 
@@ -328,14 +441,18 @@ export function CEODashboard() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => alert("Kill switch simulated")}
-              className="flex-1 px-3 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition shadow-sm"
-              title="Pausar todas as IAs"
+              onClick={handleKillSwitch}
+              disabled={isKillingSwitch}
+              className={`flex-1 px-3 py-2 text-white text-xs font-bold rounded-lg transition shadow-sm disabled:opacity-50 ${metrics?.infra?.kill_switch_active
+                  ? 'bg-green-600 hover:bg-green-700 animate-pulse'
+                  : 'bg-red-600 hover:bg-red-700'
+                }`}
+              title={metrics?.infra?.kill_switch_active ? "Retomar sistema" : "Pausar sistema"}
             >
-              KILL SWITCH
+              {isKillingSwitch ? 'PROCESSANDO...' : (metrics?.infra?.kill_switch_active ? 'RETOMAR SISTEMA' : 'KILL SWITCH')}
             </button>
             <button
-              onClick={() => alert("Restart simulated")}
+              onClick={handleRestartWorkers}
               className="flex-1 px-3 py-2 bg-white text-purple-700 border border-purple-200 text-xs font-bold rounded-lg hover:bg-purple-100 transition shadow-sm"
               title="Reiniciar Workers"
             >
@@ -457,9 +574,9 @@ export function CEODashboard() {
               >
                 <div className="flex items-center gap-4">
                   <div className={`w-3 h-3 rounded-full ${client.status === 'healthy' ? 'bg-green-500' :
-                      client.status === 'warning' ? 'bg-yellow-500' :
-                        client.status === 'critical' ? 'bg-red-500' :
-                          'bg-gray-400'
+                    client.status === 'warning' ? 'bg-yellow-500' :
+                      client.status === 'critical' ? 'bg-red-500' :
+                        'bg-gray-400'
                     }`} />
                   <div>
                     <p className="font-medium text-gray-900">{client.name}</p>
@@ -484,8 +601,8 @@ export function CEODashboard() {
                   </div>
                   <div className="text-center">
                     <p className={`font-semibold ${client.conversion_rate >= 30 ? 'text-green-600' :
-                        client.conversion_rate >= 15 ? 'text-yellow-600' :
-                          'text-gray-600'
+                      client.conversion_rate >= 15 ? 'text-yellow-600' :
+                        'text-gray-600'
                       }`}>{client.conversion_rate}%</p>
                     <p className="text-xs text-gray-500">conversão</p>
                   </div>
@@ -623,10 +740,10 @@ export function CEODashboard() {
               <div
                 key={index}
                 className={`p-4 rounded-lg border-l-4 ${alert.type === 'critical'
-                    ? 'bg-red-50 border-red-500'
-                    : alert.type === 'warning'
-                      ? 'bg-yellow-50 border-yellow-500'
-                      : 'bg-blue-50 border-blue-500'
+                  ? 'bg-red-50 border-red-500'
+                  : alert.type === 'warning'
+                    ? 'bg-yellow-50 border-yellow-500'
+                    : 'bg-blue-50 border-blue-500'
                   }`}
               >
                 <div className="flex items-start gap-3">
@@ -655,6 +772,87 @@ export function CEODashboard() {
           </div>
         </Card>
       </div>
-    </div>
+
+      {/* Quarta linha: Risco de Churn & Upsell */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Churn Risk */}
+        <Card className="p-6 border-t-4 border-t-red-500">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Risco de Churn 🚨</h2>
+          <p className="text-sm text-gray-500 mb-4">Clientes inativos ou com queda de uso</p>
+
+          <div className="overflow-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2">Cliente</th>
+                  <th className="px-4 py-2">Inativo há</th>
+                  <th className="px-4 py-2">Risco</th>
+                </tr>
+              </thead>
+              <tbody>
+                {churnRisk.map((client) => (
+                  <tr key={client.id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">{client.name}</td>
+                    <td className="px-4 py-3 text-gray-500">{client.days_inactive} dias</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${client.risk_level === 'high' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                        }`}>
+                        {client.risk_level === 'high' ? 'ALTO' : 'MÉDIO'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {churnRisk.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-4 text-center text-gray-500">Nenhum cliente em risco detectado</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+
+        {/* Upsell Opportunities */}
+        <Card className="p-6 border-t-4 border-t-emerald-500">
+          <h2 className="text-lg font-semibold text-gray-900 mb-1">Oportunidades Upsell 💰</h2>
+          <p className="text-sm text-gray-500 mb-4">Clientes com alto volume de uso</p>
+
+          <div className="overflow-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2">Cliente</th>
+                  <th className="px-4 py-2">Uso (Msgs)</th>
+                  <th className="px-4 py-2">Sugestão</th>
+                </tr>
+              </thead>
+              <tbody>
+                {upsell.map((client) => (
+                  <tr key={client.id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">
+                      {client.name}
+                      <span className="block text-xs text-gray-400">{client.current_plan}</span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">
+                      {client.messages_month} ({client.usage_percent}%)
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">
+                        {client.suggested_plan.toUpperCase()}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {upsell.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-4 text-center text-gray-500">Nenhuma oportunidade identificada</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+    </div >
   );
 }

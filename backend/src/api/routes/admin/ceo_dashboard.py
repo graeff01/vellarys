@@ -74,6 +74,7 @@ class InfraMetrics(BaseModel):
     error_rate_percent: float
     queue_size: int
     status_global: str  # healthy, degraded, down
+    kill_switch_active: bool
 
 
 class CEOMetrics(BaseModel):
@@ -116,6 +117,26 @@ class WeeklyGrowth(BaseModel):
     week: str
     leads: int
     messages: int
+
+
+class ChurnRiskClient(BaseModel):
+    id: int
+    name: str
+    plan: str
+    days_inactive: int
+    usage_trend: str  # 'declining', 'stable'
+    risk_level: str   # 'high', 'medium'
+    last_interaction: Optional[datetime]
+
+
+class UpsellOpportunity(BaseModel):
+    id: int
+    name: str
+    current_plan: str
+    usage_percent: float  # Uso em relação ao limite do plano (estimado)
+    messages_month: int
+    leads_month: int
+    suggested_plan: str
 
 
 # =============================================================================
@@ -295,9 +316,16 @@ async def get_ceo_metrics(
     # Simulação de latência OpenAI (pegar média se tivesse log, por enquanto mock realista)
     openai_latency = 1240  # 1.2s médio
     
+    # KILL SWITCH STATUS
+    from src.infrastructure.services.redis_service import cache_get
+    kill_switch_val = await cache_get("system:kill_switch")
+    kill_switch_active = bool(kill_switch_val)
+    
     # Status Global
     status_global = "healthy"
-    if db_latency > 200 or openai_latency > 4000:
+    if kill_switch_active:
+        status_global = "down"
+    elif db_latency > 200 or openai_latency > 4000:
         status_global = "degraded"
     
     financial_metrics = FinancialMetrics(
@@ -313,7 +341,8 @@ async def get_ceo_metrics(
         active_workers=4, # Mock
         error_rate_percent=0.2, # Mock
         queue_size=12, # Mock
-        status_global=status_global
+        status_global=status_global,
+        kill_switch_active=kill_switch_active
     )
     
     return CEOMetrics(
@@ -627,16 +656,193 @@ async def kill_switch_system(
 ):
     """
     [GOD MODE] Pausa o processamento de mensagens em todo o sistema.
+    Define a chave 'system:kill_switch' no Redis.
     """
-    # TO-DO: Implementar integração com Redis para setar flag de pausa global
-    # await redis.set("system:kill_switch", "true" if enable else "false")
-    return {"status": "success", "system_paused": enable, "message": "Kill switch logic to be implemented with Redis"}
+    from src.infrastructure.services.redis_service import cache_set, cache_delete
+    
+    key = "system:kill_switch"
+    try:
+        if enable:
+            # Set kill switch with no expiration (manual override required)
+            # Using specific value "on"
+            await cache_set(key, "on", ttl=31536000) # 1 year usually
+            action = "enabled"
+        else:
+            await cache_delete(key)
+            action = "disabled"
+            
+        return {
+            "status": "success", 
+            "system_paused": enable, 
+            "message": f"Global Kill Switch {action}. All AI processing will stop immediately."
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to toggle kill switch: {str(e)}"
+        }
 
 @router.post("/force-restart-workers")
 async def force_restart_workers(
     current_user: User = Depends(get_current_superadmin)
 ):
     """
-    [GOD MODE] Força o reinício dos workers (simulado).
+    [GOD MODE] Envia sinal para reiniciar workers.
+    Usa Pub/Sub do Redis para notificar workers (simulado com chave por enquanto).
     """
-    return {"status": "success", "message": "Signal sent to restart workers (simulated)"}
+    from src.infrastructure.services.redis_service import get_redis, cache_set
+    
+    redis = await get_redis()
+    if not redis:
+         return {"status": "error", "message": "Redis not available"}
+
+    try:
+        # Method 1: Set a flag that workers check periodically
+        # Method 2: Publish to a channel (standard for real-time control)
+        
+        # We will do both for robustness
+        await redis.publish("system:control", "restart_workers")
+        await cache_set("system:restart_signal", datetime.now().isoformat(), ttl=60)
+        
+        return {
+            "status": "success", 
+            "message": "Signal sent to restart all workers immediately."
+        }
+    except Exception as e:
+        return {
+            "status": "error", 
+            "message": f"Failed to send restart signal: {str(e)}"
+        }
+
+
+@router.get("/churn-risk", response_model=list[ChurnRiskClient])
+async def get_churn_risk(
+    current_user: User = Depends(get_current_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Retorna lista de clientes em risco de Churn.
+    Critério: Inatividade > 3 dias ou queda brusca de volume.
+    """
+    now = get_utc_now()
+    three_days_ago = now - timedelta(days=3)
+    
+    # Busca clientes ativos (excluindo admin)
+    tenants_result = await db.execute(
+        select(Tenant).where(
+            and_(Tenant.active == True, Tenant.slug != "velaris-admin")
+        )
+    )
+    tenants = tenants_result.scalars().all()
+    
+    churn_list = []
+    
+    for t in tenants:
+        # Última atividade
+        last_msg_result = await db.execute(
+            select(func.max(Message.created_at))
+            .join(Lead, Message.lead_id == Lead.id)
+            .where(Lead.tenant_id == t.id)
+        )
+        last_activity = last_msg_result.scalar()
+        if last_activity:
+            last_activity = make_aware(last_activity)
+            days_inactive = (now - last_activity).days
+        else:
+            days_inactive = 999
+            
+        # Adiciona se inatividade > 3 dias
+        if days_inactive > 3:
+            risk_level = "high" if days_inactive > 7 else "medium"
+            
+            churn_list.append(ChurnRiskClient(
+                id=t.id,
+                name=t.name,
+                plan=t.plan or "starter",
+                days_inactive=days_inactive,
+                usage_trend="declining",
+                risk_level=risk_level,
+                last_interaction=last_activity
+            ))
+            
+    # Ordena por risco (dias inativo decrescente)
+    churn_list.sort(key=lambda x: x.days_inactive, reverse=True)
+    return churn_list[:10]  # Top 10 riscos
+
+
+@router.get("/upsell-opportunities", response_model=list[UpsellOpportunity])
+async def get_upsell_opportunities(
+    current_user: User = Depends(get_current_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Retorna oportunidades de Upsell.
+    Critério: Alto volume de mensagens no mês.
+    """
+    now = get_utc_now()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0)
+    
+    # Busca clientes ativos
+    tenants_result = await db.execute(
+        select(Tenant).where(
+            and_(Tenant.active == True, Tenant.slug != "velaris-admin")
+        )
+    )
+    tenants = tenants_result.scalars().all()
+    
+    upsell_list = []
+    
+    # Limites fictícios dos planos para cálculo de %
+    PLAN_LIMITS = {
+        "starter": 1000,
+        "pro": 5000,
+        "enterprise": 50000, 
+        "custom": 100000
+    }
+    
+    for t in tenants:
+        plan = t.plan or "starter"
+        limit = PLAN_LIMITS.get(plan, 1000)
+        
+        # Volume do mês
+        msgs_month = await db.execute(
+            select(func.count(Message.id))
+            .join(Lead, Message.lead_id == Lead.id)
+            .where(
+                and_(
+                    Lead.tenant_id == t.id,
+                    Message.created_at >= month_start
+                )
+            )
+        )
+        msgs_count = msgs_month.scalar() or 0
+        
+        usage_percent = (msgs_count / limit) * 100
+        
+        # Regra de Upsell: > 70% do uso do plano ou > 2000 msgs no Starter
+        if usage_percent > 70 or (plan == "starter" and msgs_count > 500):
+            suggested = "pro"
+            if plan == "pro": suggested = "enterprise"
+            if plan == "enterprise": suggested = "custom"
+            
+            # Leads do mês
+            leads_month = await db.execute(
+                select(func.count(Lead.id)).where(
+                    and_(Lead.tenant_id == t.id, Lead.created_at >= month_start)
+                )
+            )
+            leads_count = leads_month.scalar() or 0
+            
+            upsell_list.append(UpsellOpportunity(
+                id=t.id,
+                name=t.name,
+                current_plan=plan,
+                usage_percent=round(usage_percent, 1),
+                messages_month=msgs_count,
+                leads_month=leads_count,
+                suggested_plan=suggested
+            ))
+            
+    # Ordena por uso (decrescente)
+    upsell_list.sort(key=lambda x: x.usage_percent, reverse=True)
+    return upsell_list[:10]
