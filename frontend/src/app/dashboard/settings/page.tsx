@@ -130,10 +130,13 @@ function SettingsContent() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState('perfil');
-  const [targetTenantId, setTargetTenantId] = useState<number | null>(null);
+  const searchParams = useSearchParams();
+  const [targetTenantId, setTargetTenantId] = useState<number | null>(() => {
+    const tid = searchParams.get('target_tenant_id');
+    return tid ? parseInt(tid) : null;
+  });
   const [availableTenants, setAvailableTenants] = useState<any[]>([]);
   const [showTenantSelector, setShowTenantSelector] = useState(false);
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -507,7 +510,7 @@ function SettingsContent() {
       }
     }
     loadSettings();
-  }, []);
+  }, [targetTenantId]);
 
   // SAVE
   const handleSave = async () => {
