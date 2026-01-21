@@ -103,10 +103,8 @@ class TTSService:
                 response_format=output_format,
             )
 
-            # Salva o áudio
-            with open(temp_file, "wb") as f:
-                async for chunk in response.iter_bytes():
-                    f.write(chunk)
+            # Salva o áudio (stream_to_file é o método correto)
+            response.stream_to_file(temp_file)
 
             # Verifica se o arquivo foi criado
             if os.path.exists(temp_file) and os.path.getsize(temp_file) > 0:
@@ -163,10 +161,8 @@ class TTSService:
                 response_format=output_format,
             )
 
-            # Coleta todos os bytes
-            audio_bytes = b""
-            async for chunk in response.iter_bytes():
-                audio_bytes += chunk
+            # Lê os bytes diretamente (nova API da OpenAI)
+            audio_bytes = response.content
 
             if audio_bytes:
                 logger.info(f"✅ TTS: Áudio gerado ({len(audio_bytes)} bytes)")
