@@ -49,7 +49,7 @@ class TTSService:
         self.client = AsyncOpenAI(api_key=settings.openai_api_key)
         self.default_voice = "nova"  # Voz feminina, jovem, ideal para atendimento
         self.default_speed = 1.0
-        self.model = "tts-1"  # tts-1 é mais rápido, tts-1-hd é melhor qualidade
+        self.model = "tts-1-hd"  # tts-1-hd para melhor qualidade e som mais natural
 
     async def generate_audio(
         self,
