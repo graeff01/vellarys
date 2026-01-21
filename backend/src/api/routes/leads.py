@@ -152,8 +152,35 @@ async def create_lead(
     current_tenant: Tenant = Depends(get_current_tenant),
 ):
     """Cria um novo lead manualmente para o tenant."""
+    # ✅ VERIFICAR LIMITE DE LEADS DO PLANO
+    from src.application.services.limits_service import check_limit, increment_usage, LimitType
+    
+    limit_check = await check_limit(
+        db=db,
+        tenant_id=current_tenant.id,
+        limit_type=LimitType.LEADS,
+        increment=1
+    )
+    
+    if not limit_check.allowed:
+        raise HTTPException(
+            status_code=429,  # Too Many Requests
+            detail={
+                "error": "LEAD_LIMIT_EXCEEDED",
+                "message": limit_check.message,
+                "current": limit_check.current,
+                "limit": limit_check.limit,
+                "percentage": limit_check.percentage,
+                "upgrade_required": True
+            }
+        )
+    
     new_lead = Lead(**lead_data.model_dump(), tenant_id=current_tenant.id)
     db.add(new_lead)
+    
+    # ✅ INCREMENTAR CONTADOR DE LEADS
+    await increment_usage(db, current_tenant.id, LimitType.LEADS, 1)
+    
     await db.commit()
     await db.refresh(new_lead)
     return new_lead
