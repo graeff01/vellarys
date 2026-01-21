@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Mic, Volume2, Play, Pause, CheckCircle2 } from 'lucide-react';
+import { getToken } from '@/lib/auth';
 
 interface VoiceOption {
   id: string;
@@ -68,9 +69,15 @@ export default function VoiceResponseSettingsCard({
 
       // Chama API para gerar preview (usando variável de ambiente)
       const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+      const token = getToken();
+
+      if (!token) {
+        throw new Error('Token não encontrado');
+      }
+
       const response = await fetch(`${API_URL}/settings/voice-preview/${voiceId}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
