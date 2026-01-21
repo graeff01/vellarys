@@ -457,7 +457,7 @@ async def detect_property_context(
         logger.info(f"🕰️ Buscando no histórico")
         for msg in reversed(history):
             if msg.get("role") == "user":
-                imovel_portal = buscar_imovel_na_mensagem(msg.get("content", ""))
+                imovel_portal = await buscar_imovel_na_mensagem(msg.get("content", ""), db=db, tenant_id=lead.tenant_id)
                 if imovel_portal:
                     # 🛡️ SANITIZA DADOS DO PORTAL!
                     imovel_portal = sanitize_imovel_data(imovel_portal)
