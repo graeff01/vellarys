@@ -60,11 +60,13 @@ class KnowledgeEmbedding(Base, TimestampMixin):
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
     # Metadata adicional (categoria, tags, prioridade, etc)
-    metadata: Mapped[dict] = mapped_column(
-        MutableDict.as_mutable(JSONB),
-        default=dict,
-        nullable=True
-    )
+    extra_metadata: Mapped[dict] = mapped_column(
+    "metadata",
+    MutableDict.as_mutable(JSONB),
+    default=dict,
+    nullable=True
+)
+
 
     # Status (permite desativar sem excluir)
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true')
