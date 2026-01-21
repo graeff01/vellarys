@@ -34,8 +34,7 @@ class PropertyEmbedding(Base, TimestampMixin):
     # Embedding: vetor de 1536 dimensões (OpenAI text-embedding-3-small)
     embedding: Mapped[List[float]] = mapped_column(ARRAY(Float), nullable=False)
     
-    # Hash do conteúdo (para detectar se precisa regen
-erar)
+    # Hash do conteúdo (para detectar se precisa regenerar)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     
     # Metadata adicional (para debug/auditoria)
