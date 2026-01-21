@@ -334,6 +334,8 @@ async def zapi_receive_message(
             always_audio = voice_settings.get("always_audio", False)
             max_chars = voice_settings.get("max_chars_for_audio", 500)
 
+            logger.info(f"🔍 Voice check: enabled={voice_enabled}, is_audio={is_audio_message}, always={always_audio}, settings={voice_settings}")
+
             reply_text = result["reply"]
             should_send_audio = False
 
@@ -346,6 +348,8 @@ async def zapi_receive_message(
                         logger.info(f"🎙️ Voice-First ATIVADO: Respondendo com áudio")
                     else:
                         logger.info(f"🎙️ Resposta muito longa ({len(reply_text)} chars), enviando texto")
+                else:
+                    logger.info(f"🎙️ Voice desabilitado: always_audio={always_audio}, is_audio={is_audio_message}")
 
             if should_send_audio:
                 # Gera áudio com TTS
@@ -353,13 +357,19 @@ async def zapi_receive_message(
                     voice = voice_settings.get("voice", "nova")
                     speed = voice_settings.get("speed", 1.0)
 
+                    logger.info(f"🎤 Iniciando TTS: voz={voice}, speed={speed}, chars={len(reply_text)}")
+
                     tts = get_tts_service()
+                    logger.info(f"✅ TTS Service obtido: {tts}")
+
                     audio_bytes = await tts.generate_audio_bytes(
                         text=reply_text,
                         voice=voice,
                         speed=speed,
                         output_format="mp3"  # MP3 para melhor compatibilidade
                     )
+
+                    logger.info(f"✅ TTS retornou {len(audio_bytes) if audio_bytes else 0} bytes")
 
                     if audio_bytes:
                         # Converte para base64

@@ -34,6 +34,7 @@ export default function VoiceResponseSettingsCard({
 }: VoiceResponseSettingsProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
   const updateSetting = <K extends keyof VoiceResponseSettings>(
     key: K,
@@ -44,22 +45,74 @@ export default function VoiceResponseSettingsCard({
 
   const selectedVoice = voiceOptions.find((v) => v.id === settings.voice) || voiceOptions[0];
 
-  // Placeholder para preview de voz (seria implementado com TTS real)
-  const playVoicePreview = (voiceId: string) => {
-    if (playingVoice === voiceId) {
+  // Preview de voz real usando TTS
+  const playVoicePreview = async (voiceId: string) => {
+    // Se já está tocando esta voz, para
+    if (playingVoice === voiceId && audioElement) {
+      audioElement.pause();
+      audioElement.currentTime = 0;
       setIsPlaying(false);
       setPlayingVoice(null);
       return;
     }
 
-    setIsPlaying(true);
-    setPlayingVoice(voiceId);
+    // Para qualquer áudio que esteja tocando
+    if (audioElement) {
+      audioElement.pause();
+      audioElement.currentTime = 0;
+    }
 
-    // Simula duração do áudio
-    setTimeout(() => {
+    try {
+      setIsPlaying(true);
+      setPlayingVoice(voiceId);
+
+      // Chama API para gerar preview
+      const response = await fetch(`/api/v1/settings/voice-preview/${voiceId}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao gerar preview');
+      }
+
+      const data = await response.json();
+
+      // Converte base64 para blob
+      const audioBlob = await fetch(
+        `data:${data.mime_type};base64,${data.audio_base64}`
+      ).then((res) => res.blob());
+
+      // Cria URL do blob
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      // Cria elemento de áudio
+      const audio = new Audio(audioUrl);
+      setAudioElement(audio);
+
+      // Quando terminar de tocar
+      audio.onended = () => {
+        setIsPlaying(false);
+        setPlayingVoice(null);
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      // Se der erro
+      audio.onerror = () => {
+        setIsPlaying(false);
+        setPlayingVoice(null);
+        URL.revokeObjectURL(audioUrl);
+        console.error('Erro ao tocar áudio');
+      };
+
+      // Toca o áudio
+      await audio.play();
+    } catch (error) {
+      console.error('Erro ao gerar preview de voz:', error);
       setIsPlaying(false);
       setPlayingVoice(null);
-    }, 3000);
+    }
   };
 
   return (

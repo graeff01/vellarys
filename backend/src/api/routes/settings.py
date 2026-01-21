@@ -898,3 +898,48 @@ async def get_tone_options():
         "tones": TONE_OPTIONS,
         "personality_traits": PERSONALITY_TRAITS,
     }
+
+
+@router.get("/voice-preview/{voice_id}")
+async def get_voice_preview(
+    voice_id: str,
+    user: User = Depends(get_current_user),
+):
+    """
+    Gera preview de áudio da voz selecionada.
+    Retorna base64 do áudio MP3.
+    """
+    from src.infrastructure.services.tts_service import get_tts_service
+    import base64
+
+    # Busca o texto de preview para a voz
+    preview_text = "Olá! Esta é uma demonstração da voz selecionada."
+    for voice_opt in VOICE_OPTIONS:
+        if voice_opt["id"] == voice_id:
+            preview_text = voice_opt.get("preview_text", preview_text)
+            break
+
+    try:
+        tts = get_tts_service()
+        audio_bytes = await tts.generate_audio_bytes(
+            text=preview_text,
+            voice=voice_id,
+            speed=1.0,
+            output_format="mp3"
+        )
+
+        if audio_bytes:
+            audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+            return {
+                "success": True,
+                "audio_base64": audio_b64,
+                "mime_type": "audio/mpeg",
+                "voice_id": voice_id,
+                "text": preview_text,
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Erro ao gerar áudio")
+
+    except Exception as e:
+        logger.error(f"❌ Erro ao gerar preview de voz: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
