@@ -43,6 +43,36 @@ async def get_my_usage(
     return summary
 
 
+@router.get("/limits")
+async def get_limits(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Retorna limites e features do plano do tenant.
+    
+    Endpoint simplificado para o frontend verificar:
+    - Limites de uso (leads, mensagens, vendedores)
+    - Features disponíveis (reengagement, reports, etc)
+    - Status da assinatura
+    """
+    summary = await get_usage_summary(db, current_user.tenant_id)
+    
+    if "error" in summary:
+        raise HTTPException(status_code=404, detail=summary["error"])
+    
+    return {
+        "plan": summary["plan"],
+        "plan_slug": summary["plan_slug"],
+        "status": summary["status"],
+        "is_trial": summary["is_trial"],
+        "trial_days_remaining": summary["trial_days_remaining"],
+        "is_blocked": summary["is_blocked"],
+        "limits": summary["limits"],
+        "features": summary["features"],
+    }
+
+
 @router.get("/can-use/{feature}")
 async def check_feature_access(
     feature: str,

@@ -274,6 +274,29 @@ async def create_seller(
     """
     Cria um novo vendedor.
     """
+    # ✅ VERIFICAR LIMITE DE VENDEDORES DO PLANO
+    from src.application.services.limits_service import check_limit, LimitType
+    
+    limit_check = await check_limit(
+        db=db,
+        tenant_id=tenant.id,
+        limit_type=LimitType.SELLERS,
+        increment=1
+    )
+    
+    if not limit_check.allowed:
+        raise HTTPException(
+            status_code=429,  # Too Many Requests
+            detail={
+                "error": "SELLER_LIMIT_EXCEEDED",
+                "message": limit_check.message,
+                "current": limit_check.current,
+                "limit": limit_check.limit,
+                "percentage": limit_check.percentage,
+                "upgrade_required": True
+            }
+        )
+    
     # Verifica se já existe vendedor com esse WhatsApp no tenant
     result = await db.execute(
         select(Seller)
