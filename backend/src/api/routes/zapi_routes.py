@@ -352,22 +352,33 @@ async def zapi_receive_message(
                     logger.info(f"🎙️ Voice desabilitado: always_audio={always_audio}, is_audio={is_audio_message}")
 
             if should_send_audio:
-                # Gera áudio com TTS
+                # Gera áudio com TTS (detecta provedor automaticamente)
                 try:
-                    voice = voice_settings.get("voice", "nova")
-                    speed = voice_settings.get("speed", 1.0)
+                    voice = voice_settings.get("voice", "camila")  # Padrão: voz brasileira
+                    speed = voice_settings.get("speed", 0.95)
 
-                    logger.info(f"🎤 Iniciando TTS: voz={voice}, speed={speed}, chars={len(reply_text)}")
+                    # Detecta qual provedor usar baseado na voz
+                    GOOGLE_VOICES = ["camila", "vitoria", "ricardo", "ana", "carlos"]
+                    provider = "google" if voice in GOOGLE_VOICES else "openai"
 
-                    tts = get_tts_service()
-                    logger.info(f"✅ TTS Service obtido: {tts}")
+                    logger.info(f"🎤 Iniciando TTS ({provider}): voz={voice}, speed={speed}, chars={len(reply_text)}")
 
-                    audio_bytes = await tts.generate_audio_bytes(
-                        text=reply_text,
-                        voice=voice,
-                        speed=speed,
-                        output_format="mp3"  # MP3 para melhor compatibilidade
-                    )
+                    if provider == "google":
+                        from src.infrastructure.services.google_tts_service import get_google_tts_service
+                        tts = get_google_tts_service()
+                        audio_bytes = await tts.generate_audio_bytes(
+                            text=reply_text,
+                            voice=voice,
+                            speed=speed,
+                        )
+                    else:
+                        tts = get_tts_service()
+                        audio_bytes = await tts.generate_audio_bytes(
+                            text=reply_text,
+                            voice=voice,
+                            speed=speed,
+                            output_format="mp3"
+                        )
 
                     logger.info(f"✅ TTS retornou {len(audio_bytes) if audio_bytes else 0} bytes")
 

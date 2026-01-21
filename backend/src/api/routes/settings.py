@@ -390,14 +390,44 @@ REQUIRED_INFO_OPTIONS = [
     {"id": "como_conheceu", "name": "Como Conheceu", "description": "Como conheceu a empresa"},
 ]
 
-# Opções de voz para Voice-First (OpenAI TTS)
+# Opções de voz para Voice-First (OpenAI + Google)
 VOICE_OPTIONS = [
+    # ========== VOZES BRASILEIRAS (Google Cloud) ==========
+    {
+        "id": "camila",
+        "name": "Camila 🇧🇷",
+        "description": "Feminina, brasileira e natural (Recomendada)",
+        "gender": "female",
+        "recommended": True,
+        "provider": "google",
+        "preview_text": "Olá! Tudo bem? Sou a Camila, sua assistente virtual brasileira. Estou aqui para te ajudar com o que precisar. Pode me contar, o que você está procurando?",
+    },
+    {
+        "id": "vitoria",
+        "name": "Vitória 🇧🇷",
+        "description": "Feminina, brasileira e jovem",
+        "gender": "female",
+        "recommended": False,
+        "provider": "google",
+        "preview_text": "Oi! Que bom ter você por aqui! Sou a Vitória e vou te ajudar a encontrar exatamente o que você procura. Vamos começar?",
+    },
+    {
+        "id": "ricardo",
+        "name": "Ricardo 🇧🇷",
+        "description": "Masculina, brasileiro e profissional",
+        "gender": "male",
+        "recommended": False,
+        "provider": "google",
+        "preview_text": "E aí! Tudo certo? Sou o Ricardo, assistente virtual, e estou aqui pra te dar uma mão no que você precisar. Me conta, em que posso ajudar?",
+    },
+    # ========== VOZES INTERNACIONAIS (OpenAI) ==========
     {
         "id": "nova",
         "name": "Nova",
-        "description": "Feminina, jovem e natural (Recomendada)",
+        "description": "Feminina, jovem e natural",
         "gender": "female",
-        "recommended": True,
+        "recommended": False,
+        "provider": "openai",
         "preview_text": "Olá! Tudo bem? Sou a sua assistente virtual e estou aqui para te ajudar com o que precisar. Pode me contar, o que você está procurando?",
     },
     {
@@ -406,6 +436,7 @@ VOICE_OPTIONS = [
         "description": "Feminina, calorosa e acolhedora",
         "gender": "female",
         "recommended": False,
+        "provider": "openai",
         "preview_text": "Oi! Que bom ter você por aqui! Sou a assistente virtual e vou te ajudar a encontrar exatamente o que você procura. Vamos começar?",
     },
     {
@@ -414,6 +445,7 @@ VOICE_OPTIONS = [
         "description": "Neutra, clara e amigável",
         "gender": "neutral",
         "recommended": False,
+        "provider": "openai",
         "preview_text": "Olá! É um prazer falar com você. Estou aqui para tirar suas dúvidas e te ajudar no que for preciso. Como posso te auxiliar hoje?",
     },
     {
@@ -422,6 +454,7 @@ VOICE_OPTIONS = [
         "description": "Masculina, confiante e amigável",
         "gender": "male",
         "recommended": False,
+        "provider": "openai",
         "preview_text": "E aí! Tudo certo? Sou o assistente virtual e estou aqui pra te dar uma mão no que você precisar. Me conta, em que posso ajudar?",
     },
     {
@@ -430,6 +463,7 @@ VOICE_OPTIONS = [
         "description": "Masculina, séria e profissional",
         "gender": "male",
         "recommended": False,
+        "provider": "openai",
         "preview_text": "Olá. Sou o assistente virtual responsável por atendê-lo. Estou à disposição para esclarecer suas dúvidas. Qual é sua necessidade?",
     },
     {
@@ -438,6 +472,7 @@ VOICE_OPTIONS = [
         "description": "Expressiva, dinâmica e entusiasmada",
         "gender": "neutral",
         "recommended": False,
+        "provider": "openai",
         "preview_text": "Oi! Que legal você estar aqui! Sou a assistente virtual e estou super animada para te ajudar! Me conta tudo, o que você precisa hoje?",
     },
 ]
@@ -907,26 +942,42 @@ async def get_voice_preview(
 ):
     """
     Gera preview de áudio da voz selecionada.
+    Detecta automaticamente o provedor (OpenAI ou Google).
     Retorna base64 do áudio MP3.
     """
     from src.infrastructure.services.tts_service import get_tts_service
+    from src.infrastructure.services.google_tts_service import get_google_tts_service
     import base64
 
-    # Busca o texto de preview para a voz
+    # Busca informações da voz
     preview_text = "Olá! Esta é uma demonstração da voz selecionada."
+    provider = "openai"  # Padrão
+
     for voice_opt in VOICE_OPTIONS:
         if voice_opt["id"] == voice_id:
             preview_text = voice_opt.get("preview_text", preview_text)
+            provider = voice_opt.get("provider", "openai")
             break
 
     try:
-        tts = get_tts_service()
-        audio_bytes = await tts.generate_audio_bytes(
-            text=preview_text,
-            voice=voice_id,
-            speed=1.0,
-            output_format="mp3"
-        )
+        # Seleciona o provedor correto
+        if provider == "google":
+            logger.info(f"🇧🇷 Usando Google TTS para voz '{voice_id}'")
+            tts = get_google_tts_service()
+            audio_bytes = await tts.generate_audio_bytes(
+                text=preview_text,
+                voice=voice_id,
+                speed=0.95,
+            )
+        else:
+            logger.info(f"🌐 Usando OpenAI TTS para voz '{voice_id}'")
+            tts = get_tts_service()
+            audio_bytes = await tts.generate_audio_bytes(
+                text=preview_text,
+                voice=voice_id,
+                speed=0.95,
+                output_format="mp3"
+            )
 
         if audio_bytes:
             audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
@@ -935,6 +986,7 @@ async def get_voice_preview(
                 "audio_base64": audio_b64,
                 "mime_type": "audio/mpeg",
                 "voice_id": voice_id,
+                "provider": provider,
                 "text": preview_text,
             }
         else:

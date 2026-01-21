@@ -517,11 +517,11 @@ export const DEFAULT_FOLLOW_UP: FollowUpSettings = {
 
 export const DEFAULT_VOICE_RESPONSE: VoiceResponseSettings = {
   enabled: false,
-  voice: 'nova',
+  voice: 'camila',  // Voz brasileira por padrão
   speed: 0.95,  // Velocidade ligeiramente mais lenta para soar mais natural
   always_audio: false,
   max_chars_for_audio: 500,
-  persona_name: 'Ana',
+  persona_name: 'Camila',
 };
 
 export const DEFAULT_VOICE_OPTIONS: VoiceOption[] = [
