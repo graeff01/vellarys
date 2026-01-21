@@ -44,6 +44,25 @@ interface Niche {
   icon?: string;
 }
 
+interface Plan {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  price_monthly: number;
+  price_yearly: number;
+  limits: {
+    leads_per_month: number;
+    messages_per_month: number;
+    sellers: number;
+    ai_tokens_per_month: number;
+  };
+  features: Record<string, boolean | string>;
+  sort_order: number;
+  is_featured: boolean;
+  active: boolean;
+}
+
 type WhatsAppProvider = 'none' | '360dialog' | 'zapi';
 
 interface TenantFormState {
@@ -88,6 +107,7 @@ export default function ClientsPage() {
   const router = useRouter();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [niches, setNiches] = useState<Niche[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -108,6 +128,7 @@ export default function ClientsPage() {
     }
     fetchTenants();
     fetchNiches();
+    fetchPlans();
   }, [router]);
 
   async function fetchTenants() {
@@ -144,6 +165,26 @@ export default function ClientsPage() {
       }
     } catch (err) {
       console.error('Erro ao carregar nichos:', err);
+    }
+  }
+
+  async function fetchPlans() {
+    try {
+      const token = getToken();
+      const response = await fetch(`${API_URL}/admin/plans`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Filtra apenas planos ativos e ordena por sort_order
+        const activePlans = data.plans
+          .filter((p: Plan) => p.active)
+          .sort((a: Plan, b: Plan) => a.sort_order - b.sort_order);
+        setPlans(activePlans);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar planos:', err);
     }
   }
 
@@ -483,19 +524,22 @@ export default function ClientsPage() {
     setShowPassword(true);
   }
 
-  const planColors: Record<string, string> = {
-    essencial: 'bg-gray-100 text-gray-700',
-    starter: 'bg-gray-100 text-gray-700',
-    professional: 'bg-blue-100 text-blue-700',
-    enterprise: 'bg-purple-100 text-purple-700',
-  };
+  // Função helper para obter cor do plano dinamicamente
+  function getPlanColor(planSlug: string): string {
+    const defaultColors: Record<string, string> = {
+      essencial: 'bg-gray-100 text-gray-700',
+      starter: 'bg-gray-100 text-gray-700',
+      professional: 'bg-blue-100 text-blue-700',
+      enterprise: 'bg-purple-100 text-purple-700',
+    };
+    return defaultColors[planSlug] || 'bg-gray-100 text-gray-700';
+  }
 
-  const planLabels: Record<string, string> = {
-    essencial: 'Essencial',
-    starter: 'Starter',
-    professional: 'Professional',
-    enterprise: 'Enterprise',
-  };
+  // Função helper para obter label do plano dinamicamente
+  function getPlanLabel(planSlug: string): string {
+    const plan = plans.find(p => p.slug === planSlug);
+    return plan?.name || planSlug.charAt(0).toUpperCase() + planSlug.slice(1);
+  }
 
   function getWebhookUrl(): string {
     if (formData.whatsapp_provider === 'zapi') {
@@ -576,10 +620,9 @@ export default function ClientsPage() {
                   </td>
                   <td className="px-6 py-4">
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${planColors[tenant.plan] || 'bg-gray-100 text-gray-700'
-                        }`}
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${getPlanColor(tenant.plan)}`}
                     >
-                      {planLabels[tenant.plan] || tenant.plan}
+                      {getPlanLabel(tenant.plan)}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -734,144 +777,104 @@ export default function ClientsPage() {
                     Plano de Assinatura
                   </label>
                   <div className="grid grid-cols-3 gap-3">
-                    {/* Essencial */}
-                    <button
-                      type="button"
-                      onClick={() => setFormData((prev) => ({ ...prev, plan: 'essencial' }))}
-                      className={`relative p-4 rounded-xl border-2 text-left transition-all ${
-                        formData.plan === 'essencial'
-                          ? 'border-gray-500 bg-gray-50 shadow-md'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold text-gray-900">Essencial</h4>
-                        {formData.plan === 'essencial' && (
-                          <Check className="w-5 h-5 text-gray-600" />
-                        )}
+                    {plans.length === 0 ? (
+                      <div className="col-span-3 text-center py-8 text-gray-500">
+                        Carregando planos...
                       </div>
-                      <p className="text-2xl font-bold text-gray-900 mb-1">R$ 297</p>
-                      <p className="text-xs text-gray-500 mb-3">/mês</p>
-                      <div className="space-y-1 text-xs text-gray-600">
-                        <div className="flex items-center gap-1">
-                          <Check className="w-3 h-3 text-green-500" />
-                          <span>300 leads/mês</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Check className="w-3 h-3 text-green-500" />
-                          <span>3 corretores</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Check className="w-3 h-3 text-green-500" />
-                          <span>IA + WhatsApp</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <X className="w-3 h-3 text-gray-400" />
-                          <span>Sem agendamento</span>
-                        </div>
-                      </div>
-                    </button>
+                    ) : (
+                      plans.map((plan) => {
+                        const isSelected = formData.plan === plan.slug;
+                        const isFeatured = plan.is_featured;
 
-                    {/* Professional */}
-                    <button
-                      type="button"
-                      onClick={() => setFormData((prev) => ({ ...prev, plan: 'professional' }))}
-                      className={`relative p-4 rounded-xl border-2 text-left transition-all ${
-                        formData.plan === 'professional'
-                          ? 'border-blue-500 bg-blue-50 shadow-md'
-                          : 'border-blue-200 hover:border-blue-300'
-                      }`}
-                    >
-                      <div className="absolute -top-2 -right-2 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full font-semibold">
-                        POPULAR
-                      </div>
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold text-gray-900">Professional</h4>
-                        {formData.plan === 'professional' && (
-                          <Check className="w-5 h-5 text-blue-600" />
-                        )}
-                      </div>
-                      <p className="text-2xl font-bold text-gray-900 mb-1">R$ 697</p>
-                      <p className="text-xs text-gray-500 mb-3">/mês</p>
-                      <div className="space-y-1 text-xs text-gray-600">
-                        <div className="flex items-center gap-1">
-                          <Check className="w-3 h-3 text-green-500" />
-                          <span>1.500 leads/mês</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Check className="w-3 h-3 text-green-500" />
-                          <span>15 corretores</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Check className="w-3 h-3 text-green-500" />
-                          <span>Agendamento assistido</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Check className="w-3 h-3 text-green-500" />
-                          <span>Voz + Reengajamento</span>
-                        </div>
-                      </div>
-                    </button>
+                        // Define cores por slug
+                        const colors = {
+                          essencial: { border: 'border-gray-200', borderActive: 'border-gray-500', bg: 'bg-gray-50', check: 'text-gray-600' },
+                          professional: { border: 'border-blue-200', borderActive: 'border-blue-500', bg: 'bg-blue-50', check: 'text-blue-600' },
+                          enterprise: { border: 'border-purple-200', borderActive: 'border-purple-500', bg: 'bg-purple-50', check: 'text-purple-600' },
+                        }[plan.slug] || { border: 'border-gray-200', borderActive: 'border-gray-500', bg: 'bg-gray-50', check: 'text-gray-600' };
 
-                    {/* Enterprise */}
-                    <button
-                      type="button"
-                      onClick={() => setFormData((prev) => ({ ...prev, plan: 'enterprise' }))}
-                      className={`relative p-4 rounded-xl border-2 text-left transition-all ${
-                        formData.plan === 'enterprise'
-                          ? 'border-purple-500 bg-purple-50 shadow-md'
-                          : 'border-purple-200 hover:border-purple-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold text-gray-900">Enterprise</h4>
-                        {formData.plan === 'enterprise' && (
-                          <Check className="w-5 h-5 text-purple-600" />
-                        )}
-                      </div>
-                      <p className="text-2xl font-bold text-gray-900 mb-1">R$ 1.497</p>
-                      <p className="text-xs text-gray-500 mb-3">/mês</p>
-                      <div className="space-y-1 text-xs text-gray-600">
-                        <div className="flex items-center gap-1">
-                          <Check className="w-3 h-3 text-green-500" />
-                          <span>Leads ilimitados</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Check className="w-3 h-3 text-green-500" />
-                          <span>Corretores ilimitados</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Check className="w-3 h-3 text-green-500" />
-                          <span>Agendamento automático</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Check className="w-3 h-3 text-green-500" />
-                          <span>API + White-label</span>
-                        </div>
-                      </div>
-                    </button>
+                        const formatLimit = (value: number) => {
+                          if (value === -1) return '∞';
+                          return value.toLocaleString('pt-BR');
+                        };
+
+                        return (
+                          <button
+                            key={plan.id}
+                            type="button"
+                            onClick={() => setFormData((prev) => ({ ...prev, plan: plan.slug }))}
+                            className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                              isSelected
+                                ? `${colors.borderActive} ${colors.bg} shadow-md`
+                                : `${colors.border} hover:border-gray-300`
+                            }`}
+                          >
+                            {isFeatured && (
+                              <div className="absolute -top-2 -right-2 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full font-semibold">
+                                POPULAR
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-semibold text-gray-900">{plan.name}</h4>
+                              {isSelected && (
+                                <Check className={`w-5 h-5 ${colors.check}`} />
+                              )}
+                            </div>
+                            <p className="text-2xl font-bold text-gray-900 mb-1">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(plan.price_monthly)}
+                            </p>
+                            <p className="text-xs text-gray-500 mb-3">/mês</p>
+                            <div className="space-y-1 text-xs text-gray-600">
+                              <div className="flex items-center gap-1">
+                                <Check className="w-3 h-3 text-green-500" />
+                                <span>{formatLimit(plan.limits.leads_per_month)} leads/mês</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Check className="w-3 h-3 text-green-500" />
+                                <span>{formatLimit(plan.limits.sellers)} corretores</span>
+                              </div>
+                              {plan.features.appointment_booking ? (
+                                <div className="flex items-center gap-1">
+                                  <Check className="w-3 h-3 text-green-500" />
+                                  <span>
+                                    {plan.features.appointment_mode === 'automatic' ? 'Agendamento automático' : 'Agendamento assistido'}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1">
+                                  <X className="w-3 h-3 text-gray-400" />
+                                  <span>Sem agendamento</span>
+                                </div>
+                              )}
+                              {plan.features.humanized_voice && (
+                                <div className="flex items-center gap-1">
+                                  <Check className="w-3 h-3 text-green-500" />
+                                  <span>Voz humanizada</span>
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
 
                   {/* Info do plano selecionado */}
-                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm text-blue-800">
-                      {formData.plan === 'essencial' && (
-                        <>
-                          <strong>Plano Essencial:</strong> Ideal para imobiliárias iniciando com IA. Inclui qualificação automática de leads, WhatsApp e relatórios básicos.
-                        </>
-                      )}
-                      {formData.plan === 'professional' && (
-                        <>
-                          <strong>Plano Professional:</strong> Melhor custo-benefício! Inclui agendamento assistido de visitas via Google Calendar, reengajamento automático, voz humanizada e relatórios avançados.
-                        </>
-                      )}
-                      {formData.plan === 'enterprise' && (
-                        <>
-                          <strong>Plano Enterprise:</strong> Solução completa! Agendamento automático com criação de eventos no Google Calendar, lembretes automáticos, API completa, white-label e Account Manager dedicado.
-                        </>
-                      )}
-                    </p>
-                  </div>
+                  {plans.length > 0 && formData.plan && (
+                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        {(() => {
+                          const selectedPlan = plans.find(p => p.slug === formData.plan);
+                          if (!selectedPlan) return null;
+                          return (
+                            <>
+                              <strong>{selectedPlan.name}:</strong> {selectedPlan.description}
+                            </>
+                          );
+                        })()}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
