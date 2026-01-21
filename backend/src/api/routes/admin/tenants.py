@@ -973,7 +973,7 @@ async def delete_tenant(
         tenant_name = tenant.name
 
         # 1. Deletar notificações (não tem CASCADE)
-        from src.domain.entities.notification import Notification
+        from src.domain.entities.models import Notification
         await db.execute(
             sa_delete(Notification).where(Notification.tenant_id == tenant_id)
         )
