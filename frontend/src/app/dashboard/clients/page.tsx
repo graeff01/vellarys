@@ -71,7 +71,7 @@ interface TenantFormState {
 const initialFormState: TenantFormState = {
   name: '',
   slug: '',
-  plan: 'starter',
+  plan: 'professional', // Padrão é Professional (melhor custo-benefício)
   niche: '',
   admin_name: '',
   admin_email: '',
@@ -484,12 +484,14 @@ export default function ClientsPage() {
   }
 
   const planColors: Record<string, string> = {
+    essencial: 'bg-gray-100 text-gray-700',
     starter: 'bg-gray-100 text-gray-700',
     professional: 'bg-blue-100 text-blue-700',
     enterprise: 'bg-purple-100 text-purple-700',
   };
 
   const planLabels: Record<string, string> = {
+    essencial: 'Essencial',
     starter: 'Starter',
     professional: 'Professional',
     enterprise: 'Enterprise',
@@ -707,41 +709,168 @@ export default function ClientsPage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Plano
-                    </label>
-                    <select
-                      value={formData.plan}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, plan: e.target.value }))
-                      }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nicho *
+                  </label>
+                  <select
+                    value={formData.niche}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, niche: e.target.value }))
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="">Selecione um nicho</option>
+                    {niches.map((n) => (
+                      <option key={n.id} value={n.slug}>
+                        {n.icon ? `${n.icon} ${n.name}` : n.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Plano de Assinatura
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {/* Essencial */}
+                    <button
+                      type="button"
+                      onClick={() => setFormData((prev) => ({ ...prev, plan: 'essencial' }))}
+                      className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                        formData.plan === 'essencial'
+                          ? 'border-gray-500 bg-gray-50 shadow-md'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
                     >
-                      <option value="starter">Starter</option>
-                      <option value="professional">Professional</option>
-                      <option value="enterprise">Enterprise</option>
-                    </select>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-gray-900">Essencial</h4>
+                        {formData.plan === 'essencial' && (
+                          <Check className="w-5 h-5 text-gray-600" />
+                        )}
+                      </div>
+                      <p className="text-2xl font-bold text-gray-900 mb-1">R$ 297</p>
+                      <p className="text-xs text-gray-500 mb-3">/mês</p>
+                      <div className="space-y-1 text-xs text-gray-600">
+                        <div className="flex items-center gap-1">
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>300 leads/mês</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>3 corretores</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>IA + WhatsApp</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <X className="w-3 h-3 text-gray-400" />
+                          <span>Sem agendamento</span>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Professional */}
+                    <button
+                      type="button"
+                      onClick={() => setFormData((prev) => ({ ...prev, plan: 'professional' }))}
+                      className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                        formData.plan === 'professional'
+                          ? 'border-blue-500 bg-blue-50 shadow-md'
+                          : 'border-blue-200 hover:border-blue-300'
+                      }`}
+                    >
+                      <div className="absolute -top-2 -right-2 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full font-semibold">
+                        POPULAR
+                      </div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-gray-900">Professional</h4>
+                        {formData.plan === 'professional' && (
+                          <Check className="w-5 h-5 text-blue-600" />
+                        )}
+                      </div>
+                      <p className="text-2xl font-bold text-gray-900 mb-1">R$ 697</p>
+                      <p className="text-xs text-gray-500 mb-3">/mês</p>
+                      <div className="space-y-1 text-xs text-gray-600">
+                        <div className="flex items-center gap-1">
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>1.500 leads/mês</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>15 corretores</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>Agendamento assistido</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>Voz + Reengajamento</span>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Enterprise */}
+                    <button
+                      type="button"
+                      onClick={() => setFormData((prev) => ({ ...prev, plan: 'enterprise' }))}
+                      className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                        formData.plan === 'enterprise'
+                          ? 'border-purple-500 bg-purple-50 shadow-md'
+                          : 'border-purple-200 hover:border-purple-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-gray-900">Enterprise</h4>
+                        {formData.plan === 'enterprise' && (
+                          <Check className="w-5 h-5 text-purple-600" />
+                        )}
+                      </div>
+                      <p className="text-2xl font-bold text-gray-900 mb-1">R$ 1.497</p>
+                      <p className="text-xs text-gray-500 mb-3">/mês</p>
+                      <div className="space-y-1 text-xs text-gray-600">
+                        <div className="flex items-center gap-1">
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>Leads ilimitados</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>Corretores ilimitados</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>Agendamento automático</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Check className="w-3 h-3 text-green-500" />
+                          <span>API + White-label</span>
+                        </div>
+                      </div>
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nicho *
-                    </label>
-                    <select
-                      value={formData.niche}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, niche: e.target.value }))
-                      }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    >
-                      <option value="">Selecione um nicho</option>
-                      {niches.map((n) => (
-                        <option key={n.id} value={n.slug}>
-                          {n.icon ? `${n.icon} ${n.name}` : n.name}
-                        </option>
-                      ))}
-                    </select>
+
+                  {/* Info do plano selecionado */}
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      {formData.plan === 'essencial' && (
+                        <>
+                          <strong>Plano Essencial:</strong> Ideal para imobiliárias iniciando com IA. Inclui qualificação automática de leads, WhatsApp e relatórios básicos.
+                        </>
+                      )}
+                      {formData.plan === 'professional' && (
+                        <>
+                          <strong>Plano Professional:</strong> Melhor custo-benefício! Inclui agendamento assistido de visitas via Google Calendar, reengajamento automático, voz humanizada e relatórios avançados.
+                        </>
+                      )}
+                      {formData.plan === 'enterprise' && (
+                        <>
+                          <strong>Plano Enterprise:</strong> Solução completa! Agendamento automático com criação de eventos no Google Calendar, lembretes automáticos, API completa, white-label e Account Manager dedicado.
+                        </>
+                      )}
+                    </p>
                   </div>
                 </div>
               </div>

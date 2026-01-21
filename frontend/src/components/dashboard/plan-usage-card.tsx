@@ -79,6 +79,7 @@ export function PlanUsageCard() {
   }
 
   const planColors: Record<string, { bg: string; text: string; border: string }> = {
+    essencial: { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-200' },
     starter: { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-200' },
     professional: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200' },
     enterprise: { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-200' },
@@ -105,7 +106,7 @@ export function PlanUsageCard() {
     );
   }
 
-  const colors = planColors[usage.plan_slug] || planColors.starter;
+  const colors = planColors[usage.plan_slug] || planColors.essencial;
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">

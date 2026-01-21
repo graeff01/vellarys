@@ -36,16 +36,10 @@ interface Plan {
     leads_per_month: number;
     messages_per_month: number;
     sellers: number;
-    niches: number;
     ai_tokens_per_month: number;
   };
   features: {
-    reengagement: boolean;
-    advanced_reports: boolean;
-    api_access: boolean;
-    priority_support: boolean;
-    white_label: boolean;
-    custom_integrations: boolean;
+    [key: string]: boolean | string;
   };
   sort_order: number;
   is_featured: boolean;
@@ -65,16 +59,25 @@ const defaultPlan = {
     leads_per_month: 100,
     messages_per_month: 1000,
     sellers: 2,
-    niches: 1,
     ai_tokens_per_month: 100000,
   },
   features: {
+    ai_qualification: false,
+    whatsapp_integration: false,
+    web_chat: false,
+    push_notifications: false,
+    basic_reports: false,
+    lead_export: false,
+    appointment_booking: false,
+    calendar_integration: false,
     reengagement: false,
     advanced_reports: false,
+    humanized_voice: false,
+    multi_channel: false,
+    semantic_search: false,
     api_access: false,
-    priority_support: false,
     white_label: false,
-    custom_integrations: false,
+    priority_support: false,
   },
 };
 
@@ -229,13 +232,35 @@ export default function PlansPage() {
     return value.toLocaleString('pt-BR');
   }
 
-  const featureLabels: Record<string, { label: string; icon: React.ReactNode }> = {
-    reengagement: { label: 'Reengajamento', icon: <Zap className="w-4 h-4" /> },
-    advanced_reports: { label: 'Relatórios Avançados', icon: <BarChart3 className="w-4 h-4" /> },
-    api_access: { label: 'Acesso à API', icon: <Code className="w-4 h-4" /> },
-    priority_support: { label: 'Suporte Prioritário', icon: <Headphones className="w-4 h-4" /> },
-    white_label: { label: 'White Label', icon: <Palette className="w-4 h-4" /> },
-    custom_integrations: { label: 'Integrações Custom', icon: <Shield className="w-4 h-4" /> },
+  const featureLabels: Record<string, { label: string; icon: React.ReactNode; category: string }> = {
+    // Básicas
+    ai_qualification: { label: 'Qualificação IA', icon: <Zap className="w-4 h-4" />, category: 'Básico' },
+    whatsapp_integration: { label: 'WhatsApp', icon: <MessageSquare className="w-4 h-4" />, category: 'Básico' },
+    web_chat: { label: 'Chat Web', icon: <MessageSquare className="w-4 h-4" />, category: 'Básico' },
+    push_notifications: { label: 'Notificações', icon: <Zap className="w-4 h-4" />, category: 'Básico' },
+    basic_reports: { label: 'Relatórios Básicos', icon: <BarChart3 className="w-4 h-4" />, category: 'Básico' },
+    lead_export: { label: 'Exportar Leads', icon: <Users className="w-4 h-4" />, category: 'Básico' },
+
+    // Avançadas
+    appointment_booking: { label: 'Agendamento de Visitas', icon: <Check className="w-4 h-4" />, category: 'Avançado' },
+    calendar_integration: { label: 'Google Calendar', icon: <Check className="w-4 h-4" />, category: 'Avançado' },
+    reengagement: { label: 'Reengajamento Auto', icon: <Zap className="w-4 h-4" />, category: 'Avançado' },
+    advanced_reports: { label: 'Relatórios Avançados', icon: <BarChart3 className="w-4 h-4" />, category: 'Avançado' },
+    humanized_voice: { label: 'Voz Humanizada', icon: <Headphones className="w-4 h-4" />, category: 'Avançado' },
+    multi_channel: { label: 'Multicanal', icon: <MessageSquare className="w-4 h-4" />, category: 'Avançado' },
+    semantic_search: { label: 'Busca Semântica', icon: <Zap className="w-4 h-4" />, category: 'Avançado' },
+
+    // Enterprise
+    api_access: { label: 'API Completa', icon: <Code className="w-4 h-4" />, category: 'Enterprise' },
+    webhooks: { label: 'Webhooks', icon: <Code className="w-4 h-4" />, category: 'Enterprise' },
+    white_label: { label: 'White Label', icon: <Palette className="w-4 h-4" />, category: 'Enterprise' },
+    priority_support: { label: 'Suporte Prioritário', icon: <Headphones className="w-4 h-4" />, category: 'Enterprise' },
+    account_manager: { label: 'Account Manager', icon: <UserPlus className="w-4 h-4" />, category: 'Enterprise' },
+    custom_integrations: { label: 'Integrações Custom', icon: <Shield className="w-4 h-4" />, category: 'Enterprise' },
+    appointment_auto_create: { label: 'Agendamento Automático', icon: <Check className="w-4 h-4" />, category: 'Enterprise' },
+    appointment_reminders: { label: 'Lembretes Automáticos', icon: <Zap className="w-4 h-4" />, category: 'Enterprise' },
+    calendar_email_invites: { label: 'Convites por Email', icon: <MessageSquare className="w-4 h-4" />, category: 'Enterprise' },
+    sla_99_5: { label: 'SLA 99.5%', icon: <Shield className="w-4 h-4" />, category: 'Enterprise' },
   };
 
   return (
@@ -384,7 +409,7 @@ export default function PlansPage() {
                         </div>
                         <div className="flex justify-between py-2 border-b border-gray-100">
                           <span className="text-gray-600 flex items-center gap-2">
-                            <UserPlus className="w-4 h-4" /> Vendedores
+                            <UserPlus className="w-4 h-4" /> Corretores
                           </span>
                           <span className="font-medium text-gray-900">
                             {formatLimit(plan.limits.sellers)}
@@ -403,20 +428,39 @@ export default function PlansPage() {
 
                     {/* Features */}
                     <div>
-                      <h4 className="font-semibold text-gray-900 mb-3">Features</h4>
-                      <div className="space-y-2">
-                        {Object.entries(featureLabels).map(([key, { label, icon }]) => (
-                          <div key={key} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                            <span className="text-gray-600 flex items-center gap-2">
-                              {icon} {label}
-                            </span>
-                            {plan.features[key as keyof typeof plan.features] ? (
-                              <Check className="w-5 h-5 text-green-500" />
-                            ) : (
-                              <X className="w-5 h-5 text-gray-300" />
-                            )}
-                          </div>
-                        ))}
+                      <h4 className="font-semibold text-gray-900 mb-3">Features Incluídas</h4>
+                      <div className="space-y-3">
+                        {/* Agrupar features por categoria */}
+                        {['Básico', 'Avançado', 'Enterprise'].map((category) => {
+                          const categoryFeatures = Object.entries(featureLabels).filter(
+                            ([, data]) => data.category === category
+                          );
+
+                          const hasAnyFeature = categoryFeatures.some(
+                            ([key]) => plan.features[key]
+                          );
+
+                          if (!hasAnyFeature) return null;
+
+                          return (
+                            <div key={category}>
+                              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">{category}</p>
+                              <div className="space-y-1">
+                                {categoryFeatures.map(([key, { label, icon }]) => {
+                                  const isEnabled = plan.features[key];
+                                  if (!isEnabled) return null;
+
+                                  return (
+                                    <div key={key} className="flex items-center gap-2 text-sm">
+                                      <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                                      <span className="text-gray-700">{label}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -577,26 +621,13 @@ export default function PlansPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Vendedores</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Corretores</label>
                     <input
                       type="number"
                       value={formData.limits.sellers}
                       onChange={(e) => setFormData({
                         ...formData,
                         limits: { ...formData.limits, sellers: parseInt(e.target.value) || 0 }
-                      })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      min="-1"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Nichos</label>
-                    <input
-                      type="number"
-                      value={formData.limits.niches}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        limits: { ...formData.limits, niches: parseInt(e.target.value) || 0 }
                       })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                       min="-1"
