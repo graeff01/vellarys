@@ -258,7 +258,7 @@ export default function ClientDetailsPage() {
 
   async function toggleTenantStatus() {
     if (!tenant) return;
-    
+
     const action = tenant.active ? 'desativar' : 'ativar';
     if (!confirm(`Tem certeza que deseja ${action} este cliente?`)) {
       return;
@@ -281,6 +281,55 @@ export default function ClientDetailsPage() {
       }
     } catch (err) {
       console.error('Erro ao atualizar status:', err);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function deleteTenantPermanently() {
+    if (!tenant) return;
+
+    const confirmText = `ATENÇÃO: Esta ação é IRREVERSÍVEL!
+
+Você está prestes a DELETAR PERMANENTEMENTE o cliente "${tenant.name}".
+
+Isso irá remover:
+- Todos os leads e mensagens
+- Todos os usuários e vendedores
+- Todas as notificações
+- Todo o histórico
+
+Digite o nome do cliente para confirmar: ${tenant.name}`;
+
+    const userInput = prompt(confirmText);
+
+    if (userInput !== tenant.name) {
+      if (userInput !== null) {
+        alert('Nome do cliente incorreto. Exclusão cancelada.');
+      }
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const token = getToken();
+      const response = await fetch(`${API_URL}/admin/tenants/${tenantId}?permanent=true`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        alert(`Cliente "${tenant.name}" deletado permanentemente`);
+        router.push('/dashboard/clients');
+      } else {
+        const error = await response.json();
+        alert(error.detail || 'Erro ao deletar cliente');
+      }
+    } catch (err) {
+      console.error('Erro ao deletar cliente:', err);
+      alert('Erro ao conectar com servidor');
     } finally {
       setActionLoading(false);
     }
@@ -741,8 +790,8 @@ export default function ClientDetailsPage() {
             onClick={toggleTenantStatus}
             disabled={actionLoading}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors disabled:opacity-50 ${
-              tenant.active 
-                ? 'bg-red-50 text-red-700 hover:bg-red-100' 
+              tenant.active
+                ? 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
                 : 'bg-green-50 text-green-700 hover:bg-green-100'
             }`}
           >
@@ -758,6 +807,18 @@ export default function ClientDetailsPage() {
               </>
             )}
           </button>
+
+          {!tenant.active && (
+            <button
+              onClick={deleteTenantPermanently}
+              disabled={actionLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50 border border-red-200"
+              title="Deletar permanentemente (irreversível)"
+            >
+              <X className="w-4 h-4" />
+              Deletar Permanentemente
+            </button>
+          )}
         </div>
       </div>
 

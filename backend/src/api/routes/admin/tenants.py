@@ -10,7 +10,7 @@ Suporta integração com 360dialog e Z-API.
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete as sa_delete
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, EmailStr
@@ -939,56 +939,98 @@ async def update_subscription(
 @router.delete("/{tenant_id}")
 async def delete_tenant(
     tenant_id: int,
+    permanent: bool = False,
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(get_current_superadmin),
 ):
     """
-    Desativa um cliente (soft delete).
-    
-    Não deleta permanentemente para manter histórico.
+    Desativa ou deleta permanentemente um cliente.
+
+    - permanent=False (padrão): Soft delete (desativa)
+    - permanent=True: Hard delete (remove do banco com todas as relações)
     """
-    
+
     result = await db.execute(
         select(Tenant).where(Tenant.id == tenant_id)
     )
     tenant = result.scalar_one_or_none()
-    
+
     if not tenant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Cliente não encontrado",
         )
-    
+
     # Não permite deletar tenant admin
     if tenant.slug == "velaris-admin":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Não é possível desativar o tenant admin",
+            detail="Não é possível deletar o tenant admin",
         )
-    
-    tenant.active = False
-    
-    # Cancela subscription
-    sub_result = await db.execute(
-        select(TenantSubscription).where(TenantSubscription.tenant_id == tenant_id)
-    )
-    subscription = sub_result.scalar_one_or_none()
-    if subscription:
-        subscription.status = "canceled"
-        subscription.canceled_at = datetime.now(timezone.utc)
-    
-    # Log da ação
-    log = AdminLog(
-        admin_id=admin.id,
-        admin_email=admin.email,
-        action="delete_tenant",
-        target_type="tenant",
-        target_id=tenant.id,
-        target_name=tenant.name,
-        details={"action": "soft_delete"},
-    )
-    db.add(log)
-    
-    await db.commit()
-    
-    return {"success": True, "message": "Cliente desativado"}
+
+    if permanent:
+        # Hard delete - Remove todas as entidades relacionadas antes
+        tenant_name = tenant.name
+
+        # 1. Deletar notificações (não tem CASCADE)
+        from src.domain.entities.notification import Notification
+        await db.execute(
+            sa_delete(Notification).where(Notification.tenant_id == tenant_id)
+        )
+
+        # 2. Deletar usuários do tenant (pode não ter CASCADE completo)
+        await db.execute(
+            sa_delete(User).where(User.tenant_id == tenant_id)
+        )
+
+        # 3. Deletar subscription
+        await db.execute(
+            sa_delete(TenantSubscription).where(TenantSubscription.tenant_id == tenant_id)
+        )
+
+        # 4. Agora deleta o tenant (as outras entidades com CASCADE serão deletadas automaticamente)
+        await db.delete(tenant)
+
+        # Log
+        log = AdminLog(
+            admin_id=admin.id,
+            admin_email=admin.email,
+            action="delete_tenant_permanent",
+            target_type="tenant",
+            target_id=tenant_id,
+            target_name=tenant_name,
+            details={"action": "hard_delete", "permanent": True},
+        )
+        db.add(log)
+
+        await db.commit()
+
+        return {"success": True, "message": f"Cliente '{tenant_name}' deletado permanentemente"}
+    else:
+        # Soft delete - Apenas desativa
+        tenant.active = False
+
+        # Cancela subscription
+        sub_result = await db.execute(
+            select(TenantSubscription).where(TenantSubscription.tenant_id == tenant_id)
+        )
+        subscription = sub_result.scalar_one_or_none()
+        if subscription:
+            subscription.status = "canceled"
+            subscription.canceled_at = datetime.now(timezone.utc)
+
+        # Log da ação
+        log = AdminLog(
+            admin_id=admin.id,
+            admin_email=admin.email,
+            action="delete_tenant",
+            target_type="tenant",
+            target_id=tenant.id,
+            target_name=tenant.name,
+            details={"action": "soft_delete"},
+        )
+        db.add(log)
+
+        await db.commit()
+
+        return {"success": True, "message": "Cliente desativado"}
