@@ -28,21 +28,33 @@ class PropertyEmbedding(Base, TimestampMixin):
     __tablename__ = "property_embeddings"
     
     id: Mapped[int] = mapped_column(primary_key=True)
-    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), unique=True)
+    tenant_id: Mapped[int] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id", ondelete="CASCADE"), unique=True
+    )
     
-    # Embedding: vetor de 1536 dimensões (OpenAI text-embedding-3-small)
-    embedding: Mapped[List[float]] = mapped_column(ARRAY(Float), nullable=False)
+    # Embedding: vetor de 1536 dimensões
+    embedding: Mapped[List[float]] = mapped_column(
+        ARRAY(Float),
+        nullable=False
+    )
     
-    # Hash do conteúdo (para detectar se precisa regenerar)
-    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Hash do conteúdo
+    content_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False
+    )
     
-    # Metadata adicional (para debug/auditoria)
-    metadata: Mapped[dict] = mapped_column(
+    # Metadata adicional (debug/auditoria)
+    extra_metadata: Mapped[dict] = mapped_column(
+        "metadata",
         MutableDict.as_mutable(JSONB),
         default=dict,
         nullable=True
     )
+
     
     # Relacionamentos
     # tenant: Mapped["Tenant"] = relationship(back_populates="property_embeddings")
