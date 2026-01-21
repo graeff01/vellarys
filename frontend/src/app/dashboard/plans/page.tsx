@@ -189,6 +189,44 @@ export default function PlansPage() {
     }
   }
 
+  async function deletePlanPermanently(plan: Plan) {
+    const confirmText = `ATENÇÃO: Esta ação é IRREVERSÍVEL!
+
+Você está prestes a DELETAR PERMANENTEMENTE o plano "${plan.name}".
+
+Digite o nome do plano para confirmar: ${plan.name}`;
+
+    const userInput = prompt(confirmText);
+
+    if (userInput !== plan.name) {
+      if (userInput !== null) {
+        alert('Nome do plano incorreto. Exclusão cancelada.');
+      }
+      return;
+    }
+
+    try {
+      const token = getToken();
+      const response = await fetch(`${API_URL}/admin/plans/${plan.id}?permanent=true`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        alert(`Plano "${plan.name}" deletado permanentemente`);
+        fetchPlans();
+      } else {
+        const error = await response.json();
+        alert(error.detail || 'Erro ao deletar plano');
+      }
+    } catch (err) {
+      console.error('Erro ao deletar plano:', err);
+      alert('Erro ao conectar com servidor');
+    }
+  }
+
   function openEditModal(plan: Plan) {
     setEditingPlan(plan);
     setFormData({
@@ -490,12 +528,25 @@ export default function PlansPage() {
                       }}
                       className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                         plan.active
-                          ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                          ? 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100'
                           : 'bg-green-50 text-green-600 hover:bg-green-100'
                       }`}
                     >
                       {plan.active ? 'Desativar' : 'Ativar'}
                     </button>
+                    {!plan.active && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deletePlanPermanently(plan);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors border border-red-200"
+                        title="Deletar permanentemente (irreversível)"
+                      >
+                        <X className="w-4 h-4" />
+                        Deletar Permanentemente
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

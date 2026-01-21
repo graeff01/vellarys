@@ -248,47 +248,77 @@ async def update_plan(
 @router.delete("/{plan_id}")
 async def delete_plan(
     plan_id: int,
+    permanent: bool = False,
     current_user: User = Depends(get_current_superadmin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Desativa um plano (soft delete)."""
-    
+    """
+    Deleta ou desativa um plano.
+
+    - permanent=False (padrão): Apenas desativa (soft delete)
+    - permanent=True: Deleta permanentemente do banco
+    """
+
     result = await db.execute(
         select(Plan).where(Plan.id == plan_id)
     )
     plan = result.scalar_one_or_none()
-    
+
     if not plan:
         raise HTTPException(status_code=404, detail="Plano não encontrado")
-    
+
     # Verificar se há tenants usando esse plano
     from src.domain.entities.tenant_subscription import TenantSubscription
     subs_result = await db.execute(
         select(TenantSubscription).where(TenantSubscription.plan_id == plan_id)
     )
-    if subs_result.scalars().first():
+    has_subscribers = subs_result.scalars().first() is not None
+
+    if has_subscribers:
         raise HTTPException(
-            status_code=400, 
-            detail="Não é possível deletar plano em uso. Desative-o ou migre os clientes."
+            status_code=400,
+            detail="Não é possível deletar plano em uso. Migre os clientes para outro plano primeiro."
         )
-    
-    plan.active = False
-    
-    # Log
-    log = AdminLog(
-        admin_id=current_user.id,
-        admin_email=current_user.email,
-        action="delete_plan",
-        target_type="plan",
-        target_id=plan.id,
-        target_name=plan.name,
-        details={"soft_delete": True},
-    )
-    db.add(log)
-    
-    await db.commit()
-    
-    return {"success": True, "message": "Plano desativado"}
+
+    if permanent:
+        # Hard delete - Remove permanentemente do banco
+        plan_name = plan.name
+        await db.delete(plan)
+
+        # Log
+        log = AdminLog(
+            admin_id=current_user.id,
+            admin_email=current_user.email,
+            action="delete_plan_permanent",
+            target_type="plan",
+            target_id=plan_id,
+            target_name=plan_name,
+            details={"permanent": True},
+        )
+        db.add(log)
+
+        await db.commit()
+
+        return {"success": True, "message": f"Plano '{plan_name}' deletado permanentemente"}
+    else:
+        # Soft delete - Apenas desativa
+        plan.active = False
+
+        # Log
+        log = AdminLog(
+            admin_id=current_user.id,
+            admin_email=current_user.email,
+            action="delete_plan",
+            target_type="plan",
+            target_id=plan.id,
+            target_name=plan.name,
+            details={"soft_delete": True},
+        )
+        db.add(log)
+
+        await db.commit()
+
+        return {"success": True, "message": "Plano desativado"}
 
 
 @router.post("/seed-defaults")
