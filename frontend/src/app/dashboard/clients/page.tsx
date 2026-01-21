@@ -505,6 +505,50 @@ export default function ClientsPage() {
     }
   }
 
+  async function deleteTenantPermanently(tenant: Tenant) {
+    const confirmText = `ATENÇÃO: Esta ação é IRREVERSÍVEL!
+
+Você está prestes a DELETAR PERMANENTEMENTE o cliente "${tenant.name}".
+
+Isso irá remover:
+- Todos os leads e mensagens
+- Todos os usuários e vendedores
+- Todas as notificações
+- Todo o histórico
+
+Digite o nome do cliente para confirmar: ${tenant.name}`;
+
+    const userInput = prompt(confirmText);
+
+    if (userInput !== tenant.name) {
+      if (userInput !== null) {
+        alert('Nome do cliente incorreto. Exclusão cancelada.');
+      }
+      return;
+    }
+
+    try {
+      const token = getToken();
+      const response = await fetch(`${API_URL}/admin/tenants/${tenant.id}?permanent=true`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        alert(`Cliente "${tenant.name}" deletado permanentemente`);
+        fetchTenants();
+      } else {
+        const error = await response.json();
+        alert(error.detail || 'Erro ao deletar cliente');
+      }
+    } catch (err) {
+      console.error('Erro ao deletar cliente:', err);
+      alert('Erro ao conectar com servidor');
+    }
+  }
+
   function generateSlug(name: string) {
     return name
       .toLowerCase()
@@ -683,12 +727,21 @@ export default function ClientsPage() {
                       <button
                         onClick={() => toggleTenant(tenant)}
                         className={`px-3 py-1 rounded text-sm font-medium transition-colors ${tenant.active
-                          ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                          ? 'bg-yellow-50 text-yellow-600 hover:bg-yellow-100'
                           : 'bg-green-50 text-green-600 hover:bg-green-100'
                           }`}
                       >
                         {tenant.active ? 'Desativar' : 'Ativar'}
                       </button>
+                      {!tenant.active && (
+                        <button
+                          onClick={() => deleteTenantPermanently(tenant)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
+                          title="Deletar permanentemente (irreversível)"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
