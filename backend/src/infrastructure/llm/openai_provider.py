@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from openai import AsyncOpenAI
 from src.config import get_settings
 from .interface import LLMProvider
@@ -7,35 +7,79 @@ from .interface import LLMProvider
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+
 class OpenAIProvider(LLMProvider):
     """
     Implementação do provedor OpenAI usando a lib oficial.
+    Suporta function calling (tools).
     """
-    
+
     def __init__(self, api_key: str = None):
         self.api_key = api_key or settings.openai_api_key
         self.client = AsyncOpenAI(api_key=self.api_key)
         self.default_model = settings.openai_model
 
     async def chat_completion(
-        self, 
-        messages: List[Dict[str, str]], 
+        self,
+        messages: List[Dict[str, str]],
         model: Optional[str] = None,
         temperature: float = 0.7,
-        max_tokens: int = 500
+        max_tokens: int = 500,
+        tools: Optional[List[Dict]] = None,
+        tool_choice: Optional[Union[str, Dict]] = None,
     ) -> Dict[str, Any]:
+        """
+        Chat completion com suporte a function calling.
+        """
         try:
-            response = await self.client.chat.completions.create(
-                model=model or self.default_model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-
-            return {
-                "content": response.choices[0].message.content,
-                "tokens_used": response.usage.total_tokens if response.usage else 0
+            # Monta kwargs base
+            kwargs = {
+                "model": model or self.default_model,
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
             }
+
+            # Adiciona tools se fornecido
+            if tools:
+                kwargs["tools"] = tools
+
+            # Adiciona tool_choice se fornecido e temos tools
+            if tool_choice and tools:
+                kwargs["tool_choice"] = tool_choice
+
+            # Chama API
+            response = await self.client.chat.completions.create(**kwargs)
+
+            message = response.choices[0].message
+            finish_reason = response.choices[0].finish_reason
+
+            # Monta resultado base
+            result = {
+                "content": message.content or "",
+                "tokens_used": response.usage.total_tokens if response.usage else 0,
+                "finish_reason": finish_reason,
+                "tool_calls": None,
+            }
+
+            # Processa tool_calls se houver
+            if message.tool_calls:
+                result["tool_calls"] = [
+                    {
+                        "id": tc.id,
+                        "type": tc.type,
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        }
+                    }
+                    for tc in message.tool_calls
+                ]
+                logger.info(f"🔧 IA solicitou {len(result['tool_calls'])} tool(s): "
+                           f"{[tc['function']['name'] for tc in result['tool_calls']]}")
+
+            return result
+
         except Exception as e:
             logger.error(f"Erro na chamada OpenAI: {e}")
             raise e

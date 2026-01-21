@@ -99,6 +99,8 @@ class PromptBuildResult:
     has_product: bool
     has_imovel_portal: bool
     has_lead_context: bool
+    has_lead_profile: bool = False
+    has_rag_context: bool = False
     warnings: List[str] = field(default_factory=list)
 
 
@@ -309,6 +311,165 @@ def build_lead_info_context(lead: LeadContext) -> str:
 """
 
 
+def build_lead_profile_context(profile: Dict[str, Any]) -> str:
+    """
+    Constrói contexto do perfil progressivo do lead para o prompt.
+    Baseado em informações extraídas de conversas anteriores.
+
+    Args:
+        profile: Dicionário com perfil do lead (de custom_data["lead_profile"])
+
+    Returns:
+        String formatada para adicionar ao prompt da IA
+    """
+    if not profile:
+        return ""
+
+    parts = ["🧠 MEMÓRIA DO CLIENTE (conversas anteriores):"]
+
+    # Preferências de imóvel
+    prefs = profile.get("preferences", {})
+    if prefs:
+        pref_items = []
+        if prefs.get("tipo_imovel"):
+            pref_items.append(f"Tipo: {prefs['tipo_imovel']}")
+        if prefs.get("quartos_minimo"):
+            pref_items.append(f"Mín. {prefs['quartos_minimo']} quartos")
+        if prefs.get("banheiros_minimo"):
+            pref_items.append(f"Mín. {prefs['banheiros_minimo']} banheiros")
+        if prefs.get("vagas_minimo"):
+            pref_items.append(f"Mín. {prefs['vagas_minimo']} vagas")
+        if prefs.get("metragem_minima"):
+            pref_items.append(f"Mín. {prefs['metragem_minima']}m²")
+        if prefs.get("bairros_interesse"):
+            bairros = prefs['bairros_interesse'][:5]  # Limita a 5
+            pref_items.append(f"Bairros: {', '.join(bairros)}")
+        if prefs.get("caracteristicas"):
+            caracts = prefs['caracteristicas'][:5]  # Limita a 5
+            pref_items.append(f"Quer: {', '.join(caracts)}")
+
+        if pref_items:
+            parts.append("📍 Preferências: " + " | ".join(pref_items))
+
+    # Orçamento
+    budget = profile.get("budget_info", {})
+    if budget:
+        budget_items = []
+        if budget.get("faixa_max"):
+            budget_items.append(f"Máx R$ {budget['faixa_max']:,.0f}".replace(",", "."))
+        if budget.get("faixa_min"):
+            budget_items.append(f"Mín R$ {budget['faixa_min']:,.0f}".replace(",", "."))
+        if budget.get("tem_entrada"):
+            if budget.get("valor_entrada"):
+                budget_items.append(f"Entrada R$ {budget['valor_entrada']:,.0f}".replace(",", "."))
+            else:
+                budget_items.append("Tem entrada")
+
+        if budget_items:
+            parts.append("💰 Orçamento: " + " | ".join(budget_items))
+
+    # Timeline/Urgência
+    timeline = profile.get("timeline_info", {})
+    if timeline:
+        timeline_items = []
+        if timeline.get("urgencia"):
+            urgencia_map = {"alta": "🔴 ALTA", "media": "🟡 MÉDIA", "baixa": "🟢 BAIXA"}
+            timeline_items.append(f"Urgência: {urgencia_map.get(timeline['urgencia'], timeline['urgencia'])}")
+        if timeline.get("prazo_descricao"):
+            timeline_items.append(f"Prazo: {timeline['prazo_descricao']}")
+        if timeline.get("motivo_mudanca"):
+            motivo_map = {
+                "casamento": "Casamento",
+                "familia_crescendo": "Família crescendo",
+                "trabalho": "Trabalho",
+                "investimento": "Investimento",
+                "upgrade": "Quer maior/melhor",
+                "downsizing": "Quer menor",
+                "primeiro_imovel": "1º imóvel",
+            }
+            timeline_items.append(f"Motivo: {motivo_map.get(timeline['motivo_mudanca'], timeline['motivo_mudanca'])}")
+
+        if timeline_items:
+            parts.append("⏰ " + " | ".join(timeline_items))
+
+    # Família
+    family = profile.get("family_info", {})
+    if family:
+        family_items = []
+        if family.get("filhos"):
+            family_items.append(f"{family['filhos']} filhos")
+        elif family.get("tem_filhos"):
+            family_items.append("Tem filhos")
+        if family.get("estado_civil"):
+            family_items.append(family['estado_civil'].title())
+        if family.get("tem_pet"):
+            pet_tipo = family.get("tipo_pet", "pet")
+            family_items.append(f"Tem {pet_tipo}")
+        if family.get("mora_com_idoso"):
+            family_items.append("Mora com idoso")
+
+        if family_items:
+            parts.append("👨‍👩‍👧‍👦 Família: " + " | ".join(family_items))
+
+    # Financeiro
+    financial = profile.get("financial_info", {})
+    if financial:
+        fin_items = []
+        if financial.get("usa_fgts"):
+            if financial.get("valor_fgts"):
+                fin_items.append(f"FGTS R$ {financial['valor_fgts']:,.0f}".replace(",", "."))
+            else:
+                fin_items.append("Vai usar FGTS")
+        if financial.get("financiamento_aprovado"):
+            fin_items.append("✅ Financiamento APROVADO")
+        if financial.get("credito_aprovado"):
+            fin_items.append("✅ Crédito APROVADO")
+        if financial.get("pagamento_vista"):
+            fin_items.append("💵 PAGA À VISTA!")
+        if financial.get("programa_habitacional"):
+            fin_items.append("Programa habitacional")
+        if financial.get("banco_preferencia"):
+            fin_items.append(f"Banco: {financial['banco_preferencia'].title()}")
+
+        if fin_items:
+            parts.append("🏦 Financeiro: " + " | ".join(fin_items))
+
+    # Objeções
+    objections = profile.get("objections", [])
+    if objections:
+        obj_map = {
+            "preco": "💰 Preço",
+            "localizacao": "📍 Localização",
+            "decisao": "🤔 Indeciso",
+            "consultar_familia": "👥 Consultar família",
+            "documentacao": "📄 Burocracia",
+            "reforma": "🔧 Reforma",
+            "tamanho": "📐 Tamanho",
+            "seguranca": "🔒 Segurança",
+        }
+        obj_labels = [obj_map.get(o, o) for o in objections[:4]]
+        parts.append("⚠️ Objeções: " + " | ".join(obj_labels))
+
+    # Preferências de contato
+    contact = profile.get("contact_preferences", {})
+    if contact:
+        contact_items = []
+        if contact.get("horario_preferido"):
+            contact_items.append(f"Prefere: {contact['horario_preferido']}")
+        if contact.get("canal_preferido"):
+            contact_items.append(f"Via: {contact['canal_preferido']}")
+
+        if contact_items:
+            parts.append("📞 Contato: " + " | ".join(contact_items))
+
+    # Instruções finais
+    if len(parts) > 1:  # Se tem alguma informação além do header
+        parts.append("")
+        parts.append("⚠️ USE estas informações! NÃO pergunte o que já sabe!")
+
+    return "\n".join(parts) if len(parts) > 1 else ""
+
+
 def build_security_instructions(
     company_name: str,
     scope_description: str,
@@ -333,6 +494,8 @@ def build_complete_prompt(
     lead_context: Optional[LeadContext] = None,
     product: Optional[ProductContext] = None,
     imovel_portal: Optional[ImovelPortalContext] = None,
+    lead_profile: Optional[Dict[str, Any]] = None,
+    rag_context: Optional[str] = None,
     include_security: bool = True,
     is_simulation: bool = False,
 ) -> PromptBuildResult:
@@ -375,6 +538,18 @@ def build_complete_prompt(
         lead_info = build_lead_info_context(lead_context)
         dynamic_parts.append(lead_info)
         logger.info(f"✅ Contexto lead adicionado: {lead_context.lead_id}")
+
+    # Perfil progressivo do lead (memória de longo prazo)
+    if lead_profile:
+        profile_context = build_lead_profile_context(lead_profile)
+        if profile_context:
+            dynamic_parts.append(profile_context)
+            logger.info("✅ Perfil progressivo do lead adicionado")
+
+    # Contexto RAG (base de conhecimento)
+    if rag_context:
+        dynamic_parts.append(rag_context)
+        logger.info("✅ Contexto RAG adicionado")
     
     # Calcula espaço usado pelos contextos dinâmicos
     dynamic_context = "\n".join(dynamic_parts)
@@ -485,6 +660,8 @@ def build_complete_prompt(
         has_product=bool(product),
         has_imovel_portal=bool(imovel_portal),
         has_lead_context=bool(lead_context),
+        has_lead_profile=bool(lead_profile),
+        has_rag_context=bool(rag_context),
         warnings=warnings,
     )
 

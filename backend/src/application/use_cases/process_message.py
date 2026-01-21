@@ -21,6 +21,7 @@ import traceback
 import asyncio
 import time
 import re
+import json
 
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
@@ -64,6 +65,8 @@ from src.application.services.ai_context_builder import (
     product_to_context,
     imovel_dict_to_context,
 )
+
+from src.domain.services.lead_profile_extractor import extract_lead_profile
 
 from src.application.services.message_security import (
     check_jailbreak_attempt,
@@ -595,12 +598,15 @@ async def chat_completion_com_retry(
     max_tokens: int,
     max_retries: int = settings.openai_max_retries,
     timeout: float = settings.openai_timeout_seconds,
+    tools: list = None,
+    tool_choice: str = None,
 ) -> dict:
     """
     🔄 Chama OpenAI com retry automático e timeout.
-    
+
     - Timeout de 30s por tentativa
     - 3 tentativas com exponential backoff (2s, 4s)
+    - Suporte a function calling (tools)
     - Lança exceção se todas falharem
     """
     for tentativa in range(max_retries + 1):
@@ -611,10 +617,12 @@ async def chat_completion_com_retry(
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    tools=tools,
+                    tool_choice=tool_choice,
                 ),
                 timeout=timeout
             )
-            
+
             return ai_response
             
         except asyncio.TimeoutError:
@@ -1001,7 +1009,24 @@ async def process_message(
     await db.flush()
 
     await mark_lead_activity(db, lead)
-    
+
+    # =========================================================================
+    # 16.5. ATUALIZA PERFIL PROGRESSIVO DO LEAD (MEMÓRIA DE LONGO PRAZO)
+    # =========================================================================
+    try:
+        current_profile = lead.custom_data.get("lead_profile", {}) if lead.custom_data else {}
+        updated_profile = extract_lead_profile(content, current_profile)
+
+        # Só atualiza se houver mudanças
+        if updated_profile != current_profile:
+            if not lead.custom_data:
+                lead.custom_data = {}
+            lead.custom_data["lead_profile"] = updated_profile
+            flag_modified(lead, "custom_data")
+            logger.info(f"📊 Perfil progressivo atualizado para lead {lead.id}")
+    except Exception as e:
+        logger.warning(f"⚠️ Erro extraindo perfil (não crítico): {e}")
+
     # =========================================================================
     # 17. NOTIFICAÇÃO DE LEAD NOVO
     # =========================================================================
@@ -1246,13 +1271,47 @@ async def process_message(
     lead_ctx = lead_to_context(lead, message_count)
     prod_ctx = product_to_context(product_detected) if product_detected else None
     imovel_ctx = imovel_dict_to_context(imovel_portal) if imovel_portal else None
-    
+
+    # Obtém perfil progressivo do lead (memória de longo prazo)
+    lead_profile = lead.custom_data.get("lead_profile") if lead.custom_data else None
+
+    # =========================================================================
+    # 20.5. BUSCA RAG NA BASE DE CONHECIMENTO
+    # =========================================================================
+    rag_context = None
+
+    # Busca RAG apenas se NÃO tem imóvel específico ou produto (evita poluir contexto)
+    if not imovel_portal and not product_detected:
+        try:
+            from src.infrastructure.services.knowledge_rag_service import (
+                search_knowledge,
+                build_rag_context,
+            )
+
+            rag_results = await search_knowledge(
+                db=db,
+                tenant_id=tenant.id,
+                query=content,
+                top_k=3,
+                min_similarity=0.6,
+                source_types=["faq", "document", "rule"],
+            )
+
+            if rag_results:
+                rag_context = build_rag_context(rag_results)
+                logger.info(f"📚 RAG: {len(rag_results)} resultados relevantes encontrados")
+
+        except Exception as e:
+            logger.warning(f"⚠️ Erro na busca RAG (não crítico): {e}")
+
     # Constrói o prompt completo (V2 - Prioriza contextos dinâmicos)
     prompt_result = build_complete_prompt(
         ai_context=ai_context,
         lead_context=lead_ctx,
         product=prod_ctx,
-        imovel_portal=imovel_ctx
+        imovel_portal=imovel_ctx,
+        lead_profile=lead_profile,
+        rag_context=rag_context,
     )
     
     system_prompt = prompt_result.system_prompt
@@ -1269,28 +1328,106 @@ async def process_message(
     final_response = ""
     tokens_used = 0
 
+    # =========================================================================
+    # 20.7. PREPARA FUNCTION CALLING (TOOLS)
+    # =========================================================================
+    from src.infrastructure.services.ai_tools import (
+        get_tools_for_niche,
+        should_use_tools,
+        execute_tool,
+        format_tool_result_for_ai,
+    )
+
+    available_tools = None
+    use_tools = should_use_tools(
+        niche_slug=niche_slug,
+        has_product=bool(product_detected),
+        has_imovel=bool(imovel_portal)
+    )
+
+    if use_tools:
+        available_tools = get_tools_for_niche(niche_slug)
+        if available_tools:
+            logger.info(f"🔧 Function calling habilitado: {len(available_tools)} tools disponíveis")
+
+    # =========================================================================
+    # 20.8. LOOP DE CHAMADA DA IA COM FUNCTION CALLING
+    # =========================================================================
+    MAX_TOOL_ITERATIONS = 3  # Evita loops infinitos
+
     try:
-        # 🔄 CHAMA COM RETRY E TIMEOUT!
-        ai_response = await chat_completion_com_retry(
-            messages=messages,
-            temperature=0.7,
-            max_tokens=200,
-        )
-        
-        final_response = ai_response["content"]
-        tokens_used = ai_response.get("tokens_used", 0)
-        
+        for iteration in range(MAX_TOOL_ITERATIONS + 1):
+            # 🔄 CHAMA COM RETRY E TIMEOUT!
+            ai_response = await chat_completion_com_retry(
+                messages=messages,
+                temperature=0.7,
+                max_tokens=200,
+                tools=available_tools,
+                tool_choice="auto" if available_tools else None,
+            )
+
+            tokens_used += ai_response.get("tokens_used", 0)
+            tool_calls = ai_response.get("tool_calls")
+
+            # Se não tem tool_calls, é resposta final
+            if not tool_calls:
+                final_response = ai_response.get("content", "")
+                break
+
+            # Processa cada tool_call
+            logger.info(f"🔧 Iteração {iteration + 1}: {len(tool_calls)} tool(s) solicitada(s)")
+
+            for tc in tool_calls:
+                func_name = tc["function"]["name"]
+                try:
+                    func_args = json.loads(tc["function"]["arguments"])
+                except json.JSONDecodeError:
+                    func_args = {}
+
+                # Executa a tool
+                result = await execute_tool(
+                    tool_name=func_name,
+                    arguments=func_args,
+                    db=db,
+                    tenant_id=tenant.id,
+                    lead_id=lead.id,
+                )
+
+                # Formata resultado para contexto da IA
+                result_text = format_tool_result_for_ai(func_name, result)
+
+                # Adiciona ao histórico de mensagens para próxima iteração
+                # 1. Adiciona a resposta da IA com tool_calls
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [tc],
+                })
+
+                # 2. Adiciona resultado da tool
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": result_text,
+                })
+
+            # Se chegou na última iteração sem resposta, força uma resposta
+            if iteration == MAX_TOOL_ITERATIONS:
+                logger.warning(f"⚠️ Máximo de iterações de tools atingido ({MAX_TOOL_ITERATIONS})")
+                final_response = ai_response.get("content") or "Desculpe, não consegui processar sua solicitação. Pode tentar de novo?"
+                break
+
     except Exception as e:
         logger.error(f"❌ Erro chamando IA (após {settings.openai_max_retries + 1} tentativas): {e}")
         logger.error(traceback.format_exc())
-        
+
         # Fallback responses
         if product_detected:
             final_response = f"Olá! Interesse no {product_detected.name}! Como posso ajudar?"
         elif imovel_portal:
             final_response = f"Olá! Vi seu interesse no imóvel {imovel_portal.get('codigo')}! Como posso ajudar?"
         else:
-            final_response = f"Olá! Sou da {settings['company_name']}. Como posso ajudar?"
+            final_response = "Olá! Como posso ajudar?"
 
     # =========================================================================
     # 21. VERIFICA HANDOFF SUGERIDO PELA IA

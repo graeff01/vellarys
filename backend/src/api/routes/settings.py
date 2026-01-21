@@ -995,3 +995,86 @@ async def get_voice_preview(
     except Exception as e:
         logger.error(f"❌ Erro ao gerar preview de voz: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# RAG - REINDEXAÇÃO DE FAQ
+# =============================================================================
+
+@router.post("/faq/reindex")
+async def reindex_faq(
+    user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Re-indexa o FAQ na base de embeddings para busca semântica (RAG).
+
+    Deve ser chamado após atualizar o FAQ para que as mudanças
+    sejam refletidas nas respostas da IA.
+
+    Returns:
+        Estatísticas da indexação: created, updated, skipped, failed
+    """
+    from src.infrastructure.services.knowledge_rag_service import index_faq_items
+
+    try:
+        # Obtém FAQ dos settings
+        faq_config = tenant.settings.get("faq", {}) if tenant.settings else {}
+        faq_items = faq_config.get("items", [])
+
+        if not faq_items:
+            return {
+                "success": True,
+                "message": "Nenhum FAQ para indexar",
+                "stats": {"created": 0, "updated": 0, "skipped": 0, "failed": 0},
+            }
+
+        # Indexa FAQ
+        stats = await index_faq_items(
+            db=db,
+            tenant_id=tenant.id,
+            faq_items=faq_items,
+            clear_existing=False,  # Não remove itens antigos
+        )
+
+        return {
+            "success": True,
+            "message": f"FAQ re-indexado com sucesso ({stats['created']} criados, {stats['updated']} atualizados)",
+            "stats": stats,
+            "total_items": len(faq_items),
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Erro ao re-indexar FAQ: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro ao re-indexar FAQ: {str(e)}")
+
+
+@router.get("/faq/index-status")
+async def get_faq_index_status(
+    user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Retorna status da indexação de FAQ/base de conhecimento.
+    """
+    from src.infrastructure.services.knowledge_rag_service import get_index_stats
+
+    try:
+        stats = await get_index_stats(db, tenant.id)
+
+        # Conta FAQs nos settings
+        faq_config = tenant.settings.get("faq", {}) if tenant.settings else {}
+        faq_items = faq_config.get("items", [])
+
+        return {
+            "success": True,
+            "faq_in_settings": len(faq_items),
+            "indexed": stats,
+            "needs_reindex": stats.get("by_type", {}).get("faq", 0) < len(faq_items),
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Erro ao obter status do índice: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

@@ -65,21 +65,29 @@ async def chat_completion(
     model: str = None,
     temperature: float = 0.65,
     max_tokens: int = 350,
+    tools: list = None,
+    tool_choice: str = None,
 ) -> dict:
-    """Envia mensagens para OpenAI (via Provider) e retorna resposta."""
+    """
+    Envia mensagens para OpenAI (via Provider) e retorna resposta.
+    Suporta function calling via parâmetros tools e tool_choice.
+    """
     try:
         provider = LLMFactory.get_provider()
         return await provider.chat_completion(
             messages=messages,
             model=model or settings.openai_model,
             temperature=temperature,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
+            tools=tools,
+            tool_choice=tool_choice,
         )
     except Exception as e:
         logger.error(f"Erro na chamada OpenAI: {e}")
         return {
             "content": "Desculpe, tive um problema técnico. Pode repetir?",
-            "tokens_used": 0
+            "tokens_used": 0,
+            "tool_calls": None,
         }
 
 

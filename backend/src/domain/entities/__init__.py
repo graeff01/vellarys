@@ -36,6 +36,8 @@ from .refresh_token import RefreshToken
 from .password_reset_token import PasswordResetToken
 from .message_template import MessageTemplate
 from .data_source import DataSource, DataSourceType
+from .property_embedding import PropertyEmbedding
+from .knowledge_embedding import KnowledgeEmbedding
 
 __all__ = [
     # Base
@@ -82,4 +84,7 @@ __all__ = [
     # Data Sources
     "DataSource",
     "DataSourceType",
+    # Embeddings
+    "PropertyEmbedding",
+    "KnowledgeEmbedding",
 ]
