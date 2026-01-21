@@ -66,8 +66,9 @@ export default function VoiceResponseSettingsCard({
       setIsPlaying(true);
       setPlayingVoice(voiceId);
 
-      // Chama API para gerar preview
-      const response = await fetch(`/api/v1/settings/voice-preview/${voiceId}`, {
+      // Chama API para gerar preview (usando variável de ambiente)
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+      const response = await fetch(`${API_URL}/settings/voice-preview/${voiceId}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
