@@ -194,7 +194,7 @@ export default function ClientsPage() {
     setFormData({
       name: details.name || '',
       slug: details.slug || '',
-      plan: details.plan || 'starter',
+      plan: details.plan || 'essencial',
       niche: settings.niche || '',
       admin_name: '', // Não editável
       admin_email: '', // Não editável

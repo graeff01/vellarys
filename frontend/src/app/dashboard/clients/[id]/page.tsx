@@ -344,13 +344,15 @@ export default function ClientDetailsPage() {
   }
 
   const planColors: Record<string, string> = {
-    starter: 'bg-gray-100 text-gray-700 border-gray-300',
+    essencial: 'bg-gray-100 text-gray-700 border-gray-300',
+    starter: 'bg-gray-100 text-gray-700 border-gray-300', // backward compatibility
     professional: 'bg-blue-100 text-blue-700 border-blue-300',
     enterprise: 'bg-purple-100 text-purple-700 border-purple-300',
   };
 
   const planLabels: Record<string, string> = {
-    starter: 'Starter',
+    essencial: 'Essencial',
+    starter: 'Starter', // backward compatibility
     professional: 'Professional',
     enterprise: 'Enterprise',
   };
