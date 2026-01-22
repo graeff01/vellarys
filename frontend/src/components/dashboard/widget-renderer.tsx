@@ -68,26 +68,26 @@ function HotLeadsCTAWidget({ metrics }: { metrics: any }) {
   if (hotLeadsWaiting <= 0) return null;
 
   return (
-    <div className="relative group overflow-hidden rounded-2xl">
+    <div className="relative group overflow-hidden rounded-2xl h-full">
       <div className="absolute inset-0 bg-gradient-to-r from-rose-600 to-orange-500 animate-gradient-x"></div>
-      <div className="relative p-4 md:p-5 flex flex-col md:flex-row items-center justify-between gap-4 backdrop-blur-sm bg-black/10">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 md:w-14 md:h-14 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center shadow-2xl">
-            <Flame className="w-6 h-6 md:w-7 md:h-7 text-white animate-bounce" />
+      <div className="relative p-3 flex flex-wrap items-center justify-between gap-3 backdrop-blur-sm bg-black/10 h-full">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center shadow-2xl shrink-0">
+            <Flame className="w-5 h-5 text-white animate-bounce" />
           </div>
-          <div className="text-white">
-            <h3 className="text-xl md:text-2xl font-extrabold tracking-tight">
+          <div className="text-white min-w-0">
+            <h3 className="text-lg font-extrabold tracking-tight truncate">
               {hotLeadsWaiting} Lead{hotLeadsWaiting !== 1 ? 's' : ''} Quente{hotLeadsWaiting !== 1 ? 's' : ''} Aguardando!
             </h3>
-            <p className="text-sm text-white/80 font-medium">Momentum ideal para fechamento detectado pela IA.</p>
+            <p className="text-xs text-white/80 font-medium truncate">Momentum para fechamento detectado</p>
           </div>
         </div>
         <button
           onClick={() => router.push('/dashboard/leads?qualification=quente')}
-          className="px-6 py-3 bg-white text-rose-600 rounded-xl font-extrabold shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2 group/btn"
+          className="px-4 py-2 bg-white text-rose-600 rounded-xl font-extrabold shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center gap-2 group/btn shrink-0 text-sm"
         >
-          Atender Agora
-          <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+          Atender
+          <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
         </button>
       </div>
     </div>
@@ -147,10 +147,10 @@ function FunnelWidget({ metrics }: { metrics: any }) {
   ];
 
   return (
-    <Card className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-2xl h-full">
-      <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-indigo-50 rounded-lg flex items-center justify-center border border-indigo-100">
+    <Card className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-2xl h-full flex flex-col">
+      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center border border-indigo-100">
             <Filter className="w-4 h-4 text-indigo-600" />
           </div>
           <div>
@@ -159,8 +159,8 @@ function FunnelWidget({ metrics }: { metrics: any }) {
           </div>
         </div>
       </div>
-      <div className="p-4">
-        <div className="flex flex-col gap-2">
+      <div className="p-3 flex-1 overflow-hidden">
+        <div className="flex flex-col gap-2 h-full justify-center">
           {items.map((item, idx, arr) => {
             const percentage = arr[0].value > 0 ? (item.value / arr[0].value) * 100 : 0;
             const Icon = item.icon;
@@ -192,15 +192,15 @@ function TopicsHeatmapWidget({ metrics }: { metrics: any }) {
   const topics = metrics?.top_topics || [];
 
   return (
-    <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden h-full">
-      <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
+    <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden h-full flex flex-col">
+      <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 shrink-0">
         <div className="flex items-center gap-2">
           <MessageSquare className="w-4 h-4 text-slate-600" />
           <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-widest">Interesses / Dúvidas</h3>
         </div>
       </div>
-      <div className="p-4">
-        <div className="flex flex-wrap gap-1.5">
+      <div className="p-3 flex-1 overflow-hidden">
+        <div className="flex flex-wrap gap-1.5 content-start">
           {topics.length > 0 ? (
             topics.map((topic: any, i: number) => (
               <div
@@ -225,14 +225,14 @@ function TopicsHeatmapWidget({ metrics }: { metrics: any }) {
 
 function QualificationWidget({ metrics }: { metrics: any }) {
   return (
-    <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden h-full">
-      <div className="px-4 py-3.5 border-b border-slate-100 bg-slate-50/50">
+    <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden h-full flex flex-col">
+      <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 shrink-0">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-4 h-4 text-slate-600" />
           <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-widest">Qualificação</h3>
         </div>
       </div>
-      <div className="p-4">
+      <div className="p-3 flex-1 overflow-hidden">
         <QualificationDonut data={metrics?.by_qualification || {}} />
       </div>
     </Card>
@@ -243,7 +243,7 @@ function LeadsTableWidget({ leads, sellers }: { leads: any[]; sellers: any[] }) 
   const router = useRouter();
 
   return (
-    <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden h-full">
+    <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden h-full flex flex-col">
       <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
         <div>
           <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-widest">Leads Recentes</h3>
@@ -257,7 +257,7 @@ function LeadsTableWidget({ leads, sellers }: { leads: any[]; sellers: any[] }) 
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
-      <div className="p-0">
+      <div className="p-0 overflow-hidden flex-1">
         <LeadsTable leads={leads.slice(0, 5)} sellers={sellers} />
       </div>
     </Card>
