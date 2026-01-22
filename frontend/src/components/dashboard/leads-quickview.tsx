@@ -213,7 +213,7 @@ export function LeadsQuickview({
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id asany)}
+                onClick={() => setActiveTab(tab.id as any)}
                 className={`
                   flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-all relative
                   ${activeTab === tab.id ? 'text-white' : 'text-slate-400 hover:text-slate-200'}
