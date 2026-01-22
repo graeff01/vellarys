@@ -21,12 +21,23 @@ target_metadata = Base.metadata
 
 
 def get_url():
-    """Get database URL from environment variable."""
+    """Get database URL from environment variable.
+
+    Converts async URLs to sync for Alembic migrations.
+    """
     url = os.getenv("DATABASE_URL", "")
 
     # Railway uses postgres:// but SQLAlchemy needs postgresql://
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql://", 1)
+
+    # Convert async driver to sync driver for migrations
+    # asyncpg is async-only, we need psycopg2 for sync migrations
+    if "postgresql+asyncpg://" in url:
+        url = url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+    elif url.startswith("postgresql://"):
+        # Explicitly use psycopg2 to avoid any async driver issues
+        url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
     return url
 
