@@ -192,7 +192,13 @@ function GestorDashboard() {
         // Verifica se já está no formato novo (tem propriedade 'i')
         const firstWidget = config.widgets[0] as any;
         if (firstWidget.i && firstWidget.x !== undefined) {
-          gridWidgets = config.widgets as unknown as GridWidget[];
+          gridWidgets = (config.widgets as unknown as GridWidget[]).map(w => ({
+            ...w,
+            minW: 1,
+            maxW: 12,
+            minH: 1,
+            maxH: 100
+          }));
         } else {
           // Converte formato antigo
           gridWidgets = config.widgets.map((w: any, index: number) => {
