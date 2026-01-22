@@ -14,6 +14,7 @@ import {
   updateLeadCustomData,
   getSellers
 } from '@/lib/api';
+import { assignAndHandoff } from '@/lib/handoff';
 import {
   ArrowLeft,
   Phone,
@@ -342,18 +343,42 @@ export default function LeadDetailPage() {
     }
   };
 
+
+
   const atribuirVendedor = async (sellerId: number) => {
     if (!lead || !sellerId) return;
+
+    // Encontrar o vendedor selecionado para update otimista
+    const selectedSeller = sellers.find(s => s.id === sellerId);
+    if (!selectedSeller) return;
+
     try {
       setAtribuindoVendedor(true);
-      await assignSellerToLead(lead.id, sellerId);
-      const leadAtualizado = await getLead(lead.id);
-      setLead(leadAtualizado as Lead);
-      const novosEventos = await getLeadEvents(lead.id);
-      setEvents(novosEventos as LeadEvent[]);
-      mostrarSucesso('Vendedor atribuído');
-    } catch {
-      alert('Erro ao atribuir vendedor');
+
+      // 1. Chamada API com notificação (Handoff)
+      await assignAndHandoff(lead.id, sellerId, {
+        notifySeller: true, // Garante que envia o whats
+        notes: 'Atribuição manual via painel do lead'
+      });
+
+      // 2. Update Otimista (Atualiza visualmente NA HORA)
+      setLead(prev => prev ? ({
+        ...prev,
+        status: 'in_progress', // Atribuir geralmente move para em atendimento
+        assigned_seller: {
+          id: selectedSeller.id,
+          name: selectedSeller.name,
+          whatsapp: selectedSeller.whatsapp
+        }
+      }) : null);
+
+      // 3. Atualiza eventos em background
+      getLeadEvents(lead.id).then(events => setEvents(events as LeadEvent[]));
+
+      mostrarSucesso(`Lead atribuído para ${selectedSeller.name} (Notificação enviada)`);
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao atribuir vendedor. Verifique se o backend está rodando.');
     } finally {
       setAtribuindoVendedor(false);
     }
@@ -363,7 +388,10 @@ export default function LeadDetailPage() {
     if (!lead || !confirm('Remover atribuição?')) return;
     try {
       await unassignSellerFromLead(lead.id);
-      setLead({ ...lead, assigned_seller: null });
+
+      // Update otimista
+      setLead(prev => prev ? ({ ...prev, assigned_seller: null }) : null);
+
       const novosEventos = await getLeadEvents(lead.id);
       setEvents(novosEventos as LeadEvent[]);
       mostrarSucesso('Atribuição removida');
