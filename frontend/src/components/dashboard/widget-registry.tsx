@@ -83,7 +83,7 @@ export const CATEGORY_COLORS: Record<WidgetCategory, { bg: string; border: strin
 export const CATEGORY_ORDER: WidgetCategory[] = ['alertas', 'vendas', 'metricas', 'sistema'];
 
 // Limites livres para todos os widgets (permite total personalização)
-const FREE_SIZE_LIMITS = { minW: 2, maxW: 12, minH: 1, maxH: 8 };
+const FREE_SIZE_LIMITS = { minW: 1, maxW: 12, minH: 1, maxH: 100 };
 
 // =============================================
 // REGISTRY DE WIDGETS
