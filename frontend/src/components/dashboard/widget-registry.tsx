@@ -82,6 +82,9 @@ export const CATEGORY_COLORS: Record<WidgetCategory, { bg: string; border: strin
 // Ordem de categorias
 export const CATEGORY_ORDER: WidgetCategory[] = ['alertas', 'vendas', 'metricas', 'sistema'];
 
+// Limites livres para todos os widgets (permite total personalização)
+const FREE_SIZE_LIMITS = { minW: 2, maxW: 12, minH: 1, maxH: 8 };
+
 // =============================================
 // REGISTRY DE WIDGETS
 // =============================================
@@ -95,7 +98,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'alertas',
     icon: Flame,
     previewBg: 'bg-gradient-to-r from-rose-500 to-orange-500',
-    grid: { w: 12, h: 1, minW: 6, maxW: 12, minH: 1, maxH: 2 },
+    grid: { w: 12, h: 1, ...FREE_SIZE_LIMITS },
   },
 
   // === MÉTRICAS GERAIS ===
@@ -106,7 +109,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'metricas',
     icon: BarChart3,
     previewBg: 'bg-gradient-to-br from-blue-500 to-indigo-600',
-    grid: { w: 12, h: 2, minW: 8, maxW: 12, minH: 2, maxH: 3 },
+    grid: { w: 12, h: 2, ...FREE_SIZE_LIMITS },
   },
 
   qualification_donut: {
@@ -116,7 +119,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'metricas',
     icon: PieChart,
     previewBg: 'bg-gradient-to-br from-violet-500 to-purple-600',
-    grid: { w: 4, h: 3, minW: 3, maxW: 6, minH: 2, maxH: 4 },
+    grid: { w: 4, h: 3, ...FREE_SIZE_LIMITS },
   },
 
   funnel: {
@@ -126,7 +129,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'metricas',
     icon: Filter,
     previewBg: 'bg-gradient-to-br from-cyan-500 to-blue-600',
-    grid: { w: 6, h: 3, minW: 4, maxW: 12, minH: 2, maxH: 5 },
+    grid: { w: 6, h: 3, ...FREE_SIZE_LIMITS },
   },
 
   topics_heatmap: {
@@ -136,7 +139,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'metricas',
     icon: MessageSquare,
     previewBg: 'bg-gradient-to-br from-amber-500 to-orange-600',
-    grid: { w: 6, h: 3, minW: 4, maxW: 12, minH: 2, maxH: 5 },
+    grid: { w: 6, h: 3, ...FREE_SIZE_LIMITS },
   },
 
   impact_velaris: {
@@ -146,7 +149,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'metricas',
     icon: Sparkles,
     previewBg: 'bg-gradient-to-br from-indigo-500 to-purple-600',
-    grid: { w: 8, h: 2, minW: 6, maxW: 12, minH: 2, maxH: 3 },
+    grid: { w: 8, h: 2, ...FREE_SIZE_LIMITS },
   },
 
   leads_table: {
@@ -156,7 +159,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'metricas',
     icon: Users,
     previewBg: 'bg-gradient-to-br from-slate-600 to-slate-800',
-    grid: { w: 8, h: 3, minW: 6, maxW: 12, minH: 2, maxH: 6 },
+    grid: { w: 8, h: 3, ...FREE_SIZE_LIMITS },
   },
 
   // === SISTEMA ===
@@ -167,7 +170,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'sistema',
     icon: CreditCard,
     previewBg: 'bg-gradient-to-br from-slate-500 to-slate-700',
-    grid: { w: 4, h: 2, minW: 3, maxW: 6, minH: 2, maxH: 4 },
+    grid: { w: 4, h: 2, ...FREE_SIZE_LIMITS },
   },
 
   // === VENDAS ===
@@ -178,7 +181,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'vendas',
     icon: Target,
     previewBg: 'bg-gradient-to-br from-emerald-500 to-teal-600',
-    grid: { w: 4, h: 2, minW: 3, maxW: 6, minH: 2, maxH: 3 },
+    grid: { w: 4, h: 2, ...FREE_SIZE_LIMITS },
   },
 
   sales_progress: {
@@ -188,7 +191,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'vendas',
     icon: TrendingUp,
     previewBg: 'bg-gradient-to-br from-green-500 to-emerald-600',
-    grid: { w: 4, h: 2, minW: 3, maxW: 6, minH: 2, maxH: 3 },
+    grid: { w: 4, h: 2, ...FREE_SIZE_LIMITS },
   },
 
   deals_closed: {
@@ -198,7 +201,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'vendas',
     icon: CheckCircle,
     previewBg: 'bg-gradient-to-br from-teal-500 to-cyan-600',
-    grid: { w: 3, h: 2, minW: 2, maxW: 6, minH: 1, maxH: 3 },
+    grid: { w: 3, h: 2, ...FREE_SIZE_LIMITS },
   },
 
   average_ticket: {
@@ -208,7 +211,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'vendas',
     icon: DollarSign,
     previewBg: 'bg-gradient-to-br from-yellow-500 to-amber-600',
-    grid: { w: 3, h: 2, minW: 2, maxW: 6, minH: 1, maxH: 3 },
+    grid: { w: 3, h: 2, ...FREE_SIZE_LIMITS },
   },
 
   month_projection: {
@@ -218,7 +221,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'vendas',
     icon: TrendingUp,
     previewBg: 'bg-gradient-to-br from-blue-500 to-indigo-600',
-    grid: { w: 4, h: 2, minW: 3, maxW: 6, minH: 2, maxH: 3 },
+    grid: { w: 4, h: 2, ...FREE_SIZE_LIMITS },
   },
 
   seller_ranking: {
@@ -228,7 +231,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'vendas',
     icon: Trophy,
     previewBg: 'bg-gradient-to-br from-amber-500 to-yellow-600',
-    grid: { w: 6, h: 3, minW: 4, maxW: 12, minH: 2, maxH: 5 },
+    grid: { w: 6, h: 3, ...FREE_SIZE_LIMITS },
   },
 
   days_remaining: {
@@ -238,7 +241,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'vendas',
     icon: Calendar,
     previewBg: 'bg-gradient-to-br from-rose-500 to-pink-600',
-    grid: { w: 3, h: 2, minW: 2, maxW: 4, minH: 1, maxH: 3 },
+    grid: { w: 3, h: 2, ...FREE_SIZE_LIMITS },
   },
 
   conversion_rate: {
@@ -248,7 +251,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     category: 'vendas',
     icon: Percent,
     previewBg: 'bg-gradient-to-br from-violet-500 to-purple-600',
-    grid: { w: 3, h: 2, minW: 2, maxW: 6, minH: 1, maxH: 3 },
+    grid: { w: 3, h: 2, ...FREE_SIZE_LIMITS },
   },
 };
 
@@ -315,15 +318,15 @@ export function createWidgetGridConfig(widgetId: string, existingWidgets: { y: n
  */
 export function getDefaultLayout() {
   return [
-    { i: 'hot_leads_cta_default', type: 'hot_leads_cta', x: 0, y: 0, w: 12, h: 1, minW: 6, maxW: 12, minH: 1, maxH: 2 },
-    { i: 'metrics_cards_default', type: 'metrics_cards', x: 0, y: 1, w: 12, h: 2, minW: 8, maxW: 12, minH: 2, maxH: 3 },
-    { i: 'sales_goal_default', type: 'sales_goal', x: 0, y: 3, w: 4, h: 2, minW: 3, maxW: 6, minH: 2, maxH: 3 },
-    { i: 'sales_progress_default', type: 'sales_progress', x: 4, y: 3, w: 4, h: 2, minW: 3, maxW: 6, minH: 2, maxH: 3 },
-    { i: 'days_remaining_default', type: 'days_remaining', x: 8, y: 3, w: 4, h: 2, minW: 2, maxW: 4, minH: 1, maxH: 3 },
-    { i: 'qualification_donut_default', type: 'qualification_donut', x: 0, y: 5, w: 4, h: 3, minW: 3, maxW: 6, minH: 2, maxH: 4 },
-    { i: 'funnel_default', type: 'funnel', x: 4, y: 5, w: 8, h: 3, minW: 4, maxW: 12, minH: 2, maxH: 5 },
-    { i: 'leads_table_default', type: 'leads_table', x: 0, y: 8, w: 8, h: 3, minW: 6, maxW: 12, minH: 2, maxH: 6 },
-    { i: 'plan_usage_default', type: 'plan_usage', x: 8, y: 8, w: 4, h: 3, minW: 3, maxW: 6, minH: 2, maxH: 4 },
+    { i: 'hot_leads_cta_default', type: 'hot_leads_cta', x: 0, y: 0, w: 12, h: 1, ...FREE_SIZE_LIMITS },
+    { i: 'metrics_cards_default', type: 'metrics_cards', x: 0, y: 1, w: 12, h: 2, ...FREE_SIZE_LIMITS },
+    { i: 'sales_goal_default', type: 'sales_goal', x: 0, y: 3, w: 4, h: 2, ...FREE_SIZE_LIMITS },
+    { i: 'sales_progress_default', type: 'sales_progress', x: 4, y: 3, w: 4, h: 2, ...FREE_SIZE_LIMITS },
+    { i: 'days_remaining_default', type: 'days_remaining', x: 8, y: 3, w: 4, h: 2, ...FREE_SIZE_LIMITS },
+    { i: 'qualification_donut_default', type: 'qualification_donut', x: 0, y: 5, w: 4, h: 3, ...FREE_SIZE_LIMITS },
+    { i: 'funnel_default', type: 'funnel', x: 4, y: 5, w: 8, h: 3, ...FREE_SIZE_LIMITS },
+    { i: 'leads_table_default', type: 'leads_table', x: 0, y: 8, w: 8, h: 3, ...FREE_SIZE_LIMITS },
+    { i: 'plan_usage_default', type: 'plan_usage', x: 8, y: 8, w: 4, h: 3, ...FREE_SIZE_LIMITS },
   ];
 }
 
