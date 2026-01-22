@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'add_auth_features'
-down_revision = None  # Ajustar para a última migration
+down_revision = '20251217_001'  # after base migration
 branch_labels = None
 depends_on = None
 

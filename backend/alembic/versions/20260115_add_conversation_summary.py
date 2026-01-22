@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = '20260115_001'
-down_revision = '20251217_001'
+down_revision = 'add_auth_features'  # after auth features
 branch_labels = None
 depends_on = None
 

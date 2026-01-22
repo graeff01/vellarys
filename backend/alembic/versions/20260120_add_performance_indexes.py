@@ -20,7 +20,7 @@ from sqlalchemy import text
 
 # revision identifiers
 revision = '20260120_add_performance_indexes'
-down_revision = '20260115_add_conversation_summary'
+down_revision = '20260115_002'  # after pgvector
 branch_labels = None
 depends_on = None
 
