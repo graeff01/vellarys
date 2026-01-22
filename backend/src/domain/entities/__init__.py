@@ -38,6 +38,7 @@ from .message_template import MessageTemplate
 from .data_source import DataSource, DataSourceType
 from .property_embedding import PropertyEmbedding
 from .knowledge_embedding import KnowledgeEmbedding
+from .dashboard_config import DashboardConfig, SalesGoal, WIDGET_TYPES, DEFAULT_DASHBOARD_WIDGETS
 
 __all__ = [
     # Base
@@ -87,4 +88,9 @@ __all__ = [
     # Embeddings
     "PropertyEmbedding",
     "KnowledgeEmbedding",
+    # Dashboard
+    "DashboardConfig",
+    "SalesGoal",
+    "WIDGET_TYPES",
+    "DEFAULT_DASHBOARD_WIDGETS",
 ]

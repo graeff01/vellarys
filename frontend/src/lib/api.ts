@@ -288,3 +288,118 @@ export async function savePushSubscription(subscription: any) {
     body: JSON.stringify(subscription),
   });
 }
+
+// === DASHBOARD CONFIG ===
+export interface WidgetConfig {
+  id: string;
+  type: string;
+  enabled: boolean;
+  position: number;
+  size: string;
+  settings?: Record<string, any>;
+}
+
+export interface DashboardConfigResponse {
+  id: number | null;
+  widgets: WidgetConfig[];
+  settings: Record<string, any>;
+  is_default: boolean;
+}
+
+export interface WidgetType {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  default_size: string;
+  icon: string;
+}
+
+export async function getDashboardConfig(): Promise<DashboardConfigResponse> {
+  return request('/v1/dashboard/config');
+}
+
+export async function updateDashboardConfig(widgets: WidgetConfig[], settings?: Record<string, any>): Promise<DashboardConfigResponse> {
+  return request('/v1/dashboard/config', {
+    method: 'PUT',
+    body: JSON.stringify({ widgets, settings: settings || {} }),
+  });
+}
+
+export async function getAvailableWidgets(): Promise<WidgetType[]> {
+  return request('/v1/dashboard/widgets');
+}
+
+export async function resetDashboardConfig(): Promise<DashboardConfigResponse> {
+  return request('/v1/dashboard/config/reset', {
+    method: 'POST',
+  });
+}
+
+// === SALES & GOALS ===
+export interface SalesGoal {
+  id: number | null;
+  period: string;
+  revenue_goal: number | null;
+  revenue_actual: number;
+  revenue_progress: number;
+  deals_goal: number | null;
+  deals_actual: number;
+  deals_progress: number;
+  leads_goal: number | null;
+  leads_actual: number;
+  leads_progress: number;
+  days_remaining: number;
+  days_passed: number;
+  total_days: number;
+}
+
+export interface SalesMetrics {
+  total_deals: number;
+  total_revenue: number;
+  average_ticket: number;
+  conversion_rate: number;
+  goal: SalesGoal | null;
+  projected_deals: number;
+  projected_revenue: number;
+  on_track: boolean;
+  seller_ranking: Array<{
+    seller_id: number;
+    seller_name: string;
+    deals_count: number;
+    conversion_rate: number;
+    leads_assigned: number;
+  }>;
+  days_remaining: number;
+  deals_today: number;
+  deals_this_week: number;
+}
+
+export async function getSalesGoal(period?: string): Promise<SalesGoal> {
+  const query = period ? `?period=${period}` : '';
+  return request(`/v1/sales/goals${query}`);
+}
+
+export async function setSalesGoal(data: {
+  revenue_goal?: number;
+  deals_goal?: number;
+  leads_goal?: number;
+  period?: string;
+}): Promise<SalesGoal> {
+  return request('/v1/sales/goals', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getSalesMetrics(period?: string): Promise<SalesMetrics> {
+  const query = period ? `?period=${period}` : '';
+  return request(`/v1/sales/metrics${query}`);
+}
+
+export async function registerDeal(leadId: number, revenue: number, notes?: string) {
+  return request('/v1/sales/deal', {
+    method: 'PUT',
+    body: JSON.stringify({ lead_id: leadId, revenue, notes }),
+  });
+}

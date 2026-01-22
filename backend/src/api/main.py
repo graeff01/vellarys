@@ -43,6 +43,8 @@ from src.api.routes import (
     admin_plans_router,
     health_router,
     data_sources_router,
+    dashboard_config_router,
+    sales_router,
 )
 
 # Domain
@@ -187,6 +189,8 @@ app.include_router(simulator_router, prefix="/api/v1")
 app.include_router(twilio_webhook_router, prefix="/api/v1")
 app.include_router(handoff_router, prefix="/api/v1")
 app.include_router(data_sources_router, prefix="/api/v1")
+app.include_router(dashboard_config_router, prefix="/api/v1")
+app.include_router(sales_router, prefix="/api/v1")
 
 # Admin
 app.include_router(admin_dashboard_router, prefix="/api/v1")
