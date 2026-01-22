@@ -109,7 +109,7 @@ function ImpactVelarisWidget({ metrics }: { metrics: any }) {
           <p className="text-[9px] text-slate-400 font-bold uppercase truncate">ROI e Eficiência</p>
         </div>
       </div>
-      <div className="p-3 flex-1 flex flex-wrap gap-2 content-start overflow-auto">
+      <div className="p-3 flex-1 flex flex-wrap gap-2 content-start overflow-hidden">
         <div className="relative p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all cursor-default flex-1 min-w-[120px]">
           <div className="absolute top-2 right-2 text-emerald-500 flex items-center gap-1 font-bold text-[8px] uppercase">
             <TrendingUp className="w-2.5 h-2.5" />
@@ -341,10 +341,10 @@ export function WidgetRenderer({ config, metrics, leads, sellers, salesData, isG
   }
 
   // No modo grid, react-grid-layout controla o sizing
-  // overflow-auto permite scroll quando o conteúdo não cabe
+  // overflow-hidden garante que widgets se ajustem sem scrollbar
   if (isGridMode) {
     return (
-      <div className="h-full w-full overflow-auto">
+      <div className="h-full w-full overflow-hidden">
         {renderWidget()}
       </div>
     );
