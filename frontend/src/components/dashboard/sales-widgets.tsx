@@ -254,12 +254,12 @@ export function SalesProgressWidget({ goal }: SalesProgressWidgetProps) {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
-              <div>
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+              <div className="flex-1 min-w-[80px]">
                 <p className="text-xs text-slate-400 font-bold uppercase">Realizado</p>
                 <p className="text-sm font-bold text-slate-700">{formatCurrency(goal.revenue_actual)}</p>
               </div>
-              <div>
+              <div className="flex-1 min-w-[80px]">
                 <p className="text-xs text-slate-400 font-bold uppercase">Meta</p>
                 <p className="text-sm font-bold text-slate-700">{formatCurrency(goal.revenue_goal!)}</p>
               </div>
@@ -302,12 +302,12 @@ export function DealsClosedWidget({ metrics }: DealsClosedWidgetProps) {
           <p className="text-xs text-slate-500 font-medium">este mês</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
-          <div className="text-center">
+        <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+          <div className="text-center flex-1 min-w-[60px]">
             <p className="text-lg font-bold text-slate-700">{metrics?.deals_today || 0}</p>
             <p className="text-[10px] text-slate-400 font-bold uppercase">Hoje</p>
           </div>
-          <div className="text-center">
+          <div className="text-center flex-1 min-w-[60px]">
             <p className="text-lg font-bold text-slate-700">{metrics?.deals_this_week || 0}</p>
             <p className="text-[10px] text-slate-400 font-bold uppercase">Semana</p>
           </div>

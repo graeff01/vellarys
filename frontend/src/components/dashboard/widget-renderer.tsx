@@ -99,42 +99,37 @@ function ImpactVelarisWidget({ metrics }: { metrics: any }) {
   const avgResponseTime = metrics?.avg_response_time_minutes || 0;
 
   return (
-    <Card className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-2xl h-full">
-      <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center border border-blue-100">
-            <Sparkles className="w-4 h-4 text-blue-600" />
-          </div>
-          <div>
-            <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-widest">Impacto Velaris IA</h3>
-            <p className="text-[9px] text-slate-400 font-bold uppercase">ROI e Eficiência Operacional</p>
-          </div>
+    <Card className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-2xl h-full flex flex-col">
+      <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50 shrink-0">
+        <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center border border-blue-100">
+          <Sparkles className="w-4 h-4 text-blue-600" />
+        </div>
+        <div className="min-w-0">
+          <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-widest truncate">Impacto Velaris IA</h3>
+          <p className="text-[9px] text-slate-400 font-bold uppercase truncate">ROI e Eficiência</p>
         </div>
       </div>
-      <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="relative p-4 rounded-xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all cursor-default">
-          <div className="absolute top-3 right-3 text-emerald-500 flex items-center gap-1 font-bold text-[9px] uppercase">
-            <TrendingUp className="w-3 h-3" />
+      <div className="p-3 flex-1 flex flex-wrap gap-2 content-start overflow-auto">
+        <div className="relative p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all cursor-default flex-1 min-w-[120px]">
+          <div className="absolute top-2 right-2 text-emerald-500 flex items-center gap-1 font-bold text-[8px] uppercase">
+            <TrendingUp className="w-2.5 h-2.5" />
             Ativo
           </div>
-          <Clock className="w-4 h-4 text-slate-400 mb-2" />
-          <p className="text-2xl md:text-3xl font-extrabold text-slate-900 leading-none mb-1">{timeSaved.hours_saved.toFixed(1)}h</p>
-          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Tempo Economizado</p>
+          <Clock className="w-4 h-4 text-slate-400 mb-1" />
+          <p className="text-xl font-extrabold text-slate-900 leading-none mb-0.5">{timeSaved.hours_saved.toFixed(1)}h</p>
+          <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Tempo Economizado</p>
         </div>
 
-        <div className="relative p-4 rounded-xl bg-white border-2 border-indigo-100 shadow-md shadow-indigo-50 hover:scale-[1.02] transition-all cursor-default overflow-hidden group">
-          <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-110 transition-transform">
-            <DollarSign className="w-8 h-8 text-indigo-600" />
-          </div>
-          <DollarSign className="w-4 h-4 text-indigo-500 mb-2" />
-          <p className="text-2xl md:text-3xl font-extrabold text-indigo-600 leading-none mb-1">R$ {timeSaved.cost_saved_brl.toFixed(0)}</p>
-          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Economia em Salários</p>
+        <div className="relative p-3 rounded-xl bg-white border-2 border-indigo-100 shadow-sm hover:scale-[1.02] transition-all cursor-default overflow-hidden group flex-1 min-w-[120px]">
+          <DollarSign className="w-4 h-4 text-indigo-500 mb-1" />
+          <p className="text-xl font-extrabold text-indigo-600 leading-none mb-0.5">R$ {timeSaved.cost_saved_brl.toFixed(0)}</p>
+          <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Economia</p>
         </div>
 
-        <div className="relative p-4 rounded-xl bg-slate-50 border border-slate-100 hover:border-amber-200 transition-all cursor-default">
-          <Zap className="w-4 h-4 text-amber-500 mb-2" />
-          <p className="text-2xl md:text-3xl font-extrabold text-slate-900 leading-none mb-1">{avgResponseTime.toFixed(1)}m</p>
-          <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Tempo de Resposta</p>
+        <div className="relative p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-amber-200 transition-all cursor-default flex-1 min-w-[120px]">
+          <Zap className="w-4 h-4 text-amber-500 mb-1" />
+          <p className="text-xl font-extrabold text-slate-900 leading-none mb-0.5">{avgResponseTime.toFixed(1)}m</p>
+          <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Resposta</p>
         </div>
       </div>
     </Card>
@@ -346,9 +341,10 @@ export function WidgetRenderer({ config, metrics, leads, sellers, salesData, isG
   }
 
   // No modo grid, react-grid-layout controla o sizing
+  // overflow-auto permite scroll quando o conteúdo não cabe
   if (isGridMode) {
     return (
-      <div className="h-full w-full overflow-hidden">
+      <div className="h-full w-full overflow-auto">
         {renderWidget()}
       </div>
     );
