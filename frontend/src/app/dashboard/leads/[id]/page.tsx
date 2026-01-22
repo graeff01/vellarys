@@ -402,59 +402,81 @@ export default function LeadDetailPage() {
   const statusBadge = getStatusBadge(lead.status);
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="h-screen flex flex-col bg-[#F8FAFC] overflow-hidden font-sans selection:bg-indigo-100 selection:text-indigo-900">
+      {/* Background Gradients */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-indigo-300/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-300/10 rounded-full blur-[100px]" />
+      </div>
+
       {/* Toast de Sucesso */}
       {mensagemSucesso && (
-        <div className="fixed top-4 right-4 z-50 animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl px-6 py-3 shadow-2xl flex items-center gap-3">
-            <CheckCircle2 className="w-5 h-5 text-white" />
-            <span className="text-sm font-semibold text-white">{mensagemSucesso}</span>
+        <div className="fixed top-6 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="bg-emerald-500 text-white rounded-2xl px-6 py-4 shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center gap-3 border border-emerald-400/50 backdrop-blur-md">
+            <div className="p-1 bg-white/20 rounded-full">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <span className="font-semibold tracking-wide">{mensagemSucesso}</span>
           </div>
         </div>
       )}
 
-      {/* Header Moderno com Gradient */}
-      <div className="bg-white/80 backdrop-blur-xl border-b border-slate-200/50 shadow-sm flex-shrink-0">
-        <div className="px-6 py-3.5">
-          <div className="flex items-center justify-between gap-4">
-            {/* Esquerda - Voltar + Nome + Tags */}
-            <div className="flex items-center gap-4 min-w-0 flex-1">
+      {/* Header Principal */}
+      <header className="relative z-10 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 shadow-sm flex-shrink-0">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between gap-6">
+
+            {/* Esquerda: Identificação */}
+            <div className="flex items-center gap-5 flex-1 min-w-0">
               <button
                 onClick={() => router.back()}
-                className="p-2 hover:bg-slate-100 rounded-xl transition-all hover:scale-105 active:scale-95 flex-shrink-0 group"
+                className="group p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm hover:shadow-md"
               >
-                <ArrowLeft className="w-5 h-5 text-slate-600 group-hover:text-slate-900" />
+                <ArrowLeft className="w-5 h-5 text-slate-500 group-hover:text-slate-800 transition-colors" />
               </button>
 
-              <div className="min-w-0 flex-1">
-                {editandoNome ? (
-                  <input
-                    type="text"
-                    value={nomeTemp}
-                    onChange={(e) => setNomeTemp(e.target.value)}
-                    onBlur={salvarNome}
-                    onKeyDown={(e) => e.key === 'Enter' && salvarNome()}
-                    className="text-xl font-bold text-slate-900 w-full border-b-2 border-blue-500 outline-none bg-transparent"
-                    autoFocus
-                  />
-                ) : (
-                  <div className="flex items-center gap-2 group cursor-pointer" onClick={() => { setNomeTemp(lead.name || ''); setEditandoNome(true); }}>
-                    <h1 className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent truncate">
-                      {lead.name || 'Lead sem nome'}
-                    </h1>
-                    <Edit2 className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-3 mb-1.5">
+                  <div className="min-w-0">
+                    {editandoNome ? (
+                      <input
+                        type="text"
+                        value={nomeTemp}
+                        onChange={(e) => setNomeTemp(e.target.value)}
+                        onBlur={salvarNome}
+                        onKeyDown={(e) => e.key === 'Enter' && salvarNome()}
+                        className="text-2xl font-bold text-slate-900 bg-transparent border-b-2 border-indigo-500 outline-none w-full"
+                        autoFocus
+                      />
+                    ) : (
+                      <div
+                        className="flex items-center gap-3 group cursor-pointer"
+                        onClick={() => { setNomeTemp(lead.name || ''); setEditandoNome(true); }}
+                      >
+                        <h1 className="text-2xl font-bold text-slate-900 truncate tracking-tight">
+                          {lead.name || 'Sem Nome'}
+                        </h1>
+                        <div className="p-1.5 rounded-lg bg-slate-100 text-slate-400 opacity-0 group-hover:opacity-100 transition-all">
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
 
-                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                <div className="flex flex-wrap items-center gap-2">
                   {(lead.custom_data?.tags || []).map((tag: string) => (
-                    <Badge key={tag} className="bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 border-0 px-2.5 py-0.5 text-xs font-semibold rounded-full hover:from-slate-200 hover:to-slate-300 transition-all shadow-sm">
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-200 transition-colors"
+                    >
                       {tag}
-                      <button onClick={(e) => { e.stopPropagation(); removerTag(tag); }} className="ml-1.5 hover:text-red-600 transition-colors">
+                      <button onClick={(e) => { e.stopPropagation(); removerTag(tag); }} className="hover:text-red-600">
                         <X className="w-3 h-3" />
                       </button>
-                    </Badge>
+                    </span>
                   ))}
+
                   {adicionandoTag ? (
                     <input
                       type="text"
@@ -462,315 +484,400 @@ export default function LeadDetailPage() {
                       onChange={(e) => setNovaTag(e.target.value)}
                       onBlur={adicionarTag}
                       onKeyDown={(e) => e.key === 'Enter' && adicionarTag()}
-                      placeholder="Nova tag"
-                      className="border border-slate-300 rounded-full px-3 py-0.5 text-xs w-28 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                      placeholder="Nova tag..."
+                      className="px-3 py-0.5 rounded-lg border border-indigo-300 text-xs w-32 outline-none focus:ring-2 focus:ring-indigo-100"
                       autoFocus
                     />
                   ) : (
-                    <button onClick={() => setAdicionandoTag(true)} className="text-xs font-semibold text-slate-500 hover:text-slate-900 px-2.5 py-0.5 border border-dashed border-slate-300 rounded-full hover:border-slate-400 transition-all hover:bg-white">
-                      + Tag
+                    <button
+                      onClick={() => setAdicionandoTag(true)}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg border border-dashed border-slate-300 text-xs font-medium text-slate-500 hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50 transition-all"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      Add Tag
                     </button>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Direita - Status e Qualificação com Gradientes */}
-            <div className="flex items-center gap-2.5 flex-shrink-0">
-              <div className="relative">
-                <select
-                  value={lead.status}
-                  onChange={(e) => atualizarStatus(e.target.value)}
-                  className={`${statusBadge.bg} ${statusBadge.text} px-4 py-2 rounded-xl font-bold text-sm cursor-pointer border-0 appearance-none pr-9 shadow-lg hover:shadow-xl transition-all`}
-                >
-                  <option value="new">Novo</option>
-                  <option value="in_progress">Em Andamento</option>
-                  <option value="qualified">Qualificado</option>
-                  <option value="lost">Perdido</option>
-                </select>
-                <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-white" />
+            {/* Direita: Ações Principais */}
+            <div className="flex items-center gap-4">
+              {/* Seletor de Status */}
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl blur opacity-20 group-hover:opacity-30 transition-opacity" />
+                <div className="relative bg-white border border-slate-200 rounded-xl shadow-sm p-1 flex items-center">
+                  <span className="pl-3 text-xs font-bold text-slate-400 uppercase tracking-wider mr-2">Status</span>
+                  <select
+                    value={lead.status}
+                    onChange={(e) => atualizarStatus(e.target.value)}
+                    className="bg-slate-50 text-slate-900 text-sm font-semibold rounded-lg py-1.5 pl-3 pr-8 outline-none border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-100 cursor-pointer appearance-none hover:bg-slate-100 transition-colors"
+                  >
+                    <option value="new">Novo</option>
+                    <option value="in_progress">Em Atendimento</option>
+                    <option value="qualified">Qualificado</option>
+                    <option value="lost">Perdido</option>
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 pointer-events-none" />
+                </div>
               </div>
 
-              <div className="relative">
-                <select
-                  value={lead.qualification}
-                  onChange={(e) => atualizarQualificacao(e.target.value)}
-                  className={`${qualBadge.bg} ${qualBadge.text} px-4 py-2 rounded-xl font-bold text-sm cursor-pointer border-0 appearance-none pr-9 shadow-lg hover:shadow-xl transition-all`}
-                >
-                  <option value="cold">Frio</option>
-                  <option value="warm">Morno</option>
-                  <option value="hot">Quente</option>
-                </select>
-                <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-white" />
+              {/* Seletor de Qualificação */}
+              <div className="relative group">
+                <div className={`absolute inset-0 rounded-xl blur opacity-20 group-hover:opacity-30 transition-opacity ${lead.qualification === 'hot' ? 'bg-red-500' :
+                  lead.qualification === 'warm' ? 'bg-orange-500' :
+                    'bg-blue-500'
+                  }`} />
+                <div className="relative bg-white border border-slate-200 rounded-xl shadow-sm p-1 flex items-center">
+                  <span className="pl-3 text-xs font-bold text-slate-400 uppercase tracking-wider mr-2">Qualif.</span>
+                  <select
+                    value={lead.qualification}
+                    onChange={(e) => atualizarQualificacao(e.target.value)}
+                    className={`
+                      text-sm font-bold rounded-lg py-1.5 pl-3 pr-8 outline-none border-transparent cursor-pointer appearance-none transition-colors
+                      ${lead.qualification === 'hot' ? 'bg-red-50 text-red-700' :
+                        lead.qualification === 'warm' ? 'bg-orange-50 text-orange-700' :
+                          'bg-blue-50 text-blue-700'
+                      }
+                    `}
+                  >
+                    <option value="cold">❄️ Frio</option>
+                    <option value="warm">🔥 Morno</option>
+                    <option value="hot">🚀 Quente</option>
+                  </select>
+                  <ChevronDown className={`w-4 h-4 absolute right-3 pointer-events-none ${lead.qualification === 'hot' ? 'text-red-500' :
+                    lead.qualification === 'warm' ? 'text-orange-500' :
+                      'text-blue-500'
+                    }`} />
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Conteúdo Principal - Layout em 3 Colunas */}
-      <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* Coluna 1: Informações + Vendedor (3 colunas) */}
-        <div className="col-span-3 flex flex-col gap-3 overflow-hidden">
-          {/* Card de Contato */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-white/50 flex-shrink-0">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg">
-                <Building2 className="w-4 h-4 text-white" />
-              </div>
-              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Contato</h3>
-            </div>
-            <div className="space-y-2.5">
-              {lead.phone && (
-                <div className="flex items-center gap-2.5 text-sm group">
-                  <Phone className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors flex-shrink-0" />
-                  <span className="text-slate-900 font-semibold">{lead.phone}</span>
-                </div>
-              )}
-              {lead.email && (
-                <div className="flex items-center gap-2.5 text-sm group">
-                  <Mail className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors flex-shrink-0" />
-                  <span className="text-slate-900 font-semibold truncate">{lead.email}</span>
-                </div>
-              )}
-              {lead.city && (
-                <div className="flex items-center gap-2.5 text-sm group">
-                  <MapPin className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors flex-shrink-0" />
-                  <span className="text-slate-900 font-semibold">{lead.city}</span>
-                </div>
-              )}
-            </div>
-          </div>
+      {/* Grid Principal */}
+      <main className="relative z-0 flex-1 overflow-hidden p-6 max-w-[1920px] mx-auto w-full">
+        <div className="grid grid-cols-12 gap-6 h-full">
 
-          {/* Card de Vendedor */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-white/50 flex-shrink-0">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-green-600 rounded-lg flex items-center justify-center shadow-lg">
-                <UserCheck className="w-4 h-4 text-white" />
+          {/* COLUNA 1: DETALHES (3 cols) */}
+          <div className="col-span-3 flex flex-col gap-5 overflow-hidden">
+
+            {/* Card Contato */}
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-[0_2px_20px_rgb(0,0,0,0.04)] overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                  <User className="w-4 h-4 text-indigo-500" />
+                  Dados de Contato
+                </h3>
               </div>
-              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Vendedor</h3>
-            </div>
-            {lead.assigned_seller ? (
-              <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-xl p-3 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-green-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg">
-                      {lead.assigned_seller.name.charAt(0).toUpperCase()}
+              <div className="p-5 space-y-4">
+                <div className="group">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block group-hover:text-indigo-500 transition-colors">Telefone</label>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 group-hover:scale-110 transition-transform">
+                      <Phone className="w-4 h-4" />
                     </div>
-                    <div>
-                      <p className="font-bold text-slate-900 text-sm">{lead.assigned_seller.name}</p>
-                      <p className="text-xs text-emerald-700 font-medium">{lead.assigned_seller.whatsapp}</p>
-                    </div>
+                    <span className="font-mono text-slate-700 font-medium select-all">{lead.phone || '-'}</span>
                   </div>
-                  <button onClick={removerAtribuicao} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-all hover:scale-110">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                </div>
+
+                <div className="group">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block group-hover:text-indigo-500 transition-colors">Email</label>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 group-hover:scale-110 transition-transform">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <span className="text-slate-700 font-medium truncate select-all">{lead.email || '-'}</span>
+                  </div>
+                </div>
+
+                <div className="group">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block group-hover:text-indigo-500 transition-colors">Localização</label>
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 group-hover:scale-110 transition-transform">
+                      <MapPin className="w-4 h-4" />
+                    </div>
+                    <span className="text-slate-700 font-medium">{lead.city || '-'}</span>
+                  </div>
                 </div>
               </div>
-            ) : (
-              <select
-                onChange={(e) => atribuirVendedor(parseInt(e.target.value))}
-                disabled={atribuindoVendedor}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 shadow-sm"
-              >
-                <option value="">Selecionar vendedor</option>
-                {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+            </div>
+
+            {/* Card Vendedor */}
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-[0_2px_20px_rgb(0,0,0,0.04)] overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-emerald-500" />
+                  Vendedor Responsável
+                </h3>
+              </div>
+              <div className="p-5">
+                {lead.assigned_seller ? (
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 border border-slate-300 flex items-center justify-center text-xl font-bold text-slate-600 shadow-inner">
+                      {lead.assigned_seller.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-slate-900 truncate">{lead.assigned_seller.name}</p>
+                      <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                        <Phone className="w-3 h-3" />
+                        {lead.assigned_seller.whatsapp}
+                      </p>
+                    </div>
+                    <button
+                      onClick={removerAtribuicao}
+                      className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all opacity-50 hover:opacity-100"
+                      title="Remover vendedor"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center">
+                      <UserPlus className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs text-slate-500">Nenhum vendedor atribuído</p>
+                    </div>
+                    <select
+                      onChange={(e) => atribuirVendedor(parseInt(e.target.value))}
+                      disabled={atribuindoVendedor}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 transition-all"
+                    >
+                      <option value="">+ Atribuir Vendedor</option>
+                      {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* AI Insights - Special Card */}
+            {lead.summary && (
+              <div className="relative overflow-hidden rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] group">
+                <div className="absolute inset-0 bg-gradient-to-br from-violet-600 to-indigo-600" />
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <Bot className="w-24 h-24 rotate-12" />
+                </div>
+                <div className="relative p-5">
+                  <div className="flex items-center gap-2 mb-3 text-white/90">
+                    <Sparkles className="w-4 h-4" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider">IA Summary</h3>
+                  </div>
+                  <p className="text-white/95 text-sm leading-relaxed font-medium">
+                    "{lead.summary}"
+                  </p>
+                </div>
+              </div>
             )}
           </div>
 
-          {/* Card IA Summary */}
-          {lead.summary && (
-            <div className="bg-gradient-to-br from-violet-500 via-purple-500 to-indigo-600 rounded-2xl p-4 shadow-2xl flex-shrink-0">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-4 h-4 text-white" />
-                <h3 className="text-xs font-bold text-white uppercase tracking-wide">IA Insights</h3>
-              </div>
-              <p className="text-sm text-white/95 leading-relaxed font-medium">&quot;{lead.summary}&quot;</p>
-            </div>
-          )}
-        </div>
+          {/* COLUNA 2: TIMELINE & NOTAS (3 cols) */}
+          <div className="col-span-3 flex flex-col gap-5 overflow-hidden">
 
-        {/* Coluna 2: Histórico + Notas (3 colunas) */}
-        <div className="col-span-3 flex flex-col gap-3 overflow-hidden">
-          {/* Timeline de Eventos */}
-          {events.length > 0 && (
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-white/50 overflow-y-auto flex-1">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-lg">
-                  <History className="w-4 h-4 text-white" />
-                </div>
-                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Timeline</h3>
+            {/* Timeline */}
+            <div className="flex-[0.4] bg-white rounded-2xl border border-slate-200/60 shadow-[0_2px_20px_rgb(0,0,0,0.04)] overflow-hidden flex flex-col">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                  <History className="w-4 h-4 text-amber-500" />
+                  Atividades Recentes
+                </h3>
               </div>
-              <div className="space-y-2.5">
-                {events.slice(0, 5).map((event) => (
-                  <div key={event.id} className="flex items-start gap-2 p-2 rounded-lg hover:bg-slate-50 transition-colors">
-                    <div className="mt-0.5">{getEventIcon(event.event_type)}</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-slate-900 font-semibold text-xs leading-tight">{event.description}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {new Date(event.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </p>
+              <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+                <div className="space-y-6 relative ml-3">
+                  {/* Vertical Line */}
+                  <div className="absolute top-2 bottom-2 left-[5px] w-[2px] bg-slate-100" />
+
+                  {events.length === 0 ? (
+                    <p className="text-xs text-slate-400 text-center py-4">Nenhuma atividade recente.</p>
+                  ) : (
+                    events.slice(0, 10).map((event) => (
+                      <div key={event.id} className="relative pl-6 sm:pl-8">
+                        {/* Dot */}
+                        <div className="absolute left-0 top-1.5 w-3 h-3 rounded-full bg-white border-2 border-slate-200 shadow-sm z-10" />
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50 self-start px-2 py-0.5 rounded-full border border-slate-100">
+                            {new Date(event.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} • {new Date(event.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <p className="text-sm font-medium text-slate-700 leading-snug">
+                            {event.description}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Notas */}
+            <div className="flex-1 bg-white rounded-2xl border border-slate-200/60 shadow-[0_2px_20px_rgb(0,0,0,0.04)] overflow-hidden flex flex-col">
+              <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-blue-500" />
+                  Notas Internas
+                </h3>
+                {!editandoNota && (
+                  <button onClick={() => setEditandoNota(true)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors">
+                    <span className="text-xs font-bold">+ Adicionar</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-5 custom-scrollbar bg-slate-50/30">
+                {editandoNota && (
+                  <div className="mb-4 bg-white p-3 rounded-xl border border-blue-200 shadow-sm animate-in fade-in slide-in-from-top-2">
+                    <textarea
+                      value={novaNota}
+                      onChange={(e) => setNovaNota(e.target.value)}
+                      placeholder="Escreva sua nota..."
+                      className="w-full text-sm outline-none resize-none placeholder:text-slate-400 min-h-[80px]"
+                      autoFocus
+                    />
+                    <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-slate-100">
+                      <button onClick={() => setEditandoNota(false)} className="text-xs font-medium text-slate-500 hover:text-slate-800 px-3 py-1.5 transition-colors">Cancelar</button>
+                      <button onClick={salvarNota} className="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-lg transition-colors shadow-sm">Salvar Nota</button>
                     </div>
                   </div>
-                ))}
+                )}
+
+                <div className="space-y-3">
+                  {(lead.custom_data?.notas || []).length === 0 && !editandoNota && (
+                    <div className="text-center py-10 opacity-50">
+                      <FileText className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                      <p className="text-xs text-slate-400 font-medium">Nenhuma nota registrada</p>
+                    </div>
+                  )}
+
+                  {[...(lead.custom_data?.notas || [])].reverse().map((nota: Note) => (
+                    <div key={nota.id} className="group relative bg-[#FFFBEB] border border-amber-200/60 p-4 rounded-t-xl rounded-br-xl rounded-bl-[2px] shadow-sm hover:shadow-md transition-all">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded-full bg-amber-200 flex items-center justify-center text-[10px] font-bold text-amber-800">
+                            {nota.created_by.charAt(0)}
+                          </div>
+                          <span className="text-[10px] font-bold text-amber-800/60 uppercase">{new Date(nota.created_at).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                        <button onClick={() => deletarNota(nota.id)} className="text-amber-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <p className="text-sm text-slate-700 font-medium leading-relaxed whitespace-pre-wrap">{nota.content}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          )}
+          </div>
 
-          {/* Notas */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-white/50 overflow-y-auto flex-1">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg">
-                  <FileText className="w-4 h-4 text-white" />
+          {/* COLUNA 3: CHAT (6 cols) */}
+          <div className="col-span-6 flex flex-col h-full overflow-hidden">
+            <div className="flex-1 bg-white rounded-2xl border border-slate-200/60 shadow-[0_4px_30px_rgb(0,0,0,0.05)] flex flex-col overflow-hidden relative">
+
+              {/* Header Chat */}
+              <div className="px-6 py-4 border-b border-slate-100 bg-white/50 backdrop-blur-md flex items-center justify-between z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-500/20 text-white">
+                    <MessageSquare className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 border-inherit">WhatsApp Business</h3>
+                    <p className="text-xs text-green-600 font-medium flex items-center gap-1">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                      </span>
+                      {messages.length} mensagens sincronizadas
+                    </p>
+                  </div>
                 </div>
-                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Notas</h3>
               </div>
-              {!editandoNota && (
-                <button onClick={() => setEditandoNota(true)} className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors">
-                  + Nova
+
+              {/* Chat Area */}
+              <div
+                ref={chatContainerRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#F0F2F5]"
+                style={{
+                  backgroundImage: `radial-gradient(#CBD5E1 1px, transparent 1px)`,
+                  backgroundSize: '20px 20px'
+                }}
+              >
+                {messages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center opacity-40">
+                    <div className="w-20 h-20 bg-slate-200 rounded-full flex items-center justify-center mb-4">
+                      <MessageSquare className="w-10 h-10 text-slate-400" />
+                    </div>
+                    <p className="font-medium text-slate-500">Nenhuma troca de mensagens</p>
+                  </div>
+                ) : (
+                  Array.from(messageGroups.entries()).map(([date, dateMessages]) => (
+                    <div key={date}>
+                      <div className="sticky top-0 flex justify-center z-10 mb-6">
+                        <span className="px-4 py-1.5 bg-slate-200/80 backdrop-blur-sm rounded-full text-[10px] font-bold text-slate-600 uppercase tracking-widest shadow-sm">
+                          {formatDateLabel(date, dateMessages[0].created_at)}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1">
+                        {dateMessages.map((msg, idx) => {
+                          const isAssistant = msg.role === 'assistant';
+                          const isLastFromUser = !isAssistant && (idx === dateMessages.length - 1 || dateMessages[idx + 1]?.role !== 'user');
+                          const isFirstFromUser = !isAssistant && (idx === 0 || dateMessages[idx - 1]?.role !== 'user');
+
+                          return (
+                            <div
+                              key={msg.id}
+                              className={`flex w-full group ${isAssistant ? 'justify-start' : 'justify-end'}`}
+                            >
+                              <div className={`flex max-w-[80%] ${isAssistant ? 'flex-row' : 'flex-row-reverse'} items-end gap-2`}>
+
+                                {/* Avatar */}
+                                <div className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-xs font-bold shadow-sm mb-1 ${isAssistant ? 'bg-white text-slate-600' : 'bg-indigo-600 text-white'
+                                  }`}>
+                                  {isAssistant ? <Bot className="w-5 h-5" /> : <User className="w-4 h-4" />}
+                                </div>
+
+                                {/* Bubble */}
+                                <div className={`
+                                  relative px-5 py-3 shadow-sm text-[15px] leading-relaxed
+                                  ${isAssistant
+                                    ? 'bg-white text-slate-800 rounded-2xl rounded-bl-none border border-slate-100'
+                                    : 'bg-indigo-600 text-white rounded-2xl rounded-br-none bg-gradient-to-br from-indigo-500 to-indigo-600'
+                                  }
+                                `}>
+                                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                                  <div className={`text-[10px] font-medium mt-1 text-right flex items-center justify-end gap-1 ${isAssistant ? 'text-slate-400' : 'text-indigo-200'
+                                    }`}>
+                                    {isAssistant ? null : <CheckCircle2 className="w-3 h-3" />}
+                                    {new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))
+                )}
+
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Scroll Button */}
+              {showScrollButton && (
+                <button
+                  onClick={scrollToBottom}
+                  className="absolute bottom-6 right-6 p-3 bg-slate-800 text-white rounded-full shadow-lg hover:bg-slate-700 transition-all hover:scale-110 active:scale-95 z-20"
+                >
+                  <ChevronDown className="w-5 h-5" />
                 </button>
               )}
             </div>
-
-            {editandoNota && (
-              <div className="mb-3 space-y-2">
-                <textarea
-                  value={novaNota}
-                  onChange={(e) => setNovaNota(e.target.value)}
-                  placeholder="Digite sua nota..."
-                  className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 resize-none shadow-sm"
-                  rows={2}
-                />
-                <div className="flex gap-2">
-                  <button onClick={salvarNota} className="flex-1 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg text-xs font-bold hover:from-blue-600 hover:to-indigo-700 shadow-lg">
-                    Salvar
-                  </button>
-                  <button onClick={() => { setEditandoNota(false); setNovaNota(''); }} className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              {(lead.custom_data?.notas || []).length === 0 && !editandoNota && (
-                <p className="text-xs text-slate-400 text-center py-6 font-medium">Sem notas</p>
-              )}
-              {(lead.custom_data?.notas || []).map((nota: Note) => (
-                <div key={nota.id} className="group bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-xl p-3 hover:shadow-lg transition-all">
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="text-xs text-slate-600 font-bold">{nota.created_by}</span>
-                    <button onClick={() => deletarNota(nota.id)} className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-all">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <p className="text-xs text-slate-700 leading-relaxed font-medium">{nota.content}</p>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
-
-        {/* Coluna 3: Chat (6 colunas) */}
-        <div className="col-span-6 flex flex-col bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/50 overflow-hidden">
-          {/* Header do Chat */}
-          <div className="px-5 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
-                  <MessageSquare className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-white">Conversas</h3>
-                  <p className="text-xs text-blue-100 font-medium">WhatsApp Business</p>
-                </div>
-              </div>
-              <Badge className="bg-white/20 backdrop-blur-sm text-white px-3 py-1 font-bold text-xs shadow-lg border border-white/30">
-                {messages.length}
-              </Badge>
-            </div>
-          </div>
-
-          {/* Container de Mensagens */}
-          <div
-            ref={chatContainerRef}
-            onScroll={handleScroll}
-            className="flex-1 overflow-y-auto p-5 space-y-3 bg-gradient-to-br from-slate-50 to-blue-50/30"
-          >
-            {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                <MessageSquare className="w-16 h-16 mb-3 opacity-20" />
-                <p className="text-sm font-bold">Sem mensagens</p>
-              </div>
-            ) : (
-              <>
-                {Array.from(messageGroups.entries()).map(([date, dateMessages]) => (
-                  <div key={date}>
-                    <div className="flex items-center justify-center my-4">
-                      <span className="px-4 py-1.5 text-xs font-bold text-slate-600 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-full shadow-lg">
-                        {formatDateLabel(date, dateMessages[0].created_at)}
-                      </span>
-                    </div>
-
-                    <div className="space-y-2">
-                      {dateMessages.map((msg, idx) => {
-                        const isAssistant = msg.role === 'assistant';
-                        const showAvatar = idx === 0 || dateMessages[idx - 1]?.role !== msg.role;
-
-                        return (
-                          <div key={msg.id} className={`flex ${isAssistant ? 'justify-start' : 'justify-end'}`}>
-                            {isAssistant && (
-                              <div className={`flex-shrink-0 mr-2 ${showAvatar ? 'visible' : 'invisible'}`}>
-                                <div className="w-8 h-8 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl flex items-center justify-center shadow-lg">
-                                  <Bot className="w-4 h-4 text-white" />
-                                </div>
-                              </div>
-                            )}
-
-                            <div className={`
-                              max-w-[75%] px-4 py-2.5 rounded-2xl text-sm font-medium shadow-lg
-                              ${isAssistant
-                                ? 'bg-white text-slate-800 border border-slate-200'
-                                : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
-                              }
-                            `}>
-                              <p className="leading-relaxed">{msg.content}</p>
-                              <div className={`flex items-center gap-1 mt-1.5 text-xs font-semibold ${isAssistant ? 'text-slate-500' : 'text-blue-100'}`}>
-                                <Clock className="w-3 h-3" />
-                                <span>{new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                              </div>
-                            </div>
-
-                            {!isAssistant && (
-                              <div className={`flex-shrink-0 ml-2 ${showAvatar ? 'visible' : 'invisible'}`}>
-                                <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center border-2 border-blue-200 shadow-lg">
-                                  <User className="w-4 h-4 text-blue-600" />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </>
-            )}
-            <div ref={chatEndRef} />
-
-            {showScrollButton && (
-              <button
-                onClick={scrollToBottom}
-                className="fixed bottom-6 right-6 p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full shadow-2xl text-white hover:from-blue-600 hover:to-indigo-700 transition-all hover:scale-110 active:scale-95"
-              >
-                <ChevronDown className="w-5 h-5" />
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+      </main>
     </div>
   );
 }
