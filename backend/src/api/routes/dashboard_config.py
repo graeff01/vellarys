@@ -48,11 +48,24 @@ class WidgetConfigSchema(BaseModel):
     size: str = "full"  # full, half, third, two_thirds
     settings: dict = Field(default_factory=dict)
 
+    # Grid layout fields (react-grid-layout)
+    i: Optional[str] = None  # ID único para o grid
+    x: Optional[int] = None  # Posição X (coluna)
+    y: Optional[int] = None  # Posição Y (linha)
+    w: Optional[int] = None  # Largura em colunas
+    h: Optional[int] = None  # Altura em rows
+    minW: Optional[int] = None
+    maxW: Optional[int] = None
+    minH: Optional[int] = None
+    maxH: Optional[int] = None
+    static: Optional[bool] = None  # Widget fixo (não arrastável)
+
 
 class DashboardConfigSchema(BaseModel):
     """Schema da configuração do dashboard."""
     widgets: List[WidgetConfigSchema]
     settings: dict = Field(default_factory=dict)
+    layout_version: str = "v1"  # "v1" = position/size, "v2" = grid layout
 
 
 class WidgetTypeSchema(BaseModel):
@@ -71,6 +84,7 @@ class DashboardConfigResponse(BaseModel):
     widgets: List[dict]
     settings: dict
     is_default: bool = False
+    layout_version: str = "v1"  # "v1" = position/size, "v2" = grid layout
 
 
 # =============================================
@@ -126,11 +140,14 @@ async def get_dashboard_config(
             config = result.scalar_one_or_none()
 
         if config:
+            # Detecta versão do layout
+            layout_version = (config.settings or {}).get("layout_version", "v1")
             return DashboardConfigResponse(
                 id=config.id,
                 widgets=config.widgets,
                 settings=config.settings or {},
-                is_default=False
+                is_default=False,
+                layout_version=layout_version
             )
 
         # Retorna template padrão com todos os widgets disponíveis
@@ -139,7 +156,8 @@ async def get_dashboard_config(
             id=None,
             widgets=all_widgets,
             settings={},
-            is_default=True
+            is_default=True,
+            layout_version="v1"
         )
 
     except HTTPException:
@@ -152,7 +170,8 @@ async def get_dashboard_config(
             id=None,
             widgets=all_widgets,
             settings={},
-            is_default=True
+            is_default=True,
+            layout_version="v1"
         )
 
 
@@ -197,12 +216,16 @@ async def update_dashboard_config(
         )
         config = result.scalar_one_or_none()
 
-        widgets_data = [w.model_dump() for w in config_data.widgets]
+        widgets_data = [w.model_dump(exclude_none=True) for w in config_data.widgets]
+
+        # Salva layout_version nas settings
+        settings_data = config_data.settings.copy() if config_data.settings else {}
+        settings_data["layout_version"] = config_data.layout_version
 
         if config:
             # Atualiza existente
             config.widgets = widgets_data
-            config.settings = config_data.settings
+            config.settings = settings_data
             config.updated_at = datetime.now(timezone.utc)
         else:
             # Cria nova
@@ -212,20 +235,21 @@ async def update_dashboard_config(
                 name="Principal",
                 is_active=True,
                 widgets=widgets_data,
-                settings=config_data.settings,
+                settings=settings_data,
             )
             db.add(config)
 
         await db.commit()
         await db.refresh(config)
 
-        logger.info(f"✅ Dashboard config salva (user={user_id}, tenant={tenant_id})")
+        logger.info(f"✅ Dashboard config salva (user={user_id}, tenant={tenant_id}, version={config_data.layout_version})")
 
         return DashboardConfigResponse(
             id=config.id,
             widgets=config.widgets,
             settings=config.settings or {},
-            is_default=False
+            is_default=False,
+            layout_version=config_data.layout_version
         )
 
     except HTTPException:

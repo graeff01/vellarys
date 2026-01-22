@@ -297,6 +297,18 @@ export interface WidgetConfig {
   position: number;
   size: string;
   settings?: Record<string, any>;
+
+  // Grid layout fields (react-grid-layout) - v2
+  i?: string;      // ID único para o grid
+  x?: number;      // Posição X (coluna)
+  y?: number;      // Posição Y (linha)
+  w?: number;      // Largura em colunas
+  h?: number;      // Altura em rows
+  minW?: number;
+  maxW?: number;
+  minH?: number;
+  maxH?: number;
+  static?: boolean; // Widget fixo (não arrastável)
 }
 
 export interface DashboardConfigResponse {
@@ -304,6 +316,7 @@ export interface DashboardConfigResponse {
   widgets: WidgetConfig[];
   settings: Record<string, any>;
   is_default: boolean;
+  layout_version?: 'v1' | 'v2'; // v1 = position/size, v2 = grid layout
 }
 
 export interface WidgetType {
@@ -319,10 +332,18 @@ export async function getDashboardConfig(): Promise<DashboardConfigResponse> {
   return request('/v1/dashboard/config');
 }
 
-export async function updateDashboardConfig(widgets: WidgetConfig[], settings?: Record<string, any>): Promise<DashboardConfigResponse> {
+export async function updateDashboardConfig(
+  widgets: WidgetConfig[],
+  settings?: Record<string, any>,
+  layoutVersion: 'v1' | 'v2' = 'v2'
+): Promise<DashboardConfigResponse> {
   return request('/v1/dashboard/config', {
     method: 'PUT',
-    body: JSON.stringify({ widgets, settings: settings || {} }),
+    body: JSON.stringify({
+      widgets,
+      settings: settings || {},
+      layout_version: layoutVersion,
+    }),
   });
 }
 

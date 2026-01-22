@@ -53,6 +53,8 @@ interface WidgetProps {
     metrics: SalesMetrics | null;
     reload: () => void;
   };
+  /** Quando true, o layout é controlado pelo react-grid-layout */
+  isGridMode?: boolean;
 }
 
 // =============================================
@@ -271,7 +273,7 @@ function LeadsTableWidget({ leads, sellers }: { leads: any[]; sellers: any[] }) 
 // WIDGET RENDERER
 // =============================================
 
-export function WidgetRenderer({ config, metrics, leads, sellers, salesData }: WidgetProps) {
+export function WidgetRenderer({ config, metrics, leads, sellers, salesData, isGridMode = false }: WidgetProps) {
   const sizeClass = getSizeClasses(config.size as any);
 
   // Renderiza baseado no tipo
@@ -343,6 +345,16 @@ export function WidgetRenderer({ config, metrics, leads, sellers, salesData }: W
     return null;
   }
 
+  // No modo grid, react-grid-layout controla o sizing
+  if (isGridMode) {
+    return (
+      <div className="h-full w-full overflow-hidden">
+        {renderWidget()}
+      </div>
+    );
+  }
+
+  // Modo tradicional com classes CSS
   return (
     <div className={sizeClass}>
       {renderWidget()}

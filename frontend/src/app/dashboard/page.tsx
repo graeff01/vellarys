@@ -1,32 +1,50 @@
 'use client';
 
 /**
- * DASHBOARD PAGE - CUSTOMIZÁVEL
- * ==============================
+ * DASHBOARD PAGE - DRAG & DROP
+ * ============================
  *
- * Dashboard com sistema de widgets personalizáveis.
- * O gestor pode escolher quais métricas quer ver.
+ * Dashboard com sistema de widgets drag-and-drop inspirado no Monday.com.
+ * Features:
+ * - Arrastar widgets para reposicionar
+ * - Redimensionar widgets nos cantos/bordas
+ * - Catálogo visual para adicionar novos widgets
+ * - Layout responsivo com breakpoints
+ * - Auto-save de configurações
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { CEODashboard } from '@/components/ceo/ceo-dashboard';
-import { DashboardCustomizer } from '@/components/dashboard/dashboard-customizer';
+import { WidgetCatalog } from '@/components/dashboard/widget-catalog';
 import { WidgetRenderer } from '@/components/dashboard/widget-renderer';
 import { useSalesData } from '@/components/dashboard/sales-widgets';
+import {
+  getDefaultLayout,
+  createWidgetGridConfig,
+  getWidgetMeta,
+} from '@/components/dashboard/widget-registry';
+import type { GridWidget } from '@/components/dashboard/draggable-grid';
 import {
   getMetrics,
   getLeads,
   getDashboardConfig,
-  WidgetConfig,
+  updateDashboardConfig,
 } from '@/lib/api';
 import { getSellers } from '@/lib/sellers';
 import { getUser } from '@/lib/auth';
 import {
   AlertCircle,
   RefreshCw,
-  Settings,
+  Zap,
 } from 'lucide-react';
+
+// Import dinâmico do DraggableGrid (client-only por causa do react-grid-layout)
+const DraggableGrid = dynamic(
+  () => import('@/components/dashboard/draggable-grid'),
+  { ssr: false }
+);
 
 // =============================================
 // TIPOS
@@ -86,7 +104,7 @@ interface Seller {
 
 function ErrorState({ error, onRetry }: { error: string; onRetry: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[300px] space-y-4">
+    <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
       <div className="p-4 bg-rose-50 rounded-2xl border border-rose-100 shadow-lg">
         <AlertCircle className="w-10 h-10 text-rose-600" />
       </div>
@@ -113,15 +131,21 @@ function ErrorState({ error, onRetry }: { error: string; onRetry: () => void }) 
 
 function LoadingState() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-[300px] gap-3">
-      <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
-      <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Sincronizando Dashboard...</p>
+    <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+      <div className="relative">
+        <div className="w-16 h-16 border-4 border-slate-200 rounded-full"></div>
+        <div className="absolute top-0 left-0 w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+      <div className="text-center">
+        <p className="text-slate-700 font-bold">Carregando Dashboard</p>
+        <p className="text-slate-400 text-sm">Sincronizando dados...</p>
+      </div>
     </div>
   );
 }
 
 // =============================================
-// GESTOR DASHBOARD (CUSTOMIZÁVEL)
+// GESTOR DASHBOARD (DRAG & DROP)
 // =============================================
 
 function GestorDashboard() {
@@ -134,24 +158,72 @@ function GestorDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Estados de configuração
-  const [widgets, setWidgets] = useState<WidgetConfig[]>([]);
+  // Estados de configuração do grid
+  const [widgets, setWidgets] = useState<GridWidget[]>([]);
+  const [originalWidgets, setOriginalWidgets] = useState<GridWidget[]>([]);
   const [configLoading, setConfigLoading] = useState(true);
-  const [customizerOpen, setCustomizerOpen] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
 
   // Hook de dados de vendas
   const salesData = useSalesData();
+
+  // Detecta mudanças não salvas
+  const hasChanges = useMemo(() => {
+    return JSON.stringify(widgets) !== JSON.stringify(originalWidgets);
+  }, [widgets, originalWidgets]);
+
+  // Lista de tipos de widgets existentes
+  const existingWidgetTypes = useMemo(() => {
+    return widgets.map(w => w.type);
+  }, [widgets]);
 
   // Carrega configuração do dashboard
   const loadConfig = useCallback(async () => {
     try {
       setConfigLoading(true);
       const config = await getDashboardConfig();
-      setWidgets(config.widgets);
+
+      // Converte formato antigo para novo (se necessário)
+      let gridWidgets: GridWidget[];
+
+      if (config.widgets && config.widgets.length > 0) {
+        // Verifica se já está no formato novo (tem propriedade 'i')
+        const firstWidget = config.widgets[0] as any;
+        if (firstWidget.i && firstWidget.x !== undefined) {
+          gridWidgets = config.widgets as unknown as GridWidget[];
+        } else {
+          // Converte formato antigo
+          gridWidgets = config.widgets.map((w: any, index: number) => {
+            const meta = getWidgetMeta(w.type);
+            return {
+              i: w.id || `${w.type}_${index}`,
+              type: w.type,
+              x: 0,
+              y: index * 2,
+              w: meta?.grid.w || 6,
+              h: meta?.grid.h || 2,
+              minW: meta?.grid.minW || 2,
+              maxW: meta?.grid.maxW || 12,
+              minH: meta?.grid.minH || 1,
+              maxH: meta?.grid.maxH || 6,
+            };
+          });
+        }
+      } else {
+        // Usa layout padrão
+        gridWidgets = getDefaultLayout();
+      }
+
+      setWidgets(gridWidgets);
+      setOriginalWidgets(gridWidgets);
     } catch (err) {
       console.error('Erro carregando config:', err);
-      // Usa widgets padrão se falhar
-      setWidgets([]);
+      // Usa layout padrão se falhar
+      const defaultLayout = getDefaultLayout();
+      setWidgets(defaultLayout);
+      setOriginalWidgets(defaultLayout);
     } finally {
       setConfigLoading(false);
     }
@@ -195,10 +267,105 @@ function GestorDashboard() {
     loadData();
   }, [loadConfig, loadData]);
 
-  // Callbacks
-  const handleSaveConfig = (newWidgets: WidgetConfig[]) => {
+  // Handlers
+  const handleLayoutChange = useCallback((newWidgets: GridWidget[]) => {
     setWidgets(newWidgets);
-  };
+  }, []);
+
+  const handleRemoveWidget = useCallback((widgetId: string) => {
+    setWidgets(prev => prev.filter(w => w.i !== widgetId));
+  }, []);
+
+  const handleAddWidget = useCallback((widgetId: string) => {
+    const newWidget = createWidgetGridConfig(widgetId, widgets);
+    if (newWidget) {
+      setWidgets(prev => [...prev, newWidget as GridWidget]);
+    }
+    setCatalogOpen(false);
+  }, [widgets]);
+
+  const handleSave = useCallback(async () => {
+    try {
+      setSaving(true);
+
+      // Converte para formato da API
+      const widgetsForApi = widgets.map((w, index) => ({
+        id: w.i,
+        type: w.type,
+        enabled: true,
+        position: index,
+        size: 'full', // Mantém compatibilidade
+        settings: {
+          gridX: w.x,
+          gridY: w.y,
+          gridW: w.w,
+          gridH: w.h,
+        },
+        // Dados do novo formato
+        i: w.i,
+        x: w.x,
+        y: w.y,
+        w: w.w,
+        h: w.h,
+        minW: w.minW,
+        maxW: w.maxW,
+        minH: w.minH,
+        maxH: w.maxH,
+      }));
+
+      await updateDashboardConfig(widgetsForApi, {}, 'v2');
+      setOriginalWidgets(widgets);
+      setEditMode(false);
+    } catch (err) {
+      console.error('Erro salvando:', err);
+    } finally {
+      setSaving(false);
+    }
+  }, [widgets]);
+
+  const handleReset = useCallback(() => {
+    const defaultLayout = getDefaultLayout();
+    setWidgets(defaultLayout);
+  }, []);
+
+  const handleToggleEditMode = useCallback(() => {
+    if (editMode && hasChanges) {
+      // Se está saindo do modo edição com mudanças, pergunta se quer salvar
+      if (confirm('Você tem alterações não salvas. Deseja salvar?')) {
+        handleSave();
+      } else {
+        setWidgets(originalWidgets);
+      }
+    }
+    setEditMode(!editMode);
+  }, [editMode, hasChanges, handleSave, originalWidgets]);
+
+  // Renderiza widget
+  const renderWidget = useCallback((widget: GridWidget) => {
+    if (!metrics) return null;
+
+    return (
+      <WidgetRenderer
+        config={{
+          id: widget.i,
+          type: widget.type,
+          enabled: true,
+          position: 0,
+          size: 'full',
+          settings: {},
+        }}
+        metrics={metrics}
+        leads={leads}
+        sellers={sellers}
+        salesData={{
+          goal: salesData.goal,
+          metrics: salesData.metrics,
+          reload: salesData.reload,
+        }}
+        isGridMode={true}
+      />
+    );
+  }, [metrics, leads, sellers, salesData]);
 
   // Estados de loading
   if (loading || configLoading) {
@@ -211,76 +378,54 @@ function GestorDashboard() {
 
   if (!metrics) return null;
 
-  // Filtra e ordena widgets ativos
-  const activeWidgets = widgets
-    .filter(w => w.enabled)
-    .sort((a, b) => a.position - b.position);
-
   return (
-    <div className="space-y-3 animate-in fade-in duration-700">
+    <div className="space-y-4 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">Visão Geral</h1>
-          <p className="text-sm text-slate-500 font-medium">Análise estratégica de desempenho do Velaris AI</p>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-3">
+            Visão Geral
+            <span className="px-2 py-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider shadow-lg">
+              Drag & Drop
+            </span>
+          </h1>
+          <p className="text-sm text-slate-500 font-medium mt-1">
+            {editMode
+              ? '🎨 Arraste e redimensione os widgets para personalizar'
+              : 'Análise estratégica de desempenho do Velaris AI'}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Botão Personalizar */}
-          <button
-            onClick={() => setCustomizerOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm"
-          >
-            <Settings className="w-4 h-4" />
-            <span className="hidden sm:inline">Personalizar</span>
-          </button>
 
-          {/* Status */}
+        {/* Status Badge */}
+        <div className="flex items-center gap-2">
           <div className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Sistema Operante</span>
+            <Zap className="w-4 h-4 text-emerald-500" />
+            <span className="text-xs font-bold text-slate-600">Sistema Operante</span>
           </div>
         </div>
       </div>
 
       {/* Grid de Widgets */}
-      <div className="grid grid-cols-12 gap-3">
-        {activeWidgets.map(widget => (
-          <WidgetRenderer
-            key={widget.id}
-            config={widget}
-            metrics={metrics}
-            leads={leads}
-            sellers={sellers}
-            salesData={{
-              goal: salesData.goal,
-              metrics: salesData.metrics,
-              reload: salesData.reload,
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Mensagem se não tiver widgets */}
-      {activeWidgets.length === 0 && (
-        <div className="text-center py-12 bg-slate-50 rounded-2xl border border-slate-200">
-          <Settings className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-slate-700 mb-2">Dashboard Vazio</h3>
-          <p className="text-sm text-slate-500 mb-4">Adicione widgets para personalizar sua visão geral</p>
-          <button
-            onClick={() => setCustomizerOpen(true)}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors"
-          >
-            Personalizar Dashboard
-          </button>
-        </div>
-      )}
-
-      {/* Modal de Personalização */}
-      <DashboardCustomizer
-        isOpen={customizerOpen}
-        onClose={() => setCustomizerOpen(false)}
+      <DraggableGrid
         widgets={widgets}
-        onSave={handleSaveConfig}
+        onLayoutChange={handleLayoutChange}
+        onRemoveWidget={handleRemoveWidget}
+        onAddWidget={() => setCatalogOpen(true)}
+        renderWidget={renderWidget}
+        editMode={editMode}
+        onToggleEditMode={handleToggleEditMode}
+        onSave={handleSave}
+        onReset={handleReset}
+        hasChanges={hasChanges}
+        saving={saving}
+      />
+
+      {/* Catálogo de Widgets */}
+      <WidgetCatalog
+        isOpen={catalogOpen}
+        onClose={() => setCatalogOpen(false)}
+        onAddWidget={handleAddWidget}
+        existingWidgetTypes={existingWidgetTypes}
       />
     </div>
   );
@@ -303,7 +448,7 @@ export default function DashboardPage() {
   const isSuperAdmin = userRole === 'superadmin';
 
   return (
-    <div className="p-3 md:p-4 lg:p-5 max-w-screen-2xl mx-auto">
+    <div className="p-3 md:p-4 lg:p-6 max-w-screen-2xl mx-auto">
       {isSuperAdmin ? <CEODashboard /> : <GestorDashboard />}
     </div>
   );

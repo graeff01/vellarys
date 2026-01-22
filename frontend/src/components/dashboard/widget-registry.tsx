@@ -5,10 +5,7 @@
  * ================
  *
  * Define todos os widgets disponíveis para o dashboard customizável.
- * Cada widget tem:
- * - Metadata (nome, descrição, categoria, ícone)
- * - Componente de renderização
- * - Tamanhos permitidos
+ * Agora com suporte a grid layout (react-grid-layout).
  */
 
 import {
@@ -30,187 +27,239 @@ import {
   LucideIcon,
 } from 'lucide-react';
 
-// Tipos
-export type WidgetSize = 'full' | 'two_thirds' | 'half' | 'third';
+// =============================================
+// TIPOS
+// =============================================
+
+export type WidgetCategory = 'metricas' | 'vendas' | 'alertas' | 'sistema';
+
+export interface GridDimensions {
+  // Tamanho padrão
+  w: number;           // Largura em colunas (1-12)
+  h: number;           // Altura em rows
+
+  // Limites
+  minW: number;        // Largura mínima
+  maxW: number;        // Largura máxima
+  minH: number;        // Altura mínima
+  maxH: number;        // Altura máxima
+}
 
 export interface WidgetMeta {
   id: string;
   name: string;
   description: string;
-  category: 'metricas' | 'vendas' | 'alertas' | 'sistema';
+  category: WidgetCategory;
   icon: LucideIcon;
-  defaultSize: WidgetSize;
-  allowedSizes: WidgetSize[];
+
+  // Configurações de grid
+  grid: GridDimensions;
+
+  // Preview image (opcional)
+  previewBg?: string;
 }
 
+// =============================================
+// CONFIGURAÇÕES
+// =============================================
+
 // Mapeamento de categorias para labels
-export const CATEGORY_LABELS: Record<string, string> = {
+export const CATEGORY_LABELS: Record<WidgetCategory, string> = {
   alertas: '🔔 Alertas',
   metricas: '📊 Métricas Gerais',
   vendas: '💰 Métricas de Vendas',
   sistema: '⚙️ Sistema',
 };
 
-// Ordem de categorias
-export const CATEGORY_ORDER = ['alertas', 'metricas', 'vendas', 'sistema'];
+// Cores por categoria
+export const CATEGORY_COLORS: Record<WidgetCategory, { bg: string; border: string; text: string }> = {
+  alertas: { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700' },
+  metricas: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+  vendas: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
+  sistema: { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700' },
+};
 
-// Registry de widgets
+// Ordem de categorias
+export const CATEGORY_ORDER: WidgetCategory[] = ['alertas', 'vendas', 'metricas', 'sistema'];
+
+// =============================================
+// REGISTRY DE WIDGETS
+// =============================================
+
 export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
   // === ALERTAS ===
   hot_leads_cta: {
     id: 'hot_leads_cta',
     name: 'Alerta Leads Quentes',
-    description: 'CTA de destaque para leads quentes aguardando',
+    description: 'CTA de destaque quando há leads quentes aguardando atendimento',
     category: 'alertas',
     icon: Flame,
-    defaultSize: 'full',
-    allowedSizes: ['full'],
+    previewBg: 'bg-gradient-to-r from-rose-500 to-orange-500',
+    grid: { w: 12, h: 1, minW: 6, maxW: 12, minH: 1, maxH: 2 },
   },
 
   // === MÉTRICAS GERAIS ===
   metrics_cards: {
     id: 'metrics_cards',
-    name: 'Métricas Principais',
-    description: 'KPIs de atendimento total, leads quentes e transferidos',
+    name: 'KPIs Principais',
+    description: 'Cards com métricas de atendimento, leads e transferências',
     category: 'metricas',
     icon: BarChart3,
-    defaultSize: 'full',
-    allowedSizes: ['full'],
+    previewBg: 'bg-gradient-to-br from-blue-500 to-indigo-600',
+    grid: { w: 12, h: 2, minW: 8, maxW: 12, minH: 2, maxH: 3 },
   },
+
   qualification_donut: {
     id: 'qualification_donut',
     name: 'Qualificação de Leads',
     description: 'Gráfico de pizza com distribuição quente/morno/frio',
     category: 'metricas',
     icon: PieChart,
-    defaultSize: 'third',
-    allowedSizes: ['third', 'half'],
+    previewBg: 'bg-gradient-to-br from-violet-500 to-purple-600',
+    grid: { w: 4, h: 3, minW: 3, maxW: 6, minH: 2, maxH: 4 },
   },
+
   funnel: {
     id: 'funnel',
     name: 'Funil de Atendimento',
-    description: 'Visualização do funil de conversão',
+    description: 'Visualização do funil de conversão completo',
     category: 'metricas',
     icon: Filter,
-    defaultSize: 'half',
-    allowedSizes: ['half', 'full'],
+    previewBg: 'bg-gradient-to-br from-cyan-500 to-blue-600',
+    grid: { w: 6, h: 3, minW: 4, maxW: 12, minH: 2, maxH: 5 },
   },
+
   topics_heatmap: {
     id: 'topics_heatmap',
     name: 'Interesses e Dúvidas',
-    description: 'Nuvem de palavras com tópicos mais frequentes',
+    description: 'Tópicos mais frequentes identificados pela IA',
     category: 'metricas',
     icon: MessageSquare,
-    defaultSize: 'half',
-    allowedSizes: ['half', 'full'],
+    previewBg: 'bg-gradient-to-br from-amber-500 to-orange-600',
+    grid: { w: 6, h: 3, minW: 4, maxW: 12, minH: 2, maxH: 5 },
   },
+
   impact_velaris: {
     id: 'impact_velaris',
     name: 'Impacto Velaris IA',
     description: 'ROI, tempo economizado e velocidade de resposta',
     category: 'metricas',
     icon: Sparkles,
-    defaultSize: 'two_thirds',
-    allowedSizes: ['two_thirds', 'full'],
+    previewBg: 'bg-gradient-to-br from-indigo-500 to-purple-600',
+    grid: { w: 8, h: 2, minW: 6, maxW: 12, minH: 2, maxH: 3 },
   },
+
   leads_table: {
     id: 'leads_table',
     name: 'Leads Recentes',
-    description: 'Tabela com últimos leads',
+    description: 'Tabela com os últimos leads recebidos',
     category: 'metricas',
     icon: Users,
-    defaultSize: 'two_thirds',
-    allowedSizes: ['two_thirds', 'full'],
+    previewBg: 'bg-gradient-to-br from-slate-600 to-slate-800',
+    grid: { w: 8, h: 3, minW: 6, maxW: 12, minH: 2, maxH: 6 },
   },
 
   // === SISTEMA ===
   plan_usage: {
     id: 'plan_usage',
     name: 'Uso do Plano',
-    description: 'Limites e consumo do plano atual',
+    description: 'Consumo de limites e features do plano atual',
     category: 'sistema',
     icon: CreditCard,
-    defaultSize: 'third',
-    allowedSizes: ['third', 'half'],
+    previewBg: 'bg-gradient-to-br from-slate-500 to-slate-700',
+    grid: { w: 4, h: 2, minW: 3, maxW: 6, minH: 2, maxH: 4 },
   },
 
   // === VENDAS ===
   sales_goal: {
     id: 'sales_goal',
     name: 'Meta Mensal',
-    description: 'Progresso da meta de vendas do mês',
+    description: 'Progresso visual da meta de vendas do mês',
     category: 'vendas',
     icon: Target,
-    defaultSize: 'third',
-    allowedSizes: ['third', 'half'],
+    previewBg: 'bg-gradient-to-br from-emerald-500 to-teal-600',
+    grid: { w: 4, h: 2, minW: 3, maxW: 6, minH: 2, maxH: 3 },
   },
+
   sales_progress: {
     id: 'sales_progress',
     name: 'Progresso de Vendas',
-    description: 'Quanto falta para bater a meta',
+    description: 'Quanto já vendeu e quanto falta para a meta',
     category: 'vendas',
     icon: TrendingUp,
-    defaultSize: 'third',
-    allowedSizes: ['third', 'half'],
+    previewBg: 'bg-gradient-to-br from-green-500 to-emerald-600',
+    grid: { w: 4, h: 2, minW: 3, maxW: 6, minH: 2, maxH: 3 },
   },
+
   deals_closed: {
     id: 'deals_closed',
     name: 'Vendas Fechadas',
-    description: 'Número de vendas no período',
+    description: 'Contador de vendas fechadas no período',
     category: 'vendas',
     icon: CheckCircle,
-    defaultSize: 'third',
-    allowedSizes: ['third', 'half'],
+    previewBg: 'bg-gradient-to-br from-teal-500 to-cyan-600',
+    grid: { w: 3, h: 2, minW: 2, maxW: 6, minH: 1, maxH: 3 },
   },
+
   average_ticket: {
     id: 'average_ticket',
     name: 'Ticket Médio',
-    description: 'Valor médio das vendas',
+    description: 'Valor médio por venda fechada',
     category: 'vendas',
     icon: DollarSign,
-    defaultSize: 'third',
-    allowedSizes: ['third', 'half'],
+    previewBg: 'bg-gradient-to-br from-yellow-500 to-amber-600',
+    grid: { w: 3, h: 2, minW: 2, maxW: 6, minH: 1, maxH: 3 },
   },
+
   month_projection: {
     id: 'month_projection',
     name: 'Projeção do Mês',
-    description: 'Estimativa de fechamento baseada na velocidade atual',
+    description: 'Estimativa de fechamento baseada no ritmo atual',
     category: 'vendas',
     icon: TrendingUp,
-    defaultSize: 'third',
-    allowedSizes: ['third', 'half'],
+    previewBg: 'bg-gradient-to-br from-blue-500 to-indigo-600',
+    grid: { w: 4, h: 2, minW: 3, maxW: 6, minH: 2, maxH: 3 },
   },
+
   seller_ranking: {
     id: 'seller_ranking',
     name: 'Ranking de Vendedores',
-    description: 'Top vendedores por conversão ou vendas',
+    description: 'Top vendedores por vendas e conversão',
     category: 'vendas',
     icon: Trophy,
-    defaultSize: 'half',
-    allowedSizes: ['half', 'full'],
+    previewBg: 'bg-gradient-to-br from-amber-500 to-yellow-600',
+    grid: { w: 6, h: 3, minW: 4, maxW: 12, minH: 2, maxH: 5 },
   },
+
   days_remaining: {
     id: 'days_remaining',
     name: 'Dias Restantes',
-    description: 'Urgência visual de dias até fim do mês',
+    description: 'Urgência visual dos dias até fim do mês',
     category: 'vendas',
     icon: Calendar,
-    defaultSize: 'third',
-    allowedSizes: ['third'],
+    previewBg: 'bg-gradient-to-br from-rose-500 to-pink-600',
+    grid: { w: 3, h: 2, minW: 2, maxW: 4, minH: 1, maxH: 3 },
   },
+
   conversion_rate: {
     id: 'conversion_rate',
     name: 'Taxa de Conversão',
-    description: 'Percentual de leads convertidos em vendas',
+    description: 'Percentual de leads que se tornaram vendas',
     category: 'vendas',
     icon: Percent,
-    defaultSize: 'third',
-    allowedSizes: ['third', 'half'],
+    previewBg: 'bg-gradient-to-br from-violet-500 to-purple-600',
+    grid: { w: 3, h: 2, minW: 2, maxW: 6, minH: 1, maxH: 3 },
   },
 };
 
-// Helper para obter widgets por categoria
-export function getWidgetsByCategory(): Record<string, WidgetMeta[]> {
+// =============================================
+// HELPERS
+// =============================================
+
+/**
+ * Retorna widgets agrupados por categoria
+ */
+export function getWidgetsByCategory(): Record<WidgetCategory, WidgetMeta[]> {
   const byCategory: Record<string, WidgetMeta[]> = {};
 
   Object.values(WIDGET_REGISTRY).forEach(widget => {
@@ -220,31 +269,77 @@ export function getWidgetsByCategory(): Record<string, WidgetMeta[]> {
     byCategory[widget.category].push(widget);
   });
 
-  return byCategory;
+  return byCategory as Record<WidgetCategory, WidgetMeta[]>;
 }
 
-// Helper para obter widget por ID
+/**
+ * Retorna metadata de um widget pelo ID
+ */
 export function getWidgetMeta(id: string): WidgetMeta | undefined {
   return WIDGET_REGISTRY[id];
 }
 
-// Helper para converter size para classes Tailwind
+/**
+ * Retorna todos os widgets como array
+ */
+export function getAllWidgets(): WidgetMeta[] {
+  return Object.values(WIDGET_REGISTRY);
+}
+
+/**
+ * Gera configurações de grid para um novo widget
+ */
+export function createWidgetGridConfig(widgetId: string, existingWidgets: { y: number; h: number }[]) {
+  const meta = getWidgetMeta(widgetId);
+  if (!meta) return null;
+
+  // Calcula Y (posição vertical) baseado nos widgets existentes
+  const maxY = existingWidgets.reduce((max, w) => Math.max(max, w.y + w.h), 0);
+
+  return {
+    i: `${widgetId}_${Date.now()}`,
+    type: widgetId,
+    x: 0,
+    y: maxY,
+    w: meta.grid.w,
+    h: meta.grid.h,
+    minW: meta.grid.minW,
+    maxW: meta.grid.maxW,
+    minH: meta.grid.minH,
+    maxH: meta.grid.maxH,
+  };
+}
+
+/**
+ * Layout padrão para novos dashboards
+ */
+export function getDefaultLayout() {
+  return [
+    { i: 'hot_leads_cta_default', type: 'hot_leads_cta', x: 0, y: 0, w: 12, h: 1, minW: 6, maxW: 12, minH: 1, maxH: 2 },
+    { i: 'metrics_cards_default', type: 'metrics_cards', x: 0, y: 1, w: 12, h: 2, minW: 8, maxW: 12, minH: 2, maxH: 3 },
+    { i: 'sales_goal_default', type: 'sales_goal', x: 0, y: 3, w: 4, h: 2, minW: 3, maxW: 6, minH: 2, maxH: 3 },
+    { i: 'sales_progress_default', type: 'sales_progress', x: 4, y: 3, w: 4, h: 2, minW: 3, maxW: 6, minH: 2, maxH: 3 },
+    { i: 'days_remaining_default', type: 'days_remaining', x: 8, y: 3, w: 4, h: 2, minW: 2, maxW: 4, minH: 1, maxH: 3 },
+    { i: 'qualification_donut_default', type: 'qualification_donut', x: 0, y: 5, w: 4, h: 3, minW: 3, maxW: 6, minH: 2, maxH: 4 },
+    { i: 'funnel_default', type: 'funnel', x: 4, y: 5, w: 8, h: 3, minW: 4, maxW: 12, minH: 2, maxH: 5 },
+    { i: 'leads_table_default', type: 'leads_table', x: 0, y: 8, w: 8, h: 3, minW: 6, maxW: 12, minH: 2, maxH: 6 },
+    { i: 'plan_usage_default', type: 'plan_usage', x: 8, y: 8, w: 4, h: 3, minW: 3, maxW: 6, minH: 2, maxH: 4 },
+  ];
+}
+
+// Mantém compatibilidade com código antigo
+export type WidgetSize = 'full' | 'two_thirds' | 'half' | 'third';
+
 export function getSizeClasses(size: WidgetSize): string {
   switch (size) {
-    case 'full':
-      return 'col-span-12';
-    case 'two_thirds':
-      return 'col-span-12 lg:col-span-8';
-    case 'half':
-      return 'col-span-12 lg:col-span-6';
-    case 'third':
-      return 'col-span-12 md:col-span-6 lg:col-span-4';
-    default:
-      return 'col-span-12';
+    case 'full': return 'col-span-12';
+    case 'two_thirds': return 'col-span-12 lg:col-span-8';
+    case 'half': return 'col-span-12 lg:col-span-6';
+    case 'third': return 'col-span-12 md:col-span-6 lg:col-span-4';
+    default: return 'col-span-12';
   }
 }
 
-// Helper para labels de tamanho
 export const SIZE_LABELS: Record<WidgetSize, string> = {
   full: 'Largura Total',
   two_thirds: '2/3 da Largura',
