@@ -21,6 +21,7 @@ from src.api.routes.health import router as health_router  # ← ADICIONADO
 from .data_sources import router as data_sources_router  # ← DATA SOURCES
 from .dashboard_config import router as dashboard_config_router  # ← DASHBOARD CONFIG
 from .sales import router as sales_router  # ← SALES & GOALS
+from .opportunities import router as opportunities_router, leads_router as opportunities_leads_router  # ← OPPORTUNITIES
 
 # Admin routes
 from .admin import (
@@ -55,6 +56,8 @@ __all__ = [
     "data_sources_router",
     "dashboard_config_router",
     "sales_router",
+    "opportunities_router",
+    "opportunities_leads_router",
     # Admin
     "admin_dashboard_router",
     "admin_tenants_router",

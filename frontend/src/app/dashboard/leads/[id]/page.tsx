@@ -1,8 +1,15 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+/**
+ * LEAD DETAIL PAGE (v2)
+ * =====================
+ *
+ * Página de detalhes do lead com sistema de widgets customizáveis.
+ * Usa o mesmo sistema de drag-and-drop do dashboard principal.
+ */
+
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   getLead,
@@ -12,32 +19,28 @@ import {
   assignSellerToLead,
   unassignSellerFromLead,
   updateLeadCustomData,
-  getSellers
+  getSellers,
+  getLeadOpportunities,
+  getLeadPageConfig,
+  updateLeadPageConfig,
+  Opportunity,
+  WidgetConfig,
 } from '@/lib/api';
 import {
   ArrowLeft,
-  Phone,
-  Mail,
-  MapPin,
   ChevronDown,
-  Bot,
-  User,
-  Clock,
-  MessageSquare,
-  Sparkles,
   Edit2,
   X,
-  Trash2,
-  UserPlus,
-  History,
   CheckCircle2,
   Loader2,
-  Zap,
-  TrendingUp,
-  UserCheck,
-  Building2,
-  FileText
 } from 'lucide-react';
+import { DraggableGrid, GridWidget } from '@/components/dashboard/draggable-grid';
+import { LeadWidgetRenderer } from '@/components/lead-page';
+import { getDefaultLeadPageLayout, getLeadWidgetsByCategory, CATEGORY_LABELS, CATEGORY_COLORS, LeadWidgetMeta } from '@/components/lead-page/lead-widget-registry';
+
+// =============================================
+// TIPOS
+// =============================================
 
 interface Lead {
   id: number;
@@ -88,45 +91,9 @@ interface Note {
   created_at: string;
 }
 
-function groupMessagesByDate(messages: Message[]): Map<string, Message[]> {
-  const groups = new Map<string, Message[]>();
-  messages.forEach(msg => {
-    const date = new Date(msg.created_at).toLocaleDateString('pt-BR', {
-      day: '2-digit', month: 'long', year: 'numeric'
-    });
-    if (!groups.has(date)) groups.set(date, []);
-    groups.get(date)!.push(msg);
-  });
-  return groups;
-}
-
-function isToday(dateString: string): boolean {
-  return new Date(dateString).toDateString() === new Date().toDateString();
-}
-
-function isYesterday(dateString: string): boolean {
-  const date = new Date(dateString);
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  return date.toDateString() === yesterday.toDateString();
-}
-
-function formatDateLabel(dateString: string, originalDate: string): string {
-  if (isToday(originalDate)) return 'Hoje';
-  if (isYesterday(originalDate)) return 'Ontem';
-  return dateString;
-}
-
-function getEventIcon(eventType: string) {
-  const iconClass = "w-3 h-3";
-  switch (eventType) {
-    case 'status_change': return <TrendingUp className={`${iconClass} text-blue-600`} />;
-    case 'qualification_change': return <Zap className={`${iconClass} text-purple-600`} />;
-    case 'seller_assigned': return <UserPlus className={`${iconClass} text-green-600`} />;
-    case 'seller_unassigned': return <X className={`${iconClass} text-red-600`} />;
-    default: return <Clock className={`${iconClass} text-slate-400`} />;
-  }
-}
+// =============================================
+// HELPERS
+// =============================================
 
 function getQualificationBadge(qual: string) {
   switch (qual?.toLowerCase()) {
@@ -159,44 +126,170 @@ function getStatusBadge(status: string) {
   }
 }
 
+// =============================================
+// WIDGET CATALOG MODAL
+// =============================================
+
+interface WidgetCatalogModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelectWidget: (widgetId: string) => void;
+  existingWidgetTypes: string[];
+}
+
+function WidgetCatalogModal({ isOpen, onClose, onSelectWidget, existingWidgetTypes }: WidgetCatalogModalProps) {
+  if (!isOpen) return null;
+
+  const widgetsByCategory = getLeadWidgetsByCategory();
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-slate-900">Adicionar Widget</h2>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg">
+            <X className="w-5 h-5 text-slate-500" />
+          </button>
+        </div>
+
+        <div className="p-6 overflow-y-auto max-h-[60vh]">
+          {(Object.keys(widgetsByCategory) as (keyof typeof widgetsByCategory)[]).map((category) => {
+            const widgets = widgetsByCategory[category];
+            if (!widgets || widgets.length === 0) return null;
+
+            const colors = CATEGORY_COLORS[category];
+
+            return (
+              <div key={category} className="mb-6">
+                <h3 className={`text-xs font-bold uppercase tracking-wider mb-3 ${colors.text}`}>
+                  {CATEGORY_LABELS[category]}
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {widgets.map((widget: LeadWidgetMeta) => {
+                    const Icon = widget.icon;
+                    const alreadyAdded = existingWidgetTypes.includes(widget.id);
+
+                    return (
+                      <button
+                        key={widget.id}
+                        onClick={() => {
+                          if (!alreadyAdded) {
+                            onSelectWidget(widget.id);
+                            onClose();
+                          }
+                        }}
+                        disabled={alreadyAdded}
+                        className={`
+                          p-4 rounded-xl border-2 text-left transition-all
+                          ${alreadyAdded
+                            ? 'border-slate-200 bg-slate-50 opacity-50 cursor-not-allowed'
+                            : `${colors.border} ${colors.bg} hover:shadow-lg hover:scale-[1.02] cursor-pointer`
+                          }
+                        `}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${widget.previewBg || 'bg-slate-200'}`}>
+                            <Icon className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-slate-900 text-sm">{widget.name}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{widget.description}</p>
+                            {alreadyAdded && (
+                              <p className="text-xs text-slate-400 mt-1 italic">Já adicionado</p>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================
+// MAIN COMPONENT
+// =============================================
+
 export default function LeadDetailPage() {
   const params = useParams();
   const router = useRouter();
 
+  // Data states
   const [lead, setLead] = useState<Lead | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [events, setEvents] = useState<LeadEvent[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [showScrollButton, setShowScrollButton] = useState(false);
+  // Layout states
+  const [widgets, setWidgets] = useState<GridWidget[]>([]);
+  const [originalWidgets, setOriginalWidgets] = useState<GridWidget[]>([]);
+  const [editMode, setEditMode] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [showCatalog, setShowCatalog] = useState(false);
+
+  // UI states
+  const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [editandoNome, setEditandoNome] = useState(false);
   const [nomeTemp, setNomeTemp] = useState('');
-  const [editandoNota, setEditandoNota] = useState(false);
-  const [novaNota, setNovaNota] = useState('');
   const [adicionandoTag, setAdicionandoTag] = useState(false);
   const [novaTag, setNovaTag] = useState('');
-  const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [atribuindoVendedor, setAtribuindoVendedor] = useState(false);
 
-  const chatContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // =============================================
+  // DATA LOADING
+  // =============================================
 
   useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
-        const [leadData, messagesData, eventsData, sellersData] = await Promise.all([
+        const [leadData, messagesData, eventsData, sellersData, oppsData, layoutConfig] = await Promise.all([
           getLead(Number(params.id)),
           getLeadMessages(Number(params.id)),
           getLeadEvents(Number(params.id)).catch(() => []),
           getSellers().catch(() => ({ sellers: [] })),
+          getLeadOpportunities(Number(params.id)).catch(() => []),
+          getLeadPageConfig().catch(() => ({ widgets: getDefaultLeadPageLayout(), is_default: true })),
         ]);
 
         setLead(leadData as Lead);
         setMessages(messagesData as Message[]);
         setEvents(eventsData as LeadEvent[]);
         setSellers((sellersData as { sellers: Seller[] }).sellers || []);
+        setOpportunities(oppsData as Opportunity[]);
+
+        // Load widgets from config or use default
+        const widgetConfig = layoutConfig.widgets?.length > 0
+          ? layoutConfig.widgets.map((w: any) => ({
+              i: w.i || w.id,
+              type: w.type,
+              x: w.x ?? 0,
+              y: w.y ?? 0,
+              w: w.w ?? 4,
+              h: w.h ?? 2,
+              minW: w.minW ?? 2,
+              maxW: w.maxW ?? 12,
+              minH: w.minH ?? 1,
+              maxH: w.maxH ?? 8,
+            }))
+          : getDefaultLeadPageLayout();
+
+        setWidgets(widgetConfig);
+        setOriginalWidgets(JSON.parse(JSON.stringify(widgetConfig)));
       } catch (error) {
         console.error('Erro ao carregar lead:', error);
       } finally {
@@ -212,17 +305,82 @@ export default function LeadDetailPage() {
     }
   }, [loading, messages]);
 
-  const handleScroll = () => {
-    if (chatContainerRef.current) {
-      const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
-      const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-      setShowScrollButton(!isNearBottom);
-    }
-  };
+  // =============================================
+  // LAYOUT HANDLERS
+  // =============================================
 
-  const scrollToBottom = () => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const handleLayoutChange = useCallback((newWidgets: GridWidget[]) => {
+    setWidgets(newWidgets);
+    setHasChanges(JSON.stringify(newWidgets) !== JSON.stringify(originalWidgets));
+  }, [originalWidgets]);
+
+  const handleRemoveWidget = useCallback((widgetId: string) => {
+    const updated = widgets.filter(w => w.i !== widgetId);
+    setWidgets(updated);
+    setHasChanges(true);
+  }, [widgets]);
+
+  const handleAddWidget = useCallback((widgetId: string) => {
+    const maxY = widgets.reduce((max, w) => Math.max(max, w.y + w.h), 0);
+    const newWidget: GridWidget = {
+      i: `${widgetId}_${Date.now()}`,
+      type: widgetId,
+      x: 0,
+      y: maxY,
+      w: 4,
+      h: 3,
+      minW: 2,
+      maxW: 12,
+      minH: 1,
+      maxH: 8,
+    };
+    setWidgets([...widgets, newWidget]);
+    setHasChanges(true);
+  }, [widgets]);
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      const configWidgets: WidgetConfig[] = widgets.map(w => ({
+        id: w.i,
+        type: w.type,
+        enabled: true,
+        position: 0,
+        size: 'full',
+        i: w.i,
+        x: w.x,
+        y: w.y,
+        w: w.w,
+        h: w.h,
+        minW: w.minW,
+        maxW: w.maxW,
+        minH: w.minH,
+        maxH: w.maxH,
+      }));
+
+      await updateLeadPageConfig(configWidgets, { layout_version: 'v2' });
+      setOriginalWidgets(JSON.parse(JSON.stringify(widgets)));
+      setHasChanges(false);
+      setEditMode(false);
+      mostrarSucesso('Layout salvo!');
+    } catch (error) {
+      console.error('Erro ao salvar layout:', error);
+    } finally {
+      setSaving(false);
+    }
+  }, [widgets]);
+
+  const handleReset = useCallback(() => {
+    if (confirm('Restaurar layout padrão?')) {
+      const defaultLayout = getDefaultLeadPageLayout();
+      setWidgets(defaultLayout);
+      setHasChanges(true);
+    }
+  }, []);
+
+  // =============================================
+  // LEAD HANDLERS
+  // =============================================
 
   const mostrarSucesso = (mensagem: string) => {
     setMensagemSucesso(mensagem);
@@ -267,41 +425,6 @@ export default function LeadDetailPage() {
       mostrarSucesso('Nome atualizado');
     } catch {
       alert('Erro ao salvar nome');
-    }
-  };
-
-  const salvarNota = async () => {
-    if (!lead || !novaNota.trim()) return;
-    try {
-      const notasAtuais: Note[] = lead.custom_data?.notas || [];
-      const novaNot: Note = {
-        id: Date.now(),
-        content: novaNota.trim(),
-        created_by: 'Usuário',
-        created_at: new Date().toISOString(),
-      };
-      const customDataAtualizado = { ...lead.custom_data, notas: [...notasAtuais, novaNot] };
-      await updateLeadCustomData(lead.id, customDataAtualizado);
-      setLead({ ...lead, custom_data: customDataAtualizado });
-      setNovaNota('');
-      setEditandoNota(false);
-      mostrarSucesso('Nota adicionada');
-    } catch {
-      alert('Erro ao salvar nota');
-    }
-  };
-
-  const deletarNota = async (notaId: number) => {
-    if (!lead || !confirm('Excluir nota?')) return;
-    try {
-      const notasAtuais: Note[] = lead.custom_data?.notas || [];
-      const notasFiltradas = notasAtuais.filter((n: Note) => n.id !== notaId);
-      const customDataAtualizado = { ...lead.custom_data, notas: notasFiltradas };
-      await updateLeadCustomData(lead.id, customDataAtualizado);
-      setLead({ ...lead, custom_data: customDataAtualizado });
-      mostrarSucesso('Nota excluída');
-    } catch {
-      alert('Erro ao deletar nota');
     }
   };
 
@@ -372,6 +495,53 @@ export default function LeadDetailPage() {
     }
   };
 
+  const adicionarNota = async (content: string) => {
+    if (!lead) return;
+    try {
+      const notasAtuais: Note[] = lead.custom_data?.notas || [];
+      const novaNota: Note = {
+        id: Date.now(),
+        content,
+        created_by: 'Usuário',
+        created_at: new Date().toISOString(),
+      };
+      const customDataAtualizado = { ...lead.custom_data, notas: [...notasAtuais, novaNota] };
+      await updateLeadCustomData(lead.id, customDataAtualizado);
+      setLead({ ...lead, custom_data: customDataAtualizado });
+      mostrarSucesso('Nota adicionada');
+    } catch {
+      alert('Erro ao salvar nota');
+    }
+  };
+
+  const deletarNota = async (notaId: number) => {
+    if (!lead || !confirm('Excluir nota?')) return;
+    try {
+      const notasAtuais: Note[] = lead.custom_data?.notas || [];
+      const notasFiltradas = notasAtuais.filter((n: Note) => n.id !== notaId);
+      const customDataAtualizado = { ...lead.custom_data, notas: notasFiltradas };
+      await updateLeadCustomData(lead.id, customDataAtualizado);
+      setLead({ ...lead, custom_data: customDataAtualizado });
+      mostrarSucesso('Nota excluída');
+    } catch {
+      alert('Erro ao deletar nota');
+    }
+  };
+
+  const reloadOpportunities = async () => {
+    if (!lead) return;
+    try {
+      const opps = await getLeadOpportunities(lead.id);
+      setOpportunities(opps);
+    } catch (error) {
+      console.error('Erro ao recarregar oportunidades:', error);
+    }
+  };
+
+  // =============================================
+  // RENDER
+  // =============================================
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
@@ -397,12 +567,12 @@ export default function LeadDetailPage() {
     );
   }
 
-  const messageGroups = groupMessagesByDate(messages);
   const qualBadge = getQualificationBadge(lead.qualification);
   const statusBadge = getStatusBadge(lead.status);
+  const existingWidgetTypes = widgets.map(w => w.type);
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Toast de Sucesso */}
       {mensagemSucesso && (
         <div className="fixed top-4 right-4 z-50 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -413,7 +583,7 @@ export default function LeadDetailPage() {
         </div>
       )}
 
-      {/* Header Moderno com Gradient */}
+      {/* Header */}
       <div className="bg-white/80 backdrop-blur-xl border-b border-slate-200/50 shadow-sm flex-shrink-0">
         <div className="px-6 py-3.5">
           <div className="flex items-center justify-between gap-4">
@@ -475,7 +645,7 @@ export default function LeadDetailPage() {
               </div>
             </div>
 
-            {/* Direita - Status e Qualificação com Gradientes */}
+            {/* Direita - Status e Qualificação */}
             <div className="flex items-center gap-2.5 flex-shrink-0">
               <div className="relative">
                 <select
@@ -508,269 +678,46 @@ export default function LeadDetailPage() {
         </div>
       </div>
 
-      {/* Conteúdo Principal - Layout em 3 Colunas */}
-      <div className="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
-        {/* Coluna 1: Informações + Vendedor (3 colunas) */}
-        <div className="col-span-3 flex flex-col gap-3 overflow-hidden">
-          {/* Card de Contato */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-white/50 flex-shrink-0">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg">
-                <Building2 className="w-4 h-4 text-white" />
-              </div>
-              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Contato</h3>
-            </div>
-            <div className="space-y-2.5">
-              {lead.phone && (
-                <div className="flex items-center gap-2.5 text-sm group">
-                  <Phone className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors flex-shrink-0" />
-                  <span className="text-slate-900 font-semibold">{lead.phone}</span>
-                </div>
-              )}
-              {lead.email && (
-                <div className="flex items-center gap-2.5 text-sm group">
-                  <Mail className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors flex-shrink-0" />
-                  <span className="text-slate-900 font-semibold truncate">{lead.email}</span>
-                </div>
-              )}
-              {lead.city && (
-                <div className="flex items-center gap-2.5 text-sm group">
-                  <MapPin className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors flex-shrink-0" />
-                  <span className="text-slate-900 font-semibold">{lead.city}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Card de Vendedor */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-white/50 flex-shrink-0">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-green-600 rounded-lg flex items-center justify-center shadow-lg">
-                <UserCheck className="w-4 h-4 text-white" />
-              </div>
-              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Vendedor</h3>
-            </div>
-            {lead.assigned_seller ? (
-              <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200 rounded-xl p-3 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-green-600 rounded-lg flex items-center justify-center text-white font-bold shadow-lg">
-                      {lead.assigned_seller.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-900 text-sm">{lead.assigned_seller.name}</p>
-                      <p className="text-xs text-emerald-700 font-medium">{lead.assigned_seller.whatsapp}</p>
-                    </div>
-                  </div>
-                  <button onClick={removerAtribuicao} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-all hover:scale-110">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <select
-                onChange={(e) => atribuirVendedor(parseInt(e.target.value))}
-                disabled={atribuindoVendedor}
-                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 font-medium outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 shadow-sm"
-              >
-                <option value="">Selecionar vendedor</option>
-                {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            )}
-          </div>
-
-          {/* Card IA Summary */}
-          {lead.summary && (
-            <div className="bg-gradient-to-br from-violet-500 via-purple-500 to-indigo-600 rounded-2xl p-4 shadow-2xl flex-shrink-0">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-4 h-4 text-white" />
-                <h3 className="text-xs font-bold text-white uppercase tracking-wide">IA Insights</h3>
-              </div>
-              <p className="text-sm text-white/95 leading-relaxed font-medium">&quot;{lead.summary}&quot;</p>
-            </div>
+      {/* Conteúdo Principal - Draggable Grid */}
+      <div className="flex-1 p-4 overflow-auto">
+        <DraggableGrid
+          widgets={widgets}
+          onLayoutChange={handleLayoutChange}
+          onRemoveWidget={handleRemoveWidget}
+          onAddWidget={() => setShowCatalog(true)}
+          renderWidget={(widget) => (
+            <LeadWidgetRenderer
+              config={widget}
+              lead={lead}
+              messages={messages}
+              events={events}
+              sellers={sellers}
+              opportunities={opportunities}
+              onAssignSeller={atribuirVendedor}
+              onRemoveSeller={removerAtribuicao}
+              onAddNote={adicionarNota}
+              onDeleteNote={deletarNota}
+              onReloadOpportunities={reloadOpportunities}
+              assigningSeller={atribuindoVendedor}
+              chatScrollRef={chatEndRef}
+            />
           )}
-        </div>
-
-        {/* Coluna 2: Histórico + Notas (3 colunas) */}
-        <div className="col-span-3 flex flex-col gap-3 overflow-hidden">
-          {/* Timeline de Eventos */}
-          {events.length > 0 && (
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-white/50 overflow-y-auto flex-1">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center shadow-lg">
-                  <History className="w-4 h-4 text-white" />
-                </div>
-                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Timeline</h3>
-              </div>
-              <div className="space-y-2.5">
-                {events.slice(0, 5).map((event) => (
-                  <div key={event.id} className="flex items-start gap-2 p-2 rounded-lg hover:bg-slate-50 transition-colors">
-                    <div className="mt-0.5">{getEventIcon(event.event_type)}</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-slate-900 font-semibold text-xs leading-tight">{event.description}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        {new Date(event.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Notas */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-white/50 overflow-y-auto flex-1">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg">
-                  <FileText className="w-4 h-4 text-white" />
-                </div>
-                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Notas</h3>
-              </div>
-              {!editandoNota && (
-                <button onClick={() => setEditandoNota(true)} className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors">
-                  + Nova
-                </button>
-              )}
-            </div>
-
-            {editandoNota && (
-              <div className="mb-3 space-y-2">
-                <textarea
-                  value={novaNota}
-                  onChange={(e) => setNovaNota(e.target.value)}
-                  placeholder="Digite sua nota..."
-                  className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 resize-none shadow-sm"
-                  rows={2}
-                />
-                <div className="flex gap-2">
-                  <button onClick={salvarNota} className="flex-1 py-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg text-xs font-bold hover:from-blue-600 hover:to-indigo-700 shadow-lg">
-                    Salvar
-                  </button>
-                  <button onClick={() => { setEditandoNota(false); setNovaNota(''); }} className="px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              {(lead.custom_data?.notas || []).length === 0 && !editandoNota && (
-                <p className="text-xs text-slate-400 text-center py-6 font-medium">Sem notas</p>
-              )}
-              {(lead.custom_data?.notas || []).map((nota: Note) => (
-                <div key={nota.id} className="group bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 rounded-xl p-3 hover:shadow-lg transition-all">
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="text-xs text-slate-600 font-bold">{nota.created_by}</span>
-                    <button onClick={() => deletarNota(nota.id)} className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-all">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                  <p className="text-xs text-slate-700 leading-relaxed font-medium">{nota.content}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Coluna 3: Chat (6 colunas) */}
-        <div className="col-span-6 flex flex-col bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-white/50 overflow-hidden">
-          {/* Header do Chat */}
-          <div className="px-5 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
-                  <MessageSquare className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-white">Conversas</h3>
-                  <p className="text-xs text-blue-100 font-medium">WhatsApp Business</p>
-                </div>
-              </div>
-              <Badge className="bg-white/20 backdrop-blur-sm text-white px-3 py-1 font-bold text-xs shadow-lg border border-white/30">
-                {messages.length}
-              </Badge>
-            </div>
-          </div>
-
-          {/* Container de Mensagens */}
-          <div
-            ref={chatContainerRef}
-            onScroll={handleScroll}
-            className="flex-1 overflow-y-auto p-5 space-y-3 bg-gradient-to-br from-slate-50 to-blue-50/30"
-          >
-            {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                <MessageSquare className="w-16 h-16 mb-3 opacity-20" />
-                <p className="text-sm font-bold">Sem mensagens</p>
-              </div>
-            ) : (
-              <>
-                {Array.from(messageGroups.entries()).map(([date, dateMessages]) => (
-                  <div key={date}>
-                    <div className="flex items-center justify-center my-4">
-                      <span className="px-4 py-1.5 text-xs font-bold text-slate-600 bg-white/80 backdrop-blur-sm border border-slate-200 rounded-full shadow-lg">
-                        {formatDateLabel(date, dateMessages[0].created_at)}
-                      </span>
-                    </div>
-
-                    <div className="space-y-2">
-                      {dateMessages.map((msg, idx) => {
-                        const isAssistant = msg.role === 'assistant';
-                        const showAvatar = idx === 0 || dateMessages[idx - 1]?.role !== msg.role;
-
-                        return (
-                          <div key={msg.id} className={`flex ${isAssistant ? 'justify-start' : 'justify-end'}`}>
-                            {isAssistant && (
-                              <div className={`flex-shrink-0 mr-2 ${showAvatar ? 'visible' : 'invisible'}`}>
-                                <div className="w-8 h-8 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl flex items-center justify-center shadow-lg">
-                                  <Bot className="w-4 h-4 text-white" />
-                                </div>
-                              </div>
-                            )}
-
-                            <div className={`
-                              max-w-[75%] px-4 py-2.5 rounded-2xl text-sm font-medium shadow-lg
-                              ${isAssistant
-                                ? 'bg-white text-slate-800 border border-slate-200'
-                                : 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white'
-                              }
-                            `}>
-                              <p className="leading-relaxed">{msg.content}</p>
-                              <div className={`flex items-center gap-1 mt-1.5 text-xs font-semibold ${isAssistant ? 'text-slate-500' : 'text-blue-100'}`}>
-                                <Clock className="w-3 h-3" />
-                                <span>{new Date(msg.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                              </div>
-                            </div>
-
-                            {!isAssistant && (
-                              <div className={`flex-shrink-0 ml-2 ${showAvatar ? 'visible' : 'invisible'}`}>
-                                <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center border-2 border-blue-200 shadow-lg">
-                                  <User className="w-4 h-4 text-blue-600" />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </>
-            )}
-            <div ref={chatEndRef} />
-
-            {showScrollButton && (
-              <button
-                onClick={scrollToBottom}
-                className="fixed bottom-6 right-6 p-3 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full shadow-2xl text-white hover:from-blue-600 hover:to-indigo-700 transition-all hover:scale-110 active:scale-95"
-              >
-                <ChevronDown className="w-5 h-5" />
-              </button>
-            )}
-          </div>
-        </div>
+          editMode={editMode}
+          onToggleEditMode={() => setEditMode(!editMode)}
+          onSave={handleSave}
+          onReset={handleReset}
+          hasChanges={hasChanges}
+          saving={saving}
+        />
       </div>
+
+      {/* Widget Catalog Modal */}
+      <WidgetCatalogModal
+        isOpen={showCatalog}
+        onClose={() => setShowCatalog(false)}
+        onSelectWidget={handleAddWidget}
+        existingWidgetTypes={existingWidgetTypes}
+      />
     </div>
   );
 }

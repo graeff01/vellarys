@@ -231,6 +231,7 @@ class Lead(Base, TimestampMixin):
     tags: Mapped[list["Tag"]] = relationship(secondary=lead_tags, back_populates="leads")
     assigned_seller: Mapped[Optional["Seller"]] = relationship(foreign_keys=[assigned_seller_id])
     assignments: Mapped[list["LeadAssignment"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
+    opportunities: Mapped[list["Opportunity"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
 
     # ==========================================
     # ÍNDICES DE PERFORMANCE
@@ -316,3 +317,4 @@ class LeadEvent(Base, TimestampMixin):
 # ============================================
 from .seller import Seller
 from .lead_assignment import LeadAssignment
+from .opportunity import Opportunity

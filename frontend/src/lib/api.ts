@@ -424,3 +424,138 @@ export async function registerDeal(leadId: number, revenue: number, notes?: stri
     body: JSON.stringify({ lead_id: leadId, revenue, notes }),
   });
 }
+
+// === OPPORTUNITIES ===
+export interface Opportunity {
+  id: number;
+  lead_id: number;
+  tenant_id: number;
+  title: string;
+  value: number;
+  status: 'novo' | 'negociacao' | 'proposta' | 'ganho' | 'perdido';
+  product_id?: number;
+  product_name?: string;
+  seller_id?: number;
+  seller_name?: string;
+  expected_close_date?: string;
+  won_at?: string;
+  lost_at?: string;
+  lost_reason?: string;
+  notes?: string;
+  custom_data?: Record<string, any>;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface OpportunityCreate {
+  title: string;
+  product_id?: number;
+  seller_id?: number;
+  value?: number;
+  expected_close_date?: string;
+  notes?: string;
+  custom_data?: Record<string, any>;
+}
+
+export interface OpportunityUpdate {
+  title?: string;
+  product_id?: number;
+  seller_id?: number;
+  value?: number;
+  status?: string;
+  expected_close_date?: string;
+  notes?: string;
+  custom_data?: Record<string, any>;
+}
+
+export interface OpportunityMetrics {
+  total: number;
+  by_status: Record<string, number>;
+  total_value: number;
+  won_value: number;
+  lost_count: number;
+  conversion_rate: number;
+}
+
+export async function getOpportunities(params?: {
+  page?: number;
+  per_page?: number;
+  status?: string;
+  seller_id?: number;
+}): Promise<{ items: Opportunity[]; total: number; page: number; per_page: number }> {
+  const searchParams = new URLSearchParams();
+  if (params?.page) searchParams.set('page', params.page.toString());
+  if (params?.per_page) searchParams.set('per_page', params.per_page.toString());
+  if (params?.status) searchParams.set('status', params.status);
+  if (params?.seller_id) searchParams.set('seller_id', params.seller_id.toString());
+  const query = searchParams.toString();
+  return request(`/v1/opportunities${query ? `?${query}` : ''}`);
+}
+
+export async function getOpportunity(id: number): Promise<Opportunity> {
+  return request(`/v1/opportunities/${id}`);
+}
+
+export async function updateOpportunity(id: number, data: OpportunityUpdate): Promise<Opportunity> {
+  return request(`/v1/opportunities/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteOpportunity(id: number): Promise<{ success: boolean }> {
+  return request(`/v1/opportunities/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function winOpportunity(id: number, notes?: string): Promise<Opportunity> {
+  return request(`/v1/opportunities/${id}/win`, {
+    method: 'POST',
+    body: JSON.stringify({ notes }),
+  });
+}
+
+export async function loseOpportunity(id: number, reason: string, notes?: string): Promise<Opportunity> {
+  return request(`/v1/opportunities/${id}/lose`, {
+    method: 'POST',
+    body: JSON.stringify({ reason, notes }),
+  });
+}
+
+export async function getLeadOpportunities(leadId: number): Promise<Opportunity[]> {
+  return request(`/v1/leads/${leadId}/opportunities`);
+}
+
+export async function createLeadOpportunity(leadId: number, data: OpportunityCreate): Promise<Opportunity> {
+  return request(`/v1/leads/${leadId}/opportunities`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getOpportunityMetrics(): Promise<OpportunityMetrics> {
+  return request('/v1/opportunities/metrics/summary');
+}
+
+// === LEAD PAGE LAYOUT CONFIG ===
+export interface LeadPageConfig {
+  id: number | null;
+  widgets: WidgetConfig[];
+  settings: Record<string, any>;
+  is_default: boolean;
+}
+
+export async function getLeadPageConfig(): Promise<LeadPageConfig> {
+  return request('/v1/dashboard/lead-page-config');
+}
+
+export async function updateLeadPageConfig(
+  widgets: WidgetConfig[],
+  settings?: Record<string, any>
+): Promise<LeadPageConfig> {
+  return request('/v1/dashboard/lead-page-config', {
+    method: 'PUT',
+    body: JSON.stringify({ widgets, settings: settings || {} }),
+  });
+}

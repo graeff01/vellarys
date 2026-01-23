@@ -339,3 +339,178 @@ async def reset_dashboard_config(
         logger.error(f"Erro resetando config dashboard: {e}", exc_info=True)
         await db.rollback()
         raise HTTPException(status_code=500, detail="Erro ao resetar configuração")
+
+
+# =============================================
+# LEAD PAGE CONFIG
+# =============================================
+
+# Widgets padrão para página de lead
+DEFAULT_LEAD_PAGE_WIDGETS = [
+    {"id": "contact_info", "type": "lead_contact", "enabled": True, "position": 0, "size": "full", "i": "lead_contact_default", "x": 0, "y": 0, "w": 4, "h": 2, "minW": 2, "maxW": 12, "minH": 1, "maxH": 8},
+    {"id": "seller_info", "type": "lead_seller", "enabled": True, "position": 1, "size": "full", "i": "lead_seller_default", "x": 0, "y": 2, "w": 4, "h": 2, "minW": 2, "maxW": 12, "minH": 1, "maxH": 8},
+    {"id": "ai_insights", "type": "lead_insights", "enabled": True, "position": 2, "size": "full", "i": "lead_insights_default", "x": 0, "y": 4, "w": 4, "h": 2, "minW": 2, "maxW": 12, "minH": 1, "maxH": 8},
+    {"id": "opportunities", "type": "lead_opportunities", "enabled": True, "position": 3, "size": "full", "i": "lead_opportunities_default", "x": 4, "y": 0, "w": 4, "h": 4, "minW": 2, "maxW": 12, "minH": 2, "maxH": 8},
+    {"id": "timeline", "type": "lead_timeline", "enabled": True, "position": 4, "size": "full", "i": "lead_timeline_default", "x": 4, "y": 4, "w": 4, "h": 3, "minW": 2, "maxW": 12, "minH": 2, "maxH": 8},
+    {"id": "notes", "type": "lead_notes", "enabled": True, "position": 5, "size": "full", "i": "lead_notes_default", "x": 4, "y": 7, "w": 4, "h": 3, "minW": 2, "maxW": 12, "minH": 2, "maxH": 8},
+    {"id": "chat", "type": "lead_chat", "enabled": True, "position": 6, "size": "full", "i": "lead_chat_default", "x": 8, "y": 0, "w": 4, "h": 10, "minW": 3, "maxW": 12, "minH": 4, "maxH": 12},
+]
+
+# Tipos de widgets disponíveis para página de lead
+LEAD_PAGE_WIDGET_TYPES = {
+    "lead_contact": {"name": "Contato", "description": "Informações de contato do lead", "category": "info", "default_size": "full", "icon": "user"},
+    "lead_seller": {"name": "Vendedor", "description": "Vendedor atribuído ao lead", "category": "info", "default_size": "full", "icon": "user-check"},
+    "lead_insights": {"name": "IA Insights", "description": "Resumo gerado pela IA", "category": "info", "default_size": "full", "icon": "sparkles"},
+    "lead_opportunities": {"name": "Oportunidades", "description": "Negócios/oportunidades do lead", "category": "vendas", "default_size": "full", "icon": "briefcase"},
+    "lead_timeline": {"name": "Timeline", "description": "Histórico de eventos do lead", "category": "historico", "default_size": "full", "icon": "history"},
+    "lead_notes": {"name": "Notas", "description": "Notas e anotações do lead", "category": "historico", "default_size": "full", "icon": "file-text"},
+    "lead_chat": {"name": "Conversas", "description": "Chat/mensagens com o lead", "category": "comunicacao", "default_size": "full", "icon": "message-square"},
+}
+
+
+@router.get("/lead-page-config", response_model=DashboardConfigResponse)
+async def get_lead_page_config(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Busca configuração da página de lead do usuário.
+
+    Se não existir configuração personalizada, retorna o template padrão.
+    """
+    try:
+        tenant_id = current_user.tenant_id
+        user_id = current_user.id
+
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="Usuário sem tenant")
+
+        # Busca configuração do usuário específico (com nome "LeadPage")
+        result = await db.execute(
+            select(DashboardConfig)
+            .where(
+                and_(
+                    DashboardConfig.tenant_id == tenant_id,
+                    DashboardConfig.user_id == user_id,
+                    DashboardConfig.name == "LeadPage",
+                    DashboardConfig.is_active == True
+                )
+            )
+            .order_by(DashboardConfig.updated_at.desc())
+            .limit(1)
+        )
+        config = result.scalar_one_or_none()
+
+        if config:
+            layout_version = (config.settings or {}).get("layout_version", "v2")
+            return DashboardConfigResponse(
+                id=config.id,
+                widgets=config.widgets,
+                settings=config.settings or {},
+                is_default=False,
+                layout_version=layout_version
+            )
+
+        # Retorna template padrão
+        return DashboardConfigResponse(
+            id=None,
+            widgets=DEFAULT_LEAD_PAGE_WIDGETS,
+            settings={},
+            is_default=True,
+            layout_version="v2"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro buscando config lead page: {e}", exc_info=True)
+        return DashboardConfigResponse(
+            id=None,
+            widgets=DEFAULT_LEAD_PAGE_WIDGETS,
+            settings={},
+            is_default=True,
+            layout_version="v2"
+        )
+
+
+@router.put("/lead-page-config", response_model=DashboardConfigResponse)
+async def update_lead_page_config(
+    config_data: DashboardConfigSchema,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Atualiza configuração da página de lead do usuário.
+
+    Se não existir, cria uma nova.
+    """
+    try:
+        tenant_id = current_user.tenant_id
+        user_id = current_user.id
+
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="Usuário sem tenant")
+
+        # Valida widgets
+        valid_types = set(LEAD_PAGE_WIDGET_TYPES.keys())
+        for widget in config_data.widgets:
+            if widget.type not in valid_types:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Tipo de widget inválido: {widget.type}"
+                )
+
+        # Busca configuração existente
+        result = await db.execute(
+            select(DashboardConfig)
+            .where(
+                and_(
+                    DashboardConfig.tenant_id == tenant_id,
+                    DashboardConfig.user_id == user_id,
+                    DashboardConfig.name == "LeadPage",
+                    DashboardConfig.is_active == True
+                )
+            )
+            .limit(1)
+        )
+        config = result.scalar_one_or_none()
+
+        widgets_data = [w.model_dump(exclude_none=True) for w in config_data.widgets]
+
+        settings_data = config_data.settings.copy() if config_data.settings else {}
+        settings_data["layout_version"] = config_data.layout_version or "v2"
+
+        if config:
+            config.widgets = widgets_data
+            config.settings = settings_data
+            config.updated_at = datetime.now(timezone.utc)
+        else:
+            config = DashboardConfig(
+                tenant_id=tenant_id,
+                user_id=user_id,
+                name="LeadPage",
+                is_active=True,
+                widgets=widgets_data,
+                settings=settings_data,
+            )
+            db.add(config)
+
+        await db.commit()
+        await db.refresh(config)
+
+        logger.info(f"✅ Lead page config salva (user={user_id}, tenant={tenant_id})")
+
+        return DashboardConfigResponse(
+            id=config.id,
+            widgets=config.widgets,
+            settings=config.settings or {},
+            is_default=False,
+            layout_version=settings_data.get("layout_version", "v2")
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro salvando config lead page: {e}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Erro ao salvar configuração")

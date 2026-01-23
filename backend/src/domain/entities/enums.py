@@ -55,3 +55,12 @@ class EventType(str, Enum):
     NOTE = "nota"
     TAG_ADDED = "tag_adicionada"
     TAG_REMOVED = "tag_removida"
+
+
+class OpportunityStatus(str, Enum):
+    """Status da oportunidade/negócio."""
+    NEW = "novo"                      # Nova oportunidade
+    NEGOTIATION = "negociacao"        # Em negociação
+    PROPOSAL_SENT = "proposta"        # Proposta enviada
+    WON = "ganho"                     # Fechado/ganho
+    LOST = "perdido"                  # Perdido

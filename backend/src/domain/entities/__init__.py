@@ -7,6 +7,7 @@ from .enums import (
     LeadSource,
     UserRole,
     EventType,
+    OpportunityStatus,
 )
 
 from .models import (
@@ -39,6 +40,7 @@ from .data_source import DataSource, DataSourceType
 from .property_embedding import PropertyEmbedding
 from .knowledge_embedding import KnowledgeEmbedding
 from .dashboard_config import DashboardConfig, SalesGoal, WIDGET_TYPES, DEFAULT_DASHBOARD_WIDGETS
+from .opportunity import Opportunity
 
 __all__ = [
     # Base
@@ -51,6 +53,7 @@ __all__ = [
     "LeadSource",
     "UserRole",
     "EventType",
+    "OpportunityStatus",
     # Models
     "Tenant",
     "User",
@@ -93,4 +96,6 @@ __all__ = [
     "SalesGoal",
     "WIDGET_TYPES",
     "DEFAULT_DASHBOARD_WIDGETS",
+    # Opportunities
+    "Opportunity",
 ]
