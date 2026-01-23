@@ -1481,8 +1481,9 @@ async def process_message(
 
             # Detecta interesse em produto interno
             if product_detected:
-                opportunity_title = f"Interesse: {product_detected.name}"
+                opportunity_title = product_detected.name  # Nome direto, sem "Interesse:"
                 opportunity_product_id = product_detected.id
+                opportunity_seller_id = product_detected.seller_id  # Corretor do imóvel
 
                 # Extrai valor do produto
                 if product_detected.attributes and product_detected.attributes.get("preco"):
@@ -1495,16 +1496,28 @@ async def process_message(
                     except:
                         pass
 
-                # Dados extras do produto
+                # Dados extras do produto (COMPLETO - para popular formulário)
                 if product_detected.attributes:
                     attrs = product_detected.attributes
                     opportunity_data = {
-                        "property_address": attrs.get("regiao") or attrs.get("bairro") or "",
+                        "property_address": attrs.get("regiao") or attrs.get("bairro") or attrs.get("endereco") or "",
                         "property_type": attrs.get("tipo") or "",
                         "bedrooms": attrs.get("quartos") or 0,
                         "bathrooms": attrs.get("banheiros") or 0,
-                        "area": attrs.get("metragem") or 0,
+                        "area": attrs.get("metragem") or attrs.get("area") or 0,
+                        "garage_spaces": attrs.get("vagas") or 0,
+                        "commission_percent": attrs.get("comissao") or attrs.get("comissao_percent") or 0,
+                        "payment_type": attrs.get("tipo_pagamento") or attrs.get("forma_pagamento") or "a_vista",
                     }
+
+                # Atribui corretor automaticamente (do imóvel)
+                if opportunity_seller_id:
+                    # Se o lead ainda não tem vendedor, atribui automaticamente
+                    if not lead.assigned_seller_id:
+                        lead.assigned_seller_id = opportunity_seller_id
+                        lead.assigned_at = datetime.now(timezone.utc)
+                        lead.assignment_method = "auto_by_property"
+                        logger.info(f"✅ Lead {lead.id} atribuído ao vendedor {opportunity_seller_id} (imóvel {product_detected.name})")
 
                 should_create_opportunity = True
 
@@ -1513,6 +1526,7 @@ async def process_message(
                 codigo = imovel_portal.get("codigo") or "sem código"
                 titulo = imovel_portal.get("titulo") or "Imóvel"
                 opportunity_title = f"{titulo} (Cód: {codigo})"
+                opportunity_seller_id = None  # Portal não tem seller direto
 
                 # Extrai valor
                 if imovel_portal.get("preco"):
@@ -1525,14 +1539,17 @@ async def process_message(
                     except:
                         pass
 
-                # Dados extras do imóvel
+                # Dados extras do imóvel (COMPLETO)
                 opportunity_data = {
-                    "property_address": imovel_portal.get("regiao") or "",
+                    "property_address": imovel_portal.get("regiao") or imovel_portal.get("endereco") or "",
                     "property_type": imovel_portal.get("tipo") or "",
                     "property_code": codigo,
                     "bedrooms": imovel_portal.get("quartos") or 0,
                     "bathrooms": imovel_portal.get("banheiros") or 0,
-                    "area": imovel_portal.get("metragem") or 0,
+                    "area": imovel_portal.get("metragem") or imovel_portal.get("area") or 0,
+                    "garage_spaces": imovel_portal.get("vagas") or 0,
+                    "commission_percent": imovel_portal.get("comissao") or 0,
+                    "payment_type": imovel_portal.get("tipo_pagamento") or "a_vista",
                 }
 
                 should_create_opportunity = True
@@ -1553,20 +1570,35 @@ async def process_message(
                     probability = 80 if lead.qualification in ["quente", "hot"] else 50
                     opportunity_data["probability"] = probability
 
-                    # Cria nova oportunidade
+                    # Define seller_id (prioriza seller do imóvel, senão usa do lead)
+                    final_seller_id = opportunity_seller_id if 'opportunity_seller_id' in locals() else lead.assigned_seller_id
+
+                    # Data de fechamento estimada (30 dias para quente, 60 para morno)
+                    from datetime import timedelta
+                    days_to_close = 30 if lead.qualification in ["quente", "hot"] else 60
+                    expected_close = datetime.now(timezone.utc) + timedelta(days=days_to_close)
+
+                    # Nota automática com contexto
+                    auto_notes = f"Oportunidade criada automaticamente pela IA ao detectar interesse.\nQualificação inicial: {lead.qualification}"
+                    if lead.ai_sentiment:
+                        auto_notes += f"\nSentimento: {lead.ai_sentiment}"
+
+                    # Cria nova oportunidade com TODOS os dados preenchidos
                     new_opportunity = Opportunity(
                         tenant_id=tenant.id,
                         lead_id=lead.id,
                         product_id=opportunity_product_id,
-                        seller_id=lead.assigned_seller_id,
+                        seller_id=final_seller_id,
                         title=opportunity_title,
                         value=opportunity_value,
                         status="novo",
+                        expected_close_date=expected_close,
+                        notes=auto_notes,
                         custom_data=opportunity_data,
                     )
                     db.add(new_opportunity)
 
-                    logger.info(f"🎯 Oportunidade criada automaticamente: {opportunity_title} para lead {lead.id}")
+                    logger.info(f"🎯 Oportunidade criada automaticamente: {opportunity_title} (R$ {opportunity_value/100:.2f} | Vendedor: {final_seller_id}) para lead {lead.id}")
                 else:
                     logger.info(f"ℹ️ Oportunidade similar já existe para lead {lead.id}")
 
