@@ -140,8 +140,38 @@ async def list_leads(
     result = await db.execute(query.offset(offset).limit(per_page))
     leads = result.scalars().all()
 
+    # Serializa leads com assigned_seller explicitamente
+    leads_serialized = []
+    for lead in leads:
+        lead_dict = {
+            "id": lead.id,
+            "name": lead.name,
+            "phone": lead.phone,
+            "status": lead.status,
+            "qualification": lead.qualification,
+            "propensity_score": lead.propensity_score,
+            "ai_sentiment": lead.ai_sentiment,
+            "ai_signals": lead.ai_signals,
+            "created_at": lead.created_at,
+            "last_activity_at": lead.last_activity_at,
+            "assigned_seller_id": lead.assigned_seller_id,
+            "assigned_at": lead.assigned_at,
+            "assignment_method": lead.assignment_method,
+            "assigned_seller": None,
+        }
+
+        # Serializa seller se existir
+        if lead.assigned_seller:
+            lead_dict["assigned_seller"] = {
+                "id": lead.assigned_seller.id,
+                "name": lead.assigned_seller.name,
+                "whatsapp": lead.assigned_seller.whatsapp,
+            }
+
+        leads_serialized.append(lead_dict)
+
     return {
-        "items": leads,
+        "items": leads_serialized,
         "total": total,
         "page": page,
         "per_page": per_page,
