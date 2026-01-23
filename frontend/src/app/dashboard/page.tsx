@@ -38,7 +38,9 @@ import {
   AlertCircle,
   RefreshCw,
   Zap,
+  Monitor,
 } from 'lucide-react';
+import { SalesWall } from '@/components/dashboard/sales-wall';
 
 // Import dinâmico do DraggableGrid (client-only por causa do react-grid-layout)
 const DraggableGrid = dynamic(
@@ -165,6 +167,7 @@ function GestorDashboard() {
   const [editMode, setEditMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [salesWallOpen, setSalesWallOpen] = useState(false);
 
   // Hook de dados de vendas
   const salesData = useSalesData();
@@ -396,6 +399,18 @@ function GestorDashboard() {
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
+      {/* Sales Wall (TV Mode) */}
+      {salesWallOpen && (
+        <SalesWall
+          metrics={metrics}
+          salesData={{
+            goal: salesData.goal,
+            metrics: salesData.metrics
+          }}
+          onClose={() => setSalesWallOpen(false)}
+        />
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -412,8 +427,16 @@ function GestorDashboard() {
           </p>
         </div>
 
-        {/* Status Badge */}
-        <div className="flex items-center gap-2">
+        {/* Action Buttons */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSalesWallOpen(true)}
+            className="bg-slate-900 text-white border border-slate-800 rounded-xl px-4 py-2 shadow-lg flex items-center gap-2 hover:bg-slate-800 hover:scale-[1.02] transition-all cursor-pointer group"
+          >
+            <Monitor className="w-4 h-4 text-indigo-400 group-hover:animate-pulse" />
+            <span className="text-xs font-bold uppercase tracking-wider">Modo TV</span>
+          </button>
+
           <div className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm flex items-center gap-2">
             <Zap className="w-4 h-4 text-emerald-500" />
             <span className="text-xs font-bold text-slate-600">Sistema Operante</span>
