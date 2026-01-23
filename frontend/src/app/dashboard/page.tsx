@@ -185,41 +185,51 @@ function GestorDashboard() {
       setConfigLoading(true);
       const config = await getDashboardConfig();
 
+      // VALIDAÇÃO: Filtra widgets que não pertencem a este dashboard
+      // Isso corrige o problema onde widgets da página de leads (lead_*) aparecem aqui
+      const validWidgets = (config.widgets || []).filter((w: any) => {
+        return !!getWidgetMeta(w.type);
+      });
+
+      // Se após filtrar não sobrar nada (ou se o config original estava vazio), usa o default
+      if (!validWidgets || validWidgets.length === 0) {
+        const defaultLayout = getDefaultLayout();
+        setWidgets(defaultLayout);
+        setOriginalWidgets(defaultLayout);
+        setConfigLoading(false);
+        return;
+      }
+
       // Converte formato antigo para novo (se necessário)
       let gridWidgets: GridWidget[];
 
-      if (config.widgets && config.widgets.length > 0) {
-        // Verifica se já está no formato novo (tem propriedade 'i')
-        const firstWidget = config.widgets[0] as any;
-        if (firstWidget.i && firstWidget.x !== undefined) {
-          gridWidgets = (config.widgets as unknown as GridWidget[]).map(w => ({
-            ...w,
-            minW: 1,
-            maxW: 12,
-            minH: 1,
-            maxH: 100
-          }));
-        } else {
-          // Converte formato antigo
-          gridWidgets = config.widgets.map((w: any, index: number) => {
-            const meta = getWidgetMeta(w.type);
-            return {
-              i: w.id || `${w.type}_${index}`,
-              type: w.type,
-              x: 0,
-              y: index * 2,
-              w: meta?.grid.w || 6,
-              h: meta?.grid.h || 2,
-              minW: meta?.grid.minW || 1,
-              maxW: meta?.grid.maxW || 12,
-              minH: meta?.grid.minH || 1,
-              maxH: meta?.grid.maxH || 100,
-            };
-          });
-        }
+      // Verifica se já está no formato novo (tem propriedade 'i')
+      const firstWidget = validWidgets[0] as any;
+      if (firstWidget.i && firstWidget.x !== undefined) {
+        gridWidgets = (validWidgets as unknown as GridWidget[]).map(w => ({
+          ...w,
+          minW: 1,
+          maxW: 12,
+          minH: 1,
+          maxH: 100
+        }));
       } else {
-        // Usa layout padrão
-        gridWidgets = getDefaultLayout();
+        // Converte formato antigo
+        gridWidgets = validWidgets.map((w: any, index: number) => {
+          const meta = getWidgetMeta(w.type);
+          return {
+            i: w.id || `${w.type}_${index}`,
+            type: w.type,
+            x: 0,
+            y: index * 2,
+            w: meta?.grid.w || 6,
+            h: meta?.grid.h || 2,
+            minW: meta?.grid.minW || 1,
+            maxW: meta?.grid.maxW || 12,
+            minH: meta?.grid.minH || 1,
+            maxH: meta?.grid.maxH || 100,
+          };
+        });
       }
 
       setWidgets(gridWidgets);
