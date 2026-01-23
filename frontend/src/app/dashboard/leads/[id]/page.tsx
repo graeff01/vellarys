@@ -16,7 +16,6 @@ import {
   getLeadMessages,
   updateLead,
   getLeadEvents,
-  assignSellerToLead,
   unassignSellerFromLead,
   updateLeadCustomData,
   getSellers,
@@ -26,6 +25,7 @@ import {
   Opportunity,
   WidgetConfig,
 } from '@/lib/api';
+import { assignAndHandoff } from '@/lib/handoff';
 import {
   ArrowLeft,
   ChevronDown,
@@ -33,6 +33,7 @@ import {
   X,
   CheckCircle2,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
 import { DraggableGrid, GridWidget } from '@/components/dashboard/draggable-grid';
 import { LeadWidgetRenderer } from '@/components/lead-page';
@@ -467,16 +468,38 @@ export default function LeadDetailPage() {
 
   const atribuirVendedor = async (sellerId: number) => {
     if (!lead || !sellerId) return;
+
+    // Encontrar o vendedor selecionado para update otimista
+    const selectedSeller = sellers.find(s => s.id === sellerId);
+    if (!selectedSeller) return;
+
     try {
       setAtribuindoVendedor(true);
-      await assignSellerToLead(lead.id, sellerId);
-      const leadAtualizado = await getLead(lead.id);
-      setLead(leadAtualizado as Lead);
-      const novosEventos = await getLeadEvents(lead.id);
-      setEvents(novosEventos as LeadEvent[]);
-      mostrarSucesso('Vendedor atribuído');
-    } catch {
-      alert('Erro ao atribuir vendedor');
+
+      // Chamada API com notificação (Handoff)
+      await assignAndHandoff(lead.id, sellerId, {
+        notifySeller: true,
+        notes: 'Atribuição manual via painel do lead'
+      });
+
+      // Update Otimista
+      setLead(prev => prev ? ({
+        ...prev,
+        status: 'in_progress',
+        assigned_seller: {
+          id: selectedSeller.id,
+          name: selectedSeller.name,
+          whatsapp: selectedSeller.whatsapp
+        }
+      }) : null);
+
+      // Atualiza eventos em background
+      getLeadEvents(lead.id).then(events => setEvents(events as LeadEvent[]));
+
+      mostrarSucesso(`Lead atribuído para ${selectedSeller.name} (Notificação enviada)`);
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao atribuir vendedor. Verifique se o backend está rodando.');
     } finally {
       setAtribuindoVendedor(false);
     }
@@ -486,7 +509,10 @@ export default function LeadDetailPage() {
     if (!lead || !confirm('Remover atribuição?')) return;
     try {
       await unassignSellerFromLead(lead.id);
-      setLead({ ...lead, assigned_seller: null });
+
+      // Update otimista
+      setLead(prev => prev ? ({ ...prev, assigned_seller: null }) : null);
+
       const novosEventos = await getLeadEvents(lead.id);
       setEvents(novosEventos as LeadEvent[]);
       mostrarSucesso('Atribuição removida');
@@ -637,8 +663,9 @@ export default function LeadDetailPage() {
                       autoFocus
                     />
                   ) : (
-                    <button onClick={() => setAdicionandoTag(true)} className="text-xs font-semibold text-slate-500 hover:text-slate-900 px-2.5 py-0.5 border border-dashed border-slate-300 rounded-full hover:border-slate-400 transition-all hover:bg-white">
-                      + Tag
+                    <button onClick={() => setAdicionandoTag(true)} className="text-xs font-semibold text-slate-500 hover:text-slate-900 px-2.5 py-0.5 border border-dashed border-slate-300 rounded-full hover:border-slate-400 transition-all hover:bg-white flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      Tag
                     </button>
                   )}
                 </div>

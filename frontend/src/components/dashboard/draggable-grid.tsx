@@ -634,10 +634,10 @@ export function DraggableGrid({
       y: w.y,
       w: w.w,
       h: w.h,
-      minW: w.minW || 2,
+      minW: w.minW || 1,
       maxW: w.maxW || 12,
       minH: w.minH || 1,
-      maxH: w.maxH || 6,
+      maxH: w.maxH || 100,
       static: w.static || false,
     }));
 
