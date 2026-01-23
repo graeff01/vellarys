@@ -93,6 +93,7 @@ class LeadUpdate(BaseModel):
     custom_data: Optional[dict] = None
     qualification: Optional[str] = None
     status: Optional[str] = None
+    propensity_score: Optional[int] = None
     assigned_to: Optional[int] = None
 
 
@@ -106,6 +107,7 @@ class LeadResponse(LeadBase):
     external_id: Optional[str] = None
     qualification: Optional[str] = None  # ✅ CORRIGIDO: Pode ser None
     status: Optional[str] = None  # ✅ CORRIGIDO: Pode ser None
+    propensity_score: int = 0
     summary: Optional[str] = None
     assigned_to: Optional[int] = None
     handed_off_at: Optional[datetime] = None
@@ -128,6 +130,7 @@ class LeadListOut(BaseModel):
     phone: Optional[str] = None
     status: Optional[str] = None
     qualification: Optional[str] = None
+    propensity_score: int = 0
     created_at: Optional[datetime] = None
     last_activity_at: Optional[datetime] = None
 

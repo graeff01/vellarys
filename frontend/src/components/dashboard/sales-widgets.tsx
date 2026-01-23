@@ -178,9 +178,8 @@ export function SalesGoalWidget({ goal, onUpdate }: SalesGoalWidgetProps) {
               </div>
               <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
                 <div
-                  className={`h-full transition-all duration-500 ${
-                    progress >= 100 ? 'bg-emerald-500' : progress >= 80 ? 'bg-indigo-500' : 'bg-indigo-400'
-                  }`}
+                  className={`h-full transition-all duration-500 ${progress >= 100 ? 'bg-emerald-500' : progress >= 80 ? 'bg-indigo-500' : 'bg-indigo-400'
+                    }`}
                   style={{ width: `${Math.min(progress, 100)}%` }}
                 />
               </div>
@@ -388,9 +387,8 @@ export function MonthProjectionWidget({ metrics, goal }: MonthProjectionWidgetPr
         </div>
 
         {hasGoal && (
-          <div className={`flex items-center justify-center gap-2 p-2 rounded-lg ${
-            willReachGoal ? 'bg-emerald-50 border border-emerald-100' : 'bg-amber-50 border border-amber-100'
-          }`}>
+          <div className={`flex items-center justify-center gap-2 p-2 rounded-lg ${willReachGoal ? 'bg-emerald-50 border border-emerald-100' : 'bg-amber-50 border border-amber-100'
+            }`}>
             {willReachGoal ? (
               <>
                 <CheckCircle className="w-4 h-4 text-emerald-600" />
@@ -442,16 +440,14 @@ export function SellerRankingWidget({ metrics }: SellerRankingWidgetProps) {
             {ranking.map((seller, index) => (
               <div
                 key={seller.seller_id}
-                className={`flex items-center gap-3 p-2 rounded-lg ${
-                  index === 0 ? 'bg-amber-50 border border-amber-100' : 'bg-slate-50'
-                }`}
+                className={`flex items-center gap-3 p-2 rounded-lg ${index === 0 ? 'bg-amber-50 border border-amber-100' : 'bg-slate-50'
+                  }`}
               >
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                  index === 0 ? 'bg-amber-500 text-white' :
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${index === 0 ? 'bg-amber-500 text-white' :
                   index === 1 ? 'bg-slate-400 text-white' :
-                  index === 2 ? 'bg-orange-400 text-white' :
-                  'bg-slate-200 text-slate-600'
-                }`}>
+                    index === 2 ? 'bg-orange-400 text-white' :
+                      'bg-slate-200 text-slate-600'
+                  }`}>
                   {index + 1}
                 </div>
 
@@ -571,6 +567,184 @@ export function ConversionRateWidget({ metrics }: ConversionRateWidgetProps) {
             <p className="text-xs text-slate-500">
               {metrics.total_deals} vendas de {formatNumber(metrics.goal?.leads_actual || 0)} leads
             </p>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// =============================================
+// WIDGET: REVENUE ATTRIBUTION (ROI MAP)
+// =============================================
+
+interface RevenueBySourceWidgetProps {
+  metrics: SalesMetrics | null;
+}
+
+export function RevenueBySourceWidget({ metrics }: RevenueBySourceWidgetProps) {
+  const data = metrics?.revenue_by_source || {};
+  const sources = Object.entries(data).sort((a, b) => b[1] - a[1]);
+  const maxRevenue = Math.max(...Object.values(data), 1);
+
+  const sourceLabels: Record<string, string> = {
+    'paid': 'Ads (Pago)',
+    'organic': 'Orgânico',
+    'referral': 'Indicação',
+    'social': 'Social Media',
+    'google': 'Google Search',
+    'facebook': 'Meta Ads',
+    'instagram': 'Instagram',
+  };
+
+  const colors: Record<string, string> = {
+    'paid': 'bg-indigo-500',
+    'organic': 'bg-emerald-500',
+    'referral': 'bg-amber-500',
+    'social': 'bg-rose-500',
+  };
+
+  return (
+    <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden h-full">
+      <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <PieChart className="w-4 h-4 text-indigo-600" />
+          <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-widest">Mapa de ROI (Canais)</h3>
+        </div>
+      </div>
+      <div className="p-4 space-y-4">
+        {sources.length > 0 ? (
+          sources.map(([source, revenue]) => {
+            const percent = (revenue / maxRevenue) * 100;
+            return (
+              <div key={source} className="space-y-1">
+                <div className="flex justify-between text-[11px] font-bold">
+                  <span className="text-slate-600">{sourceLabels[source] || source}</span>
+                  <span className="text-slate-900">{formatCurrency(revenue)}</span>
+                </div>
+                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${colors[source] || 'bg-slate-400'} transition-all duration-1000`}
+                    style={{ width: `${percent}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="text-center py-8">
+            <PieChart className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+            <p className="text-xs text-slate-400 font-bold uppercase">Sem dados de receita</p>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// =============================================
+// WIDGET: PROPENSITY RANKING (IA PREDITIVA)
+// =============================================
+
+import { Zap, PieChart, Activity as PulseIcon, ChevronRight } from 'lucide-react';
+import { getLeads } from '@/lib/api';
+
+export function PropensityRankingWidget() {
+  const [leads, setLeads] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const data = await getLeads({ page: 1, sort_by: 'propensity_score' }) as any;
+        setLeads(data.items.slice(0, 5));
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  return (
+    <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden h-full">
+      <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
+          <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-widest">Top Oportunidades (IA)</h3>
+        </div>
+        <span className="px-2 py-0.5 bg-amber-100 text-[9px] font-black text-amber-700 rounded uppercase tracking-tighter">Preditivo</span>
+      </div>
+      <div className="p-2 space-y-1">
+        {loading ? (
+          <div className="p-4 space-y-2 animate-pulse">
+            <div className="h-10 bg-slate-100 rounded-xl" />
+            <div className="h-10 bg-slate-100 rounded-xl" />
+          </div>
+        ) : leads.map(lead => (
+          <div key={lead.id} className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-all group">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 flex flex-col items-center justify-center border border-slate-200">
+              <span className="text-[10px] font-black leading-none text-slate-400 uppercase">Score</span>
+              <span className="text-sm font-black text-indigo-600">{lead.propensity_score || 0}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-slate-800 truncate">{lead.name || 'Lead sem nome'}</p>
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-bold text-slate-400 uppercase">{lead.status}</span>
+                <div className="w-1 h-1 bg-slate-300 rounded-full" />
+                <span className="text-[9px] font-bold text-slate-400 uppercase">{lead.source}</span>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 transition-all" />
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// =============================================
+// WIDGET: SALES PULSE (LIVE FEED)
+// =============================================
+
+export function SalesPulseWidget({ metrics }: { metrics: SalesMetrics | null }) {
+  const pulse = metrics?.pulse || [];
+
+  return (
+    <Card className="bg-white border-slate-200 shadow-sm rounded-2xl overflow-hidden h-full flex flex-col">
+      <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <PulseIcon className="w-4 h-4 text-rose-500" />
+          <h3 className="font-extrabold text-xs text-slate-900 uppercase tracking-widest">Pulse de Atividade</h3>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
+          <span className="text-[10px] font-bold text-rose-500 uppercase tracking-tighter">Live</span>
+        </div>
+      </div>
+      <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[300px] scrollbar-hide">
+        {pulse.length > 0 ? (
+          pulse.map((ev, i) => (
+            <div key={ev.id || i} className="flex gap-3 p-2 border-b border-slate-50 last:border-0 items-start">
+              <div className={`mt-1 w-2 h-2 rounded-full shrink-0 ${ev.type === 'venda' ? 'bg-emerald-500' :
+                ev.type === 'mudanca_status' ? 'bg-indigo-500' :
+                  'bg-slate-300'
+                }`} />
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-slate-800 leading-tight">
+                  <span className="text-indigo-600">{ev.lead_name}</span> {ev.description}
+                </p>
+                <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">
+                  {new Date(ev.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="flex flex-col items-center justify-center p-8 text-center">
+            <PulseIcon className="w-8 h-8 text-slate-100 mb-2" />
+            <p className="text-[10px] font-bold text-slate-300 uppercase">Aguardando atividades...</p>
           </div>
         )}
       </div>

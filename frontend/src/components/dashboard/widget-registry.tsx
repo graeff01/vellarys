@@ -24,6 +24,8 @@ import {
   Trophy,
   Calendar,
   Percent,
+  Zap,
+  Activity,
   LucideIcon,
 } from 'lucide-react';
 
@@ -252,6 +254,36 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     icon: Percent,
     previewBg: 'bg-gradient-to-br from-violet-500 to-purple-600',
     grid: { w: 3, h: 2, ...FREE_SIZE_LIMITS },
+  },
+
+  revenue_attribution: {
+    id: 'revenue_attribution',
+    name: 'Mapa de ROI (Canais)',
+    description: 'Atribuição de receita por canal de origem',
+    category: 'vendas',
+    icon: PieChart,
+    previewBg: 'bg-gradient-to-br from-indigo-500 to-emerald-600',
+    grid: { w: 6, h: 3, ...FREE_SIZE_LIMITS },
+  },
+
+  propensity_ranking: {
+    id: 'propensity_ranking',
+    name: 'Top Oportunidades (IA)',
+    description: 'Leads com maior probabilidade de fechamento',
+    category: 'vendas',
+    icon: Zap,
+    previewBg: 'bg-gradient-to-br from-amber-400 to-orange-500',
+    grid: { w: 6, h: 3, ...FREE_SIZE_LIMITS },
+  },
+
+  sales_pulse: {
+    id: 'sales_pulse',
+    name: 'Pulse de Atividade',
+    description: 'Feed em tempo real das ações de venda',
+    category: 'vendas',
+    icon: Activity,
+    previewBg: 'bg-gradient-to-br from-rose-500 to-indigo-600',
+    grid: { w: 6, h: 3, ...FREE_SIZE_LIMITS },
   },
 };
 

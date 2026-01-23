@@ -245,6 +245,27 @@ WIDGET_TYPES = {
         "default_size": "third",
         "icon": "Percent"
     },
+    "revenue_attribution": {
+        "name": "Mapa de ROI (Canais)",
+        "description": "Atribuição de receita por canal de origem",
+        "category": "vendas",
+        "default_size": "half",
+        "icon": "PieChart"
+    },
+    "propensity_ranking": {
+        "name": "Top Oportunidades (IA)",
+        "description": "Leads com maior probabilidade de fechamento",
+        "category": "vendas",
+        "default_size": "half",
+        "icon": "Zap"
+    },
+    "sales_pulse": {
+        "name": "Pulse de Atividade",
+        "description": "Feed em tempo real das ações de venda",
+        "category": "vendas",
+        "default_size": "half",
+        "icon": "Activity"
+    },
 }
 
 # Template padrão para novos usuários
@@ -269,4 +290,7 @@ SALES_WIDGETS_TEMPLATE = [
     {"id": "seller_ranking", "type": "seller_ranking", "enabled": False, "position": 105, "size": "half"},
     {"id": "days_remaining", "type": "days_remaining", "enabled": False, "position": 106, "size": "third"},
     {"id": "conversion_rate", "type": "conversion_rate", "enabled": False, "position": 107, "size": "third"},
+    {"id": "revenue_attribution", "type": "revenue_attribution", "enabled": False, "position": 108, "size": "half"},
+    {"id": "propensity_ranking", "type": "propensity_ranking", "enabled": False, "position": 109, "size": "half"},
+    {"id": "sales_pulse", "type": "sales_pulse", "enabled": False, "position": 110, "size": "half"},
 ]

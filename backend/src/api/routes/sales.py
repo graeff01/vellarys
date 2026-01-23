@@ -101,6 +101,12 @@ class SalesMetricsResponse(BaseModel):
     deals_today: int = 0
     deals_this_week: int = 0
 
+    # Revenue Attribution (ROI)
+    revenue_by_source: dict[str, int] = {}
+
+    # Pulse (Latest Activities)
+    pulse: List[dict] = []
+
 
 # =============================================
 # HELPERS
@@ -496,6 +502,48 @@ async def get_sales_metrics(
         except Exception as e:
             logger.warning(f"Erro calculando ranking: {e}")
 
+        # ROI por Canal (Revenue by Source)
+        revenue_by_source = {}
+        try:
+            from src.domain.entities import Opportunity
+            roi_result = await db.execute(
+                select(
+                    Lead.source,
+                    func.sum(Opportunity.value).label('revenue')
+                )
+                .join(Opportunity, Lead.id == Opportunity.lead_id)
+                .where(Opportunity.tenant_id == tenant_id)
+                .where(Opportunity.status == "ganho")
+                .group_by(Lead.source)
+            )
+            revenue_by_source = {row.source: row.revenue for row in roi_result}
+        except Exception as e:
+            logger.warning(f"Erro calculando ROI por canal: {e}")
+
+        # Sales Pulse (Latest Events)
+        pulse = []
+        try:
+            from src.domain.entities import LeadEvent
+            pulse_result = await db.execute(
+                select(LeadEvent, Lead.name)
+                .join(Lead, LeadEvent.lead_id == Lead.id)
+                .where(Lead.tenant_id == tenant_id)
+                .order_by(LeadEvent.created_at.desc())
+                .limit(10)
+            )
+            pulse = [
+                {
+                    "id": ev.id,
+                    "type": ev.event_type,
+                    "lead_name": name,
+                    "description": ev.description,
+                    "created_at": ev.created_at.isoformat() if ev.created_at else None
+                }
+                for ev, name in pulse_result
+            ]
+        except Exception as e:
+            logger.warning(f"Erro buscando Pulse: {e}")
+
         return SalesMetricsResponse(
             total_deals=total_deals,
             total_revenue=total_revenue,
@@ -506,9 +554,10 @@ async def get_sales_metrics(
             projected_revenue=projected_revenue,
             on_track=on_track,
             seller_ranking=seller_ranking,
-            days_remaining=days_remaining,
             deals_today=deals_today,
             deals_this_week=deals_this_week,
+            revenue_by_source=revenue_by_source,
+            pulse=pulse,
         )
 
     except HTTPException:

@@ -60,6 +60,7 @@ export async function getLeads(params?: {
   status?: string;
   qualification?: string;
   search?: string;
+  sort_by?: string;
 }) {
   const searchParams = new URLSearchParams();
 
@@ -67,6 +68,7 @@ export async function getLeads(params?: {
   if (params?.status) searchParams.set('status', params.status);
   if (params?.qualification) searchParams.set('qualification', params.qualification);
   if (params?.search) searchParams.set('search', params.search);
+  if (params?.sort_by) searchParams.set('sort_by', params.sort_by);
 
   const queryString = searchParams.toString();
   return request(`/v1/leads${queryString ? `?${queryString}` : ''}`);
@@ -394,6 +396,14 @@ export interface SalesMetrics {
   days_remaining: number;
   deals_today: number;
   deals_this_week: number;
+  revenue_by_source?: Record<string, number>;
+  pulse?: Array<{
+    id: number;
+    type: string;
+    lead_name: string;
+    description: string;
+    created_at: string;
+  }>;
 }
 
 export async function getSalesGoal(period?: string): Promise<SalesGoal> {

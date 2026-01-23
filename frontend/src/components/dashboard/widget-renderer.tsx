@@ -23,6 +23,9 @@ import {
   SellerRankingWidget,
   DaysRemainingWidget,
   ConversionRateWidget,
+  RevenueBySourceWidget,
+  PropensityRankingWidget,
+  SalesPulseWidget,
   useSalesData,
 } from './sales-widgets';
 import { getSizeClasses } from './widget-registry';
@@ -321,6 +324,15 @@ export function WidgetRenderer({ config, metrics, leads, sellers, salesData, isG
 
       case 'conversion_rate':
         return <ConversionRateWidget metrics={salesData.metrics} />;
+
+      case 'revenue_attribution':
+        return <RevenueBySourceWidget metrics={salesData.metrics} />;
+
+      case 'propensity_ranking':
+        return <PropensityRankingWidget />;
+
+      case 'sales_pulse':
+        return <SalesPulseWidget metrics={salesData.metrics} />;
 
       default:
         return (

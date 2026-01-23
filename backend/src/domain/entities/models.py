@@ -194,6 +194,7 @@ class Lead(Base, TimestampMixin):
     # ==========================================
     summary: Mapped[Optional[str]] = mapped_column(Text)
     conversation_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # ✨ NOVO: Resumo automático para conversas longas
+    propensity_score: Mapped[int] = mapped_column(Integer, default=0) # ✨ NOVO: Score de propensão 0-100
     handed_off_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     
 

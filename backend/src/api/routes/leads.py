@@ -107,6 +107,7 @@ async def list_leads(
     status: Optional[str] = None,
     qualification: Optional[str] = None,
     search: Optional[str] = None,
+    sort_by: Optional[str] = Query(None, description="Ordenação: created_at, propensity_score"),
     db: AsyncSession = Depends(get_db),
     current_tenant: Tenant = Depends(get_current_tenant),
 ):
@@ -130,7 +131,13 @@ async def list_leads(
     total = (await db.execute(count_query)).scalar() or 0
     offset = (page - 1) * per_page
 
-    result = await db.execute(query.order_by(Lead.created_at.desc()).offset(offset).limit(per_page))
+    # Ordenação
+    if sort_by == "propensity_score":
+        query = query.order_by(Lead.propensity_score.desc())
+    else:
+        query = query.order_by(Lead.created_at.desc())
+        
+    result = await db.execute(query.offset(offset).limit(per_page))
     leads = result.scalars().all()
 
     return {
