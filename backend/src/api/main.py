@@ -31,6 +31,8 @@ from src.api.routes import (
     settings_router,
     notifications_router,
     sellers_router,
+    seller_inbox_router,
+    seller_info_router,
     reengagement_router,
     export_router,
     usage_router,
@@ -184,6 +186,8 @@ app.include_router(tenants_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
 app.include_router(sellers_router, prefix="/api/v1")
+app.include_router(seller_inbox_router, prefix="/api/v1")
+app.include_router(seller_info_router, prefix="/api/v1")
 app.include_router(reengagement_router, prefix="/api/v1")
 app.include_router(export_router, prefix="/api/v1")
 app.include_router(usage_router, prefix="/api/v1")

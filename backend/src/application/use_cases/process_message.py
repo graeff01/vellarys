@@ -899,17 +899,17 @@ async def process_message(
     # =========================================================================
     if lead.status == LeadStatus.HANDED_OFF.value or lead.handed_off_at is not None:
         logger.warning(f"⚠️ Lead {lead.id} já foi transferido! Ignorando mensagem.")
-        
+
         user_message = Message(
-            lead_id=lead.id, 
-            role="user", 
-            content=content, 
+            lead_id=lead.id,
+            role="user",
+            content=content,
             tokens_used=0,
             external_id=external_message_id
         )
         db.add(user_message)
         await db.commit()
-        
+
         return {
             "success": True,
             "reply": None,
@@ -917,6 +917,35 @@ async def process_message(
             "is_new_lead": False,
             "status": "transferido",
             "message": "Lead já transferido",
+        }
+
+    # =========================================================================
+    # 12.5. CHECK NOVO: CORRETOR ASSUMIU CONVERSA (CRM INBOX)
+    # =========================================================================
+    # Se attended_by == "seller", o corretor está atendendo via CRM
+    # A IA deve PARAR de responder automaticamente
+    if lead.attended_by == "seller":
+        logger.warning(f"⚠️ Lead {lead.id} sendo atendido por corretor no CRM! IA não responde.")
+
+        # Salva mensagem do usuário normalmente
+        user_message = Message(
+            lead_id=lead.id,
+            role="user",
+            content=content,
+            tokens_used=0,
+            external_id=external_message_id
+        )
+        db.add(user_message)
+        await db.commit()
+
+        return {
+            "success": True,
+            "reply": None,  # IA não responde
+            "lead_id": lead.id,
+            "is_new_lead": False,
+            "status": "corretor_atendendo",
+            "message": "Corretor assumiu o atendimento via CRM",
+            "attended_by": "seller",
         }
     
     # =========================================================================

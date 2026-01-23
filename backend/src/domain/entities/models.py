@@ -224,6 +224,10 @@ class Lead(Base, TimestampMixin):
     assignment_method: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     seller_notified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)  # Quando o vendedor foi notificado
 
+    # ⚡ NOVO: Controle de quem está atendendo (CRM Inbox)
+    attended_by: Mapped[Optional[str]] = mapped_column(String(20), default="ai", nullable=True)  # "ai", "seller", "manager"
+    seller_took_over_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)  # Quando corretor assumiu conversa
+
     # ==========================================
     # ATRIBUIÇÃO LEGADA (gestor/usuário)
     # ==========================================
@@ -289,7 +293,12 @@ class Message(Base, TimestampMixin):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     tokens_used: Mapped[int] = mapped_column(Integer, default=0)
 
+    # ⚡ NOVO: Rastreamento de quem enviou a mensagem (CRM Inbox)
+    sender_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # "ai", "seller", "manager", "system"
+    sender_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
     lead: Mapped["Lead"] = relationship(back_populates="messages")
+    sender_user: Mapped[Optional["User"]] = relationship(foreign_keys=[sender_user_id])
 
     # ==========================================
     # ÍNDICES DE PERFORMANCE E SEGURANÇA

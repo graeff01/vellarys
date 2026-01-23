@@ -350,10 +350,35 @@ async def execute_handoff(
         
         logger.info(f"✅ Lead distribuído: método={method}, seller={seller.name if seller else 'None'}")
         
-        # 3. Prepara mensagem para o lead
-        message_for_lead = build_handoff_message_for_lead(lead, tenant_obj, seller)
+        # 3. Verifica modo de handoff (CRM Inbox vs WhatsApp Pessoal)
+        handoff_mode = settings.get("handoff_mode", "whatsapp_pessoal")
+        logger.info(f"🔧 Modo de handoff: {handoff_mode}")
 
-        # 3.1 Gera Raio-X (Resumo Inteligente) do Lead
+        # 3.1 Prepara mensagem para o lead
+        if handoff_mode == "crm_inbox":
+            # Modo CRM Inbox: Lead continua na conversa, corretor atenderá via CRM
+            if seller:
+                seller_name = seller.name.split()[0]
+                message_for_lead = f"""Perfeito! 🎉
+
+Seu atendimento foi encaminhado para *{seller_name}*, nosso especialista.
+
+Continue conversando aqui mesmo que ele vai te responder em instantes!
+
+Foi um prazer atendê-lo até agora! 😊"""
+            else:
+                message_for_lead = f"""Perfeito! 🎉
+
+Seu atendimento foi encaminhado para nossa equipe.
+
+Continue conversando aqui mesmo que alguém vai te responder em instantes!
+
+Foi um prazer atendê-lo até agora! 😊"""
+        else:
+            # Modo Legado: WhatsApp pessoal do corretor
+            message_for_lead = build_handoff_message_for_lead(lead, tenant_obj, seller)
+
+        # 3.2 Gera Raio-X (Resumo Inteligente) do Lead
         logger.info(f"🧠 Gerando Raio-X para lead {lead.id}...")
         try:
             from .openai_service import generate_lead_raiox
@@ -369,42 +394,88 @@ async def execute_handoff(
             logger.error(f"❌ Erro gerando Raio-X: {e}")
             lead_raiox = None
         
-        # 4. Notifica vendedor (se houver E se notify_seller_immediately=True)
-        if seller and seller.whatsapp and notify_seller_immediately:
-            seller_message = build_handoff_message_for_seller(lead, seller, tenant_obj)
+        # 4. Notifica vendedor - RESPEITA HANDOFF_MODE
+        if seller and notify_seller_immediately:
+            if handoff_mode == "crm_inbox":
+                # ════════════════════════════════════════════════════════════
+                # MODO CRM INBOX: Notificação via Dashboard/Push (não WhatsApp pessoal)
+                # ════════════════════════════════════════════════════════════
+                logger.info(f"📲 [CRM INBOX] Criando notificação no dashboard para {seller.name}")
 
-            # Anexa o Raio-X se disponível
-            if lead_raiox:
-                seller_message += f"\n---\n{lead_raiox}"
+                # Cria notificação no dashboard para o vendedor ver quando fizer login
+                crm_notification = Notification(
+                    tenant_id=tenant_obj.id,
+                    type="new_lead_assigned",
+                    title=f"🔥 Novo Lead Atribuído: {lead.name or 'Lead'}",
+                    message=f"Lead qualificado aguardando seu atendimento no CRM Inbox",
+                    reference_type="lead",
+                    reference_id=lead.id,
+                    read=False,
+                    # Se tiver user_id vinculado, direciona para esse user
+                    user_id=seller.user_id if seller.user_id else None,
+                )
+                db.add(crm_notification)
 
-            try:
-                await send_whatsapp_message(seller.whatsapp, seller_message)
-                notifications_sent.append({
-                    "type": "seller",
-                    "name": seller.name,
-                    "phone": seller.whatsapp,
-                    "status": "sent",
-                })
-
-                # Marca que vendedor foi notificado
+                # Marca como notificado (via dashboard)
                 lead.seller_notified_at = datetime.now(timezone.utc)
 
-                logger.info(f"📱 Notificação enviada para vendedor: {seller.name}")
-
-                # Atualiza assignment como notificado
+                # Atualiza assignment
                 if lead.assignments:
                     latest_assignment = lead.assignments[-1]
                     latest_assignment.notified_at = datetime.now(timezone.utc)
                     latest_assignment.status = "notified"
-            except Exception as e:
-                logger.error(f"❌ Erro notificando vendedor: {e}")
+
                 notifications_sent.append({
-                    "type": "seller",
+                    "type": "crm_dashboard",
                     "name": seller.name,
-                    "phone": seller.whatsapp,
-                    "status": "failed",
-                    "error": str(e),
+                    "status": "sent",
+                    "mode": "crm_inbox",
                 })
+
+                # TODO: Enviar push notification se configurado
+                # await send_push_notification(seller.user_id, ...)
+
+            else:
+                # ════════════════════════════════════════════════════════════
+                # MODO LEGADO: WhatsApp Pessoal do Corretor
+                # ════════════════════════════════════════════════════════════
+                if seller.whatsapp:
+                    seller_message = build_handoff_message_for_seller(lead, seller, tenant_obj)
+
+                    # Anexa o Raio-X se disponível
+                    if lead_raiox:
+                        seller_message += f"\n---\n{lead_raiox}"
+
+                    try:
+                        await send_whatsapp_message(seller.whatsapp, seller_message)
+                        notifications_sent.append({
+                            "type": "seller_whatsapp",
+                            "name": seller.name,
+                            "phone": seller.whatsapp,
+                            "status": "sent",
+                            "mode": "whatsapp_pessoal",
+                        })
+
+                        # Marca que vendedor foi notificado
+                        lead.seller_notified_at = datetime.now(timezone.utc)
+
+                        logger.info(f"📱 [WHATSAPP PESSOAL] Notificação enviada para vendedor: {seller.name}")
+
+                        # Atualiza assignment como notificado
+                        if lead.assignments:
+                            latest_assignment = lead.assignments[-1]
+                            latest_assignment.notified_at = datetime.now(timezone.utc)
+                            latest_assignment.status = "notified"
+                    except Exception as e:
+                        logger.error(f"❌ Erro notificando vendedor: {e}")
+                        notifications_sent.append({
+                            "type": "seller_whatsapp",
+                            "name": seller.name,
+                            "phone": seller.whatsapp,
+                            "status": "failed",
+                            "error": str(e),
+                            "mode": "whatsapp_pessoal",
+                        })
         elif seller and not notify_seller_immediately:
             logger.info(f"⏳ Vendedor {seller.name} será notificado depois (quando lead qualificar)")
         

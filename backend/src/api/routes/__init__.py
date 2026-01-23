@@ -18,6 +18,8 @@ from .dialog360_webhook import router as dialog360_webhook_router
 from .products import router as products_router
 from .handoff_routes import router as handoff_router  # ← NOVO
 from src.api.routes.health import router as health_router  # ← ADICIONADO
+from .seller_inbox import router as seller_inbox_router  # ← SELLER INBOX (CRM)
+from .seller_info import router as seller_info_router  # ← SELLER INFO (Helpers)
 from .data_sources import router as data_sources_router  # ← DATA SOURCES
 from .dashboard_config import router as dashboard_config_router  # ← DASHBOARD CONFIG
 from .sales import router as sales_router  # ← SALES & GOALS
@@ -53,6 +55,8 @@ __all__ = [
     "products_router",
     "handoff_router",
     "health_router",
+    "seller_inbox_router",
+    "seller_info_router",
     "data_sources_router",
     "dashboard_config_router",
     "sales_router",

@@ -45,6 +45,7 @@ class UserRole(str, Enum):
     ADMIN = "admin"            # Admin do tenant/cliente
     MANAGER = "gestor"         # Gestor do tenant
     USER = "usuario"           # Usuário comum
+    SELLER = "corretor"        # Corretor/Vendedor - acesso ao inbox
 
 
 class EventType(str, Enum):

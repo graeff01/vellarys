@@ -34,7 +34,14 @@ class Seller(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     whatsapp: Mapped[str] = mapped_column(String(20), nullable=False)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    
+
+    # ⚡ NOVO: Link para User (permite login no CRM)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+
     # ==========================================
     # SEGMENTAÇÃO (para distribuição)
     # ==========================================
@@ -99,6 +106,7 @@ class Seller(Base, TimestampMixin):
     tenant: Mapped["Tenant"] = relationship(back_populates="sellers")
     assignments: Mapped[List["LeadAssignment"]] = relationship(back_populates="seller", cascade="all, delete-orphan")
     products: Mapped[List["Product"]] = relationship(back_populates="seller")
+    user: Mapped[Optional["User"]] = relationship(foreign_keys=[user_id])  # ⚡ NOVO: Link para login
     # ==========================================
     # MÉTODOS ÚTEIS
     # ==========================================
