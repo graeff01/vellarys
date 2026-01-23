@@ -14,7 +14,7 @@ from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision = '20260123_seller_notified'
-down_revision = '20260121_add_dashboard_config'
+down_revision = '20260122_opportunities'
 branch_labels = None
 depends_on = None
 
