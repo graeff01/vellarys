@@ -230,7 +230,7 @@ export function InsightsWidget({ lead }: InsightsWidgetProps) {
 }
 
 // =============================================
-// OPPORTUNITIES WIDGET
+// OPPORTUNITIES WIDGET (Enhanced for Real Estate)
 // =============================================
 
 interface OpportunitiesWidgetProps {
@@ -248,12 +248,42 @@ const STATUS_CONFIG = {
   perdido: { label: 'Perdido', color: 'bg-red-100 text-red-700', icon: AlertCircle },
 };
 
+const PAYMENT_TYPES = [
+  { value: 'a_vista', label: 'À Vista' },
+  { value: 'financiamento', label: 'Financiamento' },
+  { value: 'fgts', label: 'FGTS' },
+  { value: 'parcelado', label: 'Parcelado Direto' },
+  { value: 'permuta', label: 'Permuta' },
+  { value: 'misto', label: 'Misto' },
+];
+
 export function OpportunitiesWidget({ leadId, opportunities, onReload, products }: OpportunitiesWidgetProps) {
   const [showForm, setShowForm] = useState(false);
+  const [expandedOpp, setExpandedOpp] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
+
+  // Form fields
   const [title, setTitle] = useState('');
   const [value, setValue] = useState('');
   const [productId, setProductId] = useState<number | undefined>();
+  const [expectedCloseDate, setExpectedCloseDate] = useState('');
+  const [probability, setProbability] = useState('50');
+  const [paymentType, setPaymentType] = useState('');
+  const [commission, setCommission] = useState('');
+  const [propertyAddress, setPropertyAddress] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const resetForm = () => {
+    setTitle('');
+    setValue('');
+    setProductId(undefined);
+    setExpectedCloseDate('');
+    setProbability('50');
+    setPaymentType('');
+    setCommission('');
+    setPropertyAddress('');
+    setNotes('');
+  };
 
   const handleCreate = async () => {
     if (!title.trim()) return;
@@ -263,10 +293,16 @@ export function OpportunitiesWidget({ leadId, opportunities, onReload, products 
         title: title.trim(),
         value: value ? parseInt(value) * 100 : 0,
         product_id: productId,
+        expected_close_date: expectedCloseDate || undefined,
+        notes: notes || undefined,
+        custom_data: {
+          probability: probability ? parseInt(probability) : 50,
+          payment_type: paymentType || undefined,
+          commission_percent: commission ? parseFloat(commission) : undefined,
+          property_address: propertyAddress || undefined,
+        },
       });
-      setTitle('');
-      setValue('');
-      setProductId(undefined);
+      resetForm();
       setShowForm(false);
       onReload();
     } catch (error) {
@@ -308,67 +344,179 @@ export function OpportunitiesWidget({ leadId, opportunities, onReload, products 
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
   };
 
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return null;
+    return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  };
+
+  const getPaymentLabel = (type?: string) => {
+    if (!type) return null;
+    return PAYMENT_TYPES.find(p => p.value === type)?.label || type;
+  };
+
+  // Calculate total pipeline value
+  const pipelineValue = opportunities
+    .filter(o => !['ganho', 'perdido'].includes(o.status))
+    .reduce((sum, o) => sum + o.value, 0);
+
+  const wonValue = opportunities
+    .filter(o => o.status === 'ganho')
+    .reduce((sum, o) => sum + o.value, 0);
+
   return (
     <Card className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/50 h-full flex flex-col overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-lg flex items-center justify-center shadow-lg">
-            <Briefcase className="w-4 h-4 text-white" />
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 shrink-0">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-lg flex items-center justify-center shadow-lg">
+              <Briefcase className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Oportunidades</h3>
+              <p className="text-[9px] text-slate-400 font-bold">{opportunities.length} negócio(s)</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Oportunidades</h3>
-            <p className="text-[9px] text-slate-400 font-bold">{opportunities.length} negócio(s)</p>
-          </div>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="p-1.5 bg-teal-50 text-teal-600 rounded-lg hover:bg-teal-100 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="p-1.5 bg-teal-50 text-teal-600 rounded-lg hover:bg-teal-100 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
+
+        {/* Mini stats */}
+        {opportunities.length > 0 && (
+          <div className="flex gap-2 text-[10px]">
+            <div className="flex-1 bg-blue-50 rounded-lg px-2 py-1">
+              <span className="text-blue-600 font-bold">Pipeline: {formatCurrency(pipelineValue)}</span>
+            </div>
+            <div className="flex-1 bg-emerald-50 rounded-lg px-2 py-1">
+              <span className="text-emerald-600 font-bold">Ganho: {formatCurrency(wonValue)}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto p-3 space-y-2">
-        {/* Form de criação */}
+        {/* Form de criação expandido */}
         {showForm && (
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2 mb-3">
+          <div className="p-3 bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200 space-y-3 mb-3">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+              <Target className="w-4 h-4 text-teal-600" />
+              <span className="text-xs font-bold text-slate-700">Nova Oportunidade</span>
+            </div>
+
+            {/* Título */}
             <input
               type="text"
-              placeholder="Título da oportunidade"
+              placeholder="Título da oportunidade *"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-teal-500"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-teal-500 bg-white"
             />
-            <div className="flex gap-2">
-              <input
-                type="number"
-                placeholder="Valor (R$)"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-teal-500"
-              />
+
+            {/* Valor e Produto */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="relative">
+                <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="number"
+                  placeholder="Valor (R$)"
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-teal-500 bg-white"
+                />
+              </div>
               {products && products.length > 0 && (
                 <select
                   value={productId || ''}
                   onChange={(e) => setProductId(e.target.value ? parseInt(e.target.value) : undefined)}
-                  className="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-teal-500"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-teal-500 bg-white"
                 >
-                  <option value="">Produto (opcional)</option>
+                  <option value="">Imóvel (opcional)</option>
                   {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               )}
             </div>
-            <div className="flex gap-2">
+
+            {/* Data prevista e Probabilidade */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-slate-500 font-bold mb-1 block">Previsão Fechamento</label>
+                <input
+                  type="date"
+                  value={expectedCloseDate}
+                  onChange={(e) => setExpectedCloseDate(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-teal-500 bg-white"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-slate-500 font-bold mb-1 block">Probabilidade: {probability}%</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="10"
+                  value={probability}
+                  onChange={(e) => setProbability(e.target.value)}
+                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-teal-600"
+                />
+              </div>
+            </div>
+
+            {/* Tipo Pagamento e Comissão */}
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={paymentType}
+                onChange={(e) => setPaymentType(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-teal-500 bg-white"
+              >
+                <option value="">Tipo Pagamento</option>
+                {PAYMENT_TYPES.map(pt => <option key={pt.value} value={pt.value}>{pt.label}</option>)}
+              </select>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.1"
+                  placeholder="Comissão %"
+                  value={commission}
+                  onChange={(e) => setCommission(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-teal-500 bg-white"
+                />
+              </div>
+            </div>
+
+            {/* Endereço */}
+            <input
+              type="text"
+              placeholder="Endereço do imóvel (opcional)"
+              value={propertyAddress}
+              onChange={(e) => setPropertyAddress(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-teal-500 bg-white"
+            />
+
+            {/* Notas */}
+            <textarea
+              placeholder="Observações..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-teal-500 bg-white resize-none"
+            />
+
+            {/* Botões */}
+            <div className="flex gap-2 pt-2">
               <button
                 onClick={handleCreate}
                 disabled={creating || !title.trim()}
-                className="flex-1 py-2 bg-teal-600 text-white rounded-lg text-xs font-bold hover:bg-teal-700 disabled:opacity-50 transition-all"
+                className="flex-1 py-2.5 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg text-xs font-bold hover:from-teal-700 hover:to-cyan-700 disabled:opacity-50 transition-all shadow-lg"
               >
-                {creating ? 'Criando...' : 'Criar'}
+                {creating ? 'Criando...' : 'Criar Oportunidade'}
               </button>
               <button
-                onClick={() => setShowForm(false)}
-                className="px-4 py-2 text-slate-600 text-xs font-bold hover:bg-slate-100 rounded-lg transition-all"
+                onClick={() => { setShowForm(false); resetForm(); }}
+                className="px-4 py-2 text-slate-600 text-xs font-bold hover:bg-slate-200 rounded-lg transition-all"
               >
                 Cancelar
               </button>
@@ -391,43 +539,103 @@ export function OpportunitiesWidget({ leadId, opportunities, onReload, products 
         ) : (
           opportunities.map((opp) => {
             const statusInfo = STATUS_CONFIG[opp.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.novo;
-            const StatusIcon = statusInfo.icon;
+            const isExpanded = expandedOpp === opp.id;
+            const customData = opp.custom_data || {};
+
             return (
               <div
                 key={opp.id}
-                className="p-3 bg-white border border-slate-200 rounded-xl hover:shadow-md transition-all group"
+                className={`bg-white border rounded-xl transition-all group ${
+                  opp.status === 'ganho' ? 'border-emerald-200 bg-emerald-50/30' :
+                  opp.status === 'perdido' ? 'border-red-200 bg-red-50/30 opacity-60' :
+                  'border-slate-200 hover:shadow-md'
+                }`}
               >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="min-w-0 flex-1">
-                    <h4 className="font-bold text-slate-900 text-sm truncate">{opp.title}</h4>
-                    {opp.product_name && (
-                      <p className="text-[10px] text-slate-500 truncate">{opp.product_name}</p>
+                {/* Main row - always visible */}
+                <div
+                  className="p-3 cursor-pointer"
+                  onClick={() => setExpandedOpp(isExpanded ? null : opp.id)}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-bold text-slate-900 text-sm truncate">{opp.title}</h4>
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        {opp.product_name && (
+                          <span className="text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{opp.product_name}</span>
+                        )}
+                        {customData.probability && (
+                          <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-bold">{customData.probability}%</span>
+                        )}
+                        {opp.expected_close_date && (
+                          <span className="text-[10px] text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                            <Calendar className="w-3 h-3" />
+                            {formatDate(opp.expected_close_date)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(opp.id); }}
+                      className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 rounded transition-all"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="w-3 h-3 text-emerald-500" />
+                      <span className="text-xs font-bold text-emerald-600">{formatCurrency(opp.value)}</span>
+                      {customData.commission_percent && (
+                        <span className="text-[10px] text-slate-500">(com. {customData.commission_percent}%)</span>
+                      )}
+                    </div>
+                    <select
+                      value={opp.status}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => handleStatusChange(opp.id, e.target.value)}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-bold border-0 cursor-pointer ${statusInfo.color}`}
+                    >
+                      <option value="novo">Novo</option>
+                      <option value="negociacao">Negociando</option>
+                      <option value="proposta">Proposta</option>
+                      <option value="ganho">Ganho</option>
+                      <option value="perdido">Perdido</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Expanded details */}
+                {isExpanded && (
+                  <div className="px-3 pb-3 pt-0 border-t border-slate-100 mt-0 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                    {customData.payment_type && (
+                      <div className="flex items-center gap-2 text-xs text-slate-600">
+                        <span className="font-bold text-slate-500">Pagamento:</span>
+                        <span>{getPaymentLabel(customData.payment_type)}</span>
+                      </div>
+                    )}
+                    {customData.property_address && (
+                      <div className="flex items-start gap-2 text-xs text-slate-600">
+                        <MapPin className="w-3 h-3 mt-0.5 text-slate-400" />
+                        <span>{customData.property_address}</span>
+                      </div>
+                    )}
+                    {opp.notes && (
+                      <div className="text-xs text-slate-500 bg-slate-50 rounded-lg p-2 italic">
+                        {opp.notes}
+                      </div>
+                    )}
+                    {opp.lost_reason && (
+                      <div className="text-xs text-red-600 bg-red-50 rounded-lg p-2">
+                        <span className="font-bold">Motivo perda:</span> {opp.lost_reason}
+                      </div>
+                    )}
+                    {opp.won_at && (
+                      <div className="text-xs text-emerald-600">
+                        Ganho em {new Date(opp.won_at).toLocaleDateString('pt-BR')}
+                      </div>
                     )}
                   </div>
-                  <button
-                    onClick={() => handleDelete(opp.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-50 rounded transition-all"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="w-3 h-3 text-emerald-500" />
-                    <span className="text-xs font-bold text-emerald-600">{formatCurrency(opp.value)}</span>
-                  </div>
-                  <select
-                    value={opp.status}
-                    onChange={(e) => handleStatusChange(opp.id, e.target.value)}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-bold border-0 cursor-pointer ${statusInfo.color}`}
-                  >
-                    <option value="novo">Novo</option>
-                    <option value="negociacao">Negociando</option>
-                    <option value="proposta">Proposta</option>
-                    <option value="ganho">Ganho</option>
-                    <option value="perdido">Perdido</option>
-                  </select>
-                </div>
+                )}
               </div>
             );
           })
