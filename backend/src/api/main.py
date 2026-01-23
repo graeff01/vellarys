@@ -95,20 +95,6 @@ async def create_superadmin():
         print("✅ Superadmin criado com sucesso!")
 
 
-async def run_emergency_fix():
-    from sqlalchemy import text
-    from src.infrastructure.database import async_session
-    async with async_session() as session:
-        try:
-            print("🔧 Executando fix de banco (propensity_score)...")
-            await session.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS propensity_score INTEGER DEFAULT 0"))
-            await session.commit()
-            print("✅ Fix concluído!")
-        except Exception as e:
-            print(f"⚠️ Aviso: Falha no fix automático (provavelmente já existe): {e}")
-            await session.rollback()
-
-
 from src.infrastructure.logging_config import setup_logging
 
 # ============================================================
@@ -144,9 +130,6 @@ async def lifespan(app: FastAPI):
 
     await init_db()
     print("✅ Tabelas criadas!")
-
-    # Fix emergencial para colunas novas
-    await run_emergency_fix()
 
     await create_superadmin()
 

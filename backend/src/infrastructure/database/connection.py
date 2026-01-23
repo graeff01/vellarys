@@ -67,7 +67,8 @@ async def init_db() -> None:
             ("reengagement_status", "VARCHAR(20) DEFAULT 'none'"),
             ("last_activity_at", "TIMESTAMP WITH TIME ZONE"),
             ("conversation_summary", "TEXT"),
-            ("summary", "TEXT")
+            ("summary", "TEXT"),
+            ("propensity_score", "INTEGER DEFAULT 0")
         ]
         
         for col_name, col_type in leads_columns:
