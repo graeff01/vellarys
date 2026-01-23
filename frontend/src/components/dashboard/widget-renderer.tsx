@@ -109,27 +109,23 @@ function ImpactVelarisWidget({ metrics }: { metrics: any }) {
           <p className="text-[9px] text-slate-400 font-bold uppercase truncate">ROI e Eficiência</p>
         </div>
       </div>
-      <div className="p-3 flex-1 flex flex-wrap gap-2 content-start overflow-hidden">
-        <div className="relative p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-blue-200 transition-all cursor-default flex-1 min-w-[120px]">
-          <div className="absolute top-2 right-2 text-emerald-500 flex items-center gap-1 font-bold text-[8px] uppercase">
-            <TrendingUp className="w-2.5 h-2.5" />
-            Ativo
-          </div>
-          <Clock className="w-4 h-4 text-slate-400 mb-1" />
-          <p className="text-xl font-extrabold text-slate-900 leading-none mb-0.5">{timeSaved.hours_saved.toFixed(1)}h</p>
-          <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Tempo Economizado</p>
+      <div className="p-2 flex-1 flex flex-wrap gap-2 content-start overflow-hidden">
+        <div className="relative p-2 rounded-lg bg-slate-50 border border-slate-100 flex-1 min-w-0">
+          <Clock className="w-3 h-3 text-slate-400 mb-1" />
+          <p className="text-lg font-extrabold text-slate-900 leading-none">{timeSaved.hours_saved.toFixed(1)}h</p>
+          <p className="text-[7px] font-bold text-slate-500 uppercase">Tempo</p>
         </div>
 
-        <div className="relative p-3 rounded-xl bg-white border-2 border-indigo-100 shadow-sm hover:scale-[1.02] transition-all cursor-default overflow-hidden group flex-1 min-w-[120px]">
-          <DollarSign className="w-4 h-4 text-indigo-500 mb-1" />
-          <p className="text-xl font-extrabold text-indigo-600 leading-none mb-0.5">R$ {timeSaved.cost_saved_brl.toFixed(0)}</p>
-          <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Economia</p>
+        <div className="relative p-2 rounded-lg bg-indigo-50 border border-indigo-100 flex-1 min-w-0">
+          <DollarSign className="w-3 h-3 text-indigo-500 mb-1" />
+          <p className="text-lg font-extrabold text-indigo-600 leading-none">R${timeSaved.cost_saved_brl.toFixed(0)}</p>
+          <p className="text-[7px] font-bold text-slate-500 uppercase">Economia</p>
         </div>
 
-        <div className="relative p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-amber-200 transition-all cursor-default flex-1 min-w-[120px]">
-          <Zap className="w-4 h-4 text-amber-500 mb-1" />
-          <p className="text-xl font-extrabold text-slate-900 leading-none mb-0.5">{avgResponseTime.toFixed(1)}m</p>
-          <p className="text-[8px] font-bold text-slate-500 uppercase tracking-wider">Resposta</p>
+        <div className="relative p-2 rounded-lg bg-slate-50 border border-slate-100 flex-1 min-w-0">
+          <Zap className="w-3 h-3 text-amber-500 mb-1" />
+          <p className="text-lg font-extrabold text-slate-900 leading-none">{avgResponseTime.toFixed(1)}m</p>
+          <p className="text-[7px] font-bold text-slate-500 uppercase">Resposta</p>
         </div>
       </div>
     </Card>

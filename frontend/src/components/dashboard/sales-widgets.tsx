@@ -255,13 +255,13 @@ export function SalesProgressWidget({ goal }: SalesProgressWidgetProps) {
             )}
 
             <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
-              <div className="flex-1 min-w-[80px]">
-                <p className="text-xs text-slate-400 font-bold uppercase">Realizado</p>
-                <p className="text-sm font-bold text-slate-700">{formatCurrency(goal.revenue_actual)}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Realizado</p>
+                <p className="text-xs font-bold text-slate-700 truncate">{formatCurrency(goal.revenue_actual)}</p>
               </div>
-              <div className="flex-1 min-w-[80px]">
-                <p className="text-xs text-slate-400 font-bold uppercase">Meta</p>
-                <p className="text-sm font-bold text-slate-700">{formatCurrency(goal.revenue_goal!)}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Meta</p>
+                <p className="text-xs font-bold text-slate-700 truncate">{formatCurrency(goal.revenue_goal!)}</p>
               </div>
             </div>
           </div>

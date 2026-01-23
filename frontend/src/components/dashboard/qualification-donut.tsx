@@ -61,10 +61,10 @@ export function QualificationDonut({ data }: QualificationDonutProps) {
   let currentAngle = 0;
 
   return (
-    <div className="flex flex-col items-center py-2 h-full overflow-hidden">
-      {/* Donut Chart */}
-      <div className="relative group flex-shrink-0">
-        <svg width="160" height="160" viewBox="0 0 200 200" className="drop-shadow-sm max-w-full">
+    <div className="flex flex-col items-center h-full overflow-hidden">
+      {/* Donut Chart - totalmente responsivo */}
+      <div className="relative group flex-1 w-full flex items-center justify-center min-h-0">
+        <svg viewBox="0 0 200 200" className="drop-shadow-sm w-full h-full max-w-[200px] max-h-[200px]">
           {total === 0 ? (
             <circle
               cx="100"
@@ -93,19 +93,17 @@ export function QualificationDonut({ data }: QualificationDonutProps) {
         </div>
       </div>
 
-      {/* Legenda Estilizada */}
-      <div className="mt-4 w-full space-y-2 px-2 flex-1 overflow-hidden">
+      {/* Legenda Estilizada - compacta */}
+      <div className="w-full space-y-1 px-1 shrink-0 mt-2">
         {items.map((item) => (
-          <div key={item.label} className="group/item flex items-center justify-between p-1.5 rounded-lg hover:bg-slate-50 transition-all">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${item.bgColor} shadow-sm group-hover/item:scale-125 transition-transform shrink-0`} />
-              <span className="text-[11px] font-bold text-slate-600 group-hover/item:text-slate-900 transition-colors">{item.label}</span>
+          <div key={item.label} className="flex items-center justify-between p-1 rounded hover:bg-slate-50 transition-all">
+            <div className="flex items-center gap-1.5">
+              <div className={`w-2 h-2 rounded-full ${item.bgColor} shrink-0`} />
+              <span className="text-[10px] font-bold text-slate-600">{item.label}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-extrabold text-slate-900">{item.value}</span>
-              <span className="text-[9px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">
-                {Math.round(item.percent)}%
-              </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-extrabold text-slate-900">{item.value}</span>
+              <span className="text-[8px] font-bold text-slate-400">{Math.round(item.percent)}%</span>
             </div>
           </div>
         ))}
