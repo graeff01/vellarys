@@ -112,7 +112,7 @@ async def list_leads(
     current_tenant: Tenant = Depends(get_current_tenant),
 ):
     """Lista leads do tenant com filtros e paginação."""
-    query = select(Lead).where(Lead.tenant_id == current_tenant.id)
+    query = select(Lead).where(Lead.tenant_id == current_tenant.id).options(selectinload(Lead.assigned_seller))
     count_query = select(func.count(Lead.id)).where(Lead.tenant_id == current_tenant.id)
 
     if status:

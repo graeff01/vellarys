@@ -472,16 +472,21 @@ async def get_sales_metrics(
             sellers = sellers_result.scalars().all()
 
             for seller in sellers:
-                # Leads atribuídos
+                # Leads atribuídos (verifica pela data de atribuição, não de criação)
                 assigned_result = await db.execute(
                     select(func.count(Lead.id))
                     .where(Lead.tenant_id == tenant_id)
                     .where(Lead.assigned_seller_id == seller.id)
-                    .where(Lead.created_at >= start_date)
+                    .where(
+                        or_(
+                            Lead.assigned_at >= start_date,
+                            and_(Lead.assigned_at.is_(None), Lead.created_at >= start_date)
+                        )
+                    )
                 )
                 leads_assigned = assigned_result.scalar() or 0
 
-                # Leads convertidos
+                # Leads convertidos (mesma janela de tempo)
                 converted_seller_result = await db.execute(
                     select(func.count(Lead.id))
                     .where(Lead.tenant_id == tenant_id)

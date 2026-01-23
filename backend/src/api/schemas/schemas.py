@@ -139,6 +139,12 @@ class LeadListOut(BaseModel):
     created_at: Optional[datetime] = None
     last_activity_at: Optional[datetime] = None
 
+    # Vendedor atribuído
+    assigned_seller_id: Optional[int] = None
+    assigned_at: Optional[datetime] = None
+    assignment_method: Optional[str] = None
+    assigned_seller: Optional[SellerSummary] = None
+
 class LeadListResponse(BaseModel):
     """Lista de leads com paginação."""
     

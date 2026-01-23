@@ -328,9 +328,9 @@ export function OpportunitiesWidget({ leadId, opportunities, onReload, products 
             await registerDeal(leadId, opp.value, `Venda: ${opp.title}`);
           }
 
-          // 3. Atualiza status do lead para Qualificado/Quente
+          // 3. Atualiza status do lead para Convertido
           await updateLead(leadId, {
-            status: 'qualified',
+            status: 'convertido',
             qualification: 'hot'
           });
 

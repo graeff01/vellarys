@@ -1465,6 +1465,116 @@ async def process_message(
     )
 
     # =========================================================================
+    # 22.5. AUTO-CRIAÇÃO DE OPORTUNIDADE (IA)
+    # =========================================================================
+    # Quando a IA detecta interesse em um imóvel específico, cria oportunidade automaticamente
+    try:
+        from src.domain.entities.opportunity import Opportunity
+
+        # Só cria se lead estiver no mínimo "morno" (showing interest)
+        if lead.qualification in ["quente", "hot", "morno", "warm"]:
+            should_create_opportunity = False
+            opportunity_title = None
+            opportunity_value = 0
+            opportunity_product_id = None
+            opportunity_data = {}
+
+            # Detecta interesse em produto interno
+            if product_detected:
+                opportunity_title = f"Interesse: {product_detected.name}"
+                opportunity_product_id = product_detected.id
+
+                # Extrai valor do produto
+                if product_detected.attributes and product_detected.attributes.get("preco"):
+                    try:
+                        preco = product_detected.attributes["preco"]
+                        if isinstance(preco, int):
+                            opportunity_value = preco * 100  # Converte para centavos
+                        else:
+                            opportunity_value = int(re.sub(r'[^\d]', '', str(preco)))
+                    except:
+                        pass
+
+                # Dados extras do produto
+                if product_detected.attributes:
+                    attrs = product_detected.attributes
+                    opportunity_data = {
+                        "property_address": attrs.get("regiao") or attrs.get("bairro") or "",
+                        "property_type": attrs.get("tipo") or "",
+                        "bedrooms": attrs.get("quartos") or 0,
+                        "bathrooms": attrs.get("banheiros") or 0,
+                        "area": attrs.get("metragem") or 0,
+                    }
+
+                should_create_opportunity = True
+
+            # Detecta interesse em imóvel do portal
+            elif imovel_portal:
+                codigo = imovel_portal.get("codigo") or "sem código"
+                titulo = imovel_portal.get("titulo") or "Imóvel"
+                opportunity_title = f"{titulo} (Cód: {codigo})"
+
+                # Extrai valor
+                if imovel_portal.get("preco"):
+                    try:
+                        preco = imovel_portal["preco"]
+                        if isinstance(preco, int):
+                            opportunity_value = preco * 100  # Converte para centavos
+                        else:
+                            opportunity_value = int(re.sub(r'[^\d]', '', str(preco)))
+                    except:
+                        pass
+
+                # Dados extras do imóvel
+                opportunity_data = {
+                    "property_address": imovel_portal.get("regiao") or "",
+                    "property_type": imovel_portal.get("tipo") or "",
+                    "property_code": codigo,
+                    "bedrooms": imovel_portal.get("quartos") or 0,
+                    "bathrooms": imovel_portal.get("banheiros") or 0,
+                    "area": imovel_portal.get("metragem") or 0,
+                }
+
+                should_create_opportunity = True
+
+            # Cria oportunidade se detectou interesse
+            if should_create_opportunity and opportunity_title:
+                # Verifica se já existe oportunidade similar
+                existing_opp_result = await db.execute(
+                    select(Opportunity)
+                    .where(Opportunity.lead_id == lead.id)
+                    .where(Opportunity.title == opportunity_title)
+                    .where(Opportunity.status.in_(["novo", "negociacao", "proposta"]))  # Não conta perdidos/ganhos
+                )
+                existing_opp = existing_opp_result.scalar_one_or_none()
+
+                if not existing_opp:
+                    # Calcula probabilidade baseada na qualificação
+                    probability = 80 if lead.qualification in ["quente", "hot"] else 50
+                    opportunity_data["probability"] = probability
+
+                    # Cria nova oportunidade
+                    new_opportunity = Opportunity(
+                        tenant_id=tenant.id,
+                        lead_id=lead.id,
+                        product_id=opportunity_product_id,
+                        seller_id=lead.assigned_seller_id,
+                        title=opportunity_title,
+                        value=opportunity_value,
+                        status="novo",
+                        custom_data=opportunity_data,
+                    )
+                    db.add(new_opportunity)
+
+                    logger.info(f"🎯 Oportunidade criada automaticamente: {opportunity_title} para lead {lead.id}")
+                else:
+                    logger.info(f"ℹ️ Oportunidade similar já existe para lead {lead.id}")
+
+    except Exception as e:
+        logger.warning(f"⚠️ Erro ao criar oportunidade automaticamente (não crítico): {e}")
+        # Não bloqueia o fluxo se falhar
+
+    # =========================================================================
     # 23. HANDOFF FINAL
     # =========================================================================
     should_transfer = lead.qualification in ["quente", "hot"] or should_transfer_by_ai
