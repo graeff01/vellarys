@@ -90,21 +90,21 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusOptions = [
-  { value: "new", label: "Novo", color: "bg-gray-100 text-gray-700" },
-  { value: "in_progress", label: "Em Atendimento", color: "bg-blue-100 text-blue-700" },
-  { value: "qualified", label: "Qualificado", color: "bg-purple-100 text-purple-700" },
-  { value: "handed_off", label: "Transferido", color: "bg-orange-100 text-orange-700" },
-  { value: "converted", label: "Convertido", color: "bg-green-100 text-green-700" },
-  { value: "lost", label: "Perdido", color: "bg-red-100 text-red-700" },
+  { value: "novo", label: "Novo", color: "bg-gray-100 text-gray-700" },
+  { value: "em_atendimento", label: "Em Atendimento", color: "bg-blue-100 text-blue-700" },
+  { value: "qualificado", label: "Qualificado", color: "bg-purple-100 text-purple-700" },
+  { value: "transferido", label: "Transferido", color: "bg-orange-100 text-orange-700" },
+  { value: "convertido", label: "Convertido", color: "bg-green-100 text-green-700" },
+  { value: "perdido", label: "Perdido", color: "bg-red-100 text-red-700" },
 ];
 
 // NOVO: Componente de Dropdown com Portal
-function StatusDropdown({ 
-  lead, 
-  onStatusChange, 
-  isUpdating 
-}: { 
-  lead: Lead; 
+function StatusDropdown({
+  lead,
+  onStatusChange,
+  isUpdating
+}: {
+  lead: Lead;
   onStatusChange: (leadId: number, status: string) => void;
   isUpdating: boolean;
 }) {
@@ -206,9 +206,8 @@ function StatusDropdown({
               <button
                 key={option.value}
                 onClick={() => handleSelect(option.value)}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg flex items-center gap-2 transition ${
-                  lead.status === option.value ? "bg-blue-50 font-medium" : ""
-                }`}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg flex items-center gap-2 transition ${lead.status === option.value ? "bg-blue-50 font-medium" : ""
+                  }`}
               >
                 <span className={`w-2 h-2 rounded-full ${option.color.split(" ")[0].replace("100", "500")}`} />
                 {option.label}

@@ -51,18 +51,18 @@ const COLUMNS: { key: CanonicalStatus; title: string; helper: string; color: str
   { key: 'lost', title: 'Perdidos', helper: 'Descartados', color: 'border-gray-200 bg-gray-50/50', icon: Ban },
 ];
 
-function normalizeStatus(status: string): CanonicalStatus {
+const normalizeStatus = (status: string): CanonicalStatus => {
   const s = status?.toLowerCase() || '';
   if (s === 'ganho' || s === 'won' || s === 'venda' || s === 'closed' || s === 'convertido' || s === 'converted') return 'won';
   if (s === 'perdido' || s === 'lost') return 'lost';
-  if (s === 'transferido' || s === 'handed_off') return 'handed_off'; // Vamos ocultar handed_off por simplicidade, ou mapear para qualified
+  if (s === 'transferido' || s === 'handed_off') return 'handed_off';
 
   if (['novo', 'new'].includes(s)) return 'new';
-  if (['em_atendimento', 'in_progress', 'contacted'].includes(s)) return 'in_progress';
+  if (['em_atendimento', 'em atendimento', 'in_progress', 'contacted', 'atendimento'].includes(s)) return 'in_progress';
   if (['qualificado', 'qualified', 'hot', 'warm'].includes(s)) return 'qualified';
 
   return 'new';
-}
+};
 
 export function LeadsKanban({
   leads,
@@ -198,8 +198,9 @@ export function LeadsKanban({
       // 3. Register Deal (Dashboard Goals)
       await registerDeal(pendingDealLead.id, finalValue, `Venda via Kanban: ${dealTitle}`);
 
-      // 4. Update Lead to WON/CLOSED
-      await updateLead(pendingDealLead.id, { status: 'won', qualification: 'hot' });
+      // 4. Update Lead to CONVERTIDO
+      // Usamos 'convertido' para alinhar com o backend (LeadStatus.CONVERTED)
+      await updateLead(pendingDealLead.id, { status: 'convertido', qualification: 'hot' });
 
       // UI Update
       setLocalLeads(prev => prev.map(l =>

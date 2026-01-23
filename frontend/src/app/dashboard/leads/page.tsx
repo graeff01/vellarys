@@ -61,13 +61,13 @@ const tabConfig: {
   icon: React.ElementType;
   color: string;
 }[] = [
-  { id: 'all', label: 'Todos', shortLabel: 'Todos', icon: Users, color: 'text-gray-600' },
-  { id: 'pending', label: 'Aguardando', shortLabel: 'Aguard.', icon: Flame, color: 'text-orange-500' },
-  { id: 'in_progress', label: 'Em Atendimento', shortLabel: 'Atend.', icon: Clock, color: 'text-blue-500' },
-  { id: 'handed_off', label: 'Transferidos', shortLabel: 'Transf.', icon: CheckCircle, color: 'text-green-500' },
-  { id: 'converted', label: 'Convertidos', shortLabel: 'Conv.', icon: CheckCircle, color: 'text-emerald-500' },
-  { id: 'lost', label: 'Perdidos', shortLabel: 'Perd.', icon: XCircle, color: 'text-red-500' },
-];
+    { id: 'all', label: 'Todos', shortLabel: 'Todos', icon: Users, color: 'text-gray-600' },
+    { id: 'pending', label: 'Aguardando', shortLabel: 'Aguard.', icon: Flame, color: 'text-orange-500' },
+    { id: 'in_progress', label: 'Em Atendimento', shortLabel: 'Atend.', icon: Clock, color: 'text-blue-500' },
+    { id: 'handed_off', label: 'Transferidos', shortLabel: 'Transf.', icon: CheckCircle, color: 'text-green-500' },
+    { id: 'converted', label: 'Convertidos', shortLabel: 'Conv.', icon: CheckCircle, color: 'text-emerald-500' },
+    { id: 'lost', label: 'Perdidos', shortLabel: 'Perd.', icon: XCircle, color: 'text-red-500' },
+  ];
 
 export default function LeadsPage() {
   const [data, setData] = useState<LeadsResponse | null>(null);
@@ -102,49 +102,52 @@ export default function LeadsPage() {
     setLoading(true);
     try {
       const params: Record<string, any> = {};
-      
+
       // Aplica search se tiver
       if (filters.search) {
         params.search = filters.search;
       }
-      
+
       // Aplica filtros baseado na aba ativa
+      // IMPORTANTE: Backend usa status em PT-BR (Enum LeadStatus)
       switch (activeTab) {
         case 'all':
           // Para "Todos", aplica filtros normais se tiver
           if (filters.qualification) params.qualification = filters.qualification;
           if (filters.status) params.status = filters.status;
           break;
-          
+
         case 'pending':
-          // Leads aguardando atendimento
-          params.status = 'in_progress';
+          // Leads aguardando atendimento humano
+          // Devem estar 'em_atendimento' (pela IA) ou 'novo', mas SEM vendedor
+          params.status = 'em_atendimento';
           break;
-          
+
         case 'in_progress':
-          params.status = 'in_progress';
+          // Significa que já está com humano (transferido) ou em atendimento ativo
+          params.status = 'em_atendimento';
           break;
-          
+
         case 'handed_off':
-          params.status = 'handed_off';
+          params.status = 'transferido';
           break;
-          
+
         case 'converted':
-          params.status = 'converted';
+          params.status = 'convertido';
           break;
-          
+
         case 'lost':
-          params.status = 'lost';
+          params.status = 'perdido';
           break;
       }
-      
+
       params.page = filters.page;
 
       const [leadsResponse, sellersResponse] = await Promise.all([
         getLeads(params),
         getSellers(),
       ]);
-      
+
       setData(leadsResponse as LeadsResponse);
       setSellers((sellersResponse as any).sellers || []);
     } catch (error) {
@@ -227,7 +230,7 @@ export default function LeadsPage() {
     const cold = leads.filter((l) =>
       ['cold', 'frio'].includes(l.qualification)
     ).length;
-    
+
     const pending = leads.filter(
       (l) =>
         l.status !== 'handed_off' &&
@@ -239,11 +242,26 @@ export default function LeadsPage() {
     return { total, hot, warm, cold, pending };
   }, [data]);
 
-  const currentLeads = data?.items || [];
+  const currentLeads = useMemo(() => {
+    let leads = data?.items || [];
+
+    // Filtro adicional no front para a aba 'Aguardando' (Pendente)
+    // No backend filtramos por status, mas no front garantimos que 'Aguardando' = SEM VENDEDOR
+    if (activeTab === 'pending') {
+      return leads.filter(l => !l.assigned_seller_id && l.status !== 'convertido' && l.status !== 'perdido');
+    }
+
+    // Na aba 'Em Atendimento', mostramos os que JÁ POSSUEM vendedor
+    if (activeTab === 'in_progress') {
+      return leads.filter(l => !!l.assigned_seller_id);
+    }
+
+    return leads;
+  }, [data, activeTab]);
 
   const assignModalLead =
     assignModalLeadId != null
-      ? currentLeads.find((l) => l.id === assignModalLeadId) || null
+      ? (data?.items || []).find((l) => l.id === assignModalLeadId) || null
       : null;
 
   return (
@@ -251,7 +269,7 @@ export default function LeadsPage() {
       {/* CORREÇÃO: Container principal sem overflow hidden */}
       <div className="min-h-screen bg-gray-50 pb-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4 sm:space-y-6">
-          
+
           {/* Header + switch de visualização */}
           <div className="flex flex-col gap-3 sm:gap-4 pt-4 sm:pt-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -282,17 +300,15 @@ export default function LeadsPage() {
                         min-w-[80px] sm:min-w-[90px] px-3 sm:px-4 py-2.5 sm:py-3
                         rounded-xl font-medium transition-all duration-200
                         flex-shrink-0
-                        ${
-                          isActive
-                            ? 'bg-blue-600 text-white shadow-md scale-[1.02]'
-                            : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+                        ${isActive
+                          ? 'bg-blue-600 text-white shadow-md scale-[1.02]'
+                          : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 hover:border-gray-300'
                         }
                       `}
                     >
                       <Icon
-                        className={`w-5 h-5 ${
-                          isActive ? 'text-white' : tab.color
-                        }`}
+                        className={`w-5 h-5 ${isActive ? 'text-white' : tab.color
+                          }`}
                       />
                       <span className="text-xs sm:text-sm whitespace-nowrap">
                         {tab.shortLabel}
@@ -302,7 +318,7 @@ export default function LeadsPage() {
                 })}
               </div>
             </div>
-            
+
             {/* Gradient fade nas bordas */}
             <div className="absolute top-0 left-0 w-8 h-full bg-gradient-to-r from-gray-50 to-transparent pointer-events-none sm:hidden" />
             <div className="absolute top-0 right-0 w-8 h-full bg-gradient-to-l from-gray-50 to-transparent pointer-events-none sm:hidden" />
@@ -341,7 +357,7 @@ export default function LeadsPage() {
                   }
                 />
               </div>
-              
+
               {/* Selects - só aparecem na aba "Todos" */}
               {activeTab === 'all' && (
                 <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-3">
@@ -384,12 +400,12 @@ export default function LeadsPage() {
 
           {/* CORREÇÃO: Card sem overflow hidden */}
           <Card className="relative">
-            <CardHeader 
+            <CardHeader
               title={
-                activeTab === 'pending' 
+                activeTab === 'pending'
                   ? `${stats.pending} leads aguardando`
                   : `${data?.total || 0} leads`
-              } 
+              }
             />
             {loading ? (
               <div className="text-center py-12 text-gray-500">
@@ -438,10 +454,9 @@ export default function LeadsPage() {
                           onClick={() => setFilters({ ...filters, page })}
                           className={`
                             px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors
-                            ${
-                              filters.page === page
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            ${filters.page === page
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                             }
                           `}
                         >
