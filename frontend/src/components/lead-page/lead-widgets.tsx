@@ -45,6 +45,8 @@ import {
   deleteOpportunity,
   winOpportunity,
   loseOpportunity,
+  registerDeal,
+  updateLead,
 } from '@/lib/api';
 
 // =============================================
@@ -315,7 +317,28 @@ export function OpportunitiesWidget({ leadId, opportunities, onReload, products 
   const handleStatusChange = async (oppId: number, newStatus: string) => {
     try {
       if (newStatus === 'ganho') {
-        await winOpportunity(oppId);
+        const opp = opportunities.find(o => o.id === oppId);
+
+        if (confirm(`Confirmar venda no valor de ${formatCurrency(opp?.value || 0)}? Isso atualizará a meta e o status do lead.`)) {
+          // 1. Marca oportunidade como ganha
+          await winOpportunity(oppId);
+
+          // 2. Registra a venda na dashboard (Meta)
+          if (opp && opp.value > 0) {
+            await registerDeal(leadId, opp.value, `Venda: ${opp.title}`);
+          }
+
+          // 3. Atualiza status do lead para Qualificado/Quente
+          await updateLead(leadId, {
+            status: 'qualified',
+            qualification: 'hot'
+          });
+
+          // Feedback
+          alert('Venda registrada com sucesso! Meta atualizada.');
+        } else {
+          return; // Cancelado pelo usuário
+        }
       } else if (newStatus === 'perdido') {
         const reason = prompt('Motivo da perda:');
         if (reason) {
@@ -327,6 +350,7 @@ export function OpportunitiesWidget({ leadId, opportunities, onReload, products 
       onReload();
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
+      alert('Erro ao atualizar status. Verifique o console.');
     }
   };
 
@@ -545,11 +569,10 @@ export function OpportunitiesWidget({ leadId, opportunities, onReload, products 
             return (
               <div
                 key={opp.id}
-                className={`bg-white border rounded-xl transition-all group ${
-                  opp.status === 'ganho' ? 'border-emerald-200 bg-emerald-50/30' :
-                  opp.status === 'perdido' ? 'border-red-200 bg-red-50/30 opacity-60' :
-                  'border-slate-200 hover:shadow-md'
-                }`}
+                className={`bg-white border rounded-xl transition-all group ${opp.status === 'ganho' ? 'border-emerald-200 bg-emerald-50/30' :
+                    opp.status === 'perdido' ? 'border-red-200 bg-red-50/30 opacity-60' :
+                      'border-slate-200 hover:shadow-md'
+                  }`}
               >
                 {/* Main row - always visible */}
                 <div
