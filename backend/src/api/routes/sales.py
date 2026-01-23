@@ -325,6 +325,13 @@ async def register_deal(
 
         # Atualiza status do lead
         lead.status = LeadStatus.CONVERTED.value
+        
+        # Atribuição automática se o lead estiver "sem dono"
+        if not lead.assigned_seller_id and current_user.seller_id:
+            lead.assigned_seller_id = current_user.seller_id
+            lead.assigned_at = datetime.now(timezone.utc)
+            lead.assignment_method = "direct_sale"
+            logger.info(f"🤝 Lead {lead.id} atribuído automaticamente ao vendedor {current_user.seller_id} na venda")
 
         # Atualiza meta do mês atual
         current_period = get_current_period()
@@ -486,7 +493,7 @@ async def get_sales_metrics(
 
                 seller_conversion = (seller_deals / leads_assigned * 100) if leads_assigned > 0 else 0
 
-                if leads_assigned > 0:  # Só inclui se tem leads
+                if leads_assigned > 0 or seller_deals > 0:  # Inclui se tem atividade ou vendas
                     seller_ranking.append(SellerRankingItem(
                         seller_id=seller.id,
                         seller_name=seller.name,

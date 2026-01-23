@@ -47,6 +47,7 @@ const COLUMNS: { key: CanonicalStatus; title: string; helper: string; color: str
   { key: 'new', title: 'Novos', helper: 'Entrada', color: 'border-blue-200 bg-blue-50/50', icon: MessageSquare },
   { key: 'in_progress', title: 'Em Atendimento', helper: 'Conversando', color: 'border-amber-200 bg-amber-50/50', icon: MessageSquare },
   { key: 'qualified', title: 'Qualificados', helper: 'Quentes', color: 'border-emerald-200 bg-emerald-50/50', icon: CheckCircle2 },
+  { key: 'handed_off', title: 'Transferidos', helper: 'Com Vendedor', color: 'border-indigo-200 bg-indigo-50/50', icon: UserPlus },
   { key: 'won', title: 'Venda / Ganho', helper: 'Sucesso!', color: 'border-green-300 bg-green-100/50', icon: Trophy },
   { key: 'lost', title: 'Perdidos', helper: 'Descartados', color: 'border-gray-200 bg-gray-50/50', icon: Ban },
 ];
@@ -223,10 +224,6 @@ export function LeadsKanban({
     <>
       <div className="flex gap-4 overflow-x-auto pb-4 min-h-[500px]">
         {COLUMNS.map((col) => {
-          // Check if we should render this column? Yes.
-          // Filter 'handed_off' if using it
-          if (col.key === 'handed_off') return null;
-
           const colLeads = grouped[col.key] || [];
           const Icon = col.icon;
 

@@ -335,6 +335,14 @@ async def win_opportunity(
         if data.notes:
             opp.notes = (opp.notes or "") + f"\n\n[GANHO] {data.notes}"
 
+        # ✨ NOVO: Quando ganha oportunidade, marca o LEAD como convertido
+        from sqlalchemy import update
+        await db.execute(
+            update(Lead)
+            .where(Lead.id == opp.lead_id)
+            .values(status=LeadStatus.CONVERTED.value)
+        )
+
         await db.commit()
         await db.refresh(opp)
 
