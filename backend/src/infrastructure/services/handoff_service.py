@@ -290,20 +290,22 @@ async def execute_handoff(
     tenant,  # Pode ser Tenant, slug (str) ou ID (int)
     reason: str,
     db: AsyncSession,
+    notify_seller_immediately: bool = True,  # ⚡ NOVO: Controla se notifica vendedor agora ou depois
 ) -> dict:
     """
     Executa o processo completo de handoff:
     1. Distribui o lead para um vendedor (ou gestor)
-    2. Envia notificações via WhatsApp
+    2. Envia notificações via WhatsApp (se notify_seller_immediately=True)
     3. Atualiza o status do lead
     4. Registra a transferência
-    
+
     Args:
         lead: Objeto Lead
         tenant: Objeto Tenant, slug (str) ou ID (int)
         reason: Motivo do handoff
         db: Sessão do banco
-    
+        notify_seller_immediately: Se False, vendedor será notificado depois (quando lead qualificar)
+
     Returns:
         {
             "success": bool,
@@ -367,14 +369,14 @@ async def execute_handoff(
             logger.error(f"❌ Erro gerando Raio-X: {e}")
             lead_raiox = None
         
-        # 4. Notifica vendedor (se houver)
-        if seller and seller.whatsapp:
+        # 4. Notifica vendedor (se houver E se notify_seller_immediately=True)
+        if seller and seller.whatsapp and notify_seller_immediately:
             seller_message = build_handoff_message_for_seller(lead, seller, tenant_obj)
-            
+
             # Anexa o Raio-X se disponível
             if lead_raiox:
                 seller_message += f"\n---\n{lead_raiox}"
-            
+
             try:
                 await send_whatsapp_message(seller.whatsapp, seller_message)
                 notifications_sent.append({
@@ -383,9 +385,12 @@ async def execute_handoff(
                     "phone": seller.whatsapp,
                     "status": "sent",
                 })
-                
+
+                # Marca que vendedor foi notificado
+                lead.seller_notified_at = datetime.now(timezone.utc)
+
                 logger.info(f"📱 Notificação enviada para vendedor: {seller.name}")
-                
+
                 # Atualiza assignment como notificado
                 if lead.assignments:
                     latest_assignment = lead.assignments[-1]
@@ -400,6 +405,8 @@ async def execute_handoff(
                     "status": "failed",
                     "error": str(e),
                 })
+        elif seller and not notify_seller_immediately:
+            logger.info(f"⏳ Vendedor {seller.name} será notificado depois (quando lead qualificar)")
         
         # 5. Notifica gestor (se necessário)
         manager_whatsapp = settings.get("manager_whatsapp")

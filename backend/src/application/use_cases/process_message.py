@@ -1652,11 +1652,22 @@ async def process_message(
     # 23. HANDOFF FINAL
     # =========================================================================
     should_transfer = lead.qualification in ["quente", "hot"] or should_transfer_by_ai
-    
+
     if should_transfer:
         handoff_reason = "lead_hot" if lead.qualification in ["quente", "hot"] else "ai_suggested"
-        
-        handoff_result = await execute_handoff(lead, tenant, handoff_reason, db)
+
+        # ⚡ NOTIFICAÇÃO INTELIGENTE: Não notifica vendedor imediatamente se foi auto-atribuído
+        # Notificação será enviada depois quando lead estiver "maduro"
+        is_auto_assigned = lead.assignment_method in ["auto_by_property", "auto_by_portal_property"]
+        notify_now = not is_auto_assigned
+
+        handoff_result = await execute_handoff(
+            lead,
+            tenant,
+            handoff_reason,
+            db,
+            notify_seller_immediately=notify_now
+        )
         
         transfer_message = Message(
             lead_id=lead.id,
@@ -1671,7 +1682,20 @@ async def process_message(
             reply_with_handoff += out_of_hours_message
         
         await db.commit()
-        
+
+        # ⚡ NOTIFICAÇÃO INTELIGENTE: Verifica se deve notificar vendedor agora
+        if lead.assigned_seller_id and not lead.seller_notified_at:
+            from src.infrastructure.services.notification_service import notify_seller_when_ready
+            try:
+                notification_result = await notify_seller_when_ready(db, tenant, lead)
+                if notification_result["notified"]:
+                    logger.info(f"✅ Vendedor notificado: {notification_result['reason']}")
+                    await db.commit()  # Salva seller_notified_at
+                else:
+                    logger.info(f"⏳ Vendedor não notificado ainda: {notification_result['reason']}")
+            except Exception as e:
+                logger.warning(f"⚠️ Erro tentando notificar vendedor (não crítico): {e}")
+
         # ⏱️ MÉTRICA: Calcula tempo total
         elapsed = time.time() - start_time
         logger.info(f"⏱️ Processamento concluído em {elapsed:.2f}s (com handoff)")
@@ -1718,7 +1742,20 @@ async def process_message(
     # =========================================================================
     try:
         await db.commit()
-        
+
+        # ⚡ NOTIFICAÇÃO INTELIGENTE: Verifica se deve notificar vendedor agora
+        if lead.assigned_seller_id and not lead.seller_notified_at:
+            from src.infrastructure.services.notification_service import notify_seller_when_ready
+            try:
+                notification_result = await notify_seller_when_ready(db, tenant, lead)
+                if notification_result["notified"]:
+                    logger.info(f"✅ Vendedor notificado: {notification_result['reason']}")
+                    await db.commit()  # Salva seller_notified_at
+                else:
+                    logger.info(f"⏳ Vendedor não notificado ainda: {notification_result['reason']}")
+            except Exception as e:
+                logger.warning(f"⚠️ Erro tentando notificar vendedor (não crítico): {e}")
+
         # ⏱️ MÉTRICA: Calcula tempo total
         elapsed = time.time() - start_time
         logger.info(f"⏱️ Processamento concluído em {elapsed:.2f}s")

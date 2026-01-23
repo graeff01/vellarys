@@ -15,7 +15,7 @@ Canais de notificação:
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any, List
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.entities import Tenant, Lead, Notification, Seller, Message, Channel
@@ -1081,6 +1081,97 @@ async def notify_seller(
         results["whatsapp_error"] = str(e)
 
     return results
+
+
+# =============================================================================
+# ✨ NOTIFICAÇÃO INTELIGENTE PARA VENDEDOR
+# =============================================================================
+
+async def notify_seller_when_ready(
+    db: AsyncSession,
+    tenant: Tenant,
+    lead: Lead,
+) -> Dict[str, Any]:
+    """
+    ✨ NOTIFICAÇÃO INTELIGENTE
+
+    Notifica o vendedor APENAS quando o lead estiver "maduro" para ser contatado.
+
+    Critérios para notificar:
+    1. Lead tem vendedor atribuído
+    2. Lead ainda NÃO foi notificado (seller_notified_at is None)
+    3. Lead está qualificado (morno ou quente)
+    4. Lead tem pelo menos 3 mensagens (já conversou com a IA)
+
+    Isso evita notificar corretor IMEDIATAMENTE quando lead entra,
+    permitindo que a IA colete informações importantes primeiro.
+    """
+    results = {"should_notify": False, "notified": False, "reason": None}
+
+    try:
+        # 1. Verificações básicas
+        if not lead.assigned_seller_id:
+            results["reason"] = "Nenhum vendedor atribuído"
+            return results
+
+        if lead.seller_notified_at:
+            results["reason"] = "Vendedor já foi notificado"
+            return results
+
+        # 2. Busca vendedor
+        from src.domain.entities.seller import Seller
+        seller_result = await db.execute(
+            select(Seller).where(Seller.id == lead.assigned_seller_id)
+        )
+        seller = seller_result.scalar_one_or_none()
+
+        if not seller or not seller.whatsapp:
+            results["reason"] = "Vendedor não encontrado ou sem WhatsApp"
+            return results
+
+        # 3. Verifica se lead está "maduro" para notificar
+        # Conta mensagens do lead
+        message_count_result = await db.execute(
+            select(func.count(Message.id)).where(Message.lead_id == lead.id)
+        )
+        message_count = message_count_result.scalar() or 0
+
+        # Critérios de maturidade
+        is_qualified = lead.qualification in ["morno", "quente", "warm", "hot"]
+        has_enough_messages = message_count >= 3
+
+        if not is_qualified:
+            results["reason"] = f"Lead ainda está '{lead.qualification}' (precisa morno/quente)"
+            return results
+
+        if not has_enough_messages:
+            results["reason"] = f"Lead tem apenas {message_count} mensagens (mínimo 3)"
+            return results
+
+        # 4. Lead está maduro! Notifica vendedor
+        results["should_notify"] = True
+
+        logger.info(f"✅ Lead {lead.id} MADURO para notificação: {lead.qualification}, {message_count} mensagens")
+
+        # Envia notificação
+        notification_result = await notify_seller(
+            db=db,
+            tenant=tenant,
+            lead=lead,
+            seller=seller,
+            assigned_by="Sistema Automático",
+            notes=None,
+        )
+
+        results["notified"] = notification_result.get("whatsapp", False)
+        results["reason"] = "Notificado com sucesso" if results["notified"] else "Falha ao enviar"
+
+        return results
+
+    except Exception as e:
+        logger.error(f"❌ Erro em notify_seller_when_ready: {e}")
+        results["reason"] = f"Erro: {str(e)}"
+        return results
 
 
 # =============================================================================

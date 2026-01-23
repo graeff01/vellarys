@@ -222,7 +222,8 @@ class Lead(Base, TimestampMixin):
     )
     assigned_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     assignment_method: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    
+    seller_notified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)  # Quando o vendedor foi notificado
+
     # ==========================================
     # ATRIBUIÇÃO LEGADA (gestor/usuário)
     # ==========================================
