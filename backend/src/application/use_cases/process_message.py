@@ -1471,8 +1471,23 @@ async def process_message(
     try:
         from src.domain.entities.opportunity import Opportunity
 
-        # Só cria se lead estiver no mínimo "morno" (showing interest)
-        if lead.qualification in ["quente", "hot", "morno", "warm"]:
+        # Se detectou produto ou imóvel, upgrade automático para "morno" (mostra interesse concreto)
+        if (product_detected or imovel_portal) and lead.qualification in ["frio", "cold", "novo", None]:
+            logger.info(f"🔥 AUTO-UPGRADE: Lead {lead.id} detectou interesse em imóvel -> MORNO")
+            lead.qualification = "morno"
+            flag_modified(lead, "qualification")
+
+            # Registra evento
+            db.add(LeadEvent(
+                lead_id=lead.id,
+                event_type="qualification_change",
+                old_value="frio",
+                new_value="morno",
+                description="Upgrade automático: interesse em imóvel específico detectado pela IA"
+            ))
+
+        # Cria oportunidade se detectou interesse em imóvel
+        if product_detected or imovel_portal:
             should_create_opportunity = False
             opportunity_title = None
             opportunity_value = 0
@@ -1526,7 +1541,34 @@ async def process_message(
                 codigo = imovel_portal.get("codigo") or "sem código"
                 titulo = imovel_portal.get("titulo") or "Imóvel"
                 opportunity_title = f"{titulo} (Cód: {codigo})"
-                opportunity_seller_id = None  # Portal não tem seller direto
+
+                # Para imóveis do portal, busca vendedor disponível
+                opportunity_seller_id = None
+                try:
+                    from src.domain.entities.seller import Seller
+                    # Busca primeiro vendedor ativo e disponível
+                    seller_result = await db.execute(
+                        select(Seller)
+                        .where(Seller.tenant_id == tenant.id)
+                        .where(Seller.active == True)
+                        .where(Seller.available == True)
+                        .limit(1)
+                    )
+                    available_seller = seller_result.scalar_one_or_none()
+
+                    if available_seller:
+                        opportunity_seller_id = available_seller.id
+
+                        # Atribui ao lead se ainda não tiver vendedor
+                        if not lead.assigned_seller_id:
+                            lead.assigned_seller_id = available_seller.id
+                            lead.assigned_at = datetime.now(timezone.utc)
+                            lead.assignment_method = "auto_by_portal_property"
+                            logger.info(f"✅ Lead {lead.id} atribuído ao vendedor {available_seller.id} (portal: {codigo})")
+                    else:
+                        logger.warning(f"⚠️ Nenhum vendedor disponível para atribuir lead {lead.id} (portal: {codigo})")
+                except Exception as e:
+                    logger.warning(f"⚠️ Erro buscando vendedor para portal: {e}")
 
                 # Extrai valor
                 if imovel_portal.get("preco"):
