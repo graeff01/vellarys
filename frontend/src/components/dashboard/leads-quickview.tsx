@@ -40,9 +40,12 @@ interface Lead {
   created_at: string;
   assigned_seller?: AssignedSeller | null;
   // Campos potenciais para o futuro
-  email?: string;
   location?: string;
   summary?: string;
+  ai_sentiment?: string | null;
+  ai_signals?: string | null;
+  ai_next_step?: string | null;
+  propensity_score?: number;
 }
 
 interface Message {
@@ -355,29 +358,71 @@ export function LeadsQuickview({
           {activeTab === 'info' && (
             <div className="p-6 overflow-y-auto absolute inset-0 space-y-6">
 
-              {/* Smart Summary Card */}
-              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-5 border border-indigo-100/50 shadow-sm">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="p-1.5 bg-indigo-100 rounded-lg">
-                    <Bot className="w-4 h-4 text-indigo-600" />
-                  </div>
-                  <h3 className="font-bold text-indigo-900 text-sm uppercase tracking-wide">Analise da IA</h3>
-                </div>
+              {/* ✨ VELARIS INTELLIGENCE SUITE: SMART SUMMARY */}
+              <div className="bg-gradient-to-br from-slate-900 to-indigo-950 rounded-2xl p-6 text-white shadow-xl shadow-indigo-100 relative overflow-hidden group">
+                {/* Decorative glow */}
+                <div className="absolute -top-10 -right-10 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl group-hover:bg-indigo-500/30 transition-all" />
 
-                <div className="space-y-3">
-                  <div className="flex gap-3 items-start">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">Interesse Alto</p>
-                      <p className="text-xs text-slate-500 leading-relaxed">O lead demonstrou alto engajamento e respondeu rapidamente às mensagens sobre valores.</p>
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md border border-white/10">
+                        <Bot className="w-5 h-5 text-indigo-300" />
+                      </div>
+                      <h3 className="font-extrabold text-sm uppercase tracking-widest text-indigo-100">AI Intelligence</h3>
                     </div>
+                    {lead.propensity_score && (
+                      <div className="flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full border border-white/10">
+                        <span className="text-[10px] font-black uppercase text-indigo-200">Score</span>
+                        <span className="text-sm font-black text-white">{lead.propensity_score}</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex gap-3 items-start">
-                    <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">Atenção Necessária</p>
-                      <p className="text-xs text-slate-500 leading-relaxed">Cliente perguntou sobre financiamento e a IA não tinha info completa. Vendedor humano deve intervir.</p>
+
+                  <div className="space-y-4">
+                    {/* Summary */}
+                    <div className="bg-white/5 rounded-xl p-3 border border-white/5">
+                      <p className="text-xs text-indigo-300 font-bold uppercase mb-2 flex items-center gap-1.5">
+                        <Info className="w-3 h-3" /> Resumo do Lead
+                      </p>
+                      <p className="text-sm text-slate-200 leading-relaxed font-medium">
+                        {lead.summary || "A IA ainda está processando o resumo deste lead."}
+                      </p>
                     </div>
+
+                    {/* Next Action / Playbook */}
+                    <div className="bg-indigo-500/20 rounded-xl p-4 border border-indigo-400/30">
+                      <p className="text-[10px] text-indigo-300 font-black uppercase mb-2 tracking-tighter">🚀 Next Best Action (Playbook)</p>
+                      <div className="flex gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-400/20 flex items-center justify-center shrink-0">
+                          <Send className="w-4 h-4 text-indigo-300" />
+                        </div>
+                        <p className="text-sm font-bold text-white leading-tight">
+                          {lead.ai_next_step || "Aguardando mais interações para sugerir o próximo passo."}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* AI Signals */}
+                    {lead.ai_signals && (
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {(() => {
+                          try {
+                            const signals = JSON.parse(lead.ai_signals);
+                            const signalLabels: Record<string, string> = {
+                              'budget_ok': '💰 Orçamento Ok',
+                              'decision_maker': '👑 Decisor',
+                              'urgent': '⚡ Urgência Detectada',
+                            };
+                            return signals.map((s: string) => (
+                              <span key={s} className="px-2 py-1 bg-indigo-500/30 rounded-lg text-[10px] font-bold text-indigo-100 border border-indigo-400/20">
+                                {signalLabels[s] || s}
+                              </span>
+                            ));
+                          } catch (e) { return null; }
+                        })()}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

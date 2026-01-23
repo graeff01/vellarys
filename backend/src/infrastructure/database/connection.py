@@ -68,7 +68,10 @@ async def init_db() -> None:
             ("last_activity_at", "TIMESTAMP WITH TIME ZONE"),
             ("conversation_summary", "TEXT"),
             ("summary", "TEXT"),
-            ("propensity_score", "INTEGER DEFAULT 0")
+            ("propensity_score", "INTEGER DEFAULT 0"),
+            ("ai_sentiment", "VARCHAR(50)"),
+            ("ai_signals", "TEXT"),
+            ("ai_next_step", "TEXT")
         ]
         
         for col_name, col_type in leads_columns:

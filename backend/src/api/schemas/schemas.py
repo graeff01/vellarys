@@ -108,6 +108,9 @@ class LeadResponse(LeadBase):
     qualification: Optional[str] = None  # ✅ CORRIGIDO: Pode ser None
     status: Optional[str] = None  # ✅ CORRIGIDO: Pode ser None
     propensity_score: int = 0
+    ai_sentiment: Optional[str] = None
+    ai_signals: Optional[str] = None
+    ai_next_step: Optional[str] = None
     summary: Optional[str] = None
     assigned_to: Optional[int] = None
     handed_off_at: Optional[datetime] = None
@@ -131,6 +134,8 @@ class LeadListOut(BaseModel):
     status: Optional[str] = None
     qualification: Optional[str] = None
     propensity_score: int = 0
+    ai_sentiment: Optional[str] = None
+    ai_signals: Optional[str] = None
     created_at: Optional[datetime] = None
     last_activity_at: Optional[datetime] = None
 

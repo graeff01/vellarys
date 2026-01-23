@@ -193,8 +193,14 @@ class Lead(Base, TimestampMixin):
     # RESUMO E HANDOFF
     # ==========================================
     summary: Mapped[Optional[str]] = mapped_column(Text)
-    conversation_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # ✨ NOVO: Resumo automático para conversas longas
-    propensity_score: Mapped[int] = mapped_column(Integer, default=0) # ✨ NOVO: Score de propensão 0-100
+    conversation_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    propensity_score: Mapped[int] = mapped_column(Integer, default=0)
+    
+    # ✨ VELARIS INTELLIGENCE SUITE (High-Value Fields)
+    ai_sentiment: Mapped[Optional[str]] = mapped_column(String(50), nullable=True) # Ex: "😃 Interessado", "⏳ Hesitante", "😡 Insatisfeito"
+    ai_signals: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON list: ["budget_ok", "decision_maker", "urgent"]
+    ai_next_step: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # Sugestão da IA: "Enviar proposta de valor hoje"
+    
     handed_off_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     
 
