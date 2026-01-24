@@ -1,23 +1,20 @@
 #!/bin/bash
+set -e  # Exit on error
 
 echo "=== Velaris Backend Startup ==="
 echo "Running database migrations..."
 
-# Try to run migrations
-if alembic upgrade head; then
-    echo "Migrations completed successfully!"
-else
-    echo "WARNING: Migrations failed. Checking current state..."
+# Show current revision before upgrade
+echo "Current database revision:"
+alembic current || echo "No current revision"
 
-    # Show current revision
-    alembic current || true
+echo ""
+echo "Upgrading to head..."
 
-    # If tables already exist, stamp with head to skip
-    echo "Attempting to stamp database with current head..."
-    alembic stamp head || true
+# Run migrations
+alembic upgrade head
 
-    echo "Continuing with startup despite migration issues..."
-fi
+echo "✅ Migrations completed successfully!"
 
 echo ""
 echo "Starting Uvicorn server..."

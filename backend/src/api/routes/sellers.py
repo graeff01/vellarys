@@ -36,6 +36,11 @@ class SellerCreate(BaseModel):
     priority: int = Field(default=5, ge=1, le=10)
     notification_channels: List[str] = Field(default_factory=lambda: ["whatsapp"])
 
+    # 🆕 NOVO: Criação automática de conta de usuário (CRM Inbox)
+    create_user_account: bool = Field(default=False, description="Criar conta de usuário para acesso ao CRM")
+    user_email: Optional[str] = Field(None, description="Email para login (se não fornecido, usa o email do seller)")
+    user_password: Optional[str] = Field(None, min_length=6, description="Senha para login no CRM")
+
 
 class SellerUpdate(BaseModel):
     """Schema para atualizar vendedor."""
@@ -322,20 +327,85 @@ async def create_seller(
         priority=payload.priority,
         notification_channels=payload.notification_channels,
     )
-    
+
     db.add(seller)
+    await db.flush()  # Flush para obter seller.id antes do commit
+
+    # 🆕 NOVO: Criar conta de usuário automaticamente (CRM Inbox)
+    created_user = None
+    if payload.create_user_account:
+        from src.domain.entities.enums import UserRole
+        from passlib.context import CryptContext
+
+        # Validações
+        if not payload.user_password:
+            raise HTTPException(
+                status_code=400,
+                detail="user_password é obrigatório quando create_user_account=True"
+            )
+
+        # Email para login (usa user_email ou email do seller)
+        login_email = payload.user_email or payload.email
+        if not login_email:
+            raise HTTPException(
+                status_code=400,
+                detail="É necessário fornecer user_email ou email para criar conta de usuário"
+            )
+
+        # Verifica se já existe usuário com este email
+        result = await db.execute(
+            select(User).where(User.email == login_email)
+        )
+        existing_user = result.scalar_one_or_none()
+
+        if existing_user:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Já existe um usuário com o email {login_email}"
+            )
+
+        # Cria usuário corretor
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        hashed_password = pwd_context.hash(payload.user_password)
+
+        created_user = User(
+            name=payload.name,
+            email=login_email,
+            password_hash=hashed_password,
+            role=UserRole.SELLER,  # Role "corretor"
+            tenant_id=tenant.id,
+            active=True,
+        )
+
+        db.add(created_user)
+        await db.flush()  # Flush para obter user.id
+
+        # Vincula seller ao usuário
+        seller.user_id = created_user.id
+
     await db.commit()
     await db.refresh(seller)
-    
-    return {
+
+    response = {
         "success": True,
         "message": "Vendedor criado com sucesso",
         "seller": {
             "id": seller.id,
             "name": seller.name,
             "whatsapp": seller.whatsapp,
+            "user_id": seller.user_id,
         }
     }
+
+    if created_user:
+        response["user_created"] = {
+            "id": created_user.id,
+            "email": created_user.email,
+            "role": created_user.role.value,
+            "message": "✅ Conta de usuário criada! O vendedor pode fazer login no CRM com este email."
+        }
+
+    return response
 
 
 @router.get("/{seller_id}")
