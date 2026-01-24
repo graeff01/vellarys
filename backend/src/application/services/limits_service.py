@@ -155,8 +155,8 @@ async def check_limit(
         LimitCheckResult com status e detalhes
     """
     
-    # Buscar assinatura
-    subscription = await get_subscription(db, tenant_id)
+    # Buscar assinatura (COM o plano carregado para evitar lazy loading)
+    subscription = await get_subscription_with_plan(db, tenant_id)
     
     if not subscription:
         return LimitCheckResult(
