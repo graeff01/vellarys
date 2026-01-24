@@ -44,6 +44,24 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   return response.json();
 }
 
+// Export api object for generic requests
+export const api = {
+  get: <T = any>(endpoint: string) => request<T>(endpoint, { method: 'GET' }),
+  post: <T = any>(endpoint: string, data?: any) => request<T>(endpoint, {
+    method: 'POST',
+    body: data ? JSON.stringify(data) : undefined,
+  }),
+  put: <T = any>(endpoint: string, data?: any) => request<T>(endpoint, {
+    method: 'PUT',
+    body: data ? JSON.stringify(data) : undefined,
+  }),
+  patch: <T = any>(endpoint: string, data?: any) => request<T>(endpoint, {
+    method: 'PATCH',
+    body: data ? JSON.stringify(data) : undefined,
+  }),
+  delete: <T = any>(endpoint: string) => request<T>(endpoint, { method: 'DELETE' }),
+};
+
 // ✅ CORREÇÃO 2 e 3: Endpoint correto + sem tenant_slug (usa token)
 export async function getMetrics() {
   return request('/v1/dashboard/metrics');  // ✅ Token já tem tenant_id!
