@@ -37,6 +37,7 @@ export default function VendedoresPage() {
   const [sellers, setSellers] = useState<Seller[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingSeller, setEditingSeller] = useState<Seller | null>(null) // Seller being edited
 
   // Form state
   const [name, setName] = useState('')
@@ -65,6 +66,31 @@ export default function VendedoresPage() {
     }
   }
 
+  function openEditDialog(seller: Seller) {
+    setEditingSeller(seller)
+    setName(seller.name)
+    setWhatsapp(seller.whatsapp)
+    setEmail(seller.email || '')
+    setCities((seller.cities || []).join(', '))
+    setSpecialties((seller.specialties || []).join(', '))
+    setCreateUserAccount(false) // Não permite criar nova conta ao editar
+    setUserEmail('')
+    setUserPassword('')
+    setDialogOpen(true)
+  }
+
+  function resetForm() {
+    setEditingSeller(null)
+    setName('')
+    setWhatsapp('')
+    setEmail('')
+    setCities('')
+    setSpecialties('')
+    setCreateUserAccount(false)
+    setUserEmail('')
+    setUserPassword('')
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
@@ -79,38 +105,32 @@ export default function VendedoresPage() {
         max_leads_per_day: 0,
         priority: 5,
         notification_channels: ['whatsapp'],
-        create_user_account: createUserAccount,
-        user_email: createUserAccount ? (userEmail || email) : null,
-        user_password: createUserAccount ? userPassword : null,
+        ...(!editingSeller && {
+          create_user_account: createUserAccount,
+          user_email: createUserAccount ? (userEmail || email) : null,
+          user_password: createUserAccount ? userPassword : null,
+        }),
       }
 
-      const response = await api.post('/v1/sellers', payload)
+      const response = editingSeller
+        ? await api.patch(`/v1/sellers/${editingSeller.id}`, payload)
+        : await api.post('/v1/sellers', payload)
 
-      toast.success(response.message)
+      toast.success(response.message || (editingSeller ? 'Vendedor atualizado!' : 'Vendedor criado!'))
 
-      if (response.user_created) {
+      if (!editingSeller && response.user_created) {
         toast.success(response.user_created.message, {
           description: `Email: ${response.user_created.email}`,
           duration: 5000,
         })
       }
 
-      // Reset form
-      setName('')
-      setWhatsapp('')
-      setEmail('')
-      setCities('')
-      setSpecialties('')
-      setCreateUserAccount(false)
-      setUserEmail('')
-      setUserPassword('')
+      resetForm()
       setDialogOpen(false)
-
-      // Reload sellers
       loadSellers()
     } catch (error: any) {
-      console.error('Erro ao criar vendedor:', error)
-      toast.error(error.response?.data?.detail || 'Erro ao criar vendedor')
+      console.error('Erro ao salvar vendedor:', error)
+      toast.error(error.response?.data?.detail || 'Erro ao salvar vendedor')
     } finally {
       setSubmitting(false)
     }
@@ -138,18 +158,23 @@ export default function VendedoresPage() {
             <p className="text-gray-600 mt-1">Gerencie sua equipe de vendas</p>
           </div>
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => {
+          setDialogOpen(open)
+          if (!open) resetForm()
+        }}>
           <DialogTrigger asChild>
-            <Button>
+            <Button onClick={() => { resetForm(); setDialogOpen(true); }}>
               <Plus className="mr-2 h-4 w-4" />
               Novo Vendedor
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Criar Novo Vendedor</DialogTitle>
+              <DialogTitle>{editingSeller ? 'Editar Vendedor' : 'Criar Novo Vendedor'}</DialogTitle>
               <DialogDescription>
-                Adicione um novo vendedor à sua equipe. Você pode criar uma conta de usuário para que ele acesse o CRM.
+                {editingSeller
+                  ? 'Atualize as informações do vendedor'
+                  : 'Adicione um novo vendedor à sua equipe. Você pode criar uma conta de usuário para que ele acesse o CRM.'}
               </DialogDescription>
             </DialogHeader>
 
@@ -229,27 +254,28 @@ export default function VendedoresPage() {
                 </div>
               </div>
 
-              {/* Criar Conta de Usuário */}
-              <div className="border-t pt-4 space-y-4">
-                <div className="flex items-start space-x-3">
-                  <Checkbox
-                    id="create-user"
-                    checked={createUserAccount}
-                    onCheckedChange={(checked) => setCreateUserAccount(checked as boolean)}
-                  />
-                  <div className="space-y-1">
-                    <label
-                      htmlFor="create-user"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex items-center gap-2"
-                    >
-                      <Shield className="h-4 w-4 text-blue-600" />
-                      Criar conta de usuário (CRM Inbox)
-                    </label>
-                    <p className="text-xs text-gray-500">
-                      O vendedor poderá fazer login no painel e gerenciar seus leads
-                    </p>
+              {/* Criar Conta de Usuário (apenas ao criar novo) */}
+              {!editingSeller && (
+                <div className="border-t pt-4 space-y-4">
+                  <div className="flex items-start space-x-3">
+                    <Checkbox
+                      id="create-user"
+                      checked={createUserAccount}
+                      onCheckedChange={(checked) => setCreateUserAccount(checked as boolean)}
+                    />
+                    <div className="space-y-1">
+                      <label
+                        htmlFor="create-user"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex items-center gap-2"
+                      >
+                        <Shield className="h-4 w-4 text-blue-600" />
+                        Criar conta de usuário (CRM Inbox)
+                      </label>
+                      <p className="text-xs text-gray-500">
+                        O vendedor poderá fazer login no painel e gerenciar seus leads
+                      </p>
+                    </div>
                   </div>
-                </div>
 
                 {createUserAccount && (
                   <div className="ml-6 space-y-4 border-l-2 border-blue-200 pl-4">
@@ -289,19 +315,22 @@ export default function VendedoresPage() {
                     </div>
                   </div>
                 )}
-              </div>
+                </div>
+              )}
 
               <div className="flex justify-end gap-2 pt-4">
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setDialogOpen(false)}
+                  onClick={() => { setDialogOpen(false); resetForm(); }}
                   disabled={submitting}
                 >
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={submitting}>
-                  {submitting ? 'Criando...' : 'Criar Vendedor'}
+                  {submitting
+                    ? (editingSeller ? 'Salvando...' : 'Criando...')
+                    : (editingSeller ? 'Salvar Alterações' : 'Criar Vendedor')}
                 </Button>
               </div>
             </form>
@@ -369,6 +398,16 @@ export default function VendedoresPage() {
                 )}
               </div>
             )}
+
+            <div className="mt-4 pt-4 border-t">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => openEditDialog(seller)}
+              >
+                Editar
+              </Button>
+            </div>
           </Card>
         ))}
       </div>
