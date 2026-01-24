@@ -160,8 +160,7 @@ async def list_inbox_leads(
         # Query base: leads atribuídos ao seller
         query = (
             select(Lead)
-            .join(LeadAssignment)
-            .where(LeadAssignment.seller_id == seller.id)
+            .where(Lead.assigned_seller_id == seller.id)
             .where(Lead.tenant_id == current_user.tenant_id)
             .options(selectinload(Lead.messages))
             .order_by(Lead.updated_at.desc())
