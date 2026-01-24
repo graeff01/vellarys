@@ -3,8 +3,10 @@ VELARIS API - Ponto de Entrada
 """
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 
 from src.infrastructure.scheduler import create_scheduler, start_scheduler, stop_scheduler
@@ -167,6 +169,42 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+
+# ============================================================
+# EXCEPTION HANDLERS - Garantir CORS em respostas de erro
+# ============================================================
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """
+    Garante que HTTPExceptions incluam headers de CORS.
+    Sem isso, erros 401/403/500 bloqueiam por CORS no browser.
+    """
+    origin = request.headers.get("origin")
+
+    # Criar resposta JSON com o erro
+    response = JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
+
+    # Adicionar headers de CORS se a origin estiver permitida
+    if origin:
+        # Verificar se a origin está na lista ou match o regex
+        allowed = False
+        if origin in settings.cors_origins_list or "*" in settings.cors_origins_list:
+            allowed = True
+        elif origin.endswith(".up.railway.app"):
+            allowed = True
+
+        if allowed:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Vary"] = "Origin"
+
+    return response
 
 
 # ============================================================
