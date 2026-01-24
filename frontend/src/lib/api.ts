@@ -36,8 +36,18 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
         window.location.href = '/login';
       }
     }
+
+    // Tentar extrair detalhes do erro do backend
+    let errorData;
+    try {
+      errorData = await response.json();
+    } catch {
+      errorData = { detail: `HTTP ${response.status}` };
+    }
+
     const error = new Error(`API Error: ${response.status}`);
     (error as any).status = response.status;
+    (error as any).response = { data: errorData };
     throw error;
   }
 
