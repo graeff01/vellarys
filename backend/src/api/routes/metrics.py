@@ -173,7 +173,9 @@ async def get_dashboard_metrics(
         # Query base com filtro opcional de seller
         base_query_filters = [Lead.tenant_id == tenant_id]
         if seller_filter:
+            # IMPORTANTE: Vendedor só vê leads ATRIBUÍDOS a ele (não None)
             base_query_filters.append(Lead.assigned_seller_id == seller_filter)
+            base_query_filters.append(Lead.assigned_seller_id.isnot(None))
 
         total_result = await db.execute(
             select(func.count(Lead.id)).where(and_(*base_query_filters))

@@ -109,11 +109,36 @@ async def list_leads(
     search: Optional[str] = None,
     sort_by: Optional[str] = Query(None, description="Ordenação: created_at, propensity_score"),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     current_tenant: Tenant = Depends(get_current_tenant),
 ):
-    """Lista leads do tenant com filtros e paginação."""
-    query = select(Lead).where(Lead.tenant_id == current_tenant.id).options(selectinload(Lead.assigned_seller))
-    count_query = select(func.count(Lead.id)).where(Lead.tenant_id == current_tenant.id)
+    """Lista leads do tenant com filtros e paginação. Vendedores veem apenas seus leads."""
+    from src.domain.entities.enums import UserRole
+    from sqlalchemy import and_
+
+    # 🆕 FILTRO POR SELLER - Vendedores veem apenas leads atribuídos a eles
+    base_filters = [Lead.tenant_id == current_tenant.id]
+
+    if current_user.role == UserRole.SELLER:
+        # Busca seller vinculado ao usuário
+        seller_result = await db.execute(
+            select(Seller).where(
+                Seller.user_id == current_user.id,
+                Seller.tenant_id == current_tenant.id
+            )
+        )
+        seller = seller_result.scalar_one_or_none()
+        if seller:
+            # IMPORTANTE: Vendedor só vê leads ATRIBUÍDOS a ele
+            # Garante que assigned_seller_id não seja None E seja igual ao seller.id
+            base_filters.append(Lead.assigned_seller_id == seller.id)
+            base_filters.append(Lead.assigned_seller_id.isnot(None))
+        else:
+            # Se vendedor não tem seller vinculado, não mostra nenhum lead
+            base_filters.append(Lead.id == -1)
+
+    query = select(Lead).where(and_(*base_filters)).options(selectinload(Lead.assigned_seller))
+    count_query = select(func.count(Lead.id)).where(and_(*base_filters))
 
     if status:
         query = query.where(Lead.status == status)

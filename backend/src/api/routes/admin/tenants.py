@@ -73,6 +73,7 @@ class TenantUpdate(BaseModel):
     active: Optional[bool] = None
     billing_cycle: Optional[str] = None
     custom_limits: Optional[dict] = None
+    handoff_mode: Optional[str] = None  # 'whatsapp_pessoal' ou 'crm_inbox'
 
 
 class ChannelUpdate(BaseModel):
@@ -697,7 +698,18 @@ async def update_tenant(
     if data.settings is not None:
         changes["settings"] = "updated"
         tenant.settings = {**(tenant.settings or {}), **data.settings}
-    
+
+    # 🆕 Atualiza handoff_mode (CRM Inbox ou WhatsApp Pessoal)
+    if data.handoff_mode is not None:
+        if data.handoff_mode not in ["crm_inbox", "whatsapp_pessoal"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="handoff_mode deve ser 'crm_inbox' ou 'whatsapp_pessoal'",
+            )
+        old_mode = (tenant.settings or {}).get("handoff_mode", "whatsapp_pessoal")
+        changes["handoff_mode"] = {"from": old_mode, "to": data.handoff_mode}
+        tenant.settings = {**(tenant.settings or {}), "handoff_mode": data.handoff_mode}
+
     if data.active is not None:
         changes["active"] = {"from": tenant.active, "to": data.active}
         tenant.active = data.active
