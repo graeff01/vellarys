@@ -19,7 +19,8 @@ import {
   Menu,
   X,
   Bot,
-  Database
+  Database,
+  MessageCircle
 } from 'lucide-react';
 import { getToken, getUser, logout, User } from '@/lib/auth';
 import { NotificationBell } from '@/components/dashboard/notification-bell';
@@ -47,6 +48,13 @@ const superadminMenuItems = [
   { href: '/dashboard/export', label: 'Relatórios', icon: FileDown },
   { href: '/dashboard/logs', label: 'Logs', icon: ScrollText },
   { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot },
+];
+
+// Menus para CORRETOR (vendedor/corretor)
+const sellerMenuItems = [
+  { href: '/dashboard/inbox', label: 'Inbox', icon: MessageCircle },
+  { href: '/dashboard/leads', label: 'Meus Leads', icon: Users },
+  { href: '/dashboard', label: 'Painel', icon: LayoutDashboard },
 ];
 
 // =============================================================================
@@ -145,7 +153,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useNotificationSound();
 
   const isSuperAdmin = user?.role === 'superadmin';
-  const menuItems = isSuperAdmin ? superadminMenuItems : gestorMenuItems;
+  const isSeller = user?.role === 'corretor';
+  const menuItems = isSuperAdmin ? superadminMenuItems : (isSeller ? sellerMenuItems : gestorMenuItems);
 
   useEffect(() => {
     const token = getToken();
