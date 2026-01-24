@@ -2,6 +2,14 @@
 set -e  # Exit on error
 
 echo "=== Velaris Backend Startup ==="
+
+# 1. APPLY FIX (uma vez só)
+echo "🔧 Checking if database fix is needed..."
+if [ -f "run_fix_once.sh" ]; then
+    bash run_fix_once.sh || echo "⚠️ Fix script failed or already applied"
+fi
+
+echo ""
 echo "Running database migrations..."
 
 # Show current revision before upgrade
