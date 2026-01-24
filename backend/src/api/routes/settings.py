@@ -265,6 +265,11 @@ DEFAULT_SETTINGS = {
         # Nome da persona de voz (exibido no admin)
         "persona_name": "Ana",
     },
+
+    # =========================================================================
+    # MODO DE HANDOFF (crm_inbox ou whatsapp_pessoal)
+    # =========================================================================
+    "handoff_mode": "whatsapp_pessoal",
 }
 
 
@@ -712,7 +717,17 @@ async def update_settings(
         if "tenant_name" in payload and payload["tenant_name"]:
             tenant.name = payload["tenant_name"]
             logger.info(f"Nome do tenant atualizado para: {tenant.name}")
-        
+
+        # 🆕 Atualiza handoff_mode (CRM Inbox ou WhatsApp Pessoal)
+        if "handoff_mode" in payload:
+            if payload["handoff_mode"] not in ["crm_inbox", "whatsapp_pessoal"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="handoff_mode deve ser 'crm_inbox' ou 'whatsapp_pessoal'",
+                )
+            new_settings["handoff_mode"] = payload["handoff_mode"]
+            logger.info(f"handoff_mode atualizado para: {payload['handoff_mode']}")
+
         # Seções permitidas
         allowed_sections = [
             "identity",
