@@ -182,6 +182,7 @@ function SettingsContent() {
   const [handoffEnabled, setHandoffEnabled] = useState(true);
   const [handoffTriggers, setHandoffTriggers] = useState<string[]>([]);
   const [maxMessages, setMaxMessages] = useState(15);
+  const [handoffMode, setHandoffMode] = useState<'crm_inbox' | 'whatsapp_pessoal'>('whatsapp_pessoal');
 
   // HORÁRIO
   const [businessHoursEnabled, setBusinessHoursEnabled] = useState(false);
@@ -445,6 +446,7 @@ function SettingsContent() {
         setManagerName(handoff.manager_name || '');
         setHandoffTriggers(handoff.triggers || []);
         setMaxMessages(handoff.max_messages_before_handoff || 15);
+        setHandoffMode(s.handoff_mode || 'whatsapp_pessoal');
 
         // Business Hours
         const bh = s.business_hours || {};
@@ -529,6 +531,7 @@ function SettingsContent() {
       await updateSettings({
         tenant_name: companyName,
         basic: { niche, company_name: companyName },
+        handoff_mode: handoffMode,
         identity: {
           description, products_services: productsServices, not_offered: notOffered,
           tone_style: {
@@ -861,6 +864,73 @@ function SettingsContent() {
       {/* TAB: ATENDIMENTO (Estratégia + Horário + Follow-up) */}
       {activeTab === 'atendimento' && (
         <div className="space-y-6">
+          {/* 🆕 MODO DE HANDOFF */}
+          <Card className="bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
+            <CardHeader
+              title="🎯 Modo de Atendimento de Vendedores"
+              subtitle="Escolha como seus vendedores vão atender os leads qualificados"
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button
+                onClick={() => setHandoffMode('crm_inbox')}
+                className={`p-6 border-2 rounded-xl text-left transition-all relative ${
+                  handoffMode === 'crm_inbox'
+                    ? 'border-purple-600 bg-white shadow-lg ring-2 ring-purple-600 ring-opacity-50'
+                    : 'border-gray-200 bg-white hover:border-purple-300'
+                }`}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div
+                    className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl ${
+                      handoffMode === 'crm_inbox' ? 'bg-purple-600 text-white' : 'bg-gray-100'
+                    }`}
+                  >
+                    💼
+                  </div>
+                  {handoffMode === 'crm_inbox' && (
+                    <CheckCircle2 className="w-6 h-6 text-purple-600" />
+                  )}
+                </div>
+                <p className="font-bold text-gray-900 text-lg mb-2">CRM Inbox</p>
+                <p className="text-sm text-gray-600 leading-relaxed mb-3">
+                  Vendedores atendem direto pelo painel do sistema. Mensagens saem pelo WhatsApp da empresa.
+                </p>
+                <div className="text-xs text-purple-700 font-medium bg-purple-50 px-3 py-2 rounded-lg">
+                  ✅ Recomendado • Maior controle e rastreabilidade
+                </div>
+              </button>
+
+              <button
+                onClick={() => setHandoffMode('whatsapp_pessoal')}
+                className={`p-6 border-2 rounded-xl text-left transition-all relative ${
+                  handoffMode === 'whatsapp_pessoal'
+                    ? 'border-green-600 bg-white shadow-lg ring-2 ring-green-600 ring-opacity-50'
+                    : 'border-gray-200 bg-white hover:border-green-300'
+                }`}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div
+                    className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl ${
+                      handoffMode === 'whatsapp_pessoal' ? 'bg-green-600 text-white' : 'bg-gray-100'
+                    }`}
+                  >
+                    📱
+                  </div>
+                  {handoffMode === 'whatsapp_pessoal' && (
+                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                  )}
+                </div>
+                <p className="font-bold text-gray-900 text-lg mb-2">WhatsApp Pessoal</p>
+                <p className="text-sm text-gray-600 leading-relaxed mb-3">
+                  IA envia lead para o WhatsApp pessoal do vendedor. Ele atende de onde estiver.
+                </p>
+                <div className="text-xs text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
+                  Modo tradicional • Menos controle
+                </div>
+              </button>
+            </div>
+          </Card>
+
           <Card className="bg-blue-50/30 border-blue-100">
             <CardHeader title="Estratégia de Atendimento" subtitle="Escolha como a IA deve conduzir as conversas" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
