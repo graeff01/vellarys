@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { api } from '@/lib/api'
-import { toast } from 'sonner'
+import { toast, Toaster } from 'sonner'
 
 interface Seller {
   id: number
@@ -55,8 +55,8 @@ export default function VendedoresPage() {
 
   async function loadSellers() {
     try {
-      const response = await api.get('/sellers')
-      setSellers(response.data.sellers)
+      const response = await api.get('/v1/sellers')
+      setSellers(response.sellers)
     } catch (error) {
       console.error('Erro ao carregar vendedores:', error)
       toast.error('Erro ao carregar vendedores')
@@ -84,13 +84,13 @@ export default function VendedoresPage() {
         user_password: createUserAccount ? userPassword : null,
       }
 
-      const response = await api.post('/sellers', payload)
+      const response = await api.post('/v1/sellers', payload)
 
-      toast.success(response.data.message)
+      toast.success(response.message)
 
-      if (response.data.user_created) {
-        toast.success(response.data.user_created.message, {
-          description: `Email: ${response.data.user_created.email}`,
+      if (response.user_created) {
+        toast.success(response.user_created.message, {
+          description: `Email: ${response.user_created.email}`,
           duration: 5000,
         })
       }
@@ -129,12 +129,14 @@ export default function VendedoresPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Vendedores</h1>
-          <p className="text-gray-600 mt-1">Gerencie sua equipe de vendas</p>
-        </div>
+    <>
+      <Toaster position="top-right" />
+      <div className="p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold">Vendedores</h1>
+            <p className="text-gray-600 mt-1">Gerencie sua equipe de vendas</p>
+          </div>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
@@ -382,6 +384,7 @@ export default function VendedoresPage() {
           </Button>
         </Card>
       )}
-    </div>
+      </div>
+    </>
   )
 }
