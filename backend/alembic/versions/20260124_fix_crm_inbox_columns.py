@@ -1,7 +1,7 @@
 """fix crm inbox columns
 
 Revision ID: 20260124_fix_crm_inbox_columns
-Revises: 20260121_add_dashboard_config
+Revises: 20260123_seller_notified
 Create Date: 2026-01-24
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20260124_fix_crm_inbox_columns'
-down_revision = '20260121_add_dashboard_config'
+down_revision = '20260123_seller_notified'
 branch_labels = None
 depends_on = None
 
