@@ -366,7 +366,15 @@ async def create_seller(
 
         # Cria usuário corretor
         pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        hashed_password = pwd_context.hash(payload.user_password)
+
+        # Bcrypt tem limite de 72 bytes - truncar se necessário
+        password_to_hash = payload.user_password
+        if len(password_to_hash.encode('utf-8')) > 72:
+            # Truncar mantendo caracteres UTF-8 intactos
+            password_bytes = password_to_hash.encode('utf-8')[:72]
+            password_to_hash = password_bytes.decode('utf-8', errors='ignore')
+
+        hashed_password = pwd_context.hash(password_to_hash)
 
         created_user = User(
             name=payload.name,
