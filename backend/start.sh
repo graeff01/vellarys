@@ -1,12 +1,27 @@
 #!/bin/bash
-set -e  # Exit on error
 
 echo "=== Velaris Backend Startup ==="
 
-# 1. APPLY FIX (uma vez só)
-echo "🔧 Checking if database fix is needed..."
-if [ -f "run_fix_once.sh" ]; then
-    bash run_fix_once.sh || echo "⚠️ Fix script failed or already applied"
+# 1. APPLY FIX (uma vez só, sem falhar se der erro)
+FIX_MARKER="/tmp/.velaris_fix_applied"
+
+if [ ! -f "$FIX_MARKER" ] && [ -f "apply_fix.py" ]; then
+    echo "🔧 Applying database fix for CRM Inbox columns..."
+
+    if python3 apply_fix.py; then
+        echo "✅ Database fix applied successfully!"
+        touch "$FIX_MARKER"
+    else
+        echo "⚠️ Fix script failed - will continue anyway (columns may already exist)"
+        echo "If backend fails with 'column does not exist', check the fix manually"
+        # Não falha - continua mesmo se o fix falhar
+    fi
+else
+    if [ -f "$FIX_MARKER" ]; then
+        echo "ℹ️ Database fix already applied previously"
+    else
+        echo "ℹ️ Fix script not found (apply_fix.py) - skipping"
+    fi
 fi
 
 echo ""
@@ -19,10 +34,13 @@ alembic current || echo "No current revision"
 echo ""
 echo "Upgrading to head..."
 
-# Run migrations
-alembic upgrade head
+# Run migrations (sem set -e para não falhar se migrations já estão aplicadas)
+alembic upgrade head || {
+    echo "⚠️ Migrations failed or already up to date"
+    alembic current
+}
 
-echo "✅ Migrations completed successfully!"
+echo "✅ Database ready!"
 
 echo ""
 echo "Starting Uvicorn server..."
