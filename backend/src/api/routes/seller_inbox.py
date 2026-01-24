@@ -27,7 +27,7 @@ from src.api.dependencies import get_current_user
 from src.domain.entities import User, Seller, Lead, Message, LeadAssignment
 from src.domain.entities.enums import UserRole, LeadStatus
 from src.infrastructure.database import async_session
-from src.infrastructure.whatsapp.whatsapp_service import WhatsAppService
+from src.infrastructure.services.whatsapp_service import WhatsAppService
 
 
 router = APIRouter(prefix="/seller/inbox", tags=["Seller Inbox"])
