@@ -67,17 +67,6 @@ def upgrade():
             ELSE NULL
         END
         WHERE sender_type IS NULL;
-
-        -- 7. Add 'corretor' enum value
-        DO $$
-        BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'corretor' AND enumtypid = 'userrole'::regtype) THEN
-                ALTER TYPE userrole ADD VALUE 'corretor';
-            END IF;
-        EXCEPTION WHEN duplicate_object THEN
-            -- Enum value already exists
-            NULL;
-        END $$;
     """)
 
 
