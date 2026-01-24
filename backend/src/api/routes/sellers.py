@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.database import get_db
 from src.domain.entities import Seller, Lead, User, Tenant
 from src.api.dependencies import get_current_user, get_current_tenant
+from src.infrastructure.services.auth_service import hash_password
 
 
 router = APIRouter(prefix="/sellers", tags=["Vendedores"])
@@ -335,7 +336,6 @@ async def create_seller(
     created_user = None
     if payload.create_user_account:
         from src.domain.entities.enums import UserRole
-        from passlib.context import CryptContext
 
         # Validações
         if not payload.user_password:
@@ -365,16 +365,8 @@ async def create_seller(
             )
 
         # Cria usuário corretor
-        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-        # Bcrypt tem limite de 72 bytes - truncar se necessário
-        password_to_hash = payload.user_password
-        if len(password_to_hash.encode('utf-8')) > 72:
-            # Truncar mantendo caracteres UTF-8 intactos
-            password_bytes = password_to_hash.encode('utf-8')[:72]
-            password_to_hash = password_bytes.decode('utf-8', errors='ignore')
-
-        hashed_password = pwd_context.hash(password_to_hash)
+        # Usa a mesma função de hash do resto do sistema (SHA256+salt)
+        hashed_password = hash_password(payload.user_password)
 
         created_user = User(
             name=payload.name,
