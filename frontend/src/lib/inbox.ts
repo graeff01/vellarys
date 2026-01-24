@@ -4,7 +4,43 @@
  * Funções para interagir com o CRM Inbox dos corretores
  */
 
-import { api } from './api';
+import { getToken } from './auth';
+
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/v1$/, '');
+
+async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const token = typeof window !== 'undefined' ? getToken() : null;
+  const url = `${API_URL}${endpoint}`;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...headers,
+      ...options?.headers,
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+    }
+    const error = new Error(`API Error: ${response.status}`);
+    (error as any).status = response.status;
+    throw error;
+  }
+
+  return response.json();
+}
 
 // ============================================================================
 // TYPES
@@ -96,16 +132,14 @@ export async function checkInboxAvailable(): Promise<{
   seller_id?: number;
   seller_name?: string;
 }> {
-  const response = await api.get('/seller/info/check-inbox-available');
-  return response.data;
+  return request('/v1/seller/info/check-inbox-available');
 }
 
 /**
  * Busca informações completas do corretor logado
  */
 export async function getSellerInfo(): Promise<SellerInfo> {
-  const response = await api.get('/seller/info/me');
-  return response.data;
+  return request('/v1/seller/info/me');
 }
 
 /**
@@ -115,24 +149,27 @@ export async function getInboxLeads(params?: {
   status_filter?: string;
   attended_filter?: 'ai' | 'seller' | 'all';
 }): Promise<InboxLead[]> {
-  const response = await api.get('/seller/inbox/leads', { params });
-  return response.data;
+  const searchParams = new URLSearchParams();
+  if (params?.status_filter) searchParams.set('status_filter', params.status_filter);
+  if (params?.attended_filter) searchParams.set('attended_filter', params.attended_filter);
+  const query = searchParams.toString();
+  return request(`/v1/seller/inbox/leads${query ? `?${query}` : ''}`);
 }
 
 /**
  * Busca histórico de mensagens de um lead
  */
 export async function getLeadMessages(leadId: number): Promise<InboxMessage[]> {
-  const response = await api.get(`/seller/inbox/leads/${leadId}/messages`);
-  return response.data;
+  return request(`/v1/seller/inbox/leads/${leadId}/messages`);
 }
 
 /**
  * Corretor assume a conversa (IA para de responder)
  */
 export async function takeOverLead(leadId: number): Promise<TakeOverResponse> {
-  const response = await api.post(`/seller/inbox/leads/${leadId}/take-over`);
-  return response.data;
+  return request(`/v1/seller/inbox/leads/${leadId}/take-over`, {
+    method: 'POST',
+  });
 }
 
 /**
@@ -142,10 +179,10 @@ export async function sendMessage(
   leadId: number,
   content: string
 ): Promise<SendMessageResponse> {
-  const response = await api.post(`/seller/inbox/leads/${leadId}/send-message`, {
-    content,
+  return request(`/v1/seller/inbox/leads/${leadId}/send-message`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
   });
-  return response.data;
 }
 
 /**
@@ -156,8 +193,9 @@ export async function returnToAI(leadId: number): Promise<{
   message: string;
   attended_by: string;
 }> {
-  const response = await api.post(`/seller/inbox/leads/${leadId}/return-to-ai`);
-  return response.data;
+  return request(`/v1/seller/inbox/leads/${leadId}/return-to-ai`, {
+    method: 'POST',
+  });
 }
 
 // ============================================================================
