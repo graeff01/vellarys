@@ -132,49 +132,71 @@ async def get_dashboard_metrics(
     """
     
     try:
+        from src.domain.entities import Seller
+        from src.domain.entities.enums import UserRole
+
         tenant_id = current_user.tenant_id  # ✅ Pega do token!
-        
+
         if not tenant_id:
             raise HTTPException(status_code=400, detail="Usuário sem tenant")
-        
+
         # ✅ Busca tenant para validar
         result = await db.execute(
             select(Tenant).where(Tenant.id == tenant_id)
         )
         tenant = result.scalar_one_or_none()
-        
+
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant não encontrado")
-        
+
+        # 🆕 FILTRO POR SELLER - Se usuário for corretor, mostrar apenas seus leads
+        seller_filter = None
+        if current_user.role == UserRole.SELLER:
+            # Busca seller vinculado ao usuário
+            seller_result = await db.execute(
+                select(Seller).where(
+                    Seller.user_id == current_user.id,
+                    Seller.tenant_id == tenant_id
+                )
+            )
+            seller = seller_result.scalar_one_or_none()
+            if seller:
+                seller_filter = seller.id  # Filtra por seller_id
+
         # Períodos de tempo
         dates = get_date_ranges()
-        
+
         # =============================================
-        # TOTAIS BÁSICOS
+        # TOTAIS BÁSICOS (COM FILTRO DE SELLER)
         # =============================================
-        
+
+        # Query base com filtro opcional de seller
+        base_query_filters = [Lead.tenant_id == tenant_id]
+        if seller_filter:
+            base_query_filters.append(Lead.assigned_seller_id == seller_filter)
+
         total_result = await db.execute(
-            select(func.count(Lead.id)).where(Lead.tenant_id == tenant_id)
+            select(func.count(Lead.id)).where(and_(*base_query_filters))
         )
         total_leads = total_result.scalar() or 0
         
         today_result = await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant_id)
+            .where(and_(*base_query_filters))
             .where(Lead.created_at >= dates["today_start"])
         )
         leads_today = today_result.scalar() or 0
-        
+
         week_result = await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant_id)
+            .where(and_(*base_query_filters))
             .where(Lead.created_at >= dates["week_start"])
         )
         leads_this_week = week_result.scalar() or 0
-        
+
         month_result = await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant_id)
+            .where(and_(*base_query_filters))
             .where(Lead.created_at >= dates["month_start"])
         )
         leads_this_month = month_result.scalar() or 0
@@ -189,7 +211,7 @@ async def get_dashboard_metrics(
         # =============================================
         all_leads_month = await db.execute(
             select(Lead.created_at)
-            .where(Lead.tenant_id == tenant_id)
+            .where(and_(*base_query_filters))
             .where(Lead.created_at >= dates["month_start"])
         )
         
@@ -203,7 +225,7 @@ async def get_dashboard_metrics(
         # =============================================
         last_week_result = await db.execute(
             select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant_id)
+            .where(and_(*base_query_filters))
             .where(Lead.created_at >= dates["last_week_start"])
             .where(Lead.created_at < dates["week_start"])
         )
@@ -220,7 +242,7 @@ async def get_dashboard_metrics(
         # =============================================
         qual_result = await db.execute(
             select(Lead.qualification, func.count(Lead.id))
-            .where(Lead.tenant_id == tenant_id)
+            .where(and_(*base_query_filters))
             .where(Lead.qualification.isnot(None))
             .group_by(Lead.qualification)
         )
@@ -244,23 +266,25 @@ async def get_dashboard_metrics(
         # =============================================
         status_result = await db.execute(
             select(Lead.status, func.count(Lead.id))
-            .where(Lead.tenant_id == tenant_id)
+            .where(and_(*base_query_filters))
             .group_by(Lead.status)
         )
         by_status = {row[0]: row[1] for row in status_result.all()}
-        
+
         # =============================================
-        # LEADS QUENTES AGUARDANDO (✅ CORRIGIDO!)
+        # LEADS QUENTES AGUARDANDO (✅ CORRIGIDO + FILTRO SELLER!)
         # =============================================
-        hot_waiting_result = await db.execute(
-            select(func.count(Lead.id))
-            .where(Lead.tenant_id == tenant_id)
-            .where(or_(
+        hot_waiting_filters = list(base_query_filters)  # Copia os filtros base
+        hot_waiting_filters.extend([
+            or_(
                 Lead.qualification == "quente",
                 Lead.qualification == "hot"
-            ))
-            .where(Lead.status != LeadStatus.HANDED_OFF.value)
-            .where(Lead.assigned_seller_id.is_(None))  # ✅ CORRIGIDO!
+            ),
+            Lead.status != LeadStatus.HANDED_OFF.value,
+            Lead.assigned_seller_id.is_(None) if not seller_filter else True == True  # Se é seller, ignora esse filtro
+        ])
+        hot_waiting_result = await db.execute(
+            select(func.count(Lead.id)).where(and_(*hot_waiting_filters))
         )
         hot_leads_waiting = hot_waiting_result.scalar() or 0
         
