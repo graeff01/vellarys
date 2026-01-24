@@ -23,7 +23,7 @@ from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 
-from src.api.dependencies.auth import get_current_user
+from src.api.dependencies import get_current_user
 from src.domain.entities import User, Seller, Lead, Message, LeadAssignment
 from src.domain.entities.enums import UserRole, LeadStatus
 from src.infrastructure.database import async_session

@@ -13,7 +13,7 @@ from typing import Optional
 from src.infrastructure.database import get_db
 from src.domain.entities import User, Seller, Tenant
 from src.domain.entities.enums import UserRole
-from src.api.dependencies.auth import get_current_user
+from src.api.dependencies import get_current_user
 
 
 router = APIRouter(prefix="/seller/info", tags=["Seller Info"])

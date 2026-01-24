@@ -18,7 +18,7 @@ from typing import Literal
 from src.infrastructure.database import get_db
 from src.domain.entities import Tenant, User, Channel, Niche  # ← Adicionado Niche
 from src.api.schemas import TenantCreate, TenantResponse, NicheInfo
-from src.api.dependencies.auth import get_current_user
+from src.api.dependencies import get_current_user
 from src.domain.entities.enums import UserRole
 
 router = APIRouter(prefix="/tenants", tags=["Tenants"])
