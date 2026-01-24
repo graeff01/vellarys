@@ -1,7 +1,7 @@
 """fix crm inbox columns
 
 Revision ID: 20260124_fix_crm_inbox_columns
-Revises: 20260123_seller_notified
+Revises: 20260124_handoff_mode
 Create Date: 2026-01-24
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20260124_fix_crm_inbox_columns'
-down_revision = '20260123_seller_notified'
+down_revision = '20260124_handoff_mode'
 branch_labels = None
 depends_on = None
 
