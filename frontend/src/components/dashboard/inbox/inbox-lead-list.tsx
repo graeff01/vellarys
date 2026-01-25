@@ -1,15 +1,14 @@
 /**
- * Lista de Leads no Inbox
- * Mostra todos os leads atribuídos ao corretor
+ * Lista de Leads no Inbox - WhatsApp Web Style
+ * Interface inspirada no WhatsApp Web para melhor familiaridade dos corretores
  */
 
 'use client';
 
-import { InboxLead, getQualificationColor, getQualificationEmoji, formatRelativeTime } from '@/lib/inbox';
-import { Badge } from '@/components/ui/badge';
+import { InboxLead, formatRelativeTime } from '@/lib/inbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { MessageCircle, User, Phone, MapPin } from 'lucide-react';
+import { MessageCircle, CheckCheck } from 'lucide-react';
 
 interface InboxLeadListProps {
   leads: InboxLead[];
@@ -26,10 +25,12 @@ export function InboxLeadList({
 }: InboxLeadListProps) {
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center h-full bg-white">
         <div className="text-center space-y-2">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
-          <p className="text-sm text-gray-500">Carregando leads...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#075e54] mx-auto"></div>
+          <p className="text-sm text-gray-500" style={{ fontFamily: 'Segoe UI, Helvetica Neue, Arial, sans-serif' }}>
+            Carregando conversas...
+          </p>
         </div>
       </div>
     );
@@ -37,113 +38,128 @@ export function InboxLeadList({
 
   if (leads.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full p-6">
+      <div className="flex items-center justify-center h-full p-6 bg-white">
         <div className="text-center space-y-3">
-          <MessageCircle className="h-12 w-12 text-gray-400 mx-auto" />
-          <p className="text-sm text-gray-500">Nenhum lead atribuído ainda</p>
-          <p className="text-xs text-gray-400">
-            Os leads qualificados aparecerão aqui automaticamente
-          </p>
+          <div className="w-32 h-32 mx-auto rounded-full bg-[#f0f2f5] flex items-center justify-center">
+            <MessageCircle className="h-16 w-16 text-gray-400" />
+          </div>
+          <div style={{ fontFamily: 'Segoe UI, Helvetica Neue, Arial, sans-serif' }}>
+            <p className="text-base text-gray-700 font-medium">Nenhuma conversa ainda</p>
+            <p className="text-sm text-gray-500 mt-1">
+              Os leads qualificados aparecerão aqui
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <ScrollArea className="h-full">
-      <div className="divide-y">
-        {leads.map((lead) => (
-          <button
-            key={lead.id}
-            onClick={() => onSelectLead(lead)}
-            className={cn(
-              'w-full p-4 hover:bg-gray-50 transition-colors text-left relative',
-              selectedLeadId === lead.id && 'bg-blue-50 hover:bg-blue-50 border-l-4 border-blue-600'
-            )}
-          >
-            {/* Badge de mensagens não lidas */}
-            {lead.unread_messages > 0 && (
-              <div className="absolute top-4 right-4">
-                <Badge className="bg-blue-600 text-white rounded-full h-5 w-5 p-0 flex items-center justify-center text-xs">
-                  {lead.unread_messages}
-                </Badge>
-              </div>
-            )}
+    <ScrollArea className="h-full bg-white">
+      <div style={{ fontFamily: 'Segoe UI, Helvetica Neue, Arial, sans-serif' }}>
+        {leads.map((lead) => {
+          const isSelected = selectedLeadId === lead.id;
+          const hasUnread = lead.unread_messages > 0;
 
-            {/* Nome e qualificação */}
-            <div className="flex items-center gap-2 mb-2">
-              <div className="flex-shrink-0">
-                <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
-                  <User className="h-5 w-5 text-gray-600" />
-                </div>
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium text-gray-900 truncate">
-                    {lead.name || 'Lead sem nome'}
-                  </p>
-                  {lead.qualification && (
-                    <span className="text-sm">
-                      {getQualificationEmoji(lead.qualification)}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 text-xs text-gray-500">
-                  <Phone className="h-3 w-3" />
-                  <span>{lead.phone}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Preview da última mensagem */}
-            {lead.last_message_preview && (
-              <p className="text-sm text-gray-600 truncate mb-2">
-                {lead.last_message_preview}
-              </p>
-            )}
-
-            {/* Informações adicionais */}
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <div className="flex items-center gap-3">
-                {lead.city && (
-                  <div className="flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />
-                    <span>{lead.city}</span>
-                  </div>
-                )}
-                {lead.qualification && (
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      'text-xs py-0 px-2',
-                      getQualificationColor(lead.qualification)
-                    )}
-                  >
-                    {lead.qualification}
-                  </Badge>
-                )}
-              </div>
-
-              <span className="text-gray-400">
-                {formatRelativeTime(lead.last_message_at)}
-              </span>
-            </div>
-
-            {/* Indicador de quem está atendendo */}
-            <div className="mt-2 flex items-center gap-2">
-              {lead.is_taken_over ? (
-                <Badge className="bg-green-100 text-green-800 text-xs">
-                  Você está atendendo
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-xs">
-                  IA atendendo
-                </Badge>
+          return (
+            <button
+              key={lead.id}
+              onClick={() => onSelectLead(lead)}
+              className={cn(
+                'w-full px-4 py-3 transition-colors text-left relative border-b border-gray-100',
+                'hover:bg-[#f5f6f6]',
+                isSelected && 'bg-[#f0f2f5]'
               )}
-            </div>
-          </button>
-        ))}
+            >
+              <div className="flex items-start gap-3">
+                {/* Avatar */}
+                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-[#dfe5e7] flex items-center justify-center">
+                  <span className="text-xl font-medium text-gray-700">
+                    {lead.name ? lead.name.charAt(0).toUpperCase() : '?'}
+                  </span>
+                </div>
+
+                {/* Conteúdo */}
+                <div className="flex-1 min-w-0">
+                  {/* Linha superior: Nome e Timestamp */}
+                  <div className="flex items-baseline justify-between mb-1 gap-2">
+                    <h4 className={cn(
+                      "text-base truncate",
+                      hasUnread ? "font-semibold text-gray-900" : "font-normal text-gray-900"
+                    )}>
+                      {lead.name || 'Lead sem nome'}
+                    </h4>
+                    <span className={cn(
+                      "text-xs flex-shrink-0",
+                      hasUnread ? "text-[#00a884] font-medium" : "text-gray-500"
+                    )}>
+                      {formatRelativeTime(lead.last_message_at)}
+                    </span>
+                  </div>
+
+                  {/* Linha inferior: Preview e Badge */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1 min-w-0 flex-1">
+                      {/* Indicador de quem enviou a última mensagem */}
+                      {lead.is_taken_over && (
+                        <CheckCheck className={cn(
+                          "h-4 w-4 flex-shrink-0",
+                          hasUnread ? "text-gray-500" : "text-blue-600"
+                        )} />
+                      )}
+
+                      {/* Preview da última mensagem */}
+                      <p className={cn(
+                        "text-sm truncate",
+                        hasUnread ? "font-medium text-gray-900" : "text-gray-600"
+                      )}>
+                        {lead.last_message_preview || 'Sem mensagens'}
+                      </p>
+                    </div>
+
+                    {/* Badge de não lidas */}
+                    {hasUnread && (
+                      <div className="flex-shrink-0 bg-[#25d366] text-white rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">
+                        <span className="text-xs font-medium">
+                          {lead.unread_messages > 99 ? '99+' : lead.unread_messages}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Linha de informações extras - mais sutil */}
+                  <div className="flex items-center gap-2 mt-1">
+                    {/* Indicadores sutis */}
+                    {lead.qualification && (
+                      <span className="text-xs text-gray-500">
+                        {lead.qualification === 'quente' || lead.qualification === 'Quente' ? '🔥' :
+                         lead.qualification === 'morno' || lead.qualification === 'Morno' ? '☀️' :
+                         lead.qualification === 'frio' || lead.qualification === 'Frio' ? '❄️' : '📋'}
+                      </span>
+                    )}
+
+                    {lead.city && (
+                      <span className="text-xs text-gray-500 truncate">
+                        {lead.city}
+                      </span>
+                    )}
+
+                    {lead.is_taken_over && (
+                      <span className="text-xs text-green-600 font-medium ml-auto flex-shrink-0">
+                        Você
+                      </span>
+                    )}
+                    {!lead.is_taken_over && (
+                      <span className="text-xs text-blue-600 font-medium ml-auto flex-shrink-0">
+                        IA
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </ScrollArea>
   );

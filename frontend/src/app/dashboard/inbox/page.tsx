@@ -1,6 +1,6 @@
 /**
- * Página: CRM Inbox
- * Interface para corretores atenderem leads via CRM
+ * Página: CRM Inbox - WhatsApp Web Style
+ * Interface inspirada no WhatsApp Web para melhor familiaridade dos corretores
  */
 
 'use client';
@@ -9,9 +9,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { InboxLeadList } from '@/components/dashboard/inbox/inbox-lead-list';
 import { InboxConversation } from '@/components/dashboard/inbox/inbox-conversation';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import {
   InboxLead,
@@ -21,12 +19,10 @@ import {
   checkInboxAvailable,
 } from '@/lib/inbox';
 import {
-  MessageCircle,
-  Users,
-  TrendingUp,
-  AlertCircle,
   RefreshCw,
   Filter,
+  MoreVertical,
+  Menu,
 } from 'lucide-react';
 import {
   Select,
@@ -119,7 +115,7 @@ export default function InboxPage() {
     await loadLeads();
     setRefreshing(false);
     toast({
-      title: 'Inbox atualizado!',
+      title: 'Conversas atualizadas!',
       description: 'Leads carregados com sucesso.',
     });
   };
@@ -135,8 +131,8 @@ export default function InboxPage() {
 
   if (!sellerInfo) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+      <div className="flex items-center justify-center h-screen bg-[#f0f2f5]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#075e54]"></div>
       </div>
     );
   }
@@ -146,90 +142,81 @@ export default function InboxPage() {
   const attendedLeads = leads.filter((l) => l.is_taken_over).length;
 
   return (
-    <div className="h-screen flex flex-col">
-      {/* Header */}
-      <div className="border-b bg-white p-4">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">CRM Inbox</h1>
-            <p className="text-sm text-gray-500">
-              Atenda seus leads diretamente pelo painel
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={refreshing}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-              Atualizar
-            </Button>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total de Leads</p>
-                <p className="text-2xl font-bold">{totalLeads}</p>
-              </div>
-              <Users className="h-8 w-8 text-blue-600" />
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">IA Atendendo</p>
-                <p className="text-2xl font-bold">{unattendedLeads}</p>
-              </div>
-              <MessageCircle className="h-8 w-8 text-orange-600" />
-            </div>
-          </Card>
-
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Você Atendendo</p>
-                <p className="text-2xl font-bold">{attendedLeads}</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-green-600" />
-            </div>
-          </Card>
-        </div>
-      </div>
-
-      {/* Main Content */}
+    <div className="h-screen flex flex-col bg-[#f0f2f5]" style={{ fontFamily: 'Segoe UI, Helvetica Neue, Arial, sans-serif' }}>
+      {/* Main Content - Layout estilo WhatsApp */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Lista de Leads - Desktop sempre visível, Mobile esconde quando seleciona */}
+        {/* Painel lateral (Lista de Leads) */}
         <div
-          className={`w-full lg:w-96 border-r bg-white flex flex-col ${
+          className={`w-full lg:w-[400px] border-r border-gray-300 bg-white flex flex-col ${
             showConversation ? 'hidden lg:flex' : 'flex'
           }`}
         >
-          {/* Filtros */}
-          <div className="p-4 border-b">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-gray-500" />
+          {/* Header do painel lateral - estilo WhatsApp */}
+          <div className="bg-[#f0f2f5] border-b border-gray-300">
+            {/* Barra superior com avatar e ações */}
+            <div className="px-4 py-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {/* Avatar do usuário */}
+                <div className="w-10 h-10 rounded-full bg-[#dfe5e7] flex items-center justify-center">
+                  <span className="text-lg font-medium text-gray-700">
+                    {sellerInfo.user_name ? sellerInfo.user_name.charAt(0).toUpperCase() : 'V'}
+                  </span>
+                </div>
+                {/* Badge Vellarys - branding sutil */}
+                <div className="hidden md:block">
+                  <p className="text-sm font-medium text-gray-900">CRM Inbox</p>
+                  <p className="text-xs text-gray-500">
+                    {attendedLeads > 0 && `${attendedLeads} atendendo`}
+                    {attendedLeads > 0 && unattendedLeads > 0 && ' • '}
+                    {unattendedLeads > 0 && `${unattendedLeads} com IA`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Botões de ação */}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  className="p-2 text-gray-600 hover:bg-gray-200/50 rounded-full transition-colors"
+                  title="Atualizar conversas"
+                >
+                  <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
+                </button>
+                <button
+                  className="p-2 text-gray-600 hover:bg-gray-200/50 rounded-full transition-colors"
+                  title="Menu"
+                >
+                  <MoreVertical className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Barra de filtro */}
+            <div className="px-3 pb-2">
               <Select value={attendedFilter} onValueChange={(value: any) => setAttendedFilter(value)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
+                <SelectTrigger className="w-full h-9 bg-white border-gray-300 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-3.5 w-3.5 text-gray-500" />
+                    <SelectValue />
+                  </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos os leads</SelectItem>
-                  <SelectItem value="ai">IA atendendo</SelectItem>
-                  <SelectItem value="seller">Você atendendo</SelectItem>
+                  <SelectItem value="all">
+                    Todas as conversas ({totalLeads})
+                  </SelectItem>
+                  <SelectItem value="ai">
+                    IA atendendo ({unattendedLeads})
+                  </SelectItem>
+                  <SelectItem value="seller">
+                    Você atendendo ({attendedLeads})
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          {/* Lista */}
+          {/* Lista de conversas */}
           <div className="flex-1 overflow-hidden">
             <InboxLeadList
               leads={leads}
@@ -240,9 +227,9 @@ export default function InboxPage() {
           </div>
         </div>
 
-        {/* Área de Conversa - Desktop sempre visível, Mobile mostra quando seleciona */}
+        {/* Área de Conversa */}
         <div
-          className={`flex-1 bg-gray-50 ${
+          className={`flex-1 ${
             showConversation ? 'block' : 'hidden lg:block'
           }`}
         >
@@ -254,18 +241,12 @@ export default function InboxPage() {
         </div>
       </div>
 
-      {/* Info sobre modo CRM Inbox */}
-      {sellerInfo.handoff_mode === 'crm_inbox' && (
-        <div className="border-t bg-blue-50 p-3">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm text-blue-900">
-                <strong>Modo CRM Inbox ativo:</strong> Você atende os leads diretamente
-                pelo painel. As mensagens são enviadas via WhatsApp da empresa.
-              </p>
-            </div>
-          </div>
+      {/* Rodapé sutil com informação do modo (opcional) */}
+      {sellerInfo.handoff_mode === 'crm_inbox' && false && ( // Desabilitado por padrão para visual limpo
+        <div className="border-t border-gray-300 bg-[#f0f2f5] px-4 py-2">
+          <p className="text-xs text-gray-600 text-center">
+            Modo CRM Inbox • Mensagens enviadas via WhatsApp Business da empresa
+          </p>
         </div>
       )}
     </div>
