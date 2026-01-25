@@ -200,6 +200,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
+  // Detecta se está na página do inbox para remover padding
+  const isInboxPage = pathname === '/dashboard/inbox';
+
   return (
     <div className="min-h-screen bg-gray-100">
       <ServiceWorkerRegistration />
@@ -304,28 +307,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* CORRIGIDO: Header - z-index 30 (abaixo do overlay) */}
-      <div className="lg:ml-64 bg-white border-b px-4 lg:px-8 py-4 flex justify-between items-center sticky top-0 z-30">
-        {/* Botão hamburguer - só mobile */}
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="lg:hidden p-2 hover:bg-gray-100 rounded-lg mr-4 transition-colors"
-        >
-          <Menu className="w-6 h-6 text-gray-600" />
-        </button>
+      {/* CORRIGIDO: Header - z-index 30 (abaixo do overlay) - Oculto no inbox */}
+      {!isInboxPage && (
+        <div className="lg:ml-64 bg-white border-b px-4 lg:px-8 py-4 flex justify-between items-center sticky top-0 z-30">
+          {/* Botão hamburguer - só mobile */}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="lg:hidden p-2 hover:bg-gray-100 rounded-lg mr-4 transition-colors"
+          >
+            <Menu className="w-6 h-6 text-gray-600" />
+          </button>
 
-        {isSuperAdmin && (
-          <span className="text-sm text-purple-600 font-medium hidden sm:flex items-center gap-2">
-            <Shield className="w-4 h-4" />
-            Modo Administrador
-          </span>
-        )}
-        <div className="flex-1" />
-        <NotificationBell />
-      </div>
+          {isSuperAdmin && (
+            <span className="text-sm text-purple-600 font-medium hidden sm:flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Modo Administrador
+            </span>
+          )}
+          <div className="flex-1" />
+          <NotificationBell />
+        </div>
+      )}
 
-      {/* CORRIGIDO: Conteúdo principal - z-index 10 (abaixo do overlay) */}
-      <main className="lg:ml-64 p-4 lg:p-8 relative z-10">{children}</main>
+      {/* CORRIGIDO: Conteúdo principal - sem padding no inbox */}
+      <main className={`lg:ml-64 relative z-10 ${isInboxPage ? '' : 'p-4 lg:p-8'}`}>{children}</main>
     </div>
   );
 }

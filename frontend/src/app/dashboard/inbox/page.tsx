@@ -144,7 +144,7 @@ export default function InboxPage() {
   return (
     <div className="h-screen flex flex-col bg-[#f0f2f5]" style={{ fontFamily: 'Segoe UI, Helvetica Neue, Arial, sans-serif' }}>
       {/* Main Content - Layout estilo WhatsApp */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         {/* Painel lateral (Lista de Leads) */}
         <div
           className={`w-full lg:w-[400px] border-r border-gray-300 bg-white flex flex-col ${
@@ -229,7 +229,7 @@ export default function InboxPage() {
 
         {/* Área de Conversa */}
         <div
-          className={`flex-1 ${
+          className={`flex-1 h-full ${
             showConversation ? 'block' : 'hidden lg:block'
           }`}
         >
