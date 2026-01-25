@@ -32,10 +32,23 @@ from src.domain.entities.response_template import ResponseTemplate
 from src.domain.entities.enums import UserRole, LeadStatus
 from src.infrastructure.database import async_session
 from src.infrastructure.services.whatsapp_service import send_whatsapp_message, get_profile_picture
-from src.infrastructure.services.sse_service import event_stream_generator, broadcast_new_message, broadcast_lead_updated
-from src.infrastructure.services.storage_service import storage_service
-from src.infrastructure.services.template_interpolation_service import template_service
-from src.infrastructure.services.message_status_service import message_status_service
+
+# Imports condicionais - permite deploy mesmo se dependencies faltarem
+try:
+    from src.infrastructure.services.sse_service import event_stream_generator, broadcast_new_message, broadcast_lead_updated
+    from src.infrastructure.services.storage_service import storage_service
+    from src.infrastructure.services.template_interpolation_service import template_service
+    from src.infrastructure.services.message_status_service import message_status_service
+    ADVANCED_FEATURES_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️  Advanced features disabled: {e}")
+    event_stream_generator = None
+    broadcast_new_message = None
+    broadcast_lead_updated = None
+    storage_service = None
+    template_service = None
+    message_status_service = None
+    ADVANCED_FEATURES_AVAILABLE = False
 
 
 router = APIRouter(prefix="/seller/inbox", tags=["Seller Inbox"])
