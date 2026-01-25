@@ -32,6 +32,13 @@ from src.infrastructure.services import (
 from src.infrastructure.services.zapi_service import get_zapi_client
 from src.infrastructure.services.tts_service import get_tts_service
 
+# Import condicional do message_status_service (novas features)
+try:
+    from src.infrastructure.services.message_status_service import message_status_service
+    MESSAGE_STATUS_SERVICE_AVAILABLE = True
+except ImportError:
+    MESSAGE_STATUS_SERVICE_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/zapi", tags=["Z-API Webhooks"])
@@ -459,10 +466,10 @@ async def zapi_receive_message(
 # ============================================
 
 @router.post("/status")
-async def zapi_message_status(request: Request):
+async def zapi_message_status(request: Request, db: AsyncSession = Depends(get_db)):
     """
     Webhook de status de mensagem enviada.
-    
+
     Status possiveis:
     - PENDING: Na fila
     - SENT: Enviada
@@ -473,18 +480,24 @@ async def zapi_message_status(request: Request):
     """
     try:
         payload = await request.json()
-        
+
         status = payload.get("status")
         message_id = payload.get("messageId")
         phone = payload.get("phone")
-        
+
         logger.debug(f"Z-API Status: {status} - Phone: {phone} - MsgID: {message_id}")
-        
-        # Aqui voce pode atualizar o status da mensagem no banco
-        # se quiser rastrear entregas/leituras
-        
+
+        # Integração com message_status_service (novas features CRM Inbox)
+        if MESSAGE_STATUS_SERVICE_AVAILABLE and message_id:
+            try:
+                await message_status_service.process_status_webhook(db, payload)
+                logger.info(f"✅ Status atualizado: {status} - MsgID: {message_id}")
+            except Exception as e:
+                logger.warning(f"⚠️  Erro ao atualizar status no banco: {e}")
+                # Não falha o webhook, apenas loga
+
         return {"status": "received"}
-        
+
     except Exception as e:
         logger.error(f"Erro no webhook status: {e}")
         return {"status": "error", "message": str(e)}
