@@ -162,12 +162,12 @@ app = FastAPI(
 # ============================================================
 # Debug: Mostra origins carregadas no startup
 logger.info(f"🌐 CORS Origins configuradas: {settings.cors_origins_list}")
-logger.info(f"🌐 CORS Regex: ^https://.*\\.up\\.railway\\.app$")
+logger.info(f"🌐 CORS Regex: ^https://[a-zA-Z0-9-]+\\.up\\.railway\\.app$")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
-    allow_origin_regex=r"^https://.*\.up\.railway\.app$", # Permite todos os subdomínios do Railway
+    allow_origin_regex=r"^https://[a-zA-Z0-9-]+\.up\.railway\.app$", # CORRIGIDO: Aceita vellarys.up.railway.app
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
