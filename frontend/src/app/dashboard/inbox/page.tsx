@@ -99,6 +99,9 @@ export default function InboxPage() {
           setSelectedLead(updatedLead);
         }
       }
+
+      // Busca fotos de perfil em background para leads sem foto
+      fetchMissingProfilePictures(data);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -107,6 +110,49 @@ export default function InboxPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMissingProfilePictures = async (leadsData: InboxLead[]) => {
+    // Busca fotos apenas para leads que não têm foto ainda
+    const leadsWithoutPicture = leadsData.filter(l => !l.profile_picture_url);
+
+    if (leadsWithoutPicture.length === 0) return;
+
+    // Importa a função de busca de foto
+    const { fetchProfilePicture } = await import('@/lib/inbox');
+
+    // Busca fotos em paralelo (máximo 5 por vez para não sobrecarregar)
+    const batchSize = 5;
+    for (let i = 0; i < leadsWithoutPicture.length; i += batchSize) {
+      const batch = leadsWithoutPicture.slice(i, i + batchSize);
+
+      await Promise.all(
+        batch.map(async (lead) => {
+          try {
+            const result = await fetchProfilePicture(lead.id);
+            if (result.success && result.url) {
+              // Atualiza o lead com a foto
+              setLeads(prev => prev.map(l =>
+                l.id === lead.id ? { ...l, profile_picture_url: result.url } : l
+              ));
+
+              // Se é o lead selecionado, atualiza também
+              if (selectedLead?.id === lead.id) {
+                setSelectedLead(prev => prev ? { ...prev, profile_picture_url: result.url } : null);
+              }
+            }
+          } catch (error) {
+            // Ignora erros silenciosamente - foto não é crítica
+            console.debug(`Foto não disponível para lead ${lead.id}`);
+          }
+        })
+      );
+
+      // Pequeno delay entre batches para não sobrecarregar
+      if (i + batchSize < leadsWithoutPicture.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
   };
 
