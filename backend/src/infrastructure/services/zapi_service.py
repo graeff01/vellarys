@@ -450,13 +450,13 @@ class ZAPIService:
         """Verifica se instancia esta conectada."""
         if not self.is_configured():
             return {"connected": False, "error": "Z-API nao configurado"}
-        
+
         url = f"{self.base_url}/status"
-        
+
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.get(
-                    url, 
+                    url,
                     headers=self._get_headers(),
                     timeout=10
                 )
@@ -466,7 +466,53 @@ class ZAPIService:
             except Exception as e:
                 logger.error(f"Z-API status erro: {e}")
                 return {"connected": False, "error": str(e)}
-    
+
+    async def get_profile_picture(self, phone: str) -> dict:
+        """
+        Busca foto de perfil do WhatsApp de um contato.
+
+        Args:
+            phone: Número com DDI (ex: 5551999999999)
+
+        Returns:
+            {"success": True/False, "url": "https://...", "error": "..."}
+        """
+        if not self.is_configured():
+            return {"success": False, "error": "Z-API nao configurado"}
+
+        url = f"{self.base_url}/profile-pic"
+
+        payload = {
+            "phone": self._format_phone(phone)
+        }
+
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers=self._get_headers(),
+                    timeout=10
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                # Z-API retorna: {"profilePictureURL": "https://..."}
+                profile_url = data.get("profilePictureURL") or data.get("url")
+
+                if profile_url:
+                    logger.info(f"Z-API: Foto de perfil obtida para {phone[:8]}***")
+                    return {"success": True, "url": profile_url, "data": data}
+                else:
+                    return {"success": False, "error": "Usuário sem foto de perfil"}
+
+            except httpx.HTTPStatusError as e:
+                logger.warning(f"Z-API profile pic erro HTTP: {e.response.status_code}")
+                return {"success": False, "error": f"HTTP {e.response.status_code}"}
+            except Exception as e:
+                logger.error(f"Z-API profile pic erro: {e}")
+                return {"success": False, "error": str(e)}
+
     async def get_qrcode(self) -> dict:
         """Obtem QR Code para conexao."""
         if not self.is_configured():

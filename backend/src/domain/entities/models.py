@@ -170,6 +170,7 @@ class Lead(Base, TimestampMixin):
     # ==========================================
     name: Mapped[Optional[str]] = mapped_column(String(200))
     phone: Mapped[Optional[str]] = mapped_column(String(20), index=True)
+    profile_picture_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(255))
     city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     custom_data: Mapped[dict] = mapped_column(

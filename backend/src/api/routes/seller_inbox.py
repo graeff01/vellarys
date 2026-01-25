@@ -27,7 +27,7 @@ from src.api.dependencies import get_current_user
 from src.domain.entities import User, Seller, Lead, Message
 from src.domain.entities.enums import UserRole, LeadStatus
 from src.infrastructure.database import async_session
-from src.infrastructure.services.whatsapp_service import send_whatsapp_message
+from src.infrastructure.services.whatsapp_service import send_whatsapp_message, get_profile_picture
 
 
 router = APIRouter(prefix="/seller/inbox", tags=["Seller Inbox"])
@@ -55,6 +55,7 @@ class InboxLeadResponse(BaseModel):
     city: Optional[str]
     interest: Optional[str]
     budget: Optional[str]
+    profile_picture_url: Optional[str]  # Foto de perfil do WhatsApp
 
     # Controle
     is_taken_over: bool  # True se corretor já assumiu
@@ -204,6 +205,7 @@ async def list_inbox_leads(
                 city=lead.custom_data.get("city") if lead.custom_data else None,
                 interest=lead.custom_data.get("interest") if lead.custom_data else None,
                 budget=lead.custom_data.get("budget") if lead.custom_data else None,
+                profile_picture_url=lead.profile_picture_url,
                 is_taken_over=(lead.attended_by == "seller"),
                 seller_took_over_at=lead.seller_took_over_at
             ))
@@ -517,6 +519,84 @@ async def return_to_ai(
             "message": "Lead devolvido para a IA",
             "attended_by": lead.attended_by
         }
+
+
+@router.post("/leads/{lead_id}/fetch-profile-picture")
+async def fetch_lead_profile_picture(
+    lead_id: int,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Busca e salva a foto de perfil do WhatsApp do lead.
+
+    Endpoint chamado pelo frontend quando abre a conversa.
+    Atualiza o campo profile_picture_url no banco de dados.
+    """
+
+    seller = await get_seller_from_user(current_user)
+
+    async with async_session() as session:
+        # Busca lead
+        lead_result = await session.execute(
+            select(Lead)
+            .where(Lead.id == lead_id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+        )
+        lead = lead_result.scalar_one_or_none()
+
+        if not lead:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Lead não encontrado"
+            )
+
+        # Verifica se está atribuído
+        if lead.assigned_seller_id != seller.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Este lead não está atribuído a você"
+            )
+
+        # Se já tem foto, retorna direto
+        if lead.profile_picture_url:
+            return {
+                "success": True,
+                "url": lead.profile_picture_url,
+                "cached": True
+            }
+
+        # Busca foto via Z-API
+        import logging
+        logger = logging.getLogger(__name__)
+
+        try:
+            logger.info(f"📸 Buscando foto de perfil para {lead.phone}")
+            result = await get_profile_picture(to=lead.phone)
+
+            if result.get("success"):
+                profile_url = result.get("url")
+                lead.profile_picture_url = profile_url
+                await session.commit()
+
+                logger.info(f"✅ Foto de perfil salva para lead {lead_id}")
+                return {
+                    "success": True,
+                    "url": profile_url,
+                    "cached": False
+                }
+            else:
+                logger.warning(f"⚠️ Lead {lead_id} sem foto de perfil: {result.get('error')}")
+                return {
+                    "success": False,
+                    "error": result.get("error", "Sem foto de perfil")
+                }
+
+        except Exception as e:
+            logger.error(f"❌ Erro ao buscar foto de perfil: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e)
+            }
 
 
 # ==========================================

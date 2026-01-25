@@ -201,10 +201,23 @@ export function InboxConversation({ lead, onBack, onLeadUpdated }: InboxConversa
           )}
 
           {/* Avatar */}
-          <div className="w-10 h-10 rounded-full bg-[#dfe5e7] flex items-center justify-center flex-shrink-0">
-            <span className="text-lg font-medium text-gray-700">
-              {lead.name ? lead.name.charAt(0).toUpperCase() : '?'}
-            </span>
+          <div className="w-10 h-10 rounded-full bg-[#dfe5e7] flex items-center justify-center flex-shrink-0 overflow-hidden">
+            {lead.profile_picture_url ? (
+              <img
+                src={lead.profile_picture_url}
+                alt={lead.name || 'Lead'}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  // Fallback para inicial se imagem falhar
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.parentElement!.innerHTML = `<span class="text-lg font-medium text-gray-700">${lead.name ? lead.name.charAt(0).toUpperCase() : '?'}</span>`;
+                }}
+              />
+            ) : (
+              <span className="text-lg font-medium text-gray-700">
+                {lead.name ? lead.name.charAt(0).toUpperCase() : '?'}
+              </span>
+            )}
           </div>
 
           {/* Nome e info */}

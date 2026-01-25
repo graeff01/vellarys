@@ -73,6 +73,7 @@ export interface InboxLead {
   city: string | null;
   interest: string | null;
   budget: string | null;
+  profile_picture_url: string | null;
 
   // Controle
   is_taken_over: boolean;
@@ -204,6 +205,20 @@ export async function returnToAI(leadId: number): Promise<{
   attended_by: string;
 }> {
   return request(`/v1/seller/inbox/leads/${leadId}/return-to-ai`, {
+    method: 'POST',
+  });
+}
+
+/**
+ * Busca foto de perfil do WhatsApp do lead
+ */
+export async function fetchProfilePicture(leadId: number): Promise<{
+  success: boolean;
+  url?: string;
+  cached?: boolean;
+  error?: string;
+}> {
+  return request(`/v1/seller/inbox/leads/${leadId}/fetch-profile-picture`, {
     method: 'POST',
   });
 }

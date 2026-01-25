@@ -201,3 +201,69 @@ async def check_whatsapp_connection(
             "connected": False,
             "error": str(e),
         }
+
+
+async def get_profile_picture(
+    phone: str,
+    instance_id: str = None,
+    token: str = None,
+    client_token: str = None,
+) -> dict:
+    """
+    Busca foto de perfil do WhatsApp de um contato.
+
+    Args:
+        phone: Número do destinatário (com DDI, ex: 5551999999999)
+        instance_id: ID da instância Z-API (opcional)
+        token: Token da instância Z-API (opcional)
+        client_token: Client-Token de segurança (opcional)
+
+    Returns:
+        {"success": True/False, "url": "https://...", "error": "..."}
+    """
+    try:
+        # Sanitiza número
+        to_clean = "".join(filter(str.isdigit, str(phone)))
+
+        # Garante DDI do Brasil
+        if len(to_clean) == 11:
+            to_clean = "55" + to_clean
+        elif len(to_clean) == 10:
+            to_clean = "55" + to_clean
+
+        # Obtém cliente Z-API
+        zapi = get_zapi_client(
+            instance_id=instance_id,
+            token=token,
+            client_token=client_token,
+        )
+
+        if not zapi.is_configured():
+            logger.error("Z-API não configurado - verifique ZAPI_INSTANCE_ID e ZAPI_TOKEN")
+            return {
+                "success": False,
+                "error": "Z-API não configurado",
+            }
+
+        # Busca foto de perfil
+        result = await zapi.get_profile_picture(phone=to_clean)
+
+        if result.get("success"):
+            logger.info(f"✅ Foto de perfil obtida para {to_clean[:8]}***")
+            return {
+                "success": True,
+                "url": result.get("url"),
+            }
+        else:
+            logger.warning(f"⚠️ Sem foto de perfil para {to_clean[:8]}***")
+            return {
+                "success": False,
+                "error": result.get("error", "Sem foto de perfil"),
+            }
+
+    except Exception as e:
+        logger.error(f"❌ Exceção ao buscar foto de perfil: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+        }
