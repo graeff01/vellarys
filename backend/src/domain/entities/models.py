@@ -325,9 +325,10 @@ class Message(Base, TimestampMixin):
     whatsapp_message_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
 
     # 📎 ANEXOS (imagens, documentos, áudios, vídeos)
-    attachments: Mapped[list] = mapped_column(
-        MutableDict.as_mutable(JSONB),
+    attachments: Mapped[Optional[list]] = mapped_column(
+        JSONB,
         default=list,
+        server_default='[]',
         nullable=True
     )
 
