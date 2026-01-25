@@ -2,6 +2,7 @@
 VELARIS API - Ponto de Entrada
 """
 
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +14,9 @@ from src.infrastructure.scheduler import create_scheduler, start_scheduler, stop
 from src.api.routes.debug_portal import router as debug_portal_router
 from src.config import get_settings
 from src.infrastructure.database import init_db, async_session
+
+# Logger
+logger = logging.getLogger(__name__)
 
 # Sentry
 import sentry_sdk
