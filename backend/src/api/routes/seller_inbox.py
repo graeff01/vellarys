@@ -571,7 +571,7 @@ async def fetch_lead_profile_picture(
 
         try:
             logger.info(f"📸 Buscando foto de perfil para {lead.phone}")
-            result = await get_profile_picture(to=lead.phone)
+            result = await get_profile_picture(phone=lead.phone)
 
             if result.get("success"):
                 profile_url = result.get("url")
