@@ -201,9 +201,9 @@ async def list_inbox_leads(
                 unread_messages=unread_count,
                 last_message_at=lead.messages[-1].created_at if lead.messages else None,
                 last_message_preview=get_last_message_preview(lead.messages),
-                city=lead.metadata.get("city") if lead.metadata else None,
-                interest=lead.metadata.get("interest") if lead.metadata else None,
-                budget=lead.metadata.get("budget") if lead.metadata else None,
+                city=lead.custom_data.get("city") if lead.custom_data else None,
+                interest=lead.custom_data.get("interest") if lead.custom_data else None,
+                budget=lead.custom_data.get("budget") if lead.custom_data else None,
                 is_taken_over=(lead.attended_by == "seller"),
                 seller_took_over_at=lead.seller_took_over_at
             ))
