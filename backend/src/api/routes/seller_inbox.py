@@ -27,7 +27,7 @@ from src.api.dependencies import get_current_user
 from src.domain.entities import User, Seller, Lead, Message
 from src.domain.entities.enums import UserRole, LeadStatus
 from src.infrastructure.database import async_session
-from src.infrastructure.services.whatsapp_service import WhatsAppService
+from src.infrastructure.services.whatsapp_service import send_whatsapp_message
 
 
 router = APIRouter(prefix="/seller/inbox", tags=["Seller Inbox"])
@@ -342,13 +342,15 @@ async def take_over_conversation(
 
         # 🆕 ENVIA MENSAGEM VIA WHATSAPP avisando que o vendedor assumiu
         try:
-            whatsapp = WhatsAppService()
             takeover_message = f"Olá! Agora você está sendo atendido por *{seller.name}*, nosso especialista. Como posso ajudar? 😊"
-            await whatsapp.send_message(
-                phone=lead.phone,
-                message=takeover_message,
-                tenant_id=current_user.tenant_id
+            result = await send_whatsapp_message(
+                to=lead.phone,
+                message=takeover_message
             )
+            if not result.get("success"):
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"❌ Falha ao enviar notificação de take-over: {result.get('error')}")
         except Exception as e:
             import logging
             logger = logging.getLogger(__name__)
@@ -432,14 +434,16 @@ async def send_message_as_seller(
         logger = logging.getLogger(__name__)
 
         try:
-            logger.info(f"📤 Enviando mensagem via WhatsApp para {lead.phone} (tenant {current_user.tenant_id})")
-            whatsapp = WhatsAppService()
-            await whatsapp.send_message(
-                phone=lead.phone,
-                message=request.content,
-                tenant_id=current_user.tenant_id
+            logger.info(f"📤 Enviando mensagem via WhatsApp para {lead.phone}")
+            result = await send_whatsapp_message(
+                to=lead.phone,
+                message=request.content
             )
-            logger.info(f"✅ Mensagem enviada com sucesso via WhatsApp")
+
+            if result.get("success"):
+                logger.info(f"✅ Mensagem enviada com sucesso via WhatsApp")
+            else:
+                logger.error(f"❌ Falha ao enviar WhatsApp: {result.get('error')}")
         except Exception as e:
             # Não falha a requisição se WhatsApp falhar
             # A mensagem já foi salva no banco
