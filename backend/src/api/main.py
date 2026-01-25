@@ -160,6 +160,10 @@ app = FastAPI(
 # ============================================================
 # ⭐ CORS
 # ============================================================
+# Debug: Mostra origins carregadas no startup
+logger.info(f"🌐 CORS Origins configuradas: {settings.cors_origins_list}")
+logger.info(f"🌐 CORS Regex: ^https://.*\\.up\\.railway\\.app$")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
