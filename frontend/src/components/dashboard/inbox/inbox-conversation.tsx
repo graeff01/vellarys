@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useSSE } from '@/hooks/use-sse';
 import { cn } from '@/lib/utils';
 import {
   Send,
@@ -22,7 +23,13 @@ import {
   Paperclip,
   Check,
   CheckCheck,
+  StickyNote,
+  Archive,
 } from 'lucide-react';
+import { TemplatesPopover } from './templates-popover';
+import { LeadNotesPanel } from './lead-notes-panel';
+import { AttachmentUpload } from './attachment-upload';
+import { TypingIndicator } from './typing-indicator';
 
 interface InboxConversationProps {
   lead: InboxLead | null;
@@ -36,9 +43,56 @@ export function InboxConversation({ lead, onBack, onLeadUpdated }: InboxConversa
   const [sending, setSending] = useState(false);
   const [takingOver, setTakingOver] = useState(false);
   const [message, setMessage] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [showAttachmentUpload, setShowAttachmentUpload] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
+
+  // SSE para atualizações em tempo real
+  useSSE(lead?.id || null, {
+    enabled: !!lead,
+    onMessage: (event) => {
+      switch (event.type) {
+        case 'new_message':
+          // Adiciona nova mensagem à lista
+          loadMessages();
+          break;
+
+        case 'message_status':
+          // Atualiza status de mensagem (✓✓)
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === event.data.message_id
+                ? { ...msg, status: event.data.status }
+                : msg
+            )
+          );
+          break;
+
+        case 'typing':
+          // Mostra indicador de digitação
+          setIsTyping(event.data.is_typing);
+          break;
+
+        case 'lead_updated':
+          // Recarrega dados do lead
+          onLeadUpdated?.();
+          break;
+
+        case 'handoff':
+          // Transferência de atendimento
+          toast({
+            title: 'Lead transferido',
+            description: event.data.to_user_name
+              ? `Lead transferido para ${event.data.to_user_name}`
+              : 'Lead transferido'
+          });
+          onLeadUpdated?.();
+          break;
+      }
+    }
+  });
 
   // Carrega mensagens quando lead muda
   useEffect(() => {
@@ -239,6 +293,13 @@ export function InboxConversation({ lead, onBack, onLeadUpdated }: InboxConversa
 
         {/* Ações do header */}
         <div className="flex items-center gap-2">
+          {/* Anotações */}
+          <LeadNotesPanel leadId={lead.id}>
+            <button className="p-2 hover:bg-white/10 rounded-full transition-colors">
+              <StickyNote className="h-5 w-5" />
+            </button>
+          </LeadNotesPanel>
+
           <button className="p-2 hover:bg-white/10 rounded-full transition-colors">
             <Search className="h-5 w-5" />
           </button>
@@ -386,8 +447,15 @@ export function InboxConversation({ lead, onBack, onLeadUpdated }: InboxConversa
                           {messageTime}
                         </span>
                         {(isSeller || isAI) && (
-                          <span className="text-gray-500">
-                            <CheckCheck className="h-3.5 w-3.5" />
+                          <span className={cn(
+                            "transition-colors",
+                            (msg as any).status === 'read' ? "text-blue-500" : "text-gray-500"
+                          )}>
+                            {(msg as any).status === 'sent' ? (
+                              <Check className="h-3.5 w-3.5" />
+                            ) : (
+                              <CheckCheck className="h-3.5 w-3.5" />
+                            )}
                           </span>
                         )}
                       </div>
@@ -395,6 +463,16 @@ export function InboxConversation({ lead, onBack, onLeadUpdated }: InboxConversa
                   </div>
                 );
               })}
+
+              {/* Indicador de digitação */}
+              {isTyping && (
+                <div className="flex justify-start">
+                  <div className="bg-white rounded-lg rounded-tl-none shadow-sm px-3 py-2">
+                    <TypingIndicator isTyping={isTyping} userName={lead.name || 'Cliente'} />
+                  </div>
+                </div>
+              )}
+
               <div ref={messagesEndRef} />
             </div>
           )}
@@ -412,26 +490,57 @@ export function InboxConversation({ lead, onBack, onLeadUpdated }: InboxConversa
       )}
 
       {/* Input de mensagem - estilo WhatsApp */}
-      <div className="bg-[#f0f2f5] px-4 py-2 border-t border-gray-300">
+      <div className="bg-[#f0f2f5] px-4 py-2 border-t border-gray-300 space-y-2">
+        {/* Upload de anexo */}
+        {showAttachmentUpload && lead.is_taken_over && (
+          <AttachmentUpload
+            leadId={lead.id}
+            onUploadComplete={(attachment) => {
+              toast({
+                title: 'Anexo enviado!',
+                description: `${attachment.filename} foi enviado com sucesso.`
+              });
+              setShowAttachmentUpload(false);
+              loadMessages();
+            }}
+            onUploadError={(error) => {
+              toast({
+                variant: 'destructive',
+                title: 'Erro no upload',
+                description: error
+              });
+            }}
+          />
+        )}
+
         <form onSubmit={handleSendMessage} className="flex items-end gap-2">
-          {/* Botão Emoji */}
-          <button
-            type="button"
-            disabled={!lead.is_taken_over}
-            className={cn(
-              "p-2 rounded-full transition-colors flex-shrink-0",
-              lead.is_taken_over
-                ? "text-gray-600 hover:bg-gray-300/50"
-                : "text-gray-400 cursor-not-allowed"
-            )}
+          {/* Botão Template */}
+          <TemplatesPopover
+            leadId={lead.id}
+            onSelectTemplate={(content) => {
+              setMessage(content);
+              textareaRef.current?.focus();
+            }}
           >
-            <Smile className="h-6 w-6" />
-          </button>
+            <button
+              type="button"
+              disabled={!lead.is_taken_over}
+              className={cn(
+                "p-2 rounded-full transition-colors flex-shrink-0",
+                lead.is_taken_over
+                  ? "text-gray-600 hover:bg-gray-300/50"
+                  : "text-gray-400 cursor-not-allowed"
+              )}
+            >
+              <Smile className="h-6 w-6" />
+            </button>
+          </TemplatesPopover>
 
           {/* Botão Anexo */}
           <button
             type="button"
             disabled={!lead.is_taken_over}
+            onClick={() => setShowAttachmentUpload(!showAttachmentUpload)}
             className={cn(
               "p-2 rounded-full transition-colors flex-shrink-0",
               lead.is_taken_over

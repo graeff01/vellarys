@@ -235,6 +235,24 @@ class Lead(Base, TimestampMixin):
     assigned_to: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
     # ==========================================
+    # ARQUIVAMENTO (Soft-delete)
+    # ==========================================
+    archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    archived_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    archive_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # ==========================================
+    # MÉTRICAS DE PERFORMANCE / SLA
+    # ==========================================
+    first_response_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    first_response_time_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_seller_message_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_lead_message_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    total_seller_messages: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_lead_messages: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    conversation_started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # ==========================================
     # RELACIONAMENTOS
     # ==========================================
     tenant: Mapped["Tenant"] = relationship(back_populates="leads")
@@ -245,6 +263,8 @@ class Lead(Base, TimestampMixin):
     assigned_seller: Mapped[Optional["Seller"]] = relationship(foreign_keys=[assigned_seller_id])
     assignments: Mapped[list["LeadAssignment"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
     opportunities: Mapped[list["Opportunity"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
+    notes: Mapped[list["LeadNote"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
+    handoff_history: Mapped[list["HandoffHistory"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
 
     # ==========================================
     # ÍNDICES DE PERFORMANCE
@@ -284,7 +304,7 @@ class Notification(Base):
 
 class Message(Base, TimestampMixin):
     """Mensagem individual da conversa."""
-    
+
     __tablename__ = "messages"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -298,6 +318,19 @@ class Message(Base, TimestampMixin):
     sender_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # "ai", "seller", "manager", "system"
     sender_user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
+    # ✨ STATUS DE ENTREGA (WhatsApp-style)
+    status: Mapped[str] = mapped_column(String(20), default="sent", nullable=False)  # sent, delivered, read, failed
+    delivered_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    whatsapp_message_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+
+    # 📎 ANEXOS (imagens, documentos, áudios, vídeos)
+    attachments: Mapped[list] = mapped_column(
+        MutableDict.as_mutable(JSONB),
+        default=list,
+        nullable=True
+    )
+
     lead: Mapped["Lead"] = relationship(back_populates="messages")
     sender_user: Mapped[Optional["User"]] = relationship(foreign_keys=[sender_user_id])
 
@@ -307,6 +340,8 @@ class Message(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_messages_lead_created", "lead_id", "created_at"),
         Index("ix_messages_lead_external", "lead_id", "external_id", unique=True),
+        Index("ix_messages_status", "status"),
+        Index("ix_messages_whatsapp_id", "whatsapp_message_id"),
     )
 
 
@@ -336,3 +371,6 @@ class LeadEvent(Base, TimestampMixin):
 from .seller import Seller
 from .lead_assignment import LeadAssignment
 from .opportunity import Opportunity
+from .lead_note import LeadNote
+from .handoff_history import HandoffHistory
+from .response_template import ResponseTemplate

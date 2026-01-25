@@ -17,17 +17,25 @@ Fluxo antigo (handoff_mode = "whatsapp_pessoal") continua funcionando normalment
 """
 
 from datetime import datetime
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, and_, or_
+from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
+from sqlalchemy import select, and_, or_, func, update as sql_update
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 
 from src.api.dependencies import get_current_user
 from src.domain.entities import User, Seller, Lead, Message
+from src.domain.entities.lead_note import LeadNote
+from src.domain.entities.handoff_history import HandoffHistory
+from src.domain.entities.response_template import ResponseTemplate
 from src.domain.entities.enums import UserRole, LeadStatus
 from src.infrastructure.database import async_session
 from src.infrastructure.services.whatsapp_service import send_whatsapp_message, get_profile_picture
+from src.infrastructure.services.sse_service import event_stream_generator, broadcast_new_message, broadcast_lead_updated
+from src.infrastructure.services.storage_service import storage_service
+from src.infrastructure.services.template_interpolation_service import template_service
+from src.infrastructure.services.message_status_service import message_status_service
 
 
 router = APIRouter(prefix="/seller/inbox", tags=["Seller Inbox"])
@@ -91,6 +99,77 @@ class TakeOverResponse(BaseModel):
     lead_id: int
     attended_by: str
     took_over_at: datetime
+
+
+# ==========================================
+# NOVOS SCHEMAS (13 FUNCIONALIDADES)
+# ==========================================
+
+class LeadNoteResponse(BaseModel):
+    """Anotação interna sobre lead."""
+    id: int
+    lead_id: int
+    author_id: int
+    author_name: str
+    content: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CreateNoteRequest(BaseModel):
+    """Request para criar nota."""
+    content: str
+
+
+class ResponseTemplateResponse(BaseModel):
+    """Template de resposta rápida."""
+    id: int
+    name: str
+    shortcut: Optional[str]
+    content: str
+    category: Optional[str]
+    is_active: bool
+    usage_count: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CreateTemplateRequest(BaseModel):
+    """Request para criar template."""
+    name: str
+    shortcut: Optional[str] = None
+    content: str
+    category: Optional[str] = None
+
+
+class UpdateTemplateRequest(BaseModel):
+    """Request para atualizar template."""
+    name: Optional[str] = None
+    shortcut: Optional[str] = None
+    content: Optional[str] = None
+    category: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class ArchiveLeadRequest(BaseModel):
+    """Request para arquivar lead."""
+    reason: Optional[str] = None
+
+
+class MetricsResponse(BaseModel):
+    """Métricas de performance."""
+    total_leads: int
+    active_conversations: int
+    avg_first_response_time_seconds: Optional[float]
+    total_messages_sent: int
+    total_messages_received: int
+    conversion_rate: Optional[float]
+    sla_compliance: Optional[float]  # % de leads respondidos em < 5min
 
 
 # ==========================================
@@ -675,3 +754,747 @@ async def link_seller_to_user(
             "seller_id": seller.id,
             "user_id": user.id
         }
+
+
+# ==========================================
+# ✨ NOVOS ENDPOINTS - 13 FUNCIONALIDADES
+# ==========================================
+
+# ============================================
+# 1. SSE - TEMPO REAL
+# ============================================
+
+@router.get("/leads/{lead_id}/stream")
+async def stream_lead_events(
+    lead_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Server-Sent Events para atualizações em tempo real.
+
+    Eventos:
+    - new_message: Nova mensagem recebida/enviada
+    - message_status: Status de entrega atualizado
+    - typing: Indicador de digitação
+    - lead_updated: Dados do lead alterados
+    - handoff: Transferência de atendimento
+    """
+    # Verifica se lead pertence ao tenant do usuário
+    async with async_session() as session:
+        result = await session.execute(
+            select(Lead)
+            .where(Lead.id == lead_id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+        )
+        lead = result.scalar_one_or_none()
+
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead não encontrado")
+
+    # Retorna stream SSE
+    return StreamingResponse(
+        event_stream_generator(lead_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+# ============================================
+# 2-6. TEMPLATES DE RESPOSTAS RÁPIDAS
+# ============================================
+
+@router.get("/templates", response_model=List[ResponseTemplateResponse])
+async def list_templates(
+    current_user: User = Depends(get_current_user),
+    category: Optional[str] = None,
+    search: Optional[str] = None
+):
+    """Lista templates do tenant."""
+    async with async_session() as session:
+        query = (
+            select(ResponseTemplate)
+            .where(ResponseTemplate.tenant_id == current_user.tenant_id)
+            .where(ResponseTemplate.is_active == True)
+            .order_by(ResponseTemplate.usage_count.desc())
+        )
+
+        if category:
+            query = query.where(ResponseTemplate.category == category)
+
+        if search:
+            query = query.where(
+                or_(
+                    ResponseTemplate.name.ilike(f"%{search}%"),
+                    ResponseTemplate.content.ilike(f"%{search}%")
+                )
+            )
+
+        result = await session.execute(query)
+        templates = result.scalars().all()
+
+        return templates
+
+
+@router.post("/templates", response_model=ResponseTemplateResponse, status_code=status.HTTP_201_CREATED)
+async def create_template(
+    request: CreateTemplateRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Cria novo template."""
+    # Valida sintaxe
+    is_valid, error = template_service.validate_template(request.content)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error)
+
+    async with async_session() as session:
+        template = ResponseTemplate(
+            tenant_id=current_user.tenant_id,
+            created_by_user_id=current_user.id,
+            name=request.name,
+            shortcut=request.shortcut,
+            content=request.content,
+            category=request.category,
+            is_active=True,
+            usage_count=0
+        )
+
+        session.add(template)
+        await session.commit()
+        await session.refresh(template)
+
+        return template
+
+
+@router.patch("/templates/{template_id}", response_model=ResponseTemplateResponse)
+async def update_template(
+    template_id: int,
+    request: UpdateTemplateRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Atualiza template existente."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(ResponseTemplate)
+            .where(ResponseTemplate.id == template_id)
+            .where(ResponseTemplate.tenant_id == current_user.tenant_id)
+        )
+        template = result.scalar_one_or_none()
+
+        if not template:
+            raise HTTPException(status_code=404, detail="Template não encontrado")
+
+        # Atualiza campos
+        if request.name is not None:
+            template.name = request.name
+        if request.shortcut is not None:
+            template.shortcut = request.shortcut
+        if request.content is not None:
+            # Valida sintaxe
+            is_valid, error = template_service.validate_template(request.content)
+            if not is_valid:
+                raise HTTPException(status_code=400, detail=error)
+            template.content = request.content
+        if request.category is not None:
+            template.category = request.category
+        if request.is_active is not None:
+            template.is_active = request.is_active
+
+        await session.commit()
+        await session.refresh(template)
+
+        return template
+
+
+@router.delete("/templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_template(
+    template_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """Soft-delete de template (marca como inativo)."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(ResponseTemplate)
+            .where(ResponseTemplate.id == template_id)
+            .where(ResponseTemplate.tenant_id == current_user.tenant_id)
+        )
+        template = result.scalar_one_or_none()
+
+        if not template:
+            raise HTTPException(status_code=404, detail="Template não encontrado")
+
+        template.is_active = False
+        await session.commit()
+
+
+@router.post("/templates/{template_id}/use")
+async def use_template(
+    template_id: int,
+    lead_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Retorna template interpolado com dados do lead/seller.
+
+    Incrementa contador de uso.
+    """
+    async with async_session() as session:
+        # Busca template
+        template_result = await session.execute(
+            select(ResponseTemplate)
+            .where(ResponseTemplate.id == template_id)
+            .where(ResponseTemplate.tenant_id == current_user.tenant_id)
+            .where(ResponseTemplate.is_active == True)
+        )
+        template = template_result.scalar_one_or_none()
+
+        if not template:
+            raise HTTPException(status_code=404, detail="Template não encontrado")
+
+        # Busca lead
+        lead_result = await session.execute(
+            select(Lead)
+            .where(Lead.id == lead_id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+        )
+        lead = lead_result.scalar_one_or_none()
+
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead não encontrado")
+
+        # Busca seller (se houver)
+        seller_data = None
+        if lead.assigned_seller_id:
+            seller_result = await session.execute(
+                select(Seller)
+                .where(Seller.id == lead.assigned_seller_id)
+            )
+            seller = seller_result.scalar_one_or_none()
+            if seller:
+                seller_data = {"name": seller.name, "phone": seller.phone or ""}
+
+        # Busca tenant
+        from src.domain.entities.models import Tenant
+        tenant_result = await session.execute(
+            select(Tenant).where(Tenant.id == current_user.tenant_id)
+        )
+        tenant = tenant_result.scalar_one_or_none()
+
+        # Monta contexto
+        context = template_service.build_context(
+            lead_data={"name": lead.name or "Cliente", "phone": lead.phone or "", "city": lead.city or ""},
+            seller_data=seller_data,
+            tenant_data={"name": tenant.name} if tenant else None
+        )
+
+        # Interpola
+        interpolated = template_service.interpolate(template.content, context)
+
+        # Incrementa contador
+        template.usage_count += 1
+        await session.commit()
+
+        return {
+            "template_id": template_id,
+            "content": interpolated
+        }
+
+
+# ============================================
+# 7-9. ANOTAÇÕES INTERNAS (NOTES)
+# ============================================
+
+@router.get("/leads/{lead_id}/notes", response_model=List[LeadNoteResponse])
+async def list_lead_notes(
+    lead_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """Lista anotações de um lead."""
+    async with async_session() as session:
+        # Verifica acesso ao lead
+        lead_result = await session.execute(
+            select(Lead)
+            .where(Lead.id == lead_id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+        )
+        if not lead_result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Lead não encontrado")
+
+        # Busca notes
+        result = await session.execute(
+            select(LeadNote)
+            .join(User, LeadNote.author_id == User.id)
+            .where(LeadNote.lead_id == lead_id)
+            .order_by(LeadNote.created_at.desc())
+        )
+        notes = result.scalars().all()
+
+        # Enriquece com nome do autor
+        response = []
+        for note in notes:
+            user_result = await session.execute(
+                select(User).where(User.id == note.author_id)
+            )
+            author = user_result.scalar_one_or_none()
+
+            response.append(LeadNoteResponse(
+                id=note.id,
+                lead_id=note.lead_id,
+                author_id=note.author_id,
+                author_name=author.name if author else "Desconhecido",
+                content=note.content,
+                created_at=note.created_at,
+                updated_at=note.updated_at
+            ))
+
+        return response
+
+
+@router.post("/leads/{lead_id}/notes", response_model=LeadNoteResponse, status_code=status.HTTP_201_CREATED)
+async def create_lead_note(
+    lead_id: int,
+    request: CreateNoteRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Cria anotação em um lead."""
+    async with async_session() as session:
+        # Verifica acesso
+        lead_result = await session.execute(
+            select(Lead)
+            .where(Lead.id == lead_id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+        )
+        if not lead_result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Lead não encontrado")
+
+        # Cria nota
+        note = LeadNote(
+            lead_id=lead_id,
+            author_id=current_user.id,
+            content=request.content
+        )
+
+        session.add(note)
+        await session.commit()
+        await session.refresh(note)
+
+        return LeadNoteResponse(
+            id=note.id,
+            lead_id=note.lead_id,
+            author_id=note.author_id,
+            author_name=current_user.name,
+            content=note.content,
+            created_at=note.created_at,
+            updated_at=note.updated_at
+        )
+
+
+@router.delete("/leads/{lead_id}/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_lead_note(
+    lead_id: int,
+    note_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """Exclui anotação (apenas o autor pode excluir)."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(LeadNote)
+            .where(LeadNote.id == note_id)
+            .where(LeadNote.lead_id == lead_id)
+        )
+        note = result.scalar_one_or_none()
+
+        if not note:
+            raise HTTPException(status_code=404, detail="Anotação não encontrada")
+
+        # Apenas autor pode excluir
+        if note.author_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Apenas o autor pode excluir esta anotação")
+
+        await session.delete(note)
+        await session.commit()
+
+
+# ============================================
+# 10-11. ANEXOS (ATTACHMENTS)
+# ============================================
+
+@router.post("/leads/{lead_id}/upload")
+async def upload_attachment(
+    lead_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Faz upload de anexo (imagem, documento, áudio, vídeo).
+
+    Validações:
+    - Tamanho máximo: 10MB
+    - Tipos: image/*, application/pdf, audio/*, video/*
+    """
+    async with async_session() as session:
+        # Verifica acesso
+        lead_result = await session.execute(
+            select(Lead)
+            .where(Lead.id == lead_id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+        )
+        if not lead_result.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Lead não encontrado")
+
+        # Lê arquivo
+        file_content = await file.read()
+
+        # Upload via service
+        try:
+            attachment_data = await storage_service.upload_file(
+                file_content=file_content,
+                filename=file.filename,
+                content_type=file.content_type
+            )
+
+            return {
+                "success": True,
+                "attachment": attachment_data
+            }
+
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/leads/{lead_id}/attachments")
+async def list_lead_attachments(
+    lead_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """Lista todos os anexos enviados em conversas do lead."""
+    async with async_session() as session:
+        # Busca mensagens com anexos
+        result = await session.execute(
+            select(Message)
+            .join(Lead, Message.lead_id == Lead.id)
+            .where(Lead.id == lead_id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+            .where(Message.attachments != None)
+            .where(Message.attachments != [])
+            .order_by(Message.created_at.desc())
+        )
+        messages = result.scalars().all()
+
+        # Extrai anexos
+        attachments = []
+        for msg in messages:
+            if msg.attachments:
+                for att in msg.attachments:
+                    attachments.append({
+                        **att,
+                        "message_id": msg.id,
+                        "message_created_at": msg.created_at
+                    })
+
+        return {"attachments": attachments}
+
+
+# ============================================
+# 12-14. ARQUIVAMENTO (ARCHIVE)
+# ============================================
+
+@router.post("/leads/{lead_id}/archive")
+async def archive_lead(
+    lead_id: int,
+    request: ArchiveLeadRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Arquiva lead (soft-delete)."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(Lead)
+            .where(Lead.id == lead_id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+        )
+        lead = result.scalar_one_or_none()
+
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead não encontrado")
+
+        if lead.archived_at:
+            raise HTTPException(status_code=400, detail="Lead já está arquivado")
+
+        # Arquiva
+        lead.archived_at = datetime.utcnow()
+        lead.archived_by = current_user.id
+        lead.archive_reason = request.reason
+
+        await session.commit()
+
+        # Broadcast atualização
+        await broadcast_lead_updated(lead_id, {"archived": True})
+
+        return {
+            "success": True,
+            "message": "Lead arquivado com sucesso",
+            "archived_at": lead.archived_at
+        }
+
+
+@router.post("/leads/{lead_id}/unarchive")
+async def unarchive_lead(
+    lead_id: int,
+    current_user: User = Depends(get_current_user)
+):
+    """Desarquiva lead."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(Lead)
+            .where(Lead.id == lead_id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+        )
+        lead = result.scalar_one_or_none()
+
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead não encontrado")
+
+        if not lead.archived_at:
+            raise HTTPException(status_code=400, detail="Lead não está arquivado")
+
+        # Desarquiva
+        lead.archived_at = None
+        lead.archived_by = None
+        lead.archive_reason = None
+
+        await session.commit()
+
+        # Broadcast
+        await broadcast_lead_updated(lead_id, {"archived": False})
+
+        return {
+            "success": True,
+            "message": "Lead desarquivado com sucesso"
+        }
+
+
+@router.get("/archived")
+async def list_archived_leads(
+    current_user: User = Depends(get_current_user)
+):
+    """Lista leads arquivados."""
+    seller = await get_seller_from_user(current_user)
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(Lead)
+            .where(Lead.assigned_seller_id == seller.id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+            .where(Lead.archived_at != None)
+            .order_by(Lead.archived_at.desc())
+        )
+        leads = result.scalars().all()
+
+        return {
+            "archived_leads": [
+                {
+                    "id": lead.id,
+                    "name": lead.name,
+                    "phone": lead.phone,
+                    "archived_at": lead.archived_at,
+                    "archive_reason": lead.archive_reason
+                }
+                for lead in leads
+            ]
+        }
+
+
+# ============================================
+# 15. MÉTRICAS DE PERFORMANCE / SLA
+# ============================================
+
+@router.get("/metrics", response_model=MetricsResponse)
+async def get_seller_metrics(
+    current_user: User = Depends(get_current_user),
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None
+):
+    """
+    Retorna métricas de performance do vendedor.
+
+    Métricas:
+    - Total de leads
+    - Conversas ativas
+    - Tempo médio de primeira resposta
+    - Total de mensagens enviadas/recebidas
+    - Taxa de conversão
+    - SLA compliance (% respondidos em < 5min)
+    """
+    seller = await get_seller_from_user(current_user)
+
+    async with async_session() as session:
+        # Total de leads
+        total_leads_result = await session.execute(
+            select(func.count(Lead.id))
+            .where(Lead.assigned_seller_id == seller.id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+        )
+        total_leads = total_leads_result.scalar() or 0
+
+        # Conversas ativas (não arquivadas)
+        active_result = await session.execute(
+            select(func.count(Lead.id))
+            .where(Lead.assigned_seller_id == seller.id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+            .where(Lead.archived_at == None)
+        )
+        active_conversations = active_result.scalar() or 0
+
+        # Tempo médio de primeira resposta
+        avg_response_result = await session.execute(
+            select(func.avg(Lead.first_response_time_seconds))
+            .where(Lead.assigned_seller_id == seller.id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+            .where(Lead.first_response_time_seconds > 0)
+        )
+        avg_first_response = avg_response_result.scalar()
+
+        # Total de mensagens
+        messages_sent_result = await session.execute(
+            select(func.sum(Lead.total_seller_messages))
+            .where(Lead.assigned_seller_id == seller.id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+        )
+        total_messages_sent = messages_sent_result.scalar() or 0
+
+        messages_received_result = await session.execute(
+            select(func.sum(Lead.total_lead_messages))
+            .where(Lead.assigned_seller_id == seller.id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+        )
+        total_messages_received = messages_received_result.scalar() or 0
+
+        # SLA compliance (< 5min = 300s)
+        sla_total_result = await session.execute(
+            select(func.count(Lead.id))
+            .where(Lead.assigned_seller_id == seller.id)
+            .where(Lead.first_response_time_seconds > 0)
+        )
+        sla_total = sla_total_result.scalar() or 0
+
+        sla_compliant_result = await session.execute(
+            select(func.count(Lead.id))
+            .where(Lead.assigned_seller_id == seller.id)
+            .where(Lead.first_response_time_seconds > 0)
+            .where(Lead.first_response_time_seconds <= 300)
+        )
+        sla_compliant = sla_compliant_result.scalar() or 0
+
+        sla_compliance = (sla_compliant / sla_total * 100) if sla_total > 0 else None
+
+        # Taxa de conversão (qualified / total)
+        qualified_result = await session.execute(
+            select(func.count(Lead.id))
+            .where(Lead.assigned_seller_id == seller.id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+            .where(Lead.status.in_(["converted", "won"]))
+        )
+        qualified = qualified_result.scalar() or 0
+        conversion_rate = (qualified / total_leads * 100) if total_leads > 0 else None
+
+        return MetricsResponse(
+            total_leads=total_leads,
+            active_conversations=active_conversations,
+            avg_first_response_time_seconds=avg_first_response,
+            total_messages_sent=total_messages_sent,
+            total_messages_received=total_messages_received,
+            conversion_rate=conversion_rate,
+            sla_compliance=sla_compliance
+        )
+
+
+# ============================================
+# 16. BUSCA DE MENSAGENS
+# ============================================
+
+@router.get("/search")
+async def search_messages(
+    q: str,
+    current_user: User = Depends(get_current_user),
+    limit: int = 50
+):
+    """
+    Busca full-text em mensagens do vendedor.
+
+    Retorna mensagens + dados do lead.
+    """
+    seller = await get_seller_from_user(current_user)
+
+    async with async_session() as session:
+        # Busca mensagens
+        result = await session.execute(
+            select(Message, Lead)
+            .join(Lead, Message.lead_id == Lead.id)
+            .where(Lead.assigned_seller_id == seller.id)
+            .where(Lead.tenant_id == current_user.tenant_id)
+            .where(Message.content.ilike(f"%{q}%"))
+            .order_by(Message.created_at.desc())
+            .limit(limit)
+        )
+        rows = result.all()
+
+        return {
+            "results": [
+                {
+                    "message_id": msg.id,
+                    "content": msg.content,
+                    "role": msg.role,
+                    "created_at": msg.created_at,
+                    "lead": {
+                        "id": lead.id,
+                        "name": lead.name,
+                        "phone": lead.phone
+                    }
+                }
+                for msg, lead in rows
+            ]
+        }
+
+
+# ============================================
+# 17. WEBHOOK - STATUS DE MENSAGENS
+# ============================================
+
+@router.post("/webhook/message-status")
+async def webhook_message_status(
+    webhook_data: Dict[str, Any]
+):
+    """
+    Webhook do Z-API para atualizar status de mensagens.
+
+    Eventos:
+    - MESSAGE_DELIVERED
+    - MESSAGE_READ
+    - MESSAGE_FAILED
+    """
+    success = await message_status_service.process_status_webhook(
+        db=async_session(),
+        webhook_data=webhook_data
+    )
+
+    if success:
+        return {"status": "processed"}
+    else:
+        return {"status": "ignored"}
+
+
+# ============================================
+# 18. VARIÁVEIS DISPONÍVEIS PARA TEMPLATES
+# ============================================
+
+@router.get("/templates/variables")
+async def list_template_variables(
+    current_user: User = Depends(get_current_user)
+):
+    """Lista variáveis disponíveis para usar em templates."""
+    return {
+        "variables": template_service.get_available_variables()
+    }

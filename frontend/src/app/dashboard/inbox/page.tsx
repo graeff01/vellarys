@@ -9,8 +9,11 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { InboxLeadList } from '@/components/dashboard/inbox/inbox-lead-list';
 import { InboxConversation } from '@/components/dashboard/inbox/inbox-conversation';
+import { MessageSearch } from '@/components/dashboard/inbox/message-search';
+import { ShortcutsHelp } from '@/components/dashboard/inbox/shortcuts-help';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { useKeyboardShortcuts, createShortcut } from '@/hooks/use-keyboard-shortcuts';
 import {
   InboxLead,
   SellerInfo,
@@ -43,6 +46,23 @@ export default function InboxPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [attendedFilter, setAttendedFilter] = useState<'all' | 'ai' | 'seller'>('all');
   const [showConversation, setShowConversation] = useState(false);
+
+  // Modais
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+
+  // Atalhos de teclado globais
+  useKeyboardShortcuts({
+    shortcuts: [
+      createShortcut('k', 'Buscar mensagens', () => setShowSearchModal(true), { ctrl: true }),
+      createShortcut('?', 'Mostrar ajuda de atalhos', () => setShowShortcutsHelp(true)),
+      createShortcut('Escape', 'Fechar modais', () => {
+        setShowSearchModal(false);
+        setShowShortcutsHelp(false);
+      })
+    ],
+    enabled: true
+  });
 
   useEffect(() => {
     checkAccess();
@@ -295,6 +315,17 @@ export default function InboxPage() {
           </p>
         </div>
       )}
+
+      {/* Modais */}
+      <MessageSearch
+        open={showSearchModal}
+        onOpenChange={setShowSearchModal}
+      />
+
+      <ShortcutsHelp
+        open={showShortcutsHelp}
+        onOpenChange={setShowShortcutsHelp}
+      />
     </div>
   );
 }
