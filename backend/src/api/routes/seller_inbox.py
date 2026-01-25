@@ -24,7 +24,7 @@ from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 
 from src.api.dependencies import get_current_user
-from src.domain.entities import User, Seller, Lead, Message, LeadAssignment
+from src.domain.entities import User, Seller, Lead, Message
 from src.domain.entities.enums import UserRole, LeadStatus
 from src.infrastructure.database import async_session
 from src.infrastructure.services.whatsapp_service import WhatsAppService
@@ -229,15 +229,22 @@ async def get_lead_conversation(
     seller = await get_seller_from_user(current_user)
 
     async with async_session() as session:
-        # Verifica se o lead está atribuído ao corretor
-        assignment_result = await session.execute(
-            select(LeadAssignment)
-            .where(LeadAssignment.lead_id == lead_id)
-            .where(LeadAssignment.seller_id == seller.id)
+        # Busca lead para verificar atribuição
+        lead_result = await session.execute(
+            select(Lead)
+            .where(Lead.id == lead_id)
+            .where(Lead.tenant_id == current_user.tenant_id)
         )
-        assignment = assignment_result.scalar_one_or_none()
+        lead = lead_result.scalar_one_or_none()
 
-        if not assignment:
+        if not lead:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Lead não encontrado"
+            )
+
+        # Verifica se está atribuído ao corretor
+        if lead.assigned_seller_id != seller.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Este lead não está atribuído a você"
@@ -309,14 +316,7 @@ async def take_over_conversation(
             )
 
         # Verifica se está atribuído ao corretor
-        assignment_result = await session.execute(
-            select(LeadAssignment)
-            .where(LeadAssignment.lead_id == lead_id)
-            .where(LeadAssignment.seller_id == seller.id)
-        )
-        assignment = assignment_result.scalar_one_or_none()
-
-        if not assignment:
+        if lead.assigned_seller_id != seller.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Este lead não está atribuído a você"
@@ -383,14 +383,7 @@ async def send_message_as_seller(
             )
 
         # Verifica se está atribuído
-        assignment_result = await session.execute(
-            select(LeadAssignment)
-            .where(LeadAssignment.lead_id == lead_id)
-            .where(LeadAssignment.seller_id == seller.id)
-        )
-        assignment = assignment_result.scalar_one_or_none()
-
-        if not assignment:
+        if lead.assigned_seller_id != seller.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Este lead não está atribuído a você"
@@ -475,14 +468,7 @@ async def return_to_ai(
             )
 
         # Verifica se está atribuído
-        assignment_result = await session.execute(
-            select(LeadAssignment)
-            .where(LeadAssignment.lead_id == lead_id)
-            .where(LeadAssignment.seller_id == seller.id)
-        )
-        assignment = assignment_result.scalar_one_or_none()
-
-        if not assignment:
+        if lead.assigned_seller_id != seller.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Este lead não está atribuído a você"
