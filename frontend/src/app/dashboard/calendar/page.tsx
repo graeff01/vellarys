@@ -66,9 +66,10 @@ export default function CalendarPage() {
       setLoading(true);
       const month = currentMonth.getMonth() + 1;
       const year = currentMonth.getFullYear();
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1';
 
       const response = await fetch(
-        `/api/v1/appointments/calendar?month=${month}&year=${year}`,
+        `${apiUrl}/appointments/calendar?month=${month}&year=${year}`,
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,

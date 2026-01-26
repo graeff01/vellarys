@@ -127,7 +127,8 @@ export default function ControlCenterPage() {
   async function loadFeatures() {
     try {
       setLoading(true);
-      const response = await fetch('/api/v1/settings/features', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1';
+      const response = await fetch(`${apiUrl}/settings/features`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -159,7 +160,8 @@ export default function ControlCenterPage() {
   async function handleSave() {
     try {
       setSaving(true);
-      const response = await fetch('/api/v1/settings/features', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1';
+      const response = await fetch(`${apiUrl}/settings/features`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
