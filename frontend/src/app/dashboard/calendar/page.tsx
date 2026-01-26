@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { getToken } from '@/lib/auth';
+import { AppointmentModal } from '@/components/dashboard/appointment-modal';
 import {
   Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon,
   Clock, MapPin, Phone, User, CheckCircle2, XCircle, Loader2
@@ -56,6 +57,7 @@ export default function CalendarPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -156,7 +158,7 @@ export default function CalendarPage() {
           <h1 className="text-3xl font-bold text-gray-900">Calendário de Agendamentos</h1>
           <p className="text-gray-500 mt-1">Gerencie suas visitas e compromissos</p>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={() => setModalOpen(true)}>
           <Plus className="w-4 h-4" />
           Novo Agendamento
         </Button>
@@ -314,6 +316,14 @@ export default function CalendarPage() {
           )}
         </Card>
       </div>
+
+      {/* Modal de criação de agendamento */}
+      <AppointmentModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSuccess={loadAppointments}
+        defaultDate={selectedDay || new Date()}
+      />
     </div>
   );
 }
