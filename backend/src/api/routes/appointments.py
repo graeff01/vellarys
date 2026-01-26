@@ -30,8 +30,10 @@ from src.domain.entities import (
     User,
 )
 from src.api.dependencies import get_db, get_current_user, get_current_tenant
+from src.infrastructure.logging import get_logger
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
+logger = get_logger(__name__)
 
 
 # ==========================================
@@ -143,6 +145,11 @@ async def create_appointment(
     - Seller existe e pertence ao tenant
     - Data/hora é futura
     """
+    logger.info(f"📅 [APPOINTMENTS] Criar agendamento")
+    logger.info(f"📅 User: {user.email} (role: {user.role})")
+    logger.info(f"📅 Tenant: {tenant.slug}")
+    logger.info(f"📅 Payload: {payload.model_dump()}")
+
     # Validar lead
     lead_result = await db.execute(
         select(Lead).where(Lead.id == payload.lead_id, Lead.tenant_id == tenant.id)
@@ -150,6 +157,7 @@ async def create_appointment(
     lead = lead_result.scalar_one_or_none()
 
     if not lead:
+        logger.error(f"❌ Lead {payload.lead_id} não encontrado para tenant {tenant.slug}")
         raise HTTPException(status_code=404, detail="Lead não encontrado")
 
     # Validar seller
@@ -159,15 +167,18 @@ async def create_appointment(
     seller = seller_result.scalar_one_or_none()
 
     if not seller:
+        logger.error(f"❌ Seller {payload.seller_id} não encontrado para tenant {tenant.slug}")
         raise HTTPException(status_code=404, detail="Vendedor não encontrado")
 
     # Validar data futura
     if payload.scheduled_at < datetime.now():
+        logger.error(f"❌ Data inválida: {payload.scheduled_at} é no passado")
         raise HTTPException(
             status_code=400, detail="Data do agendamento deve ser futura"
         )
 
     # Criar appointment
+    logger.info(f"✅ Validações OK - Criando appointment...")
     appointment = Appointment(
         tenant_id=tenant.id,
         lead_id=payload.lead_id,
@@ -188,6 +199,7 @@ async def create_appointment(
     await db.commit()
     await db.refresh(appointment, ["lead", "seller"])
 
+    logger.info(f"✅ Appointment {appointment.id} criado com sucesso!")
     # TODO: Agendar job para enviar reminder 1h antes (usar APScheduler ou Celery)
 
     return _format_appointment_response(appointment)
@@ -264,12 +276,19 @@ async def calendar_view(
         "2026-01-27": [appointment3]
     }
     """
+    logger.info(f"📅 [CALENDAR] Requisição de calendário")
+    logger.info(f"📅 User: {user.email} (role: {user.role})")
+    logger.info(f"📅 Tenant: {tenant.slug}")
+    logger.info(f"📅 Filtros: month={month}, year={year}, seller_id={seller_id}")
+
     # Calcular primeiro e último dia do mês
     from calendar import monthrange
 
     _, last_day = monthrange(year, month)
     date_from = datetime(year, month, 1, 0, 0, 0)
     date_to = datetime(year, month, last_day, 23, 59, 59)
+
+    logger.info(f"📅 Intervalo: {date_from} até {date_to}")
 
     # Query
     query = (
@@ -290,6 +309,8 @@ async def calendar_view(
     result = await db.execute(query)
     appointments = result.scalars().all()
 
+    logger.info(f"📅 Encontrados {len(appointments)} agendamentos")
+
     # Agrupar por dia
     calendar_data = {}
     for appt in appointments:
@@ -299,6 +320,7 @@ async def calendar_view(
 
         calendar_data[day_key].append(_format_appointment_response(appt))
 
+    logger.info(f"✅ Calendário retornado com {len(calendar_data)} dias com agendamentos")
     return calendar_data
 
 

@@ -67,21 +67,32 @@ export default function CalendarPage() {
       const month = currentMonth.getMonth() + 1;
       const year = currentMonth.getFullYear();
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1';
+      const token = localStorage.getItem('token');
+      const url = `${apiUrl}/appointments/calendar?month=${month}&year=${year}`;
 
-      const response = await fetch(
-        `${apiUrl}/appointments/calendar?month=${month}&year=${year}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
-        }
-      );
+      console.log('📅 [CALENDAR] Carregando agendamentos...');
+      console.log('📅 URL:', url);
+      console.log('📅 Mês:', month, 'Ano:', year);
+      console.log('📅 Token presente:', !!token);
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('📅 Response status:', response.status);
+      console.log('📅 Response ok:', response.ok);
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Erro na resposta:', errorText);
         throw new Error('Erro ao carregar agendamentos');
       }
 
       const data = await response.json();
+      console.log('📅 Dados recebidos:', data);
+      console.log('📅 Tipo:', typeof data);
 
       // Converter objeto agrupado por dia em array flat
       const allAppointments: Appointment[] = [];
@@ -89,9 +100,10 @@ export default function CalendarPage() {
         allAppointments.push(...data[date]);
       });
 
+      console.log('✅ Total de appointments:', allAppointments.length);
       setAppointments(allAppointments);
     } catch (err) {
-      console.error('Erro ao carregar agendamentos:', err);
+      console.error('❌ Erro ao carregar agendamentos:', err);
       toast({
         variant: 'destructive',
         title: 'Erro ao carregar agendamentos',

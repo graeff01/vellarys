@@ -128,20 +128,34 @@ export default function ControlCenterPage() {
     try {
       setLoading(true);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1';
-      const response = await fetch(`${apiUrl}/settings/features`, {
+      const token = localStorage.getItem('token');
+      const url = `${apiUrl}/settings/features`;
+
+      console.log('🎛️ [FRONTEND] Carregando features...');
+      console.log('🎛️ URL:', url);
+      console.log('🎛️ Token presente:', !!token);
+      console.log('🎛️ Token (primeiros 20 chars):', token?.substring(0, 20));
+
+      const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
       });
 
+      console.log('🎛️ Response status:', response.status);
+      console.log('🎛️ Response ok:', response.ok);
+
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Erro na resposta:', errorText);
         throw new Error('Erro ao carregar features');
       }
 
       const data = await response.json();
+      console.log('✅ Features carregadas:', data);
       setFeatures(data);
     } catch (err) {
-      console.error('Erro ao carregar features:', err);
+      console.error('❌ Erro ao carregar features:', err);
       toast({
         variant: 'destructive',
         title: 'Erro ao carregar funcionalidades',
@@ -161,19 +175,47 @@ export default function ControlCenterPage() {
     try {
       setSaving(true);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1';
-      const response = await fetch(`${apiUrl}/settings/features`, {
+      const token = localStorage.getItem('token');
+      const url = `${apiUrl}/settings/features`;
+
+      console.log('🎛️ [FRONTEND] Salvando features...');
+      console.log('🎛️ URL:', url);
+      console.log('🎛️ Token presente:', !!token);
+      console.log('🎛️ Token (primeiros 20 chars):', token?.substring(0, 20));
+      console.log('🎛️ Features a salvar:', features);
+      console.log('🎛️ Tipo:', typeof features);
+
+      const response = await fetch(url, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(features),
       });
 
+      console.log('🎛️ Response status:', response.status);
+      console.log('🎛️ Response ok:', response.ok);
+      console.log('🎛️ Response headers:', Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Erro ao salvar');
+        const contentType = response.headers.get('content-type');
+        let errorDetail;
+
+        if (contentType?.includes('application/json')) {
+          const error = await response.json();
+          errorDetail = error.detail || 'Erro ao salvar';
+          console.error('❌ Erro JSON:', error);
+        } else {
+          errorDetail = await response.text();
+          console.error('❌ Erro texto:', errorDetail);
+        }
+
+        throw new Error(errorDetail);
       }
+
+      const result = await response.json();
+      console.log('✅ Resultado do save:', result);
 
       setHasChanges(false);
       toast({
@@ -181,7 +223,8 @@ export default function ControlCenterPage() {
         description: 'As funcionalidades foram atualizadas com sucesso'
       });
     } catch (err: any) {
-      console.error('Erro ao salvar features:', err);
+      console.error('❌ Erro ao salvar features:', err);
+      console.error('❌ Stack:', err.stack);
       toast({
         variant: 'destructive',
         title: 'Erro ao salvar',

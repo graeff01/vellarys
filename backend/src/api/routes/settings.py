@@ -1136,14 +1136,20 @@ async def get_features(
     Returns:
         Dict com features habilitadas/desabilitadas
     """
+    logger.info(f"🎛️ [FEATURES GET] Requisição de features")
+    logger.info(f"🎛️ User: {user.email} (role: {user.role}, id: {user.id})")
+    logger.info(f"🎛️ Tenant: {tenant.slug} (id: {tenant.id})")
+
     settings = tenant.settings or {}
     features = settings.get("features", {})
+
+    logger.info(f"🎛️ Features salvas no tenant: {features}")
 
     # Merge com defaults para garantir que todos os campos existem
     default_features = DEFAULT_SETTINGS["features"]
     merged_features = deep_merge(default_features, features)
 
-    logger.info(f"Features carregadas para tenant {tenant.slug}: {merged_features}")
+    logger.info(f"✅ Features retornadas (merged): {merged_features}")
 
     return merged_features
 
@@ -1167,25 +1173,34 @@ async def update_features(
     Returns:
         Confirmação de sucesso com features atualizadas
     """
+    logger.info(f"🎛️ [FEATURES PATCH] Atualizar features")
+    logger.info(f"🎛️ User: {user.email} (role: {user.role}, id: {user.id})")
+    logger.info(f"🎛️ Tenant: {tenant.slug} (id: {tenant.id})")
+    logger.info(f"🎛️ Features recebidas: {features}")
+    logger.info(f"🎛️ Tipo do payload: {type(features)}")
+
     # Validar permissão
     if user.role not in ["admin", "gestor", "superadmin"]:
         logger.warning(
-            f"Usuário {user.email} (role: {user.role}) tentou alterar feature flags"
+            f"❌ Usuário {user.email} (role: {user.role}) tentou alterar feature flags - PERMISSÃO NEGADA"
         )
         raise HTTPException(
             status_code=403,
             detail="Apenas gestores e administradores podem alterar funcionalidades",
         )
 
-    logger.info(f"Atualizando features para tenant {tenant.slug}")
-    logger.info(f"Features recebidas: {features}")
+    logger.info(f"✅ Permissão validada: role {user.role} autorizado")
 
     try:
         # Validar que todas as keys são features válidas
         valid_features = set(DEFAULT_SETTINGS["features"].keys())
         invalid_keys = set(features.keys()) - valid_features
 
+        logger.info(f"🎛️ Features válidas: {valid_features}")
+        logger.info(f"🎛️ Keys recebidas: {set(features.keys())}")
+
         if invalid_keys:
+            logger.error(f"❌ Features inválidas detectadas: {invalid_keys}")
             raise HTTPException(
                 status_code=400,
                 detail=f"Features inválidas: {', '.join(invalid_keys)}",
@@ -1194,29 +1209,39 @@ async def update_features(
         # Validar que todos os valores são booleanos
         non_bool_values = [k for k, v in features.items() if not isinstance(v, bool)]
         if non_bool_values:
+            logger.error(f"❌ Valores não-booleanos detectados: {non_bool_values}")
             raise HTTPException(
                 status_code=400,
                 detail=f"Features devem ser booleanas: {', '.join(non_bool_values)}",
             )
 
+        logger.info(f"✅ Validações OK - Atualizando settings...")
+
         # Atualizar settings
         current_settings = copy.deepcopy(tenant.settings or {})
+
+        logger.info(f"🎛️ Settings atuais: {current_settings.get('features', {})}")
 
         # Garantir que "features" existe
         if "features" not in current_settings:
             current_settings["features"] = DEFAULT_SETTINGS["features"].copy()
+            logger.info(f"🎛️ Features não existiam - criando com defaults")
 
         # Merge das features (atualiza apenas as enviadas)
         current_settings["features"].update(features)
+
+        logger.info(f"🎛️ Novos settings após merge: {current_settings['features']}")
 
         # Salvar
         tenant.settings = current_settings
         flag_modified(tenant, "settings")
 
+        logger.info(f"🎛️ Commitando mudanças no banco...")
         await db.commit()
         await db.refresh(tenant)
 
-        logger.info(f"✅ Features atualizadas com sucesso: {features}")
+        logger.info(f"✅ Features atualizadas com sucesso!")
+        logger.info(f"✅ Features finais: {current_settings['features']}")
 
         return {
             "success": True,
