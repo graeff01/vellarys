@@ -12,7 +12,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   getLead,
   getLeadMessages,
@@ -177,9 +176,9 @@ export default function LeadDetailPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {/* Header fixo - estilo Salesforce/HubSpot */}
-      <div className="bg-white border-b border-gray-200 shadow-sm">
+      <div className="bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
         <div className="px-6 py-4">
           <div className="flex items-start justify-between">
             {/* Info do Lead */}
@@ -285,11 +284,11 @@ export default function LeadDetailPage() {
         </div>
       </div>
 
-      {/* Layout 3 colunas */}
+      {/* Layout 3 colunas - SEM SCROLL EXTERNO */}
       <div className="flex-1 overflow-hidden">
         <div className="h-full max-w-[1600px] mx-auto grid grid-cols-12 gap-6 p-6">
           {/* Coluna principal (conversas/atividades) */}
-          <div className="col-span-8 flex flex-col">
+          <div className="col-span-8 h-full">
             {activeTab === 'activity' && (
               <WhatsAppConversation messages={messages} events={events} messagesEndRef={messagesEndRef} />
             )}
@@ -298,8 +297,8 @@ export default function LeadDetailPage() {
             )}
           </div>
 
-          {/* Sidebar direita - Info do Lead */}
-          <div className="col-span-4 space-y-4">
+          {/* Sidebar direita - Info do Lead - COM SCROLL PRÓPRIO */}
+          <div className="col-span-4 h-full overflow-y-auto space-y-4 pr-2">
             <LeadInfoSidebar lead={lead} onUpdate={setLead} onUpdateQualification={atualizarQualificacao} onUpdateStatus={atualizarStatus} />
           </div>
         </div>
@@ -328,9 +327,9 @@ function WhatsAppConversation({
   ].sort((a, b) => a.date.getTime() - b.date.getTime());
 
   return (
-    <Card className="flex-1 flex flex-col overflow-hidden">
+    <Card className="h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="border-b border-gray-200 px-6 py-4 bg-white">
+      <div className="border-b border-gray-200 px-6 py-4 bg-white flex-shrink-0">
         <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <MessageCircle className="w-5 h-5 text-blue-600" />
           Histórico de Conversas
@@ -340,121 +339,119 @@ function WhatsAppConversation({
         </p>
       </div>
 
-      {/* Área de mensagens - ESTILO WHATSAPP */}
-      <div className="flex-1 overflow-hidden bg-[#e5ddd5] relative">
+      {/* Área de mensagens - ESTILO WHATSAPP - SCROLL APENAS AQUI */}
+      <div className="flex-1 overflow-y-auto bg-[#e5ddd5] relative">
         {/* Padrão de fundo WhatsApp */}
         <div
-          className="absolute inset-0 opacity-[0.06]"
+          className="absolute inset-0 opacity-[0.06] pointer-events-none"
           style={{
             backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
           }}
         />
 
-        <ScrollArea className="h-full">
-          {timeline.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center py-12">
-              <MessageCircle className="w-16 h-16 text-gray-300 mb-4" />
-              <p className="text-gray-500">Nenhuma interação registrada</p>
-            </div>
-          ) : (
-            <div className="px-[9%] py-4 space-y-2 relative">
-              {timeline.map((item, idx) => {
-                if (item.type === 'event') {
-                  const event = item.data as LeadEvent;
-                  return (
-                    <div key={`event-${idx}`} className="flex justify-center my-3">
-                      <div className="bg-[#ffffffcc] backdrop-blur-sm px-4 py-2 rounded-lg shadow-sm max-w-md">
-                        <p className="text-xs text-gray-700 text-center">
-                          {event.description}
-                        </p>
-                        <p className="text-[10px] text-gray-500 text-center mt-1">
-                          {format(new Date(event.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                }
-
-                const msg = item.data as Message;
-                const isUser = msg.role === 'user';
-                const isAI = msg.sender_type === 'ai' || (msg.role === 'assistant' && !msg.sender_type);
-                const isSeller = msg.sender_type === 'seller';
-                const isSystem = msg.sender_type === 'system' || msg.role === 'system';
-
-                const messageTime = new Date(msg.created_at).toLocaleTimeString('pt-BR', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                });
-
-                if (isSystem) {
-                  return (
-                    <div key={`msg-${idx}`} className="flex justify-center my-3">
-                      <div className="bg-[#ffffffcc] backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-sm">
-                        <p className="text-xs text-gray-700">{msg.content}</p>
-                      </div>
-                    </div>
-                  );
-                }
-
+        {timeline.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center py-12">
+            <MessageCircle className="w-16 h-16 text-gray-300 mb-4" />
+            <p className="text-gray-500">Nenhuma interação registrada</p>
+          </div>
+        ) : (
+          <div className="px-[8%] py-6 space-y-3 relative">
+            {timeline.map((item, idx) => {
+              if (item.type === 'event') {
+                const event = item.data as LeadEvent;
                 return (
-                  <div
-                    key={`msg-${idx}`}
-                    className={cn(
-                      'flex',
-                      (isSeller || isAI) ? 'justify-end' : 'justify-start'
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        'relative max-w-[65%] rounded-lg shadow-sm px-3 py-2',
-                        (isSeller || isAI)
-                          ? 'bg-[#d9fdd3] rounded-tr-none'
-                          : 'bg-white rounded-tl-none'
-                      )}
-                      style={{ wordWrap: 'break-word' }}
-                    >
-                      {/* Nome do remetente */}
-                      {!isUser && msg.sender_name && (
-                        <p className={cn(
-                          "text-xs font-medium mb-1",
-                          isAI ? "text-blue-700" : "text-green-700"
-                        )}>
-                          {msg.sender_name}
-                        </p>
-                      )}
-
-                      {/* Conteúdo */}
-                      <p className="text-sm text-gray-900 whitespace-pre-wrap break-words">
-                        {msg.content}
+                  <div key={`event-${idx}`} className="flex justify-center my-4">
+                    <div className="bg-[#ffffffdd] backdrop-blur-sm px-4 py-2 rounded-lg shadow-sm max-w-md">
+                      <p className="text-xs text-gray-700 text-center font-medium">
+                        {event.description}
                       </p>
-
-                      {/* Timestamp e checks */}
-                      <div className="flex items-center justify-end gap-1 mt-1">
-                        <span className="text-[11px] text-gray-500">
-                          {messageTime}
-                        </span>
-                        {(isSeller || isAI) && (
-                          <span className={cn(
-                            "transition-colors",
-                            msg.status === 'read' ? "text-blue-500" : "text-gray-500"
-                          )}>
-                            {msg.status === 'sent' ? (
-                              <Check className="h-3.5 w-3.5" />
-                            ) : (
-                              <CheckCheck className="h-3.5 w-3.5" />
-                            )}
-                          </span>
-                        )}
-                      </div>
+                      <p className="text-[10px] text-gray-500 text-center mt-1">
+                        {format(new Date(event.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      </p>
                     </div>
                   </div>
                 );
-              })}
+              }
 
-              <div ref={messagesEndRef} />
-            </div>
-          )}
-        </ScrollArea>
+              const msg = item.data as Message;
+              const isUser = msg.role === 'user';
+              const isAI = msg.sender_type === 'ai' || (msg.role === 'assistant' && !msg.sender_type);
+              const isSeller = msg.sender_type === 'seller';
+              const isSystem = msg.sender_type === 'system' || msg.role === 'system';
+
+              const messageTime = new Date(msg.created_at).toLocaleTimeString('pt-BR', {
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+
+              if (isSystem) {
+                return (
+                  <div key={`msg-${idx}`} className="flex justify-center my-4">
+                    <div className="bg-[#ffffffdd] backdrop-blur-sm px-4 py-2 rounded-lg shadow-sm">
+                      <p className="text-xs text-gray-700 font-medium">{msg.content}</p>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={`msg-${idx}`}
+                  className={cn(
+                    'flex mb-2',
+                    (isSeller || isAI) ? 'justify-end' : 'justify-start'
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'relative max-w-[70%] rounded-lg px-3 py-2',
+                      (isSeller || isAI)
+                        ? 'bg-[#d9fdd3] rounded-tr-none shadow-md'
+                        : 'bg-white rounded-tl-none shadow-md'
+                    )}
+                    style={{ wordWrap: 'break-word' }}
+                  >
+                    {/* Nome do remetente */}
+                    {!isUser && msg.sender_name && (
+                      <p className={cn(
+                        "text-xs font-semibold mb-1.5",
+                        isAI ? "text-blue-700" : "text-green-700"
+                      )}>
+                        {msg.sender_name}
+                      </p>
+                    )}
+
+                    {/* Conteúdo */}
+                    <p className="text-[14.5px] text-gray-900 whitespace-pre-wrap break-words leading-relaxed">
+                      {msg.content}
+                    </p>
+
+                    {/* Timestamp e checks */}
+                    <div className="flex items-center justify-end gap-1.5 mt-2">
+                      <span className="text-[11px] text-gray-500 font-medium">
+                        {messageTime}
+                      </span>
+                      {(isSeller || isAI) && (
+                        <span className={cn(
+                          "transition-colors",
+                          msg.status === 'read' ? "text-blue-500" : "text-gray-500"
+                        )}>
+                          {msg.status === 'sent' ? (
+                            <Check className="h-4 w-4" />
+                          ) : (
+                            <CheckCheck className="h-4 w-4" />
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div ref={messagesEndRef} />
+          </div>
+        )}
       </div>
     </Card>
   );
@@ -609,8 +606,8 @@ function OpportunitiesPanel({
   onReload: () => void;
 }) {
   return (
-    <Card className="flex-1 flex flex-col overflow-hidden">
-      <div className="border-b border-gray-200 px-6 py-4 bg-white flex items-center justify-between">
+    <Card className="h-full flex flex-col overflow-hidden">
+      <div className="border-b border-gray-200 px-6 py-4 bg-white flex items-center justify-between flex-shrink-0">
         <div>
           <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-green-600" />
@@ -626,7 +623,8 @@ function OpportunitiesPanel({
         </Button>
       </div>
 
-      <ScrollArea className="flex-1">
+      {/* SCROLL APENAS AQUI */}
+      <div className="flex-1 overflow-y-auto">
         {opportunities.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-12">
             <TrendingUp className="w-16 h-16 text-gray-300 mb-4" />
@@ -638,7 +636,7 @@ function OpportunitiesPanel({
         ) : (
           <div className="p-6 space-y-4">
             {opportunities.map(opp => (
-              <Card key={opp.id} className="p-5 hover:shadow-md transition-shadow">
+              <Card key={opp.id} className="p-5 hover:shadow-lg transition-all border border-gray-200">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h4 className="font-semibold text-gray-900 text-base">{opp.title}</h4>
@@ -665,7 +663,7 @@ function OpportunitiesPanel({
             ))}
           </div>
         )}
-      </ScrollArea>
+      </div>
     </Card>
   );
 }
