@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { getToken } from '@/lib/auth';
 import {
   Plus, ChevronLeft, ChevronRight, Calendar as CalendarIcon,
   Clock, MapPin, Phone, User, CheckCircle2, XCircle, Loader2
@@ -67,7 +68,7 @@ export default function CalendarPage() {
       const month = currentMonth.getMonth() + 1;
       const year = currentMonth.getFullYear();
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1';
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const url = `${apiUrl}/appointments/calendar?month=${month}&year=${year}`;
 
       console.log('📅 [CALENDAR] Carregando agendamentos...');

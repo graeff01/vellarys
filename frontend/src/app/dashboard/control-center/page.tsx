@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { getToken } from '@/lib/auth';
 import {
   Calendar, MessageSquare, StickyNote, Paperclip, Zap, Search,
   BarChart3, Archive, Mic, Shield, RefreshCw, Brain, Save, Loader2
@@ -128,7 +129,7 @@ export default function ControlCenterPage() {
     try {
       setLoading(true);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1';
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const url = `${apiUrl}/settings/features`;
 
       console.log('🎛️ [FRONTEND] Carregando features...');
@@ -175,7 +176,7 @@ export default function ControlCenterPage() {
     try {
       setSaving(true);
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1';
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const url = `${apiUrl}/settings/features`;
 
       console.log('🎛️ [FRONTEND] Salvando features...');
