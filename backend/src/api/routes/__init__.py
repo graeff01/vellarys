@@ -24,6 +24,7 @@ from .data_sources import router as data_sources_router  # ← DATA SOURCES
 from .dashboard_config import router as dashboard_config_router  # ← DASHBOARD CONFIG
 from .sales import router as sales_router  # ← SALES & GOALS
 from .opportunities import router as opportunities_router, leads_router as opportunities_leads_router  # ← OPPORTUNITIES
+from .appointments import router as appointments_router  # ← APPOINTMENTS (CALENDÁRIO)
 
 # Admin routes
 from .admin import (
@@ -62,6 +63,7 @@ __all__ = [
     "sales_router",
     "opportunities_router",
     "opportunities_leads_router",
+    "appointments_router",
     # Admin
     "admin_dashboard_router",
     "admin_tenants_router",

@@ -41,6 +41,7 @@ from .property_embedding import PropertyEmbedding
 from .knowledge_embedding import KnowledgeEmbedding
 from .dashboard_config import DashboardConfig, SalesGoal, WIDGET_TYPES, DEFAULT_DASHBOARD_WIDGETS
 from .opportunity import Opportunity
+from .appointment import Appointment, AppointmentType, AppointmentStatus, AppointmentOutcome
 
 __all__ = [
     # Base
@@ -98,4 +99,9 @@ __all__ = [
     "DEFAULT_DASHBOARD_WIDGETS",
     # Opportunities
     "Opportunity",
+    # Appointments
+    "Appointment",
+    "AppointmentType",
+    "AppointmentStatus",
+    "AppointmentOutcome",
 ]

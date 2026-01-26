@@ -270,6 +270,29 @@ DEFAULT_SETTINGS = {
     # MODO DE HANDOFF (crm_inbox ou whatsapp_pessoal)
     # =========================================================================
     "handoff_mode": "whatsapp_pessoal",
+
+    # =========================================================================
+    # FEATURE FLAGS (CENTRO DE CONTROLE DO GESTOR)
+    # =========================================================================
+    "features": {
+        # Core Features
+        "calendar_enabled": True,           # Calendário de agendamentos
+        "templates_enabled": True,          # Templates de resposta
+        "notes_enabled": True,              # Anotações internas
+        "attachments_enabled": True,        # Upload de anexos
+
+        # Advanced Features
+        "sse_enabled": True,                # Server-Sent Events (tempo real)
+        "search_enabled": True,             # Busca de mensagens
+        "metrics_enabled": True,            # Métricas e analytics
+        "archive_enabled": True,            # Arquivamento de leads
+        "voice_response_enabled": False,    # Respostas em áudio
+
+        # Experimental Features
+        "ai_guard_enabled": True,           # Guardrails avançados da IA
+        "reengagement_enabled": False,      # Re-engajamento automático
+        "knowledge_base_enabled": False,    # Base de conhecimento / RAG
+    },
 }
 
 
@@ -1093,3 +1116,117 @@ async def get_faq_index_status(
     except Exception as e:
         logger.error(f"❌ Erro ao obter status do índice: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# FEATURE FLAGS (CENTRO DE CONTROLE)
+# =============================================================================
+
+@router.get("/features")
+async def get_features(
+    user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+):
+    """
+    Retorna feature flags do tenant (Centro de Controle).
+
+    Feature flags permitem ao gestor ativar/desativar funcionalidades
+    do sistema de forma dinâmica, sem precisar redeployar código.
+
+    Returns:
+        Dict com features habilitadas/desabilitadas
+    """
+    settings = tenant.settings or {}
+    features = settings.get("features", {})
+
+    # Merge com defaults para garantir que todos os campos existem
+    default_features = DEFAULT_SETTINGS["features"]
+    merged_features = deep_merge(default_features, features)
+
+    logger.info(f"Features carregadas para tenant {tenant.slug}: {merged_features}")
+
+    return merged_features
+
+
+@router.patch("/features")
+async def update_features(
+    features: dict,
+    user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Atualiza feature flags (Centro de Controle).
+
+    IMPORTANTE: Apenas usuários com role 'admin', 'gestor' ou 'superadmin'
+    podem alterar feature flags.
+
+    Args:
+        features: Dict com features a atualizar (ex: {"calendar_enabled": true})
+
+    Returns:
+        Confirmação de sucesso com features atualizadas
+    """
+    # Validar permissão
+    if user.role not in ["admin", "gestor", "superadmin"]:
+        logger.warning(
+            f"Usuário {user.email} (role: {user.role}) tentou alterar feature flags"
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Apenas gestores e administradores podem alterar funcionalidades",
+        )
+
+    logger.info(f"Atualizando features para tenant {tenant.slug}")
+    logger.info(f"Features recebidas: {features}")
+
+    try:
+        # Validar que todas as keys são features válidas
+        valid_features = set(DEFAULT_SETTINGS["features"].keys())
+        invalid_keys = set(features.keys()) - valid_features
+
+        if invalid_keys:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Features inválidas: {', '.join(invalid_keys)}",
+            )
+
+        # Validar que todos os valores são booleanos
+        non_bool_values = [k for k, v in features.items() if not isinstance(v, bool)]
+        if non_bool_values:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Features devem ser booleanas: {', '.join(non_bool_values)}",
+            )
+
+        # Atualizar settings
+        current_settings = copy.deepcopy(tenant.settings or {})
+
+        # Garantir que "features" existe
+        if "features" not in current_settings:
+            current_settings["features"] = DEFAULT_SETTINGS["features"].copy()
+
+        # Merge das features (atualiza apenas as enviadas)
+        current_settings["features"].update(features)
+
+        # Salvar
+        tenant.settings = current_settings
+        flag_modified(tenant, "settings")
+
+        await db.commit()
+        await db.refresh(tenant)
+
+        logger.info(f"✅ Features atualizadas com sucesso: {features}")
+
+        return {
+            "success": True,
+            "message": "Funcionalidades atualizadas com sucesso",
+            "features": current_settings["features"],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Erro ao atualizar features: {e}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erro ao atualizar: {str(e)}")

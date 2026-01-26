@@ -55,6 +55,7 @@ from src.api.routes import (
     sales_router,
     opportunities_router,
     opportunities_leads_router,
+    appointments_router,
 )
 
 # Domain
@@ -245,6 +246,7 @@ app.include_router(dashboard_config_router, prefix="/api/v1")
 app.include_router(sales_router, prefix="/api/v1")
 app.include_router(opportunities_router, prefix="/api/v1")
 app.include_router(opportunities_leads_router, prefix="/api/v1")
+app.include_router(appointments_router, prefix="/api/v1")
 
 # Admin
 app.include_router(admin_dashboard_router, prefix="/api/v1")

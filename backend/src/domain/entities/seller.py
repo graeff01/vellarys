@@ -107,6 +107,7 @@ class Seller(Base, TimestampMixin):
     assignments: Mapped[List["LeadAssignment"]] = relationship(back_populates="seller", cascade="all, delete-orphan")
     products: Mapped[List["Product"]] = relationship(back_populates="seller")
     user: Mapped[Optional["User"]] = relationship(foreign_keys=[user_id])  # ⚡ NOVO: Link para login
+    appointments: Mapped[List["Appointment"]] = relationship(back_populates="seller", cascade="all, delete-orphan")
     # ==========================================
     # MÉTODOS ÚTEIS
     # ==========================================

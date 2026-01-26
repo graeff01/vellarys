@@ -265,6 +265,7 @@ class Lead(Base, TimestampMixin):
     opportunities: Mapped[list["Opportunity"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
     notes: Mapped[list["LeadNote"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
     handoff_history: Mapped[list["HandoffHistory"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
+    appointments: Mapped[list["Appointment"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
 
     # ==========================================
     # ÍNDICES DE PERFORMANCE
