@@ -179,50 +179,50 @@ export default function LeadDetailPage() {
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {/* Header fixo - estilo Salesforce/HubSpot */}
       <div className="bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
-        <div className="px-6 py-4">
+        <div className="px-4 py-3">
           <div className="flex items-start justify-between">
             {/* Info do Lead */}
-            <div className="flex items-start gap-4">
+            <div className="flex items-start gap-3">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => router.back()}
-                className="mt-1"
+                className="mt-0.5"
               >
-                <ArrowLeft className="w-4 h-4 mr-2" />
+                <ArrowLeft className="w-4 h-4 mr-1" />
                 Voltar
               </Button>
 
               <div>
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold text-gray-900">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold text-gray-900">
                     {lead.name || 'Lead sem nome'}
                   </h1>
                   <StatusBadge status={lead.status} />
                   <QualificationBadge qualification={lead.qualification} />
                 </div>
 
-                <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                <div className="flex items-center gap-3 mt-1 text-xs text-gray-600">
                   {lead.phone && (
                     <span className="flex items-center gap-1">
-                      <Phone className="w-3.5 h-3.5" />
+                      <Phone className="w-3 h-3" />
                       {lead.phone}
                     </span>
                   )}
                   {lead.email && (
                     <span className="flex items-center gap-1">
-                      <Mail className="w-3.5 h-3.5" />
+                      <Mail className="w-3 h-3" />
                       {lead.email}
                     </span>
                   )}
                   {lead.city && (
                     <span className="flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5" />
+                      <MapPin className="w-3 h-3" />
                       {lead.city}
                     </span>
                   )}
                   <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
+                    <Clock className="w-3 h-3" />
                     {format(new Date(lead.created_at), "dd/MM/yyyy", { locale: ptBR })}
                   </span>
                 </div>
@@ -230,33 +230,33 @@ export default function LeadDetailPage() {
             </div>
 
             {/* Quick Actions */}
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="gap-2">
-                <Phone className="w-4 h-4" />
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" size="sm" className="gap-1.5 h-8 px-3 text-xs">
+                <Phone className="w-3.5 h-3.5" />
                 Ligar
               </Button>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Mail className="w-4 h-4" />
+              <Button variant="outline" size="sm" className="gap-1.5 h-8 px-3 text-xs">
+                <Mail className="w-3.5 h-3.5" />
                 Email
               </Button>
-              <Button variant="outline" size="sm" className="gap-2">
-                <MessageCircle className="w-4 h-4" />
+              <Button variant="outline" size="sm" className="gap-1.5 h-8 px-3 text-xs">
+                <MessageCircle className="w-3.5 h-3.5" />
                 WhatsApp
               </Button>
-              <Button variant="outline" size="sm">
-                <MoreHorizontal className="w-4 h-4" />
+              <Button variant="outline" size="sm" className="h-8 px-2">
+                <MoreHorizontal className="w-3.5 h-3.5" />
               </Button>
             </div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="px-6">
-          <div className="flex gap-6 border-b border-gray-200">
+        <div className="px-4">
+          <div className="flex gap-4 border-b border-gray-200">
             <button
               onClick={() => setActiveTab('activity')}
               className={cn(
-                "px-1 py-3 font-medium text-sm border-b-2 transition-colors",
+                "px-1 py-2.5 font-medium text-sm border-b-2 transition-colors",
                 activeTab === 'activity'
                   ? "text-blue-600 border-blue-600"
                   : "text-gray-600 border-transparent hover:text-gray-900"
@@ -267,7 +267,7 @@ export default function LeadDetailPage() {
             <button
               onClick={() => setActiveTab('opportunities')}
               className={cn(
-                "px-1 py-3 font-medium text-sm border-b-2 transition-colors flex items-center gap-2",
+                "px-1 py-2.5 font-medium text-sm border-b-2 transition-colors flex items-center gap-1.5",
                 activeTab === 'opportunities'
                   ? "text-blue-600 border-blue-600"
                   : "text-gray-600 border-transparent hover:text-gray-900"
@@ -284,11 +284,11 @@ export default function LeadDetailPage() {
         </div>
       </div>
 
-      {/* Layout 3 colunas - SEM SCROLL EXTERNO */}
+      {/* Layout 2 colunas - SEM SCROLL EXTERNO - Otimizado para viewport */}
       <div className="flex-1 overflow-hidden">
-        <div className="h-full max-w-[1600px] mx-auto grid grid-cols-12 gap-6 p-6">
-          {/* Coluna principal (conversas/atividades) */}
-          <div className="col-span-8 h-full">
+        <div className="h-full flex gap-4 px-4 py-4">
+          {/* Coluna principal (conversas/atividades) - 65% */}
+          <div className="flex-[0_0_65%] h-full">
             {activeTab === 'activity' && (
               <WhatsAppConversation messages={messages} events={events} messagesEndRef={messagesEndRef} />
             )}
@@ -297,8 +297,8 @@ export default function LeadDetailPage() {
             )}
           </div>
 
-          {/* Sidebar direita - Info do Lead - COM SCROLL PRÓPRIO */}
-          <div className="col-span-4 h-full overflow-y-auto space-y-4 pr-2">
+          {/* Sidebar direita - Info do Lead - 35% - COM SCROLL PRÓPRIO */}
+          <div className="flex-[0_0_35%] h-full overflow-y-auto space-y-3 pr-1">
             <LeadInfoSidebar lead={lead} onUpdate={setLead} onUpdateQualification={atualizarQualificacao} onUpdateStatus={atualizarStatus} />
           </div>
         </div>
@@ -329,12 +329,12 @@ function WhatsAppConversation({
   return (
     <Card className="h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="border-b border-gray-200 px-6 py-4 bg-white flex-shrink-0">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <MessageCircle className="w-5 h-5 text-blue-600" />
+      <div className="border-b border-gray-200 px-4 py-3 bg-white flex-shrink-0">
+        <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+          <MessageCircle className="w-4 h-4 text-blue-600" />
           Histórico de Conversas
         </h3>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-xs text-gray-500 mt-0.5">
           {messages.length} mensagens • {events.length} eventos
         </p>
       </div>
@@ -355,7 +355,7 @@ function WhatsAppConversation({
             <p className="text-gray-500">Nenhuma interação registrada</p>
           </div>
         ) : (
-          <div className="px-[8%] py-6 space-y-3 relative">
+          <div className="px-[6%] py-4 space-y-2.5 relative">
             {timeline.map((item, idx) => {
               if (item.type === 'event') {
                 const event = item.data as LeadEvent;
@@ -476,22 +476,22 @@ function LeadInfoSidebar({
     <>
       {/* Card: Resumo */}
       {lead.summary && (
-        <Card className="p-4">
-          <h4 className="text-sm font-semibold text-gray-900 mb-2">Resumo</h4>
-          <p className="text-sm text-gray-700 leading-relaxed">{lead.summary}</p>
+        <Card className="p-3">
+          <h4 className="text-xs font-semibold text-gray-900 mb-2">Resumo</h4>
+          <p className="text-xs text-gray-700 leading-relaxed">{lead.summary}</p>
         </Card>
       )}
 
       {/* Card: Detalhes */}
-      <Card className="p-4">
-        <h4 className="text-sm font-semibold text-gray-900 mb-3">Detalhes do Lead</h4>
-        <div className="space-y-3">
+      <Card className="p-3">
+        <h4 className="text-xs font-semibold text-gray-900 mb-2">Detalhes do Lead</h4>
+        <div className="space-y-2.5">
           <div>
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</label>
+            <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Status</label>
             <select
               value={lead.status}
               onChange={(e) => onUpdateStatus(e.target.value)}
-              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="new">Novo</option>
               <option value="in_progress">Em Andamento</option>
@@ -501,11 +501,11 @@ function LeadInfoSidebar({
           </div>
 
           <div>
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Qualificação</label>
+            <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Qualificação</label>
             <select
               value={lead.qualification}
               onChange={(e) => onUpdateQualification(e.target.value)}
-              className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="cold">🧊 Frio</option>
               <option value="warm">🌤️ Morno</option>
@@ -515,75 +515,75 @@ function LeadInfoSidebar({
 
           {lead.assigned_seller && (
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Vendedor</label>
-              <p className="mt-1 text-sm text-gray-900">{lead.assigned_seller.name}</p>
+              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Vendedor</label>
+              <p className="mt-1 text-xs text-gray-900">{lead.assigned_seller.name}</p>
             </div>
           )}
 
           {lead.interest && (
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Interesse</label>
-              <p className="mt-1 text-sm text-gray-900">{lead.interest}</p>
+              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Interesse</label>
+              <p className="mt-1 text-xs text-gray-900">{lead.interest}</p>
             </div>
           )}
 
           {lead.budget && (
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Orçamento</label>
-              <p className="mt-1 text-sm text-gray-900">{lead.budget}</p>
+              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Orçamento</label>
+              <p className="mt-1 text-xs text-gray-900">{lead.budget}</p>
             </div>
           )}
 
           {lead.custom_data?.company && (
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Empresa</label>
-              <p className="mt-1 text-sm text-gray-900">{lead.custom_data.company}</p>
+              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Empresa</label>
+              <p className="mt-1 text-xs text-gray-900">{lead.custom_data.company}</p>
             </div>
           )}
 
           {lead.custom_data?.position && (
             <div>
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Cargo</label>
-              <p className="mt-1 text-sm text-gray-900">{lead.custom_data.position}</p>
+              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Cargo</label>
+              <p className="mt-1 text-xs text-gray-900">{lead.custom_data.position}</p>
             </div>
           )}
         </div>
       </Card>
 
       {/* Card: Tags */}
-      <Card className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-semibold text-gray-900">Tags</h4>
-          <Button variant="ghost" size="sm" className="h-7 px-2">
-            <Plus className="w-3.5 h-3.5" />
+      <Card className="p-3">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-xs font-semibold text-gray-900">Tags</h4>
+          <Button variant="ghost" size="sm" className="h-6 px-1.5">
+            <Plus className="w-3 h-3" />
           </Button>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {(lead.custom_data?.tags || []).map((tag: string) => (
-            <Badge key={tag} variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            <Badge key={tag} variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] px-2 py-0.5">
               {tag}
             </Badge>
           ))}
           {(!lead.custom_data?.tags || lead.custom_data.tags.length === 0) && (
-            <p className="text-sm text-gray-500">Nenhuma tag</p>
+            <p className="text-xs text-gray-500">Nenhuma tag</p>
           )}
         </div>
       </Card>
 
       {/* Card: Ações Rápidas */}
-      <Card className="p-4">
-        <h4 className="text-sm font-semibold text-gray-900 mb-3">Ações Rápidas</h4>
-        <div className="space-y-2">
-          <Button variant="outline" size="sm" className="w-full justify-start gap-2">
-            <Calendar className="w-4 h-4" />
+      <Card className="p-3">
+        <h4 className="text-xs font-semibold text-gray-900 mb-2">Ações Rápidas</h4>
+        <div className="space-y-1.5">
+          <Button variant="outline" size="sm" className="w-full justify-start gap-2 h-8 text-xs">
+            <Calendar className="w-3.5 h-3.5" />
             Agendar Visita
           </Button>
-          <Button variant="outline" size="sm" className="w-full justify-start gap-2">
-            <TrendingUp className="w-4 h-4" />
+          <Button variant="outline" size="sm" className="w-full justify-start gap-2 h-8 text-xs">
+            <TrendingUp className="w-3.5 h-3.5" />
             Criar Oportunidade
           </Button>
-          <Button variant="outline" size="sm" className="w-full justify-start gap-2">
-            <Edit2 className="w-4 h-4" />
+          <Button variant="outline" size="sm" className="w-full justify-start gap-2 h-8 text-xs">
+            <Edit2 className="w-3.5 h-3.5" />
             Adicionar Nota
           </Button>
         </div>
@@ -607,19 +607,19 @@ function OpportunitiesPanel({
 }) {
   return (
     <Card className="h-full flex flex-col overflow-hidden">
-      <div className="border-b border-gray-200 px-6 py-4 bg-white flex items-center justify-between flex-shrink-0">
+      <div className="border-b border-gray-200 px-4 py-3 bg-white flex items-center justify-between flex-shrink-0">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-green-600" />
+          <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-green-600" />
             Oportunidades
           </h3>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-xs text-gray-500 mt-0.5">
             {opportunities.length} {opportunities.length === 1 ? 'oportunidade' : 'oportunidades'}
           </p>
         </div>
-        <Button className="gap-2">
-          <Plus className="w-4 h-4" />
-          Nova Oportunidade
+        <Button className="gap-1.5 h-8 px-3 text-xs">
+          <Plus className="w-3.5 h-3.5" />
+          Nova
         </Button>
       </div>
 
@@ -634,29 +634,29 @@ function OpportunitiesPanel({
             </p>
           </div>
         ) : (
-          <div className="p-6 space-y-4">
+          <div className="p-4 space-y-3">
             {opportunities.map(opp => (
-              <Card key={opp.id} className="p-5 hover:shadow-lg transition-all border border-gray-200">
+              <Card key={opp.id} className="p-3 hover:shadow-lg transition-all border border-gray-200">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h4 className="font-semibold text-gray-900 text-base">{opp.title}</h4>
+                    <h4 className="font-semibold text-gray-900 text-sm">{opp.title}</h4>
                     {opp.description && (
-                      <p className="text-sm text-gray-600 mt-1 leading-relaxed">{opp.description}</p>
+                      <p className="text-xs text-gray-600 mt-1 leading-relaxed">{opp.description}</p>
                     )}
-                    <div className="flex items-center gap-3 mt-3">
-                      <Badge className="bg-green-100 text-green-700 font-semibold">
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge className="bg-green-100 text-green-700 font-semibold text-[10px] px-2 py-0.5">
                         R$ {opp.value?.toLocaleString('pt-BR')}
                       </Badge>
-                      <span className="text-sm text-gray-500 capitalize">{opp.stage}</span>
+                      <span className="text-xs text-gray-500 capitalize">{opp.stage}</span>
                       {opp.expected_close_date && (
-                        <span className="text-xs text-gray-400">
+                        <span className="text-[10px] text-gray-400">
                           Fecha em {format(new Date(opp.expected_close_date), "dd/MM/yyyy", { locale: ptBR })}
                         </span>
                       )}
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm">
-                    <ExternalLink className="w-4 h-4" />
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                    <ExternalLink className="w-3.5 h-3.5" />
                   </Button>
                 </div>
               </Card>
