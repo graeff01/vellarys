@@ -13,6 +13,7 @@ Funcionalidades:
 
 from datetime import datetime, timedelta
 from typing import Optional, List
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,10 +31,9 @@ from src.domain.entities import (
     User,
 )
 from src.api.dependencies import get_db, get_current_user, get_current_tenant
-from src.infrastructure.logging import get_logger
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/appointments", tags=["appointments"])
-logger = get_logger(__name__)
 
 
 # ==========================================
