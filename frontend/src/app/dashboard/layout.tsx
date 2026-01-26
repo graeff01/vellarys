@@ -20,7 +20,9 @@ import {
   X,
   Bot,
   Database,
-  MessageCircle
+  MessageCircle,
+  Calendar,
+  Sliders
 } from 'lucide-react';
 import { getToken, getUser, logout, User } from '@/lib/auth';
 import { NotificationBell } from '@/components/dashboard/notification-bell';
@@ -32,9 +34,10 @@ declare const process: any;
 const gestorMenuItems = [
   { href: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard },
   { href: '/dashboard/leads', label: 'Leads', icon: Users },
-
+  { href: '/dashboard/calendar', label: 'Calendário', icon: Calendar },
   { href: '/dashboard/sellers', label: 'Vendedores', icon: UserCheck },
   { href: '/dashboard/export', label: 'Relatórios', icon: FileDown },
+  { href: '/dashboard/control-center', label: 'Centro de Controle', icon: Sliders },
   { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot },
 ];
 
@@ -42,6 +45,8 @@ const gestorMenuItems = [
 const superadminMenuItems = [
   { href: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard },
   { href: '/dashboard/clients', label: 'Clientes', icon: Building2 },
+  { href: '/dashboard/calendar', label: 'Calendário', icon: Calendar },
+  { href: '/dashboard/control-center', label: 'Centro de Controle', icon: Sliders },
   { href: '/dashboard/plans', label: 'Planos', icon: CreditCard },
   { href: '/dashboard/niches', label: 'Nichos', icon: Layers },
   { href: '/dashboard/settings', label: 'Configurações', icon: Settings },
@@ -54,6 +59,7 @@ const superadminMenuItems = [
 const sellerMenuItems = [
   { href: '/dashboard/inbox', label: 'Inbox', icon: MessageCircle },
   { href: '/dashboard/leads', label: 'Meus Leads', icon: Users },
+  { href: '/dashboard/calendar', label: 'Agenda', icon: Calendar },
   { href: '/dashboard', label: 'Painel', icon: LayoutDashboard },
 ];
 
