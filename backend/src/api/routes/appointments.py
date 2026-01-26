@@ -29,7 +29,7 @@ from src.domain.entities import (
     Tenant,
     User,
 )
-from src.api.deps import get_db, get_current_user, get_current_tenant
+from src.api.dependencies import get_db, get_current_user, get_current_tenant
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
