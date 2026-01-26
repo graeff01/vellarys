@@ -285,22 +285,21 @@ export default function LeadDetailPage() {
       </div>
 
       {/* Layout 2 colunas - SEM SCROLL EXTERNO - Otimizado para viewport */}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full flex gap-4 px-4 py-4">
-          {/* Coluna principal (conversas/atividades) - 65% */}
-          <div className="flex-[0_0_65%] h-full">
-            {activeTab === 'activity' && (
-              <WhatsAppConversation messages={messages} events={events} messagesEndRef={messagesEndRef} />
-            )}
-            {activeTab === 'opportunities' && (
-              <OpportunitiesPanel opportunities={opportunities} leadId={lead.id} onReload={loadData} />
-            )}
-          </div>
+      <div className="flex-1 flex gap-4 px-4 py-4 overflow-hidden">
+        {/* Coluna principal (conversas/atividades) - 65% */}
+        <div className="flex-[0_0_65%] h-full min-h-0">
+          {activeTab === 'activity' && (
+            <WhatsAppConversation messages={messages} events={events} messagesEndRef={messagesEndRef} />
+          )}
+          {activeTab === 'opportunities' && (
+            <OpportunitiesPanel opportunities={opportunities} leadId={lead.id} onReload={loadData} />
+          )}
+        </div>
 
-          {/* Sidebar direita - Info do Lead - 35% - COM SCROLL PRÓPRIO */}
-          <div className="flex-[0_0_35%] h-full overflow-y-auto space-y-3 pr-1">
-            <LeadInfoSidebar lead={lead} onUpdate={setLead} onUpdateQualification={atualizarQualificacao} onUpdateStatus={atualizarStatus} />
-          </div>
+        {/* Sidebar direita - Info do Lead - 35% - COM SCROLL PRÓPRIO */}
+        <div className="flex-[0_0_35%] h-full min-h-0 overflow-y-auto space-y-3 pr-1
+                        scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+          <LeadInfoSidebar lead={lead} onUpdate={setLead} onUpdateQualification={atualizarQualificacao} onUpdateStatus={atualizarStatus} />
         </div>
       </div>
     </div>
@@ -340,22 +339,20 @@ function WhatsAppConversation({
       </div>
 
       {/* Área de mensagens - ESTILO WHATSAPP - SCROLL APENAS AQUI */}
-      <div className="flex-1 overflow-y-auto bg-[#e5ddd5] relative">
-        {/* Padrão de fundo WhatsApp */}
-        <div
-          className="absolute inset-0 opacity-[0.06] pointer-events-none"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-          }}
-        />
-
+      <div
+        className="flex-1 overflow-y-auto relative"
+        style={{
+          backgroundColor: '#e5ddd5',
+          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.06'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
+        }}
+      >
         {timeline.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-12">
             <MessageCircle className="w-16 h-16 text-gray-300 mb-4" />
             <p className="text-gray-500">Nenhuma interação registrada</p>
           </div>
         ) : (
-          <div className="px-[6%] py-4 space-y-2.5 relative">
+          <div className="px-[6%] py-4 space-y-2.5">
             {timeline.map((item, idx) => {
               if (item.type === 'event') {
                 const event = item.data as LeadEvent;
