@@ -81,7 +81,19 @@ export function AppointmentModal({ open, onClose, onSuccess, defaultDate }: Appo
 
       if (leadsResponse.ok) {
         const leadsData = await leadsResponse.json();
-        setLeads(leadsData);
+        console.log('📋 Leads data recebido:', leadsData);
+        console.log('📋 Tipo:', typeof leadsData, 'É array?', Array.isArray(leadsData));
+
+        // Garantir que é array
+        if (Array.isArray(leadsData)) {
+          setLeads(leadsData);
+        } else if (leadsData.items && Array.isArray(leadsData.items)) {
+          // API retornou formato paginado {items: [...], total: 10}
+          setLeads(leadsData.items);
+        } else {
+          console.warn('⚠️ Formato inesperado de leads:', leadsData);
+          setLeads([]);
+        }
       }
 
       // Buscar sellers
@@ -91,7 +103,19 @@ export function AppointmentModal({ open, onClose, onSuccess, defaultDate }: Appo
 
       if (sellersResponse.ok) {
         const sellersData = await sellersResponse.json();
-        setSellers(sellersData);
+        console.log('👥 Sellers data recebido:', sellersData);
+        console.log('👥 Tipo:', typeof sellersData, 'É array?', Array.isArray(sellersData));
+
+        // Garantir que é array
+        if (Array.isArray(sellersData)) {
+          setSellers(sellersData);
+        } else if (sellersData.items && Array.isArray(sellersData.items)) {
+          // API retornou formato paginado {items: [...], total: 10}
+          setSellers(sellersData.items);
+        } else {
+          console.warn('⚠️ Formato inesperado de sellers:', sellersData);
+          setSellers([]);
+        }
       }
     } catch (err) {
       console.error('Erro ao carregar dados:', err);
