@@ -82,14 +82,14 @@ export function AppointmentModal({ open, onClose, onSuccess, defaultDate }: Appo
       if (leadsResponse.ok) {
         const leadsData = await leadsResponse.json();
         console.log('📋 Leads data recebido:', leadsData);
-        console.log('📋 Tipo:', typeof leadsData, 'É array?', Array.isArray(leadsData));
 
-        // Garantir que é array
-        if (Array.isArray(leadsData)) {
-          setLeads(leadsData);
-        } else if (leadsData.items && Array.isArray(leadsData.items)) {
-          // API retornou formato paginado {items: [...], total: 10}
+        // API de leads retorna {items: [...], total: 10}
+        if (leadsData.items && Array.isArray(leadsData.items)) {
           setLeads(leadsData.items);
+          console.log('✅ Carregados', leadsData.items.length, 'leads');
+        } else if (Array.isArray(leadsData)) {
+          setLeads(leadsData);
+          console.log('✅ Carregados', leadsData.length, 'leads');
         } else {
           console.warn('⚠️ Formato inesperado de leads:', leadsData);
           setLeads([]);
@@ -104,14 +104,14 @@ export function AppointmentModal({ open, onClose, onSuccess, defaultDate }: Appo
       if (sellersResponse.ok) {
         const sellersData = await sellersResponse.json();
         console.log('👥 Sellers data recebido:', sellersData);
-        console.log('👥 Tipo:', typeof sellersData, 'É array?', Array.isArray(sellersData));
 
-        // Garantir que é array
-        if (Array.isArray(sellersData)) {
+        // API de sellers retorna {sellers: [...], total: 10}
+        if (sellersData.sellers && Array.isArray(sellersData.sellers)) {
+          setSellers(sellersData.sellers);
+          console.log('✅ Carregados', sellersData.sellers.length, 'vendedores');
+        } else if (Array.isArray(sellersData)) {
           setSellers(sellersData);
-        } else if (sellersData.items && Array.isArray(sellersData.items)) {
-          // API retornou formato paginado {items: [...], total: 10}
-          setSellers(sellersData.items);
+          console.log('✅ Carregados', sellersData.length, 'vendedores');
         } else {
           console.warn('⚠️ Formato inesperado de sellers:', sellersData);
           setSellers([]);

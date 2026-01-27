@@ -296,10 +296,11 @@ export default function LeadDetailPage() {
           )}
         </div>
 
-        {/* Sidebar direita - Info do Lead - 35% - COM SCROLL PRÓPRIO */}
-        <div className="flex-[0_0_35%] h-full min-h-0 overflow-y-auto space-y-3 pr-1
-                        scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-          <LeadInfoSidebar lead={lead} onUpdate={setLead} onUpdateQualification={atualizarQualificacao} onUpdateStatus={atualizarStatus} />
+        {/* Sidebar direita - Info do Lead - 35% - FIXA SEM SCROLL */}
+        <div className="flex-[0_0_35%] h-full min-h-0 overflow-hidden">
+          <div className="h-full space-y-2 pr-1">
+            <LeadInfoSidebar lead={lead} onUpdate={setLead} onUpdateQualification={atualizarQualificacao} onUpdateStatus={atualizarStatus} />
+          </div>
         </div>
       </div>
     </div>
@@ -473,22 +474,22 @@ function LeadInfoSidebar({
     <>
       {/* Card: Resumo */}
       {lead.summary && (
-        <Card className="p-3">
-          <h4 className="text-xs font-semibold text-gray-900 mb-2">Resumo</h4>
-          <p className="text-xs text-gray-700 leading-relaxed">{lead.summary}</p>
+        <Card className="p-2">
+          <h4 className="text-[10px] font-semibold text-gray-900 mb-1">Resumo</h4>
+          <p className="text-[10px] text-gray-700 leading-tight">{lead.summary}</p>
         </Card>
       )}
 
       {/* Card: Detalhes */}
-      <Card className="p-3">
-        <h4 className="text-xs font-semibold text-gray-900 mb-2">Detalhes do Lead</h4>
-        <div className="space-y-2.5">
+      <Card className="p-2">
+        <h4 className="text-[10px] font-semibold text-gray-900 mb-1.5">Detalhes do Lead</h4>
+        <div className="space-y-1.5">
           <div>
-            <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Status</label>
+            <label className="text-[9px] font-medium text-gray-500 uppercase tracking-wide">Status</label>
             <select
               value={lead.status}
               onChange={(e) => onUpdateStatus(e.target.value)}
-              className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="mt-0.5 w-full px-1.5 py-1 border border-gray-300 rounded text-[10px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="new">Novo</option>
               <option value="in_progress">Em Andamento</option>
@@ -498,11 +499,11 @@ function LeadInfoSidebar({
           </div>
 
           <div>
-            <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Qualificação</label>
+            <label className="text-[9px] font-medium text-gray-500 uppercase tracking-wide">Qualificação</label>
             <select
               value={lead.qualification}
               onChange={(e) => onUpdateQualification(e.target.value)}
-              className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded-md text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="mt-0.5 w-full px-1.5 py-1 border border-gray-300 rounded text-[10px] focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="cold">🧊 Frio</option>
               <option value="warm">🌤️ Morno</option>
@@ -512,75 +513,75 @@ function LeadInfoSidebar({
 
           {lead.assigned_seller && (
             <div>
-              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Vendedor</label>
-              <p className="mt-1 text-xs text-gray-900">{lead.assigned_seller.name}</p>
+              <label className="text-[9px] font-medium text-gray-500 uppercase tracking-wide">Vendedor</label>
+              <p className="mt-0.5 text-[10px] text-gray-900">{lead.assigned_seller.name}</p>
             </div>
           )}
 
           {lead.interest && (
             <div>
-              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Interesse</label>
-              <p className="mt-1 text-xs text-gray-900">{lead.interest}</p>
+              <label className="text-[9px] font-medium text-gray-500 uppercase tracking-wide">Interesse</label>
+              <p className="mt-0.5 text-[10px] text-gray-900">{lead.interest}</p>
             </div>
           )}
 
           {lead.budget && (
             <div>
-              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Orçamento</label>
-              <p className="mt-1 text-xs text-gray-900">{lead.budget}</p>
+              <label className="text-[9px] font-medium text-gray-500 uppercase tracking-wide">Orçamento</label>
+              <p className="mt-0.5 text-[10px] text-gray-900">{lead.budget}</p>
             </div>
           )}
 
           {lead.custom_data?.company && (
             <div>
-              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Empresa</label>
-              <p className="mt-1 text-xs text-gray-900">{lead.custom_data.company}</p>
+              <label className="text-[9px] font-medium text-gray-500 uppercase tracking-wide">Empresa</label>
+              <p className="mt-0.5 text-[10px] text-gray-900">{lead.custom_data.company}</p>
             </div>
           )}
 
           {lead.custom_data?.position && (
             <div>
-              <label className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Cargo</label>
-              <p className="mt-1 text-xs text-gray-900">{lead.custom_data.position}</p>
+              <label className="text-[9px] font-medium text-gray-500 uppercase tracking-wide">Cargo</label>
+              <p className="mt-0.5 text-[10px] text-gray-900">{lead.custom_data.position}</p>
             </div>
           )}
         </div>
       </Card>
 
       {/* Card: Tags */}
-      <Card className="p-3">
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-xs font-semibold text-gray-900">Tags</h4>
-          <Button variant="ghost" size="sm" className="h-6 px-1.5">
-            <Plus className="w-3 h-3" />
+      <Card className="p-2">
+        <div className="flex items-center justify-between mb-1">
+          <h4 className="text-[10px] font-semibold text-gray-900">Tags</h4>
+          <Button variant="ghost" size="sm" className="h-5 w-5 p-0">
+            <Plus className="w-2.5 h-2.5" />
           </Button>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1">
           {(lead.custom_data?.tags || []).map((tag: string) => (
-            <Badge key={tag} variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] px-2 py-0.5">
+            <Badge key={tag} variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-[9px] px-1.5 py-0">
               {tag}
             </Badge>
           ))}
           {(!lead.custom_data?.tags || lead.custom_data.tags.length === 0) && (
-            <p className="text-xs text-gray-500">Nenhuma tag</p>
+            <p className="text-[10px] text-gray-500">Nenhuma tag</p>
           )}
         </div>
       </Card>
 
       {/* Card: Ações Rápidas */}
-      <Card className="p-3">
-        <h4 className="text-xs font-semibold text-gray-900 mb-2">Ações Rápidas</h4>
-        <div className="space-y-1.5">
-          <Button variant="outline" size="sm" className="w-full justify-start gap-2 h-8 text-xs">
-            <Calendar className="w-3.5 h-3.5" />
+      <Card className="p-2">
+        <h4 className="text-[10px] font-semibold text-gray-900 mb-1.5">Ações Rápidas</h4>
+        <div className="space-y-1">
+          <Button variant="outline" size="sm" className="w-full justify-start gap-1.5 h-7 text-[10px]">
+            <Calendar className="w-3 h-3" />
             Agendar Visita
           </Button>
-          <Button variant="outline" size="sm" className="w-full justify-start gap-2 h-8 text-xs">
-            <TrendingUp className="w-3.5 h-3.5" />
+          <Button variant="outline" size="sm" className="w-full justify-start gap-1.5 h-7 text-[10px]">
+            <TrendingUp className="w-3 h-3" />
             Criar Oportunidade
           </Button>
-          <Button variant="outline" size="sm" className="w-full justify-start gap-2 h-8 text-xs">
-            <Edit2 className="w-3.5 h-3.5" />
+          <Button variant="outline" size="sm" className="w-full justify-start gap-1.5 h-7 text-[10px]">
+            <Edit2 className="w-3 h-3" />
             Adicionar Nota
           </Button>
         </div>
