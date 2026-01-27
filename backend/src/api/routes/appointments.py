@@ -170,9 +170,11 @@ async def create_appointment(
         logger.error(f"❌ Seller {payload.seller_id} não encontrado para tenant {tenant.slug}")
         raise HTTPException(status_code=404, detail="Vendedor não encontrado")
 
-    # Validar data futura
-    if payload.scheduled_at < datetime.now():
-        logger.error(f"❌ Data inválida: {payload.scheduled_at} é no passado")
+    # Validar data futura (usar timezone-aware datetime)
+    from datetime import timezone
+    now_utc = datetime.now(timezone.utc)
+    if payload.scheduled_at < now_utc:
+        logger.error(f"❌ Data inválida: {payload.scheduled_at} é no passado (now: {now_utc})")
         raise HTTPException(
             status_code=400, detail="Data do agendamento deve ser futura"
         )
