@@ -269,38 +269,38 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
             </div>
 
             {/* HEADER */}
-            <div className="relative z-10 px-12 py-8 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-xl">
-                <div className="flex items-center gap-6">
+            <div className="relative z-10 px-6 py-3 flex items-center justify-between border-b border-white/5 bg-black/40 backdrop-blur-xl flex-shrink-0">
+                <div className="flex items-center gap-4">
                     <div className="relative group">
                         <div className="absolute inset-0 bg-indigo-500 blur-xl opacity-50 group-hover:opacity-100 transition-opacity" />
-                        <div className="relative w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-2xl skew-x-[-6deg]">
-                            <TrendingUp className="w-10 h-10 text-slate-950" />
+                        <div className="relative w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-2xl skew-x-[-6deg]">
+                            <TrendingUp className="w-7 h-7 text-slate-950" />
                         </div>
                     </div>
                     <div>
-                        <div className="flex items-center gap-3">
-                            <h1 className="text-4xl font-black tracking-tighter uppercase italic bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/50">
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-2xl font-black tracking-tighter uppercase italic bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/50">
                                 DASHBOARD <span className="text-indigo-500">REALTIME</span>
                             </h1>
-                            <span className="px-2 py-0.5 bg-indigo-500/20 border border-indigo-500/30 text-[10px] font-black text-indigo-400 rounded-md tracking-tighter uppercase italic">v2.0 Premium</span>
+                            <span className="px-1.5 py-0.5 bg-indigo-500/20 border border-indigo-500/30 text-[8px] font-black text-indigo-400 rounded-md tracking-tighter uppercase italic">v2.0</span>
                         </div>
-                        <p className="text-slate-500 text-xs font-bold tracking-[0.3em] uppercase mt-1">Sincronizado com Velaris AI Engine</p>
+                        <p className="text-slate-500 text-[10px] font-bold tracking-[0.2em] uppercase mt-0.5">Sincronizado com Velaris AI Engine</p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-12">
-                    <div className="hidden lg:flex gap-10">
+                <div className="flex items-center gap-6">
+                    <div className="hidden lg:flex gap-6">
                         <div className="text-center">
-                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Vendas Hoje</p>
-                            <p className="text-2xl font-black text-white">{salesData.metrics?.deals_today || 0}</p>
+                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Vendas Hoje</p>
+                            <p className="text-lg font-black text-white">{salesData.metrics?.deals_today || 0}</p>
                         </div>
                         <div className="text-center">
-                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Taxa de Conversão</p>
-                            <p className="text-2xl font-black text-emerald-400">{salesData.metrics?.conversion_rate?.toFixed(1)}%</p>
+                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Taxa de Conversão</p>
+                            <p className="text-lg font-black text-emerald-400">{salesData.metrics?.conversion_rate?.toFixed(1)}%</p>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4 border-l border-white/10 pl-12">
+                    <div className="flex items-center gap-3 border-l border-white/10 pl-6">
                         <div className="flex flex-col items-end">
                             <div className="flex items-center gap-2">
                                 <span className="text-[10px] font-black tracking-widest text-emerald-500 animate-pulse uppercase">Conectado</span>
@@ -370,11 +370,11 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
                     </span>
                 </div>
 
-                <div className="flex items-center gap-4 bg-white/5 border border-white/10 px-6 py-3 rounded-2xl backdrop-blur-md">
-                    <Activity className="w-5 h-5 text-indigo-400 animate-pulse" />
+                <div className="flex items-center gap-3 bg-white/5 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-md">
+                    <Activity className="w-4 h-4 text-indigo-400 animate-pulse" />
                     <div>
-                        <p className="text-[10px] font-black text-slate-500 uppercase leading-none mb-1">Status do Ciclo</p>
-                        <p className="text-xs font-black text-white">Transição Automática Ativa</p>
+                        <p className="text-[9px] font-black text-slate-500 uppercase leading-none mb-0.5">Status do Ciclo</p>
+                        <p className="text-[10px] font-black text-white">Transição Automática Ativa</p>
                     </div>
                 </div>
             </div>
@@ -767,17 +767,17 @@ function EvolutionView({ metrics, goal }: { metrics: any; goal: any }) {
     return (
         <div className="w-full flex flex-col gap-8 max-w-7xl mx-auto px-8">
             {/* Header */}
-            <div className="flex items-center justify-center gap-6">
-                <div className="w-16 h-1.5 bg-emerald-500 rounded-full" />
-                <h2 className="text-4xl font-black tracking-tighter uppercase italic px-6">
+            <div className="flex items-center justify-center gap-4">
+                <div className="w-12 h-1 bg-emerald-500 rounded-full" />
+                <h2 className="text-2xl font-black tracking-tighter uppercase italic px-4">
                     EVOLUÇÃO & PERFORMANCE
                 </h2>
-                <div className="w-16 h-1.5 bg-emerald-500 rounded-full" />
+                <div className="w-12 h-1 bg-emerald-500 rounded-full" />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Daily Performance */}
-                <div className="bg-white/[0.03] border border-white/5 rounded-[2rem] p-8 relative overflow-hidden group">
+                <div className="bg-white/[0.03] border border-white/5 rounded-[1.5rem] p-6 relative overflow-hidden group">
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
                     <div className="flex items-center gap-3 mb-6">
@@ -790,13 +790,13 @@ function EvolutionView({ metrics, goal }: { metrics: any; goal: any }) {
                         </div>
                     </div>
 
-                    <div className="flex items-end gap-4 mb-6">
-                        <h3 className="text-[7rem] font-black italic tracking-tighter text-emerald-500 leading-none drop-shadow-2xl">
+                    <div className="flex items-end gap-3 mb-4">
+                        <h3 className="text-[5rem] font-black italic tracking-tighter text-emerald-500 leading-none drop-shadow-2xl">
                             <NumberTicker value={dealsToday} />
                         </h3>
-                        <div className="pb-4">
-                            <p className="text-xl font-black text-white mb-0.5">vendas</p>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">concluídas</p>
+                        <div className="pb-3">
+                            <p className="text-lg font-black text-white mb-0.5">vendas</p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">concluídas</p>
                         </div>
                     </div>
 
@@ -816,9 +816,9 @@ function EvolutionView({ metrics, goal }: { metrics: any; goal: any }) {
                 </div>
 
                 {/* Weekly & Monthly */}
-                <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-4">
                     {/* This Week */}
-                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[2rem] p-8 relative overflow-hidden group">
+                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[1.5rem] p-6 relative overflow-hidden group">
                         <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
                         <div className="flex items-center gap-3 mb-4">
@@ -847,7 +847,7 @@ function EvolutionView({ metrics, goal }: { metrics: any; goal: any }) {
                     </div>
 
                     {/* This Month */}
-                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[2rem] p-8 relative overflow-hidden group">
+                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[1.5rem] p-6 relative overflow-hidden group">
                         <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
                         <div className="flex items-center gap-3 mb-4">
@@ -883,16 +883,16 @@ function EvolutionView({ metrics, goal }: { metrics: any; goal: any }) {
 
 function InsightsView({ metrics }: { metrics: any }) {
     return (
-        <div className="w-full flex flex-col gap-8 max-w-7xl mx-auto px-8">
-            <div className="flex items-center justify-center gap-6">
-                <div className="w-16 h-1.5 bg-indigo-500 rounded-full" />
-                <h2 className="text-4xl font-black tracking-tighter uppercase italic px-6">INSIGHTS ESTRATÉGICOS</h2>
-                <div className="w-16 h-1.5 bg-indigo-500 rounded-full" />
+        <div className="w-full flex flex-col gap-6 max-w-7xl mx-auto px-6">
+            <div className="flex items-center justify-center gap-4">
+                <div className="w-12 h-1 bg-indigo-500 rounded-full" />
+                <h2 className="text-2xl font-black tracking-tighter uppercase italic px-4">INSIGHTS ESTRATÉGICOS</h2>
+                <div className="w-12 h-1 bg-indigo-500 rounded-full" />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* LARGE METRIC - CLOSED DEALS */}
-                <div className="bg-white/[0.03] border border-white/5 rounded-[2rem] p-10 relative overflow-hidden group">
+                <div className="bg-white/[0.03] border border-white/5 rounded-[1.5rem] p-6 relative overflow-hidden group">
                     <div className="absolute -top-8 -right-8 w-48 h-48 bg-emerald-500/10 blur-[60px] rounded-full group-hover:bg-emerald-500/20 transition-all duration-700" />
 
                     <div className="flex items-center gap-3 mb-3">
@@ -900,16 +900,16 @@ function InsightsView({ metrics }: { metrics: any }) {
                         <span className="text-base font-black text-slate-500 uppercase tracking-wide">Total Conversões Mês</span>
                     </div>
 
-                    <div className="flex items-baseline gap-4">
-                        <h3 className="text-[8rem] font-black italic tracking-tighter text-white drop-shadow-2xl leading-none">
+                    <div className="flex items-baseline gap-3">
+                        <h3 className="text-[5.5rem] font-black italic tracking-tighter text-white drop-shadow-2xl leading-none">
                             <NumberTicker value={metrics?.total_deals || 0} />
                         </h3>
                         <div>
                             <div className="flex items-center gap-2 text-emerald-500 mb-1">
-                                <TrendingUp className="w-6 h-6" />
-                                <span className="text-3xl font-black tabular-nums">+{metrics?.deals_this_week || 0}</span>
+                                <TrendingUp className="w-5 h-5" />
+                                <span className="text-2xl font-black tabular-nums">+{metrics?.deals_this_week || 0}</span>
                             </div>
-                            <p className="text-xs font-black text-slate-500 uppercase tracking-wider">Novas essa semana</p>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Novas essa semana</p>
                         </div>
                     </div>
 
@@ -920,8 +920,8 @@ function InsightsView({ metrics }: { metrics: any }) {
                 </div>
 
                 {/* TWO MEDIUM CARDS */}
-                <div className="flex flex-col gap-6">
-                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[2rem] p-8 relative overflow-hidden group">
+                <div className="flex flex-col gap-4">
+                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[1.5rem] p-6 relative overflow-hidden group">
                         <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
                         <div className="flex items-center gap-3 mb-4">
@@ -940,21 +940,21 @@ function InsightsView({ metrics }: { metrics: any }) {
                         </div>
                     </div>
 
-                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[2rem] p-8 relative overflow-hidden group">
+                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[1.5rem] p-6 relative overflow-hidden group">
                         <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">
-                                <BarChart3 className="w-6 h-6 text-emerald-400" />
+                        <div className="flex items-center gap-2 mb-3">
+                            <div className="w-8 h-8 bg-emerald-500/20 rounded-lg flex items-center justify-center">
+                                <BarChart3 className="w-5 h-5 text-emerald-400" />
                             </div>
-                            <span className="text-xs font-black text-slate-400 uppercase tracking-wide">Eficiência Global do Funil</span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide">Eficiência Global do Funil</span>
                         </div>
 
-                        <div className="flex items-end gap-2 mb-4">
-                            <p className="text-6xl font-black text-emerald-500 tracking-tighter leading-none italic">
+                        <div className="flex items-end gap-2 mb-3">
+                            <p className="text-5xl font-black text-emerald-500 tracking-tighter leading-none italic">
                                 <NumberTicker value={metrics?.conversion_rate || 0} decimalPlaces={1} />
                             </p>
-                            <span className="text-3xl font-black text-emerald-700 pb-1">%</span>
+                            <span className="text-2xl font-black text-emerald-700 pb-1">%</span>
                         </div>
 
                         <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden">
