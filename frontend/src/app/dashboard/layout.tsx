@@ -118,7 +118,7 @@ function useNotificationSound() {
 
           // Mostrar notificação do navegador também
           if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification('🔔 Velaris', {
+            new Notification('🔔 Vellarys', {
               body: 'Você tem uma nova notificação!',
               icon: '/icons/icon-192x192.png',
             });

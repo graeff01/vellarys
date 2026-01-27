@@ -53,14 +53,14 @@ export async function getMe(token: string): Promise<User> {
 // Salva token no localStorage
 export function saveToken(token: string) {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('velaris_token', token);
+    localStorage.setItem('vellarys_token', token);
   }
 }
 
 // Recupera token
 export function getToken(): string | null {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem('velaris_token');
+    return localStorage.getItem('vellarys_token');
   }
   return null;
 }
@@ -68,21 +68,21 @@ export function getToken(): string | null {
 // Remove token (logout)
 export function removeToken() {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem('velaris_token');
+    localStorage.removeItem('vellarys_token');
   }
 }
 
 // Salva dados do usuário
 export function saveUser(user: User) {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('velaris_user', JSON.stringify(user));
+    localStorage.setItem('vellarys_user', JSON.stringify(user));
   }
 }
 
 // Recupera dados do usuário
 export function getUser(): User | null {
   if (typeof window !== 'undefined') {
-    const data = localStorage.getItem('velaris_user');
+    const data = localStorage.getItem('vellarys_user');
     return data ? JSON.parse(data) : null;
   }
   return null;
@@ -91,7 +91,7 @@ export function getUser(): User | null {
 // Remove dados do usuário
 export function removeUser() {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem('velaris_user');
+    localStorage.removeItem('vellarys_user');
   }
 }
 

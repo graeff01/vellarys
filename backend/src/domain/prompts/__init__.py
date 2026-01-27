@@ -14,7 +14,7 @@ class NicheConfig:
     """Configuração legacy de nicho."""
     name: str
     tone: str = "cordial"
-    company_name: str = "Velaris"
+    company_name: str = "Vellarys"
     
     def to_dict(self) -> dict:
         return {
@@ -72,8 +72,7 @@ def build_system_prompt(
     niche_template: Optional[str] = None,
 ) -> str:
     """
-    Constrói o prompt de sistema (base) para a IA.
-    Esta é a 'alma' do Velaris. Centraliza persona e regras.
+    Esta é a 'alma' do Vellarys. Centraliza persona e regras.
     """
     
     # 1. PERSONA E IDENTIDADE

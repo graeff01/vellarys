@@ -51,7 +51,7 @@ def get_vapid_config() -> VAPIDConfig:
     return VAPIDConfig(
         public_key=getattr(settings, 'vapid_public_key', '') or '',
         private_key=getattr(settings, 'vapid_private_key', '') or '',
-        subject=getattr(settings, 'vapid_subject', '') or 'mailto:contato@velaris.app',
+        subject=getattr(settings, 'vapid_subject', '') or 'mailto:contato@vellarys.app',
     )
 
 
@@ -66,7 +66,7 @@ class PushNotificationPayload:
     body: str
     icon: str = "/icons/icon-192x192.png"
     badge: str = "/icons/icon-72x72.png"
-    tag: str = "velaris-notification"
+    tag: str = "vellarys-notification"
     url: Optional[str] = None  # URL para abrir ao clicar
     data: Optional[Dict[str, Any]] = None
     require_interaction: bool = False

@@ -1,5 +1,5 @@
 """
-VELARIS API - Ponto de Entrada
+VELLARYS API - Ponto de Entrada
 """
 
 import logging
@@ -127,7 +127,7 @@ async def lifespan(app: FastAPI):
     else:
         print("⚠️ Sentry DSN não configurado. Monitoramento desativado.")
         
-    print("🚀 Iniciando Velaris API...")
+    print("🚀 Iniciando Vellarys API...")
 
     # ============================================================
     # 🔔 PUSH NOTIFICATIONS (VAPID)
@@ -156,7 +156,7 @@ async def lifespan(app: FastAPI):
 # FASTAPI APP
 # ============================================================
 app = FastAPI(
-    title="Velaris API",
+    title="Vellarys API",
     description="IA atendente B2B multi-tenant",
     version="0.1.0",
     lifespan=lifespan,
@@ -256,7 +256,7 @@ app.include_router(admin_ceo_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
-    return {"name": "Velaris API", "status": "running"}
+    return {"name": "Vellarys API", "status": "running"}
 
 
 @app.get("/api/v1/version")

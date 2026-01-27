@@ -17,7 +17,7 @@ export function LeadsHeader({ total, hot, warm, cold }: LeadsHeaderProps) {
           Leads
         </h1>
         <p className="text-gray-500 text-sm">
-          Panorama em tempo real dos leads que entram pela IA Velaris.
+          Panorama em tempo real dos leads que entram pela IA Vellarys.
         </p>
       </div>
 

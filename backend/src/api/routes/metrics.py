@@ -52,7 +52,7 @@ def calculate_time_saved(total_leads: int) -> dict:
     
     Premissa:
     - Atendente humano: 10 minutos por lead
-    - IA Velaris: 2 minutos por lead
+    - IA Vellarys: 2 minutos por lead
     - Economia: 8 minutos por lead
     - Custo atendente: R$ 20/hora
     """

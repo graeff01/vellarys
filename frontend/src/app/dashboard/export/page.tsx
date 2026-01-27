@@ -18,23 +18,23 @@ const periods: { value: Period; label: string }[] = [
 ];
 
 const formats: { value: ExportFormat; label: string; description: string; icon: typeof FileSpreadsheet }[] = [
-  { 
-    value: 'excel', 
-    label: 'Excel', 
+  {
+    value: 'excel',
+    label: 'Excel',
     description: 'Planilha com abas de Resumo e Leads, formatação profissional',
-    icon: FileSpreadsheet 
+    icon: FileSpreadsheet
   },
-  { 
-    value: 'csv', 
-    label: 'CSV', 
+  {
+    value: 'csv',
+    label: 'CSV',
     description: 'Formato simples para importar em outros sistemas',
-    icon: FileText 
+    icon: FileText
   },
-  { 
-    value: 'pdf', 
-    label: 'PDF', 
+  {
+    value: 'pdf',
+    label: 'PDF',
     description: 'Relatório visual para apresentações e reuniões',
-    icon: FileDown 
+    icon: FileDown
   },
 ];
 
@@ -70,7 +70,7 @@ export default function ExportPage() {
 
       // Pega o nome do arquivo do header ou usa um padrão
       const contentDisposition = response.headers.get('content-disposition');
-      let filename = `relatorio_velaris.${selectedFormat === 'excel' ? 'xlsx' : selectedFormat}`;
+      let filename = `relatorio_vellarys.${selectedFormat === 'excel' ? 'xlsx' : selectedFormat}`;
       if (contentDisposition) {
         const match = contentDisposition.match(/filename=(.+)/);
         if (match) {
@@ -118,11 +118,10 @@ export default function ExportPage() {
             {formats.map((format) => (
               <label
                 key={format.value}
-                className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                  selectedFormat === format.value
+                className={`flex items-start gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${selectedFormat === format.value
                     ? 'border-blue-500 bg-blue-50'
                     : 'border-gray-200 hover:border-gray-300'
-                }`}
+                  }`}
               >
                 <input
                   type="radio"
@@ -154,11 +153,10 @@ export default function ExportPage() {
             {periods.map((period) => (
               <label
                 key={period.value}
-                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
-                  selectedPeriod === period.value
+                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${selectedPeriod === period.value
                     ? 'bg-blue-50 text-blue-700'
                     : 'hover:bg-gray-50 text-gray-700'
-                }`}
+                  }`}
               >
                 <input
                   type="radio"
@@ -176,7 +174,7 @@ export default function ExportPage() {
         {/* Coluna 3: Opções */}
         <div className="bg-white rounded-xl shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Opções</h2>
-          
+
           <div className="space-y-4">
             <label className="flex items-center gap-3 cursor-pointer">
               <input
@@ -210,13 +208,12 @@ export default function ExportPage() {
             <button
               onClick={handleExport}
               disabled={loading || (!includeMetrics && !includeLeads)}
-              className={`w-full py-4 px-6 rounded-xl font-semibold text-white transition-all flex items-center justify-center gap-2 ${
-                loading
+              className={`w-full py-4 px-6 rounded-xl font-semibold text-white transition-all flex items-center justify-center gap-2 ${loading
                   ? 'bg-gray-400 cursor-not-allowed'
                   : success
-                  ? 'bg-green-500'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              }`}
+                    ? 'bg-green-500'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
             >
               {loading ? (
                 <>

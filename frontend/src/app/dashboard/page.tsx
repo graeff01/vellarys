@@ -423,7 +423,7 @@ function GestorDashboard() {
           <p className="text-sm text-slate-500 font-medium mt-1">
             {editMode
               ? '🎨 Arraste e redimensione os widgets para personalizar'
-              : 'Análise estratégica de desempenho do Velaris AI'}
+              : 'Análise estratégica de desempenho do Vellarys AI'}
           </p>
         </div>
 

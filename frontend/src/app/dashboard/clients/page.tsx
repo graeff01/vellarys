@@ -243,7 +243,7 @@ export default function ClientsPage() {
       whatsapp_provider: provider,
       whatsapp_number: settings.whatsapp_number || '',
       dialog360_api_key: settings.dialog360_api_key || '',
-      webhook_verify_token: settings.webhook_verify_token || 'velaris_webhook_token',
+      webhook_verify_token: settings.webhook_verify_token || 'vellarys_webhook_token',
       zapi_instance_id: settings.zapi_instance_id || '',
       zapi_token: settings.zapi_token || '',
     });
@@ -314,7 +314,7 @@ export default function ClientsPage() {
         whatsapp_number: formData.whatsapp_number || null,
         // 360dialog
         dialog360_api_key: formData.whatsapp_provider === '360dialog' ? formData.dialog360_api_key : null,
-        webhook_verify_token: formData.webhook_verify_token || 'velaris_webhook_token',
+        webhook_verify_token: formData.webhook_verify_token || 'vellarys_webhook_token',
         // Z-API
         zapi_instance_id: formData.whatsapp_provider === 'zapi' ? formData.zapi_instance_id : null,
         zapi_token: formData.whatsapp_provider === 'zapi' ? formData.zapi_token : null,
@@ -391,7 +391,7 @@ export default function ClientsPage() {
       // Adiciona config do provider selecionado
       if (formData.whatsapp_provider === '360dialog') {
         settings.dialog360_api_key = formData.dialog360_api_key;
-        settings.webhook_verify_token = formData.webhook_verify_token || 'velaris_webhook_token';
+        settings.webhook_verify_token = formData.webhook_verify_token || 'vellarys_webhook_token';
         // Limpa Z-API
         settings.zapi_instance_id = null;
         settings.zapi_token = null;
@@ -457,7 +457,7 @@ export default function ClientsPage() {
           provider: '360dialog',
           phone_number: data.whatsapp_number,
           api_key: data.dialog360_api_key,
-          webhook_verify_token: data.webhook_verify_token || 'velaris_webhook_token',
+          webhook_verify_token: data.webhook_verify_token || 'vellarys_webhook_token',
         };
       } else if (data.whatsapp_provider === 'zapi') {
         channelConfig = {
@@ -856,11 +856,10 @@ Digite o nome do cliente para confirmar: ${tenant.name}`;
                             key={plan.id}
                             type="button"
                             onClick={() => setFormData((prev) => ({ ...prev, plan: plan.slug }))}
-                            className={`relative p-4 rounded-xl border-2 text-left transition-all ${
-                              isSelected
-                                ? `${colors.borderActive} ${colors.bg} shadow-md`
-                                : `${colors.border} hover:border-gray-300`
-                            }`}
+                            className={`relative p-4 rounded-xl border-2 text-left transition-all ${isSelected
+                              ? `${colors.borderActive} ${colors.bg} shadow-md`
+                              : `${colors.border} hover:border-gray-300`
+                              }`}
                           >
                             {isFeatured && (
                               <div className="absolute -top-2 -right-2 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full font-semibold">

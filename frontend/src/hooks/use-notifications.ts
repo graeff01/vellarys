@@ -345,7 +345,7 @@ export function useNotifications(): UseNotificationsReturn {
           icon: '/icons/icon-192x192.png',
           badge: '/icons/icon-72x72.png',
           vibrate: [200, 100, 200],
-          tag: 'velaris-notification',
+          tag: 'vellarys-notification',
           renotify: true,
         } as ExtendedNotificationOptions);
       } catch (error) {
@@ -364,7 +364,7 @@ export function useNotifications(): UseNotificationsReturn {
     if (!audio) return;
 
     audio.currentTime = 0;
-    audio.play().catch(() => {});
+    audio.play().catch(() => { });
   }, []);
 
   return {

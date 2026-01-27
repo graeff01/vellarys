@@ -38,11 +38,11 @@ from src.domain.entities import Lead, Message, Tenant
 # CONSTANTES E CONFIGURAÇÕES
 # ============================================
 
-# Cores do Velaris
-VELARIS_GREEN = "4CAF50"
-VELARIS_BLUE = "2196F3"
-VELARIS_ORANGE = "FF9800"
-VELARIS_GRAY = "F5F5F5"
+# Cores do Vellarys
+VELLARYS_GREEN = "4CAF50"
+VELLARYS_BLUE = "2196F3"
+VELLARYS_ORANGE = "FF9800"
+VELLARYS_GRAY = "F5F5F5"
 
 # Mapeamento de status para português
 STATUS_MAP = {
@@ -232,7 +232,7 @@ async def export_to_excel(
     
     # Estilos
     header_font = Font(bold=True, color="FFFFFF", size=11)
-    header_fill = PatternFill("solid", fgColor=VELARIS_GREEN)
+    header_fill = PatternFill("solid", fgColor=VELLARYS_GREEN)
     header_alignment = Alignment(horizontal="center", vertical="center")
     
     cell_alignment = Alignment(horizontal="left", vertical="center")
@@ -253,8 +253,8 @@ async def export_to_excel(
         ws_resumo.title = "Resumo"
         
         # Título
-        ws_resumo['A1'] = f"📊 RELATÓRIO VELARIS - {tenant.name}"
-        ws_resumo['A1'].font = Font(bold=True, size=16, color=VELARIS_GREEN)
+        ws_resumo['A1'] = f"📊 RELATÓRIO VELLARYS - {tenant.name}"
+        ws_resumo['A1'].font = Font(bold=True, size=16, color=VELLARYS_GREEN)
         ws_resumo.merge_cells('A1:D1')
         
         # Período
@@ -511,7 +511,7 @@ async def export_to_pdf(
     story = []
     
     # Título
-    story.append(Paragraph(f"📊 Relatório Velaris", title_style))
+    story.append(Paragraph(f"📊 Relatório Vellarys", title_style))
     story.append(Paragraph(f"{tenant.name}", subtitle_style))
     
     # Período
@@ -635,7 +635,7 @@ async def export_to_pdf(
     # Rodapé
     story.append(Spacer(1, 40))
     story.append(Paragraph(
-        "Relatório gerado automaticamente pelo Velaris - Sistema de Atendimento com IA",
+        "Relatório gerado automaticamente pelo Vellarys - Sistema de Atendimento com IA",
         ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.gray, alignment=TA_CENTER)
     ))
     

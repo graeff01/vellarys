@@ -1,103 +1,145 @@
 <!DOCTYPE html>
 <html>
+
 <head>
-  <title>Gerador de Ícones Velaris</title>
+  <title>Gerador de Ícones Vellarys</title>
   <style>
-    body { font-family: Arial; padding: 20px; background: #f5f5f5; }
-    h1 { color: #2563eb; }
-    .icons { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px; }
-    .icon-box { background: white; padding: 10px; border-radius: 8px; text-align: center; }
-    canvas { display: block; margin: 0 auto 10px; }
-    button { background: #2563eb; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px; }
-    button:hover { background: #1d4ed8; }
-    #downloadAll { background: #10b981; font-size: 18px; padding: 15px 30px; }
+    body {
+      font-family: Arial;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+
+    h1 {
+      color: #2563eb;
+    }
+
+    .icons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .icon-box {
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    canvas {
+      display: block;
+      margin: 0 auto 10px;
+    }
+
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 5px;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    #downloadAll {
+      background: #10b981;
+      font-size: 18px;
+      padding: 15px 30px;
+    }
   </style>
 </head>
+
 <body>
-  <h1>🎨 Gerador de Ícones - Velaris PWA</h1>
+  <h1>🎨 Gerador de Ícones - Vellarys PWA</h1>
   <p>Clique nos botões para baixar cada ícone, ou use "Baixar Todos" para baixar o ZIP.</p>
-  
+
   <button id="downloadAll" onclick="downloadAll()">📦 Baixar Todos os Ícones</button>
-  
+
   <div class="icons" id="iconsContainer"></div>
 
   <script>
     const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
-    
+
     function drawIcon(canvas, size) {
-  const ctx = canvas.getContext('2d');
-  canvas.width = size;
-  canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      canvas.width = size;
+      canvas.height = size;
 
-  // ======================
-  // Background gradient (SaaS premium)
-  // ======================
-const gradient = ctx.createLinearGradient(0, 0, size, size);
-gradient.addColorStop(0, '#2563EB'); // azul principal Velaris
-gradient.addColorStop(1, '#1E40AF'); // azul profundo SaaS
+      // ======================
+      // Background gradient (SaaS premium)
+      // ======================
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#2563EB'); // azul principal Vellarys
+      gradient.addColorStop(1, '#1E40AF'); // azul profundo SaaS
 
 
-  const radius = size * 0.18;
-  ctx.beginPath();
-  ctx.moveTo(radius, 0);
-  ctx.lineTo(size - radius, 0);
-  ctx.quadraticCurveTo(size, 0, size, radius);
-  ctx.lineTo(size, size - radius);
-  ctx.quadraticCurveTo(size, size, size - radius, size);
-  ctx.lineTo(radius, size);
-  ctx.quadraticCurveTo(0, size, 0, size - radius);
-  ctx.lineTo(0, radius);
-  ctx.quadraticCurveTo(0, 0, radius, 0);
-  ctx.closePath();
-  ctx.fillStyle = gradient;
-  ctx.fill();
+      const radius = size * 0.18;
+      ctx.beginPath();
+      ctx.moveTo(radius, 0);
+      ctx.lineTo(size - radius, 0);
+      ctx.quadraticCurveTo(size, 0, size, radius);
+      ctx.lineTo(size, size - radius);
+      ctx.quadraticCurveTo(size, size, size - radius, size);
+      ctx.lineTo(radius, size);
+      ctx.quadraticCurveTo(0, size, 0, size - radius);
+      ctx.lineTo(0, radius);
+      ctx.quadraticCurveTo(0, 0, radius, 0);
+      ctx.closePath();
+      ctx.fillStyle = gradient;
+      ctx.fill();
 
-  
-// ======================
-// V tipográfico (elegante, SaaS)
-// ======================
-ctx.strokeStyle = '#FFFFFF';
-ctx.lineWidth = size * 0.080;
-ctx.lineCap = 'round';
-ctx.lineJoin = 'round';
 
-ctx.beginPath();
-ctx.moveTo(size * 0.34, size * 0.26);
-ctx.lineTo(size * 0.50, size * 0.74);
-ctx.lineTo(size * 0.66, size * 0.26);
-ctx.stroke();
+      // ======================
+      // V tipográfico (elegante, SaaS)
+      // ======================
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = size * 0.080;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
 
-}
+      ctx.beginPath();
+      ctx.moveTo(size * 0.34, size * 0.26);
+      ctx.lineTo(size * 0.50, size * 0.74);
+      ctx.lineTo(size * 0.66, size * 0.26);
+      ctx.stroke();
 
-    
+    }
+
+
     function createIconElement(size) {
       const div = document.createElement('div');
       div.className = 'icon-box';
-      
+
       const canvas = document.createElement('canvas');
       drawIcon(canvas, size);
-      
+
       const label = document.createElement('div');
       label.textContent = size + 'x' + size;
-      
+
       const btn = document.createElement('button');
       btn.textContent = '⬇️ Baixar';
       btn.onclick = () => downloadIcon(canvas, size);
-      
+
       div.appendChild(canvas);
       div.appendChild(label);
       div.appendChild(btn);
-      
+
       return div;
     }
-    
+
     function downloadIcon(canvas, size) {
       const link = document.createElement('a');
       link.download = 'icon-' + size + 'x' + size + '.png';
       link.href = canvas.toDataURL('image/png');
       link.click();
     }
-    
+
     function downloadAll() {
       sizes.forEach((size, index) => {
         setTimeout(() => {
@@ -105,7 +147,7 @@ ctx.stroke();
           downloadIcon(canvas, size);
         }, index * 300);
       });
-      
+
       // Apple touch icon
       setTimeout(() => {
         const canvas = document.createElement('canvas');
@@ -116,7 +158,7 @@ ctx.stroke();
         link.click();
       }, sizes.length * 300);
     }
-    
+
     // Gera todos os ícones
     const container = document.getElementById('iconsContainer');
     sizes.forEach(size => {
@@ -124,4 +166,5 @@ ctx.stroke();
     });
   </script>
 </body>
+
 </html>

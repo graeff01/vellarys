@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # ===========================================
     vapid_public_key: str = ""
     vapid_private_key: str = ""
-    vapid_subject: str = "mailto:contato@velaris.app"
+    vapid_subject: str = "mailto:contato@vellarys.app"
     
     # ===========================================
     # CORE
@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     # ===========================================
     # CORS
     # ===========================================
-    cors_origins: str = "http://localhost:3000,http://localhost:5173,http://localhost:8080,https://vellarys.up.railway.app,https://velaris.app"
+    cors_origins: str = "http://localhost:3000,http://localhost:5173,http://localhost:8080,https://vellarys.up.railway.app,https://vellarys.app"
     
     # ===========================================
     # OPENAI
@@ -101,7 +101,7 @@ class Settings(BaseSettings):
     # 360DIALOG (WhatsApp)
     # ===========================================
     dialog360_api_key: Optional[str] = None
-    webhook_verify_token: str = "velaris_webhook_token"
+    webhook_verify_token: str = "vellarys_webhook_token"
     
     # ===========================================
     # PROPRIEDADES

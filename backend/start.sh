@@ -1,9 +1,9 @@
 #!/bin/bash
 
-echo "=== Velaris Backend Startup ==="
+echo "=== Vellarys Backend Startup ==="
 
 # 1. APPLY FIX (uma vez só, sem falhar se der erro)
-FIX_MARKER="/tmp/.velaris_fix_applied"
+FIX_MARKER="/tmp/.vellarys_fix_applied"
 
 if [ ! -f "$FIX_MARKER" ] && [ -f "apply_fix.py" ]; then
     echo "🔧 Applying database fix for CRM Inbox columns..."

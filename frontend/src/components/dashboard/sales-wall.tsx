@@ -284,7 +284,7 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
                             </h1>
                             <span className="px-1.5 py-0.5 bg-indigo-500/20 border border-indigo-500/30 text-[8px] font-black text-indigo-400 rounded-md tracking-tighter uppercase italic">v2.0</span>
                         </div>
-                        <p className="text-slate-500 text-[10px] font-bold tracking-[0.2em] uppercase mt-0.5">Sincronizado com Velaris AI Engine</p>
+                        <p className="text-slate-500 text-[10px] font-bold tracking-[0.2em] uppercase mt-0.5">Sincronizado com Vellarys AI Engine</p>
                     </div>
                 </div>
 
