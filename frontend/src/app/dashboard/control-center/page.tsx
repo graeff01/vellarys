@@ -108,7 +108,8 @@ function ControlCenterContent() {
 
   async function fetchTenants() {
     try {
-      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://vellarys-production.up.railway.app/api/v1').replace(/\/v1$/, '/api/v1');
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/v1$/, '');
+      const apiUrl = `${baseUrl}/v1`;
       const token = getToken();
       const response = await fetch(`${apiUrl}/admin/tenants?limit=100`, {
         headers: { 'Authorization': `Bearer ${token}` },
@@ -125,7 +126,8 @@ function ControlCenterContent() {
   async function loadFeatures() {
     try {
       setLoading(true);
-      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://vellarys-production.up.railway.app/api/v1').replace(/\/v1$/, '/api/v1');
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/v1$/, '');
+      const apiUrl = `${baseUrl}/v1`;
       const token = getToken();
 
       let url = `${apiUrl}/settings/features`;
@@ -171,7 +173,8 @@ function ControlCenterContent() {
     if (!targetTenantId) return;
     try {
       setSaving(true);
-      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://vellarys-production.up.railway.app/api/v1').replace(/\/v1$/, '/api/v1');
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/v1$/, '');
+      const apiUrl = `${baseUrl}/v1`;
       const token = getToken();
 
       const response = await fetch(`${apiUrl}/admin/tenants/${targetTenantId}`, {
@@ -211,7 +214,8 @@ function ControlCenterContent() {
   async function saveOverrides(targetOverrides: any = overrides) {
     try {
       setSaving(true);
-      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://vellarys-production.up.railway.app/api/v1').replace(/\/v1$/, '/api/v1');
+      const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/v1$/, '');
+      const apiUrl = `${baseUrl}/v1`;
       const token = getToken();
 
       let url = `${apiUrl}/settings/features`;
