@@ -22,46 +22,18 @@ import {
   Database,
   MessageCircle,
   Calendar,
-  Sliders
+  Sliders,
+  ChevronRight
 } from 'lucide-react';
 import { getToken, getUser, logout, User } from '@/lib/auth';
 import { NotificationBell } from '@/components/dashboard/notification-bell';
 import { ServiceWorkerRegistration } from '@/components/pwa/service-worker-registration';
+import { Sidebar } from '@/components/dashboard/sidebar';
+import { cn } from '@/lib/utils';
 
 declare const process: any;
 
-// Menus para GESTOR (cliente normal)
-const gestorMenuItems = [
-  { href: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard },
-  { href: '/dashboard/leads', label: 'Leads', icon: Users },
-  { href: '/dashboard/calendar', label: 'Calendário', icon: Calendar },
-  { href: '/dashboard/sellers', label: 'Vendedores', icon: UserCheck },
-  { href: '/dashboard/export', label: 'Relatórios', icon: FileDown },
-  { href: '/dashboard/control-center', label: 'Centro de Controle', icon: Sliders },
-  { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot },
-];
-
-// Menus para SUPERADMIN (você)
-const superadminMenuItems = [
-  { href: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard },
-  { href: '/dashboard/clients', label: 'Clientes', icon: Building2 },
-  { href: '/dashboard/calendar', label: 'Calendário', icon: Calendar },
-  { href: '/dashboard/control-center', label: 'Centro de Controle', icon: Sliders },
-  { href: '/dashboard/plans', label: 'Planos', icon: CreditCard },
-  { href: '/dashboard/niches', label: 'Nichos', icon: Layers },
-  { href: '/dashboard/settings', label: 'Configurações', icon: Settings },
-  { href: '/dashboard/export', label: 'Relatórios', icon: FileDown },
-  { href: '/dashboard/logs', label: 'Logs', icon: ScrollText },
-  { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot },
-];
-
-// Menus para CORRETOR (vendedor/corretor)
-const sellerMenuItems = [
-  { href: '/dashboard/inbox', label: 'Inbox', icon: MessageCircle },
-  { href: '/dashboard/leads', label: 'Meus Leads', icon: Users },
-  { href: '/dashboard/calendar', label: 'Agenda', icon: Calendar },
-  { href: '/dashboard', label: 'Painel', icon: LayoutDashboard },
-];
+// Menus logic moved to Sidebar component
 
 // =============================================================================
 // HOOK DE NOTIFICAÇÃO COM SOM
@@ -159,8 +131,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useNotificationSound();
 
   const isSuperAdmin = user?.role === 'superadmin';
-  const isSeller = user?.role === 'corretor';
-  const menuItems = isSuperAdmin ? superadminMenuItems : (isSeller ? sellerMenuItems : gestorMenuItems);
 
   useEffect(() => {
     const token = getToken();
@@ -221,122 +191,45 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       {/* CORRIGIDO: Sidebar - z-index 50 (acima do overlay) */}
-      <aside
-        className={`
-          fixed left-0 top-0 h-full w-64 bg-white shadow-lg z-50
-          transform transition-transform duration-300 ease-in-out
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          lg:translate-x-0
-        `}
-      >
-        {/* Header do Sidebar */}
-        <div className="p-6 border-b flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {isSuperAdmin && <Shield className="w-6 h-6 text-purple-600" />}
-            <div>
-              <h1 className="text-2xl font-bold text-blue-600">vellarys</h1>
-              <p className="text-sm text-gray-500">
-                {isSuperAdmin ? (
-                  <span className="text-purple-600 font-medium">Admin Master</span>
-                ) : (
-                  user?.tenant?.name || 'IA Atendente'
-                )}
-              </p>
-            </div>
-          </div>
-          {/* Botão fechar - só mobile */}
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
-        </div>
+      <Sidebar
+        user={user}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        onLogout={handleLogout}
+      />
 
-        {/* Menu */}
-        <nav className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
-          <ul className="space-y-2">
-            {menuItems.map((item) => {
-              const isActive = pathname === item.href ||
-                (item.href !== '/dashboard' && pathname.startsWith(item.href));
-
-              // Destaque especial para o Simulador
-              const isSimulator = item.href === '/dashboard/simulator';
-
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive
-                      ? isSuperAdmin
-                        ? 'bg-purple-50 text-purple-600'
-                        : isSimulator
-                          ? 'bg-gradient-to-r from-purple-50 to-blue-50 text-purple-600'
-                          : 'bg-blue-50 text-blue-600'
-                      : isSimulator
-                        ? 'text-purple-600 hover:bg-purple-50'
-                        : 'text-gray-600 hover:bg-gray-50'
-                      }`}
-                  >
-                    <item.icon className={`w-5 h-5 ${isSimulator && !isActive ? 'text-purple-500' : ''}`} />
-                    <span className={isSimulator ? 'font-medium' : ''}>{item.label}</span>
-                    {isSimulator && !isActive && (
-                      <span className="ml-auto text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full">
-                        Novo
-                      </span>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-
-        {/* User Info */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-white">
-          <div className="px-4 py-2 mb-2">
-            <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
-            <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-            {isSuperAdmin && (
-              <span className="inline-block mt-1 px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
-                SuperAdmin
-              </span>
-            )}
-          </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-3 w-full text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-          >
-            <LogOut className="w-5 h-5" />
-            Sair
-          </button>
-        </div>
-      </aside>
-
-      {/* CORRIGIDO: Header - z-index 30 (abaixo do overlay) - Oculto no inbox */}
+      {/* CORRIGIDO: Header - Oculto no inbox */}
       {!isInboxPage && (
-        <div className="lg:ml-64 bg-white border-b px-4 lg:px-8 py-4 flex justify-between items-center sticky top-0 z-30">
+        <div className="lg:ml-72 bg-white/80 backdrop-blur-md border-b px-4 lg:px-8 py-4 flex justify-between items-center sticky top-0 z-30">
           {/* Botão hamburguer - só mobile */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden p-2 hover:bg-gray-100 rounded-lg mr-4 transition-colors"
+            className="lg:hidden p-2 hover:bg-slate-100 rounded-lg mr-4 transition-colors"
           >
-            <Menu className="w-6 h-6 text-gray-600" />
+            <Menu className="w-6 h-6 text-slate-600" />
           </button>
 
-          {isSuperAdmin && (
-            <span className="text-sm text-purple-600 font-medium hidden sm:flex items-center gap-2">
-              <Shield className="w-4 h-4" />
-              Modo Administrador
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {isSuperAdmin && (
+              <span className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-bold flex items-center gap-2 border border-indigo-100">
+                <Shield className="w-3 h-3" />
+                MODO ADMIN MASTER
+              </span>
+            )}
+          </div>
+
           <div className="flex-1" />
           <NotificationBell />
         </div>
       )}
 
-      {/* CORRIGIDO: Conteúdo principal - sem padding no inbox */}
-      <main className={`lg:ml-64 relative z-10 ${isInboxPage ? '' : 'p-4 lg:p-8'}`}>{children}</main>
+      {/* CORRIGIDO: Conteúdo principal - ajustado para w-72 da sidebar */}
+      <main className={cn(
+        "lg:ml-72 relative z-10 transition-all duration-300",
+        isInboxPage ? "h-screen" : "p-4 lg:p-8"
+      )}>
+        {children}
+      </main>
     </div>
   );
 }
