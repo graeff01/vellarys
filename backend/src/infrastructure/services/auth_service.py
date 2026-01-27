@@ -14,19 +14,19 @@ from src.config import get_settings
 
 settings = get_settings()
 
-# Configurações de Hashing (Argon2id é o padrão atual da OWASP)
-# Mantemos suporte ao SHA256 antigo para migração transparente
+# Configuração do contexto de criptografia usando BCRYPT (Padrão Ouro de Segurança)
+# Bcrypt é extremamente seguro e compatível com a maioria dos ambientes.
 pwd_context = CryptContext(
-    schemes=["argon2", "sha256_crypt"],
+    schemes=["bcrypt", "sha256_crypt"], 
     deprecated="auto",
+    bcrypt__rounds=12 # Aumentamos o custo para "Segurança Absurda"
 )
-
 # Configurações JWT
 ALGORITHM = "HS256"
 
 
 def hash_password(password: str) -> str:
-    """Gera hash da senha usando Argon2id."""
+    """Gera o hash da senha usando Bcrypt."""
     return pwd_context.hash(password)
 
 
