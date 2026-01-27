@@ -4,8 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { getToken } from '@/lib/auth';
 import {
-    Bot, Send, Sparkles, Loader2, User,
-    MessageSquare, Trash2
+    Bot, Send, Sparkles, Loader2, User, Trash2, Info
 } from 'lucide-react';
 
 // Ajuste para pegar a URL da API do ambiente
@@ -79,7 +78,7 @@ export default function CopilotPage() {
                 }]);
             }
         } catch (error) {
-            console.error('Erro no Jarvis:', error);
+            console.error('Erro no Vellarys Copilot:', error);
             setMessages(prev => [...prev, {
                 id: Date.now(),
                 role: 'assistant',
@@ -92,25 +91,25 @@ export default function CopilotPage() {
     }
 
     return (
-        <div className="space-y-6 max-w-5xl mx-auto h-[calc(100vh-100px)] flex flex-col">
+        <div className="h-[calc(100vh-120px)] flex flex-col gap-4">
             {/* Header */}
             <div className="flex items-center justify-between flex-shrink-0">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
-                        <div className="p-2 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl shadow-lg shadow-indigo-200">
-                            <Bot className="w-8 h-8 text-white" />
+                        <div className="p-2.5 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl shadow-lg shadow-indigo-200">
+                            <Sparkles className="w-7 h-7 text-white" />
                         </div>
-                        Jarvis Copilot
+                        Vellarys Copilot
                     </h1>
-                    <p className="text-gray-500 mt-1">
-                        Seu analista de dados pessoal. Pergunte sobre métricas, leads e insights.
+                    <p className="text-gray-500 mt-1.5 text-sm">
+                        Seu assistente de inteligência. Pergunte sobre leads, vendedores, métricas e configurações da sua empresa.
                     </p>
                 </div>
 
                 {messages.length > 0 && (
                     <button
                         onClick={() => setMessages([])}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-gray-200 hover:border-red-200"
                     >
                         <Trash2 className="w-4 h-4" />
                         Limpar Conversa
@@ -118,96 +117,125 @@ export default function CopilotPage() {
                 )}
             </div>
 
-            {/* Chat Container */}
-            <Card className="flex-1 flex flex-col shadow-xl border-indigo-50 overflow-hidden">
+            {/* Main Chat Card */}
+            <Card className="flex-1 flex flex-col shadow-lg border-gray-200 overflow-hidden">
 
-                {/* Messages Area */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50">
+                {/* Messages Area with Internal Scroll */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-gradient-to-b from-slate-50/50 to-white">
                     {messages.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-6">
-                            <div className="w-24 h-24 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center animate-pulse">
-                                <Sparkles className="w-12 h-12 text-indigo-400" />
+                        <div className="flex flex-col items-center justify-center h-full gap-6 px-4">
+                            <div className="w-20 h-20 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-2xl flex items-center justify-center shadow-inner">
+                                <Sparkles className="w-10 h-10 text-indigo-500" />
                             </div>
-                            <div className="text-center space-y-2">
-                                <p className="font-semibold text-lg text-gray-600">Como posso ajudar hoje, Gestor?</p>
-                                <div className="flex flex-col gap-2 text-sm text-gray-500">
-                                    <p>"Quantos leads entraram hoje?"</p>
-                                    <p>"Qual vendedor teve melhor performance este mês?"</p>
-                                    <p>"Mostre leads quentes interessados em aluguel"</p>
+                            <div className="text-center space-y-3 max-w-2xl">
+                                <p className="font-semibold text-xl text-gray-700">Como posso ajudar hoje?</p>
+                                <p className="text-sm text-gray-500 leading-relaxed">
+                                    Faça perguntas sobre seus leads, vendedores, métricas de desempenho ou configurações da empresa.
+                                </p>
+                            </div>
+
+                            {/* Suggestion Pills */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-3xl mt-4">
+                                {[
+                                    "Quantos leads entraram hoje?",
+                                    "Qual vendedor teve melhor performance este mês?",
+                                    "Mostre leads quentes da cidade de São Paulo",
+                                    "Como estão as conversões desta semana?"
+                                ].map((suggestion, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => setInput(suggestion)}
+                                        className="text-left px-4 py-3 bg-white hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 rounded-xl text-sm text-gray-700 hover:text-indigo-700 transition-all shadow-sm hover:shadow-md"
+                                    >
+                                        💡 {suggestion}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Info Banner */}
+                            <div className="mt-6 flex items-start gap-3 p-4 bg-blue-50 border border-blue-100 rounded-xl max-w-2xl">
+                                <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                                <div className="text-sm text-blue-800">
+                                    <p className="font-semibold mb-1">Escopo do Copilot</p>
+                                    <p className="text-blue-700">
+                                        Este assistente responde apenas sobre dados da <strong>sua empresa</strong>. Ele não tem acesso a informações externas ou de outros clientes.
+                                    </p>
                                 </div>
                             </div>
                         </div>
                     ) : (
-                        messages.map((msg) => (
-                            <div key={msg.id} className={`flex ${msg.role === 'assistant' ? 'justify-start' : 'justify-end'}`}>
+                        <>
+                            {messages.map((msg) => (
+                                <div key={msg.id} className={`flex ${msg.role === 'assistant' ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-2`}>
 
-                                {msg.role === 'assistant' && (
-                                    <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0 mr-3 mt-1 shadow-md">
-                                        <Bot className="w-5 h-5 text-white" />
-                                    </div>
-                                )}
+                                    {msg.role === 'assistant' && (
+                                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center flex-shrink-0 mr-3 shadow-md">
+                                            <Sparkles className="w-5 h-5 text-white" />
+                                        </div>
+                                    )}
 
-                                <div
-                                    className={`max-w-[85%] px-5 py-4 rounded-2xl shadow-sm ${msg.role === 'assistant'
-                                        ? 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
-                                        : 'bg-indigo-600 text-white rounded-tr-none'
-                                        }`}
-                                >
-                                    <div className="prose prose-sm max-w-none dark:prose-invert">
-                                        <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                                    <div
+                                        className={`max-w-[75%] px-5 py-4 rounded-2xl shadow-sm ${msg.role === 'assistant'
+                                            ? 'bg-white text-gray-800 border border-gray-100 rounded-tl-sm'
+                                            : 'bg-indigo-600 text-white rounded-tr-sm'
+                                            }`}
+                                    >
+                                        <div className="prose prose-sm max-w-none">
+                                            <p className="whitespace-pre-wrap leading-relaxed m-0">{msg.content}</p>
+                                        </div>
+                                        <span className={`text-[10px] mt-2 block ${msg.role === 'assistant' ? 'text-gray-400' : 'text-indigo-200'}`}>
+                                            {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
                                     </div>
-                                    <span className={`text-[10px] mt-2 block opacity-70 ${msg.role === 'assistant' ? 'text-gray-400' : 'text-indigo-200'}`}>
-                                        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
+
+                                    {msg.role === 'user' && (
+                                        <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 ml-3">
+                                            <User className="w-5 h-5 text-slate-600" />
+                                        </div>
+                                    )}
                                 </div>
+                            ))}
 
-                                {msg.role === 'user' && (
-                                    <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 ml-3 mt-1">
-                                        <User className="w-5 h-5 text-slate-500" />
+                            {loading && (
+                                <div className="flex justify-start animate-in fade-in slide-in-from-left-2">
+                                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center flex-shrink-0 mr-3 shadow-md">
+                                        <Sparkles className="w-5 h-5 text-white" />
                                     </div>
-                                )}
-                            </div>
-                        ))
-                    )}
+                                    <div className="bg-white border border-gray-100 px-5 py-4 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                        <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                        <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                    </div>
+                                </div>
+                            )}
 
-                    {loading && (
-                        <div className="flex justify-start animate-in fade-in slide-in-from-left-2">
-                            <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0 mr-3 mt-1">
-                                <Bot className="w-5 h-5 text-white" />
-                            </div>
-                            <div className="bg-white border border-gray-100 px-5 py-4 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
-                                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                            </div>
-                        </div>
+                            <div ref={messagesEndRef} />
+                        </>
                     )}
-
-                    <div ref={messagesEndRef} />
                 </div>
 
-                {/* Input Area */}
-                <div className="p-4 bg-white border-t border-gray-100">
-                    <div className="relative flex items-center">
+                {/* Input Area - Fixed at Bottom */}
+                <div className="p-5 bg-white border-t border-gray-200 flex-shrink-0">
+                    <div className="flex items-center gap-3">
                         <input
                             type="text"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                            placeholder="Pergunte ao Jarvis sobre seus dados..."
+                            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                            placeholder="Digite sua pergunta sobre a empresa..."
                             disabled={loading}
-                            className="w-full pl-5 pr-14 py-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all shadow-inner text-base"
+                            className="flex-1 px-5 py-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:border-transparent transition-all text-sm placeholder:text-gray-400 disabled:opacity-50"
                         />
                         <button
                             onClick={handleSend}
                             disabled={!input.trim() || loading}
-                            className="absolute right-2 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-colors shadow-md"
+                            className="p-3.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 disabled:cursor-not-allowed transition-colors shadow-md hover:shadow-lg"
                         >
                             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                         </button>
                     </div>
-                    <p className="text-center text-xs text-gray-400 mt-2">
-                        O Jarvis analisa dados em tempo real. Respostas podem levar alguns segundos.
+                    <p className="text-center text-xs text-gray-400 mt-3">
+                        O Copilot analisa dados em tempo real da sua empresa. Respostas podem levar alguns segundos.
                     </p>
                 </div>
             </Card>

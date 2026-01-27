@@ -102,7 +102,7 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                 {
                     title: "Laboratório",
                     items: [
-                        { href: '/dashboard/copilot', label: 'Jarvis Copilot', icon: Sparkles, badge: "AI" },
+                        { href: '/dashboard/copilot', label: 'Vellarys Copilot', icon: Sparkles, badge: "AI" },
                         { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot, badge: "Lab" },
                     ]
                 }
@@ -147,7 +147,7 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
             {
                 title: "Inteligência",
                 items: [
-                    { href: '/dashboard/copilot', label: 'Jarvis Copilot', icon: Sparkles, badge: "AI" },
+                    { href: '/dashboard/copilot', label: 'Vellarys Copilot', icon: Sparkles, badge: "AI" },
                     { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot },
                     { href: '/dashboard/export', label: 'Exportar Dados', icon: FileDown, feature: 'security_export_lock_enabled' },
                 ]

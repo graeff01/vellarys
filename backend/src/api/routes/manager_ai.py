@@ -26,14 +26,14 @@ class QueryResponse(BaseModel):
     response: str
 
 @router.post("/chat", response_model=QueryResponse)
-async def chat_with_jarvis(
+async def chat_with_copilot(
     request: QueryRequest,
     user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Endpoint do 'Jarvis' (Manager Copilot).
+    Endpoint do 'Vellarys Copilot' (Manager AI Assistant).
     Recebe pergunta do gestor e retorna resposta baseada em dados do CRM.
     """
     
@@ -57,5 +57,5 @@ async def chat_with_jarvis(
         # Logar erro real
         from logging import getLogger
         logger = getLogger(__name__)
-        logger.error(f"Erro no Jarvis: {e}", exc_info=True)
+        logger.error(f"Erro no Vellarys Copilot: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro ao processar sua pergunta. Tente novamente.")
