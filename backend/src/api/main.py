@@ -197,12 +197,10 @@ async def add_security_headers(request: Request, call_next):
 # ============================================================
 # ⭐ CORS - Configuração Endurecida
 # ============================================================
-# Configuração de origens permitidas
-final_origins = settings.cors_origins_list
-
+# Configuração temporária de CORS permissivo para debug
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=final_origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

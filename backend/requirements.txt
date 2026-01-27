@@ -8,7 +8,8 @@ pydantic
 python-dotenv
 httpx
 openai
-passlib[bcrypt]
+passlib[bcrypt,argon2]
+argon2-cffi>=23.1.0
 python-multipart
 alembic
 redis
