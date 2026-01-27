@@ -8,6 +8,7 @@ import {
     DollarSign,
     X,
     Maximize,
+    Minimize,
     ChevronLeft,
     ChevronRight,
     TrendingDown,
@@ -17,7 +18,14 @@ import {
     Activity,
     Award,
     Calendar,
-    Zap
+    Zap,
+    Flame,
+    Star,
+    Crown,
+    Medal,
+    Sparkles,
+    Clock,
+    TrendingDownIcon
 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 
@@ -32,6 +40,17 @@ interface SalesWallProps {
         metrics: any;
     };
     onClose: () => void;
+}
+
+interface Badge {
+    id: string;
+    title: string;
+    description: string;
+    icon: any;
+    color: string;
+    unlocked: boolean;
+    progress?: number;
+    requirement?: number;
 }
 
 // =============================================
@@ -86,16 +105,45 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
     const [lastDealsCount, setLastDealsCount] = useState(salesData.metrics?.total_deals || 0);
     const [showCelebration, setShowCelebration] = useState(false);
     const [direction, setDirection] = useState<'next' | 'prev'>('next');
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const containerRef = useRef<HTMLDivElement | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
-    const views = ['goal', 'ranking', 'latest'];
+    const views = ['goal', 'ranking', 'latest', 'badges', 'evolution'];
+
+    // Fullscreen handlers
+    const toggleFullscreen = useCallback(async () => {
+        if (!containerRef.current) return;
+
+        try {
+            if (!document.fullscreenElement) {
+                await containerRef.current.requestFullscreen();
+                setIsFullscreen(true);
+            } else {
+                await document.exitFullscreen();
+                setIsFullscreen(false);
+            }
+        } catch (err) {
+            console.error('Erro ao alternar fullscreen:', err);
+        }
+    }, []);
+
+    // Detecta mudanças de fullscreen (ESC ou F11)
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
 
     // Auto-rotation
     useEffect(() => {
         const timer = setInterval(() => {
             setDirection('next');
             setCurrentView((prev) => (prev + 1) % views.length);
-        }, 15000);
+        }, 20000); // Aumentado para 20s para dar tempo de ver mais conteúdo
 
         return () => clearInterval(timer);
     }, []);
@@ -128,8 +176,77 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
         setCurrentView((prev) => (prev - 1 + views.length) % views.length);
     };
 
+    // Calcula badges baseado nas métricas
+    const badges: Badge[] = useMemo(() => {
+        const totalDeals = salesData.metrics?.total_deals || 0;
+        const conversionRate = salesData.metrics?.conversion_rate || 0;
+        const dealsToday = salesData.metrics?.deals_today || 0;
+        const averageTicket = salesData.metrics?.average_ticket || 0;
+
+        return [
+            {
+                id: 'first_sale',
+                title: 'Primeira Venda',
+                description: 'Realize sua primeira venda',
+                icon: Star,
+                color: 'from-blue-500 to-cyan-500',
+                unlocked: totalDeals >= 1,
+            },
+            {
+                id: 'hot_streak',
+                title: 'Sequência Quente',
+                description: '5 vendas em um único dia',
+                icon: Flame,
+                color: 'from-orange-500 to-red-500',
+                unlocked: dealsToday >= 5,
+                progress: dealsToday,
+                requirement: 5,
+            },
+            {
+                id: 'sales_master',
+                title: 'Mestre das Vendas',
+                description: '50 vendas no total',
+                icon: Crown,
+                color: 'from-yellow-500 to-amber-500',
+                unlocked: totalDeals >= 50,
+                progress: totalDeals,
+                requirement: 50,
+            },
+            {
+                id: 'conversion_expert',
+                title: 'Expert em Conversão',
+                description: 'Taxa de conversão acima de 30%',
+                icon: Target,
+                color: 'from-green-500 to-emerald-500',
+                unlocked: conversionRate >= 30,
+                progress: conversionRate,
+                requirement: 30,
+            },
+            {
+                id: 'high_ticket',
+                title: 'Ticket Premium',
+                description: 'Ticket médio acima de R$ 5.000',
+                icon: Medal,
+                color: 'from-purple-500 to-pink-500',
+                unlocked: averageTicket >= 500000, // 5000 * 100 (centavos)
+                progress: averageTicket / 100,
+                requirement: 5000,
+            },
+            {
+                id: 'century',
+                title: 'Centenário',
+                description: '100 vendas realizadas',
+                icon: Trophy,
+                color: 'from-indigo-500 to-violet-500',
+                unlocked: totalDeals >= 100,
+                progress: totalDeals,
+                requirement: 100,
+            },
+        ];
+    }, [salesData.metrics]);
+
     return (
-        <div className="fixed inset-0 z-[100] bg-slate-950 text-white flex flex-col overflow-hidden font-sans select-none">
+        <div ref={containerRef} className="fixed inset-0 z-[100] bg-slate-950 text-white flex flex-col overflow-hidden font-sans select-none">
             {/* ADVANCED BACKGROUND */}
             <div className="absolute inset-0 pointer-events-none">
                 {/* Animated Glows */}
@@ -187,9 +304,25 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
                             </div>
                             <span className="text-[9px] font-bold text-slate-500 tabular-nums">LIVE SYNC: {new Date().toLocaleTimeString()}</span>
                         </div>
+
+                        {/* Botão Fullscreen */}
+                        <button
+                            onClick={toggleFullscreen}
+                            className="w-12 h-12 flex items-center justify-center bg-white/5 hover:bg-indigo-500/20 hover:text-indigo-500 rounded-2xl border border-white/10 transition-all active:scale-90 group"
+                            title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}
+                        >
+                            {isFullscreen ? (
+                                <Minimize className="w-6 h-6 transition-transform group-hover:scale-110" />
+                            ) : (
+                                <Maximize className="w-6 h-6 transition-transform group-hover:scale-110" />
+                            )}
+                        </button>
+
+                        {/* Botão Fechar */}
                         <button
                             onClick={onClose}
                             className="w-12 h-12 flex items-center justify-center bg-white/5 hover:bg-rose-500/20 hover:text-rose-500 rounded-2xl border border-white/10 transition-all active:scale-90 group"
+                            title="Fechar Modo TV"
                         >
                             <X className="w-6 h-6 transition-transform group-hover:rotate-90" />
                         </button>
@@ -203,6 +336,8 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
                     {views[currentView] === 'goal' && <GoalView goal={salesData.goal} />}
                     {views[currentView] === 'ranking' && <RankingView metrics={salesData.metrics} />}
                     {views[currentView] === 'latest' && <InsightsView metrics={salesData.metrics} />}
+                    {views[currentView] === 'badges' && <BadgesView badges={badges} />}
+                    {views[currentView] === 'evolution' && <EvolutionView metrics={salesData.metrics} goal={salesData.goal} />}
                 </div>
             </div>
 
@@ -226,7 +361,9 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
                             />
                         ))}
                     </div>
-                    <span className="text-[10px] font-black text-slate-500 tracking-[0.4em] uppercase">Módulo de Visualização {currentView + 1}/3</span>
+                    <span className="text-[10px] font-black text-slate-500 tracking-[0.4em] uppercase">
+                        Módulo de Visualização {currentView + 1}/{views.length}
+                    </span>
                 </div>
 
                 <div className="flex items-center gap-4 bg-white/5 border border-white/10 px-6 py-3 rounded-2xl backdrop-blur-md">
@@ -515,6 +652,226 @@ function RankingView({ metrics }: { metrics: any }) {
                         <h3 className="text-3xl font-black text-white/20 uppercase tracking-[0.5em]">Processando Ranking Semanal</h3>
                     </div>
                 )}
+            </div>
+        </div>
+    );
+}
+
+function BadgesView({ badges }: { badges: Badge[] }) {
+    const unlockedCount = badges.filter(b => b.unlocked).length;
+
+    return (
+        <div className="w-full flex flex-col gap-12">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b-2 border-white/5 pb-10">
+                <div className="flex items-center gap-6">
+                    <div className="w-20 h-20 bg-indigo-500/10 border border-indigo-500/30 rounded-3xl flex items-center justify-center">
+                        <Sparkles className="w-12 h-12 text-indigo-500" />
+                    </div>
+                    <div>
+                        <h2 className="text-7xl font-black tracking-tighter uppercase italic">CONQUISTAS</h2>
+                        <p className="text-slate-500 font-bold uppercase tracking-[0.4em] text-sm">
+                            {unlockedCount}/{badges.length} Desbloqueadas
+                        </p>
+                    </div>
+                </div>
+
+                <div className="bg-white/5 px-8 py-4 rounded-2xl border border-white/10">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Progresso Geral</p>
+                    <p className="text-4xl font-black text-indigo-500">
+                        {((unlockedCount / badges.length) * 100).toFixed(0)}%
+                    </p>
+                </div>
+            </div>
+
+            {/* Badges Grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-8">
+                {badges.map((badge) => {
+                    const Icon = badge.icon;
+                    return (
+                        <div
+                            key={badge.id}
+                            className={`group relative bg-white/[0.03] border rounded-[2rem] p-8 transition-all duration-500
+                                ${badge.unlocked
+                                    ? 'border-white/20 hover:bg-white/10 hover:scale-105 hover:shadow-[0_20px_40px_rgba(99,102,241,0.3)]'
+                                    : 'border-white/5 grayscale opacity-40'
+                                }`}
+                        >
+                            {/* Glow Effect */}
+                            {badge.unlocked && (
+                                <div className={`absolute inset-0 bg-gradient-to-br ${badge.color} opacity-0 group-hover:opacity-10 blur-xl transition-opacity duration-500 rounded-[2rem]`} />
+                            )}
+
+                            {/* Icon */}
+                            <div className={`relative w-24 h-24 rounded-2xl flex items-center justify-center mb-6 transition-all duration-500
+                                ${badge.unlocked
+                                    ? `bg-gradient-to-br ${badge.color} shadow-lg group-hover:scale-110`
+                                    : 'bg-white/5'
+                                }`}
+                            >
+                                <Icon className={`w-12 h-12 ${badge.unlocked ? 'text-white' : 'text-white/20'}`} />
+                            </div>
+
+                            {/* Content */}
+                            <h3 className={`text-2xl font-black mb-2 ${badge.unlocked ? 'text-white' : 'text-white/30'}`}>
+                                {badge.title}
+                            </h3>
+                            <p className="text-sm text-slate-400 font-medium mb-4">
+                                {badge.description}
+                            </p>
+
+                            {/* Progress Bar */}
+                            {!badge.unlocked && badge.progress !== undefined && badge.requirement && (
+                                <div className="mt-4">
+                                    <div className="flex justify-between text-xs font-bold text-slate-500 mb-2">
+                                        <span>{badge.progress.toFixed(0)}</span>
+                                        <span>{badge.requirement}</span>
+                                    </div>
+                                    <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                                        <div
+                                            className={`h-full bg-gradient-to-r ${badge.color} transition-all duration-1000`}
+                                            style={{ width: `${Math.min((badge.progress / badge.requirement) * 100, 100)}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Unlocked Badge */}
+                            {badge.unlocked && (
+                                <div className="absolute top-4 right-4">
+                                    <div className="bg-emerald-500 px-3 py-1 rounded-full flex items-center gap-1">
+                                        <Star className="w-3 h-3 text-white fill-white" />
+                                        <span className="text-[10px] font-black text-white uppercase">Conquistado</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function EvolutionView({ metrics, goal }: { metrics: any; goal: any }) {
+    const dealsToday = metrics?.deals_today || 0;
+    const dealsThisWeek = metrics?.deals_this_week || 0;
+    const dealsThisMonth = metrics?.total_deals || 0;
+    const daysRemaining = goal?.days_remaining || 0;
+    const dailyTarget = daysRemaining > 0 ? Math.ceil((goal?.revenue_goal - goal?.revenue_actual) / 100 / daysRemaining) : 0;
+
+    return (
+        <div className="w-full flex flex-col gap-12">
+            {/* Header */}
+            <div className="flex items-center justify-center gap-10 mb-8">
+                <div className="w-24 h-2 bg-emerald-500 rounded-full" />
+                <h2 className="text-6xl font-black tracking-tighter uppercase italic px-10">
+                    EVOLUÇÃO & PERFORMANCE
+                </h2>
+                <div className="w-24 h-2 bg-emerald-500 rounded-full" />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                {/* Daily Performance */}
+                <div className="bg-white/[0.03] border border-white/5 rounded-[3rem] p-12 relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+
+                    <div className="flex items-center gap-4 mb-8">
+                        <div className="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center">
+                            <Clock className="w-10 h-10 text-emerald-400" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Vendas Hoje</p>
+                            <p className="text-xs font-bold text-slate-500">Performance Diária</p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-end gap-6 mb-8">
+                        <h3 className="text-[12rem] font-black italic tracking-tighter text-emerald-500 leading-none drop-shadow-2xl">
+                            <NumberTicker value={dealsToday} />
+                        </h3>
+                        <div className="pb-8">
+                            <p className="text-2xl font-black text-white mb-1">vendas</p>
+                            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">concluídas</p>
+                        </div>
+                    </div>
+
+                    {/* Meta Diária */}
+                    <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+                        <div className="flex items-center justify-between mb-4">
+                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Meta Diária Recomendada</p>
+                            <Target className="w-5 h-5 text-indigo-400" />
+                        </div>
+                        <p className="text-4xl font-black text-white">
+                            R$ {dailyTarget.toLocaleString('pt-BR')}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-2">
+                            Para atingir meta mensal em {daysRemaining} dias
+                        </p>
+                    </div>
+                </div>
+
+                {/* Weekly & Monthly */}
+                <div className="flex flex-col gap-8">
+                    {/* This Week */}
+                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[3rem] p-12 relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-12 h-12 bg-indigo-500/20 rounded-xl flex items-center justify-center">
+                                <Calendar className="w-7 h-7 text-indigo-400" />
+                            </div>
+                            <span className="text-sm font-black text-slate-400 uppercase tracking-widest">Esta Semana</span>
+                        </div>
+
+                        <div className="flex items-baseline gap-4">
+                            <p className="text-8xl font-black text-white tracking-tighter">
+                                <NumberTicker value={dealsThisWeek} />
+                            </p>
+                            <div>
+                                <TrendingUp className="w-8 h-8 text-emerald-500 mb-2" />
+                                <p className="text-xs font-black text-slate-500 uppercase">Vendas</p>
+                            </div>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="mt-6 h-3 bg-white/5 rounded-full overflow-hidden">
+                            <div className="h-full bg-indigo-500 rounded-full shadow-[0_0_20px_rgba(99,102,241,0.5)]"
+                                style={{ width: `${Math.min((dealsThisWeek / 20) * 100, 100)}%` }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* This Month */}
+                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[3rem] p-12 relative overflow-hidden group">
+                        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">
+                                <BarChart3 className="w-7 h-7 text-purple-400" />
+                            </div>
+                            <span className="text-sm font-black text-slate-400 uppercase tracking-widest">Este Mês</span>
+                        </div>
+
+                        <div className="flex items-baseline gap-4">
+                            <p className="text-8xl font-black text-white tracking-tighter">
+                                <NumberTicker value={dealsThisMonth} />
+                            </p>
+                            <div>
+                                <Trophy className="w-8 h-8 text-amber-500 mb-2" />
+                                <p className="text-xs font-black text-slate-500 uppercase">Total</p>
+                            </div>
+                        </div>
+
+                        {/* Comparison */}
+                        <div className="mt-6 flex items-center gap-3 py-2 px-4 bg-white/5 rounded-full border border-white/5">
+                            <Activity className="w-4 h-4 text-purple-400" />
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                Crescimento: <span className="text-emerald-500">+{metrics?.growth_percentage?.toFixed(0) || 0}%</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );
