@@ -25,6 +25,7 @@ from .dashboard_config import router as dashboard_config_router  # ← DASHBOARD
 from .sales import router as sales_router  # ← SALES & GOALS
 from .opportunities import router as opportunities_router, leads_router as opportunities_leads_router  # ← OPPORTUNITIES
 from .appointments import router as appointments_router  # ← APPOINTMENTS (CALENDÁRIO)
+from .manager_ai import router as manager_ai_router  # ← MANAGER AI (JARVIS)
 
 # Admin routes
 from .admin import (
@@ -64,6 +65,7 @@ __all__ = [
     "opportunities_router",
     "opportunities_leads_router",
     "appointments_router",
+    "manager_ai_router",
     # Admin
     "admin_dashboard_router",
     "admin_tenants_router",

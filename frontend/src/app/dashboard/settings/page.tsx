@@ -1111,56 +1111,93 @@ function SettingsContent() {
 
       {/* TAB: AVANÇADO */}
       {activeTab === 'avancado' && (
-        <div className="space-y-6 max-w-4xl mx-auto">
-          {/* VOICE-FIRST */}
-          <VoiceResponseSettingsCard
-            settings={voiceResponse}
-            voiceOptions={voiceOptions}
-            onChange={setVoiceResponse}
-          />
-
-          <Card className="bg-indigo-50/50 border-indigo-100">
-            <CardHeader
-              title="Notificações do Sistema"
-              subtitle="Receba alertas de novos leads diretamente no celular"
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            {/* VOICE-FIRST */}
+            <VoiceResponseSettingsCard
+              settings={voiceResponse}
+              voiceOptions={voiceOptions}
+              onChange={setVoiceResponse}
             />
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-2">
-              <div className="text-sm text-indigo-900">
-                <p className="font-bold mb-1">Passo a passo para iPhone:</p>
-                <ol className="list-decimal ml-4 space-y-1">
-                  <li>Compartilhar &rarr; "Adicionar à Tela de Início"</li>
-                  <li>Abra o App pela tela inicial e ative aqui:</li>
-                </ol>
-              </div>
-              <button
-                onClick={handleEnableNotifications}
-                className="flex items-center justify-center gap-2 bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold hover:bg-indigo-700 shadow-xl transition-all"
-              >
-                <Bell className="w-6 h-6" /> Ativar Push Notifications
-              </button>
-            </div>
-          </Card>
 
-          <Card>
-            <CardHeader title="Regras de Ouro" subtitle="O que a IA NUNCA deve fazer ou dizer" />
-            <div className="space-y-4">
-              <TagInput tags={businessRules} onChange={setBusinessRules} placeholder="Ex: Nunca falar sobre parcerias, nunca dar descontos..." />
-              <div className="p-4 bg-amber-50 rounded-lg border border-amber-100 italic text-sm text-amber-800">
-                Estas regras têm prioridade total. A IA será proibida de descumprir estes itens.
-              </div>
-            </div>
-          </Card>
+            <Card className="border-indigo-100 bg-indigo-50/50">
+              <CardHeader
+                title="Notificações do Sistema"
+                subtitle="Alertas de novos leads e atualizações"
+              />
+              <div className="flex flex-col gap-4">
+                <div className="p-4 bg-white rounded-xl border border-indigo-100 flex items-center justify-between shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                      <Bell className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-900 text-sm">Push Notifications</p>
+                      <p className="text-xs text-gray-500">Receba alertas no desktop e mobile</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleEnableNotifications}
+                    className="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+                  >
+                    Ativar Agora
+                  </button>
+                </div>
 
-          <Card>
-            <CardHeader title="Coleta de Dados" subtitle="O que é obrigatório perguntar?" />
-            <div className="flex flex-wrap gap-2">
-              {requiredInfoOptions.map((info) => (
-                <button key={info.id} onClick={() => toggleRequiredInfo(info.id)} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${requiredInfo.includes(info.id) ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                  {info.name}
-                </button>
-              ))}
-            </div>
-          </Card>
+                <div className="text-xs text-indigo-800 bg-indigo-100/50 p-3 rounded-lg border border-indigo-100">
+                  <span className="font-bold">📱 Para iPhone (iOS):</span> Toque em "Compartilhar" &rarr; "Adicionar à Tela de Início" para habilitar notificações nativas.
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card>
+              <CardHeader title="Regras de Ouro" subtitle="O que a IA NUNCA deve fazer ou dizer" />
+              <div className="space-y-4">
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex gap-3">
+                  <Shield className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-amber-800 mb-1">Proteção de Marca</p>
+                    <p className="text-xs text-amber-700 leading-relaxed">
+                      Estas regras têm prioridade absoluta sobre qualquer outra instrução. A IA bloqueará qualquer resposta que viole estes termos.
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-500 block mb-2 uppercase">Termos Proibidos</label>
+                  <TagInput tags={businessRules} onChange={setBusinessRules} placeholder="Ex: não dar descontos, não falar de política..." />
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <CardHeader title="Coleta de Dados" subtitle="Informações obrigatórias para qualificação" />
+              <div className="space-y-4">
+                <p className="text-xs text-gray-500">
+                  Selecione quais dados a IA deve insistir em coletar antes de passar para o humano.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {requiredInfoOptions.map((info) => (
+                    <button
+                      key={info.id}
+                      onClick={() => toggleRequiredInfo(info.id)}
+                      className={`
+                        flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all border
+                        ${requiredInfo.includes(info.id)
+                          ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                        }
+                      `}
+                    >
+                      {requiredInfo.includes(info.id) && <CheckCircle2 className="w-3 h-3" />}
+                      {info.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </Card>
+          </div>
         </div>
       )}
 

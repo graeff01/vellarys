@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import {
     LayoutDashboard,
     Users,
@@ -19,10 +20,25 @@ import {
     Calendar,
     Sliders,
     X,
-    ChevronRight
+    ChevronRight,
+    LucideIcon,
+    Sparkles
 } from 'lucide-react';
-import { User } from '@/lib/auth';
+import { User, getToken } from '@/lib/auth';
 import { cn } from '@/lib/utils';
+
+interface MenuItem {
+    href: string;
+    label: string;
+    icon: LucideIcon;
+    badge?: string;
+    feature?: string;
+}
+
+interface MenuGroup {
+    title: string;
+    items: MenuItem[];
+}
 
 interface SidebarProps {
     user: User | null;
@@ -36,8 +52,35 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
     const isSuperAdmin = user?.role === 'superadmin';
     const isSeller = user?.role === 'corretor';
 
+    const [features, setFeatures] = useState<Record<string, boolean>>({});
+
+    useEffect(() => {
+        const fetchFeatures = async () => {
+            try {
+                const token = getToken(); // Assuming getToken is imported or available via context/props if not imported.
+                // If getToken is not imported, I need to import it. It IS imported in previous files but maybe not here.
+                // Checking imports... "import { User } from '@/lib/auth';" 
+                // I need to update imports to include getToken.
+                if (!token) return;
+
+                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/v1/settings/features`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    setFeatures(data.final_features || data);
+                }
+            } catch (error) {
+                console.error('Failed to load features:', error);
+            }
+        };
+
+        fetchFeatures();
+    }, []);
+
     // Definição de grupos de menu
-    const getMenuGroups = () => {
+    const getMenuGroups = (): MenuGroup[] => {
         if (isSuperAdmin) {
             return [
                 {
@@ -59,6 +102,7 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                 {
                     title: "Laboratório",
                     items: [
+                        { href: '/dashboard/copilot', label: 'Jarvis Copilot', icon: Sparkles, badge: "AI" },
                         { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot, badge: "Lab" },
                     ]
                 }
@@ -72,13 +116,13 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                     items: [
                         { href: '/dashboard/inbox', label: 'Inbox Omnichannel', icon: MessageCircle },
                         { href: '/dashboard/leads', label: 'Meus Leads', icon: Users },
-                        { href: '/dashboard/calendar', label: 'Minha Agenda', icon: Calendar },
+                        { href: '/dashboard/calendar', label: 'Minha Agenda', icon: Calendar, feature: 'calendar_enabled' },
                     ]
                 },
                 {
                     title: "Performance",
                     items: [
-                        { href: '/dashboard', label: 'Meus Resultados', icon: LayoutDashboard },
+                        { href: '/dashboard', label: 'Meus Resultados', icon: LayoutDashboard, feature: 'metrics_enabled' },
                     ]
                 }
             ];
@@ -91,7 +135,7 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                 items: [
                     { href: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard },
                     { href: '/dashboard/leads', label: 'Leads', icon: Users },
-                    { href: '/dashboard/calendar', label: 'Agenda Equipe', icon: Calendar },
+                    { href: '/dashboard/calendar', label: 'Agenda Equipe', icon: Calendar, feature: 'calendar_enabled' },
                 ]
             },
             {
@@ -103,8 +147,9 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
             {
                 title: "Inteligência",
                 items: [
+                    { href: '/dashboard/copilot', label: 'Jarvis Copilot', icon: Sparkles, badge: "AI" },
                     { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot },
-                    { href: '/dashboard/export', label: 'Exportar Dados', icon: FileDown },
+                    { href: '/dashboard/export', label: 'Exportar Dados', icon: FileDown, feature: 'security_export_lock_enabled' },
                 ]
             }
         ];
@@ -149,6 +194,23 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                         </h3>
                         <ul className="space-y-0.5">
                             {group.items.map((item) => {
+                                // 🔒 Feature Gating Logic
+                                if (item.feature) {
+                                    // Caso especial: Lock Feature (Enable = Bloqueado)
+                                    if (item.feature === 'security_export_lock_enabled') {
+                                        // Se o bloqueio está ATIVO e NÃO é superadmin, esconde
+                                        if (features[item.feature] === true && !isSuperAdmin) return null;
+                                    } else {
+                                        // Casos normais: Feature Flag (False = Esconde)
+                                        // Se a feature está explicitamente FALSE no objeto, esconde.
+                                        // Se undefined (ainda não carregou ou não existe), mostra por padrão para evitar layout shift agressivo ou assume false?
+                                        // Assumindo que o backend retorna o set completo. Se não vier, assume false para segurança (opt-in)?
+                                        // No código SubscriptionSettings, features padrão do plano vêm. 
+                                        // Vamos assumir: se features já carregou (tem chaves) e a chave é false/undefined, esconde.
+                                        if (Object.keys(features).length > 0 && !features[item.feature]) return null;
+                                    }
+                                }
+
                                 const isActive = pathname === item.href ||
                                     (item.href !== '/dashboard' && pathname.startsWith(item.href));
 
