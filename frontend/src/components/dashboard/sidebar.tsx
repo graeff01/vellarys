@@ -60,7 +60,6 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                     title: "Laboratório",
                     items: [
                         { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot, badge: "Lab" },
-                        { href: '/dashboard/control-center', label: 'Centro de Controle', icon: Sliders },
                     ]
                 }
             ];

@@ -1,6 +1,7 @@
 'use client';
 
 // Adicionar esses imports
+import SubscriptionSettings from '@/components/dashboard/settings/SubscriptionSettings';
 import ProductsTab from '@/components/dashboard/ProductsTab';
 import DataSourcesTab from '@/components/dashboard/DataSourcesTab';
 import { getSellers } from '@/lib/sellers';
@@ -22,7 +23,7 @@ import {
   Save, X, Phone,
   Shield, CheckCircle2, ChevronDown,
   Trash2, Package, Library, Sparkles,
-  Bell, Target, Zap, Brain, Clock, Rocket, Database, Bot, Users
+  Bell, Target, Zap, Brain, Clock, Rocket, Database, Bot, Users, CreditCard
 } from 'lucide-react';
 
 // Adicionar esses imports
@@ -631,7 +632,8 @@ function SettingsContent() {
     { id: 'perfil', label: 'Perfil da IA', icon: Sparkles },
     { id: 'atendimento', label: 'Fluxo Comercial', icon: Phone },
     { id: 'conhecimento', label: 'Conhecimento', icon: Library },
-    { id: 'avancado', label: 'Avancado', icon: Shield },
+    { id: 'avancado', label: 'Avançado', icon: Shield },
+    { id: 'assinatura', label: 'Assinatura', icon: CreditCard },
     ...(isSuperAdmin ? [{ id: 'datasources', label: 'Fontes de Dados', icon: Database }] : []),
   ];
 
@@ -658,7 +660,7 @@ function SettingsContent() {
     }
   }
 
-
+  const currentTenant = availableTenants.find(t => t.id === targetTenantId);
 
   return (
     <div className="space-y-6">
@@ -695,7 +697,7 @@ function SettingsContent() {
                 </div>
                 <div className="max-h-64 overflow-y-auto">
                   {availableTenants
-                    .filter(t => t.id !== getUser()?.tenant_id) // Filter out admin's own tenant
+                    .filter(t => t.id !== getUser()?.tenant?.id) // Filter out admin's own tenant
                     .map((tenant) => (
                       <button
                         key={tenant.id}
@@ -774,6 +776,20 @@ function SettingsContent() {
           ))}
         </div>
       </div>
+
+      {/* TAB: ASSINATURA & RECURSOS */}
+      {activeTab === 'assinatura' && (
+        <SubscriptionSettings
+          targetTenantId={targetTenantId}
+          isSuperAdmin={isSuperAdmin}
+          currentTenant={currentTenant}
+          // Optional: callback if plan changes to update local state like name/plan badge
+          onPlanChange={(planId) => {
+            // Update local tenant list state if needed to reflect plan change immediately in the selector
+            setAvailableTenants(prev => prev.map(t => t.id === targetTenantId ? { ...t, plan: planId } : t));
+          }}
+        />
+      )}
 
       {/* TAB: PERFIL (Identidade + Diretrizes) */}
       {activeTab === 'perfil' && (
@@ -873,17 +889,15 @@ function SettingsContent() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <button
                 onClick={() => setHandoffMode('crm_inbox')}
-                className={`p-6 border-2 rounded-xl text-left transition-all relative ${
-                  handoffMode === 'crm_inbox'
-                    ? 'border-purple-600 bg-white shadow-lg ring-2 ring-purple-600 ring-opacity-50'
-                    : 'border-gray-200 bg-white hover:border-purple-300'
-                }`}
+                className={`p-6 border-2 rounded-xl text-left transition-all relative ${handoffMode === 'crm_inbox'
+                  ? 'border-purple-600 bg-white shadow-lg ring-2 ring-purple-600 ring-opacity-50'
+                  : 'border-gray-200 bg-white hover:border-purple-300'
+                  }`}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div
-                    className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl ${
-                      handoffMode === 'crm_inbox' ? 'bg-purple-600 text-white' : 'bg-gray-100'
-                    }`}
+                    className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl ${handoffMode === 'crm_inbox' ? 'bg-purple-600 text-white' : 'bg-gray-100'
+                      }`}
                   >
                     💼
                   </div>
@@ -902,17 +916,15 @@ function SettingsContent() {
 
               <button
                 onClick={() => setHandoffMode('whatsapp_pessoal')}
-                className={`p-6 border-2 rounded-xl text-left transition-all relative ${
-                  handoffMode === 'whatsapp_pessoal'
-                    ? 'border-green-600 bg-white shadow-lg ring-2 ring-green-600 ring-opacity-50'
-                    : 'border-gray-200 bg-white hover:border-green-300'
-                }`}
+                className={`p-6 border-2 rounded-xl text-left transition-all relative ${handoffMode === 'whatsapp_pessoal'
+                  ? 'border-green-600 bg-white shadow-lg ring-2 ring-green-600 ring-opacity-50'
+                  : 'border-gray-200 bg-white hover:border-green-300'
+                  }`}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div
-                    className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl ${
-                      handoffMode === 'whatsapp_pessoal' ? 'bg-green-600 text-white' : 'bg-gray-100'
-                    }`}
+                    className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl ${handoffMode === 'whatsapp_pessoal' ? 'bg-green-600 text-white' : 'bg-gray-100'
+                      }`}
                   >
                     📱
                   </div>

@@ -196,10 +196,12 @@ export interface VoiceOption {
 // =============================================================================
 
 export interface TenantSettings {
+  tenant_name?: string; // Optional since it might overlap with basic.company_name
   identity: IdentitySettings;
   basic: BasicSettings;
   ai_behavior: AIBehaviorSettings;
   handoff: HandoffSettings;
+  handoff_mode?: 'crm_inbox' | 'whatsapp_pessoal'; // Added legacy support
   business_hours: BusinessHoursSettings;
   faq: FAQSettings;
   scope: ScopeSettings;
