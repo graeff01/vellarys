@@ -246,7 +246,11 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
     }, [salesData.metrics]);
 
     return (
-        <div ref={containerRef} className="fixed inset-0 z-[100] bg-slate-950 text-white flex flex-col overflow-hidden font-sans select-none">
+        <div
+            ref={containerRef}
+            className={`fixed inset-0 z-[100] bg-slate-950 text-white flex flex-col overflow-hidden font-sans select-none ${isFullscreen ? 'w-screen h-screen' : ''}`}
+            style={isFullscreen ? { width: '100vw', height: '100vh' } : undefined}
+        >
             {/* ADVANCED BACKGROUND */}
             <div className="absolute inset-0 pointer-events-none">
                 {/* Animated Glows */}
@@ -331,8 +335,8 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
             </div>
 
             {/* CONTENT AREA WITH TRANSITIONS */}
-            <div className="flex-1 relative z-10 px-6 py-8 overflow-hidden flex flex-col items-center justify-center">
-                <div key={currentView} className={`w-full animate-view-entry-${direction}`}>
+            <div className="flex-1 relative z-10 px-4 py-4 overflow-hidden flex flex-col items-center justify-center min-h-0">
+                <div key={currentView} className={`w-full h-full flex items-center justify-center animate-view-entry-${direction}`}>
                     {views[currentView] === 'goal' && <GoalView goal={salesData.goal} />}
                     {views[currentView] === 'ranking' && <RankingView metrics={salesData.metrics} />}
                     {views[currentView] === 'latest' && <InsightsView metrics={salesData.metrics} />}
@@ -342,13 +346,13 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
             </div>
 
             {/* FOOTER CONTROLS */}
-            <div className="relative z-10 px-12 py-10 flex items-center justify-between bg-black/20 backdrop-blur-md">
-                <div className="flex gap-4">
-                    <button onClick={prevView} className="px-6 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl transition-all group active:scale-95">
-                        <ChevronLeft className="w-8 h-8 text-slate-400 group-hover:text-white" />
+            <div className="relative z-10 px-8 py-6 flex items-center justify-between bg-black/20 backdrop-blur-md flex-shrink-0">
+                <div className="flex gap-3">
+                    <button onClick={prevView} className="px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all group active:scale-95">
+                        <ChevronLeft className="w-6 h-6 text-slate-400 group-hover:text-white" />
                     </button>
-                    <button onClick={nextView} className="px-6 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl transition-all group active:scale-95">
-                        <ChevronRight className="w-8 h-8 text-slate-400 group-hover:text-white" />
+                    <button onClick={nextView} className="px-4 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl transition-all group active:scale-95">
+                        <ChevronRight className="w-6 h-6 text-slate-400 group-hover:text-white" />
                     </button>
                 </div>
 
@@ -486,15 +490,15 @@ function GoalView({ goal }: { goal: any }) {
     const progress = goal?.revenue_progress || 0;
 
     // SVG Circular Chart constants - REDUZIDO para caber na tela
-    const size = 380;
-    const strokeWidth = 28;
+    const size = 320;
+    const strokeWidth = 24;
     const center = size / 2;
     const radius = center - strokeWidth;
     const circumference = 2 * Math.PI * radius;
     const offset = circumference - (Math.min(progress, 100) / 100) * circumference;
 
     return (
-        <div className="flex flex-col lg:flex-row items-center justify-center gap-12 max-w-7xl mx-auto px-8">
+        <div className="flex flex-col lg:flex-row items-center justify-center gap-8 max-w-6xl mx-auto px-6">
             {/* LARGE PERCENTAGE CIRCLE */}
             <div className="relative flex items-center justify-center flex-shrink-0">
                 <svg width={size} height={size} className="transform -rotate-90 drop-shadow-[0_0_30px_rgba(99,102,241,0.3)]">
@@ -525,42 +529,42 @@ function GoalView({ goal }: { goal: any }) {
                 </svg>
 
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                    <p className="text-sm font-black text-slate-500 uppercase tracking-[0.3em] mb-1">Progresso</p>
-                    <h2 className="text-[7rem] font-black tracking-tighter leading-none italic drop-shadow-2xl">
+                    <p className="text-xs font-black text-slate-500 uppercase tracking-[0.3em] mb-1">Progresso</p>
+                    <h2 className="text-[5.5rem] font-black tracking-tighter leading-none italic drop-shadow-2xl">
                         <NumberTicker value={progress} decimalPlaces={1} />
-                        <span className="text-3xl text-indigo-500 font-black ml-1">%</span>
+                        <span className="text-2xl text-indigo-500 font-black ml-1">%</span>
                     </h2>
                 </div>
             </div>
 
             {/* STATS CARDS */}
-            <div className="flex flex-col gap-5 w-full max-w-md flex-1">
-                <div className="group bg-white/5 border-l-4 border-indigo-500 p-5 rounded-tr-2xl rounded-br-2xl backdrop-blur-md transition-all hover:bg-white/10 hover:translate-x-2">
-                    <div className="flex items-center gap-2 mb-3">
-                        <DollarSign className="w-5 h-5 text-indigo-400" />
-                        <p className="text-xs font-black text-slate-400 uppercase tracking-wider">Receita Realizada</p>
+            <div className="flex flex-col gap-4 w-full max-w-md flex-1">
+                <div className="group bg-white/5 border-l-4 border-indigo-500 p-4 rounded-tr-xl rounded-br-xl backdrop-blur-md transition-all hover:bg-white/10 hover:translate-x-2">
+                    <div className="flex items-center gap-2 mb-2">
+                        <DollarSign className="w-4 h-4 text-indigo-400" />
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Receita Realizada</p>
                     </div>
-                    <p className="text-4xl font-black text-white tracking-tighter tabular-nums">
+                    <p className="text-3xl font-black text-white tracking-tighter tabular-nums">
                         {formatCurrency(goal?.revenue_actual || 0)}
                     </p>
                 </div>
 
-                <div className="group bg-white/5 border-l-4 border-slate-500 p-5 rounded-tr-2xl rounded-br-2xl backdrop-blur-md transition-all hover:bg-white/10 hover:translate-x-2">
-                    <div className="flex items-center gap-2 mb-3">
-                        <Target className="w-5 h-5 text-slate-400" />
-                        <p className="text-xs font-black text-slate-400 uppercase tracking-wider">Objetivo do Mês</p>
+                <div className="group bg-white/5 border-l-4 border-slate-500 p-4 rounded-tr-xl rounded-br-xl backdrop-blur-md transition-all hover:bg-white/10 hover:translate-x-2">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Target className="w-4 h-4 text-slate-400" />
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Objetivo do Mês</p>
                     </div>
-                    <p className="text-4xl font-black text-slate-300 tracking-tighter tabular-nums">
+                    <p className="text-3xl font-black text-slate-300 tracking-tighter tabular-nums">
                         {formatCurrency(goal?.revenue_goal || 0)}
                     </p>
                 </div>
 
-                <div className="flex items-center gap-4 bg-indigo-600 p-5 rounded-2xl shadow-[0_15px_30px_rgba(99,102,241,0.4)] relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 scale-150 blur-2xl" />
-                    <Calendar className="w-10 h-10 text-white shrink-0 group-hover:scale-110 transition-transform duration-500" />
+                <div className="flex items-center gap-3 bg-indigo-600 p-4 rounded-xl shadow-[0_15px_30px_rgba(99,102,241,0.4)] relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 scale-150 blur-2xl" />
+                    <Calendar className="w-8 h-8 text-white shrink-0 group-hover:scale-110 transition-transform duration-500" />
                     <div>
-                        <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-0.5">Time to Deadline</p>
-                        <p className="text-4xl font-black text-white tracking-tighter italic">{goal?.days_remaining || 0} Dias</p>
+                        <p className="text-[9px] font-black text-white/60 uppercase tracking-widest mb-0.5">Time to Deadline</p>
+                        <p className="text-3xl font-black text-white tracking-tighter italic">{goal?.days_remaining || 0} Dias</p>
                     </div>
                 </div>
             </div>
