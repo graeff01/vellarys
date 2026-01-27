@@ -171,11 +171,15 @@ async def add_security_headers(request: Request, call_next):
         response = await call_next(request)
     except Exception as e:
         # Se houver um erro não tratado, o FastAPI pode retornar uma resposta padrão
-        # sem passar pelos middlewares. Mas aqui tentamos capturar.
-        logger.error(f"❌ Erro não tratado no middleware: {e}", exc_info=True)
-        raise e
+        # criamos uma resposta de erro manual para garantir os headers
+        from fastapi.responses import JSONResponse
+        logger.error(f"💥 CRASH CRÍTICO NO BACKEND: {str(e)}", exc_info=True)
+        response = JSONResponse(
+            status_code=500,
+            content={"detail": "Erro interno no servidor vellarys. Verifique os logs."}
+        )
     
-    # 🛡️ PROTEÇÃO TOTAL: Headers de Segurança
+    # 🛡️ PROTEÇÃO TOTAL & CORS FORÇADO: Headers de Segurança
     csp_policy = (
         "default-src 'self' https://vellarys.app https://vellarys.up.railway.app; "
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.sentry-cdn.com https://browser.sentry-cdn.com; "
@@ -192,6 +196,12 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     
+    # Forçar CORS na resposta de erro se necessário
+    if "Access-Control-Allow-Origin" not in response.headers:
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+
     return response
 
 # ============================================================

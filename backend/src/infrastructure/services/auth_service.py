@@ -14,12 +14,12 @@ from src.config import get_settings
 
 settings = get_settings()
 
-# Configuração do contexto de criptografia usando BCRYPT (Padrão Ouro de Segurança)
-# Bcrypt é extremamente seguro e compatível com a maioria dos ambientes.
+# Configuração do contexto de criptografia usando PBKDF2-SHA256 (Padrão Django/Enterprise)
+# Extremamente robusto, sem limite de caracteres e altamente compatível.
 pwd_context = CryptContext(
-    schemes=["bcrypt", "sha256_crypt"], 
+    schemes=["pbkdf2_sha256", "sha256_crypt"], 
     deprecated="auto",
-    bcrypt__rounds=12 # Aumentamos o custo para "Segurança Absurda"
+    pbkdf2_sha256__rounds=600000  # Padrão OWASP 2025 de alta segurança
 )
 # Configurações JWT
 ALGORITHM = "HS256"

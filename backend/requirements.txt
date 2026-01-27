@@ -8,8 +8,8 @@ pydantic
 python-dotenv
 httpx
 openai
-passlib[bcrypt,argon2]
-argon2-cffi>=23.1.0
+passlib[bcrypt]
+# argon2-cffi removido para compatibilidade total
 python-multipart
 alembic
 redis
