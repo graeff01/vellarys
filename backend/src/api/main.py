@@ -167,10 +167,15 @@ app = FastAPI(
 # ============================================================
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        # Se houver um erro não tratado, o FastAPI pode retornar uma resposta padrão
+        # sem passar pelos middlewares. Mas aqui tentamos capturar.
+        logger.error(f"❌ Erro não tratado no middleware: {e}", exc_info=True)
+        raise e
     
-    # Previne ataques de XSS e injeção (Ajustar conforme necessário para o frontend)
-    # Incluindo o domínio da Vercel/Railway para connect-src
+    # 🛡️ PROTEÇÃO TOTAL: Headers de Segurança
     csp_policy = (
         "default-src 'self' https://vellarys.app https://vellarys.up.railway.app; "
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.sentry-cdn.com https://browser.sentry-cdn.com; "

@@ -5,6 +5,7 @@ ROTAS: AUTENTICAÇÃO
 Login, registro e informações do usuário.
 """
 
+import logging # 👈 Adicionado
 from datetime import timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -32,6 +33,7 @@ from src.config import get_settings
 
 settings = get_settings()
 
+logger = logging.getLogger(__name__) # 👈 Adicionado
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 
 
