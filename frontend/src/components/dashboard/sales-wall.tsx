@@ -331,8 +331,8 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
             </div>
 
             {/* CONTENT AREA WITH TRANSITIONS */}
-            <div className="flex-1 relative z-10 p-12 overflow-hidden flex flex-col items-center justify-center">
-                <div key={currentView} className={`w-full max-w-7xl animate-view-entry-${direction}`}>
+            <div className="flex-1 relative z-10 px-6 py-8 overflow-hidden flex flex-col items-center justify-center">
+                <div key={currentView} className={`w-full animate-view-entry-${direction}`}>
                     {views[currentView] === 'goal' && <GoalView goal={salesData.goal} />}
                     {views[currentView] === 'ranking' && <RankingView metrics={salesData.metrics} />}
                     {views[currentView] === 'latest' && <InsightsView metrics={salesData.metrics} />}
@@ -485,18 +485,18 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
 function GoalView({ goal }: { goal: any }) {
     const progress = goal?.revenue_progress || 0;
 
-    // SVG Circular Chart constants
-    const size = 600;
-    const strokeWidth = 35;
+    // SVG Circular Chart constants - REDUZIDO para caber na tela
+    const size = 380;
+    const strokeWidth = 28;
     const center = size / 2;
     const radius = center - strokeWidth;
     const circumference = 2 * Math.PI * radius;
     const offset = circumference - (Math.min(progress, 100) / 100) * circumference;
 
     return (
-        <div className="flex flex-col lg:flex-row items-center justify-center gap-24">
+        <div className="flex flex-col lg:flex-row items-center justify-center gap-12 max-w-7xl mx-auto px-8">
             {/* LARGE PERCENTAGE CIRCLE */}
-            <div className="relative flex items-center justify-center">
+            <div className="relative flex items-center justify-center flex-shrink-0">
                 <svg width={size} height={size} className="transform -rotate-90 drop-shadow-[0_0_30px_rgba(99,102,241,0.3)]">
                     {/* Background Circle */}
                     <circle
@@ -525,42 +525,42 @@ function GoalView({ goal }: { goal: any }) {
                 </svg>
 
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                    <p className="text-xl font-black text-slate-500 uppercase tracking-[0.5em] mb-2">Progresso</p>
-                    <h2 className="text-[12rem] font-black tracking-tighter leading-none italic drop-shadow-2xl">
+                    <p className="text-sm font-black text-slate-500 uppercase tracking-[0.3em] mb-1">Progresso</p>
+                    <h2 className="text-[7rem] font-black tracking-tighter leading-none italic drop-shadow-2xl">
                         <NumberTicker value={progress} decimalPlaces={1} />
-                        <span className="text-5xl text-indigo-500 font-black ml-2">%</span>
+                        <span className="text-3xl text-indigo-500 font-black ml-1">%</span>
                     </h2>
                 </div>
             </div>
 
             {/* STATS CARDS */}
-            <div className="flex flex-col gap-10 w-full max-w-md">
-                <div className="group bg-white/5 border-l-4 border-indigo-500 p-8 rounded-tr-3xl rounded-br-3xl backdrop-blur-md transition-all hover:bg-white/10 hover:translate-x-4">
-                    <div className="flex items-center gap-3 mb-4">
-                        <DollarSign className="w-6 h-6 text-indigo-400" />
-                        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Receita Realizada</p>
+            <div className="flex flex-col gap-5 w-full max-w-md flex-1">
+                <div className="group bg-white/5 border-l-4 border-indigo-500 p-5 rounded-tr-2xl rounded-br-2xl backdrop-blur-md transition-all hover:bg-white/10 hover:translate-x-2">
+                    <div className="flex items-center gap-2 mb-3">
+                        <DollarSign className="w-5 h-5 text-indigo-400" />
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-wider">Receita Realizada</p>
                     </div>
-                    <p className="text-6xl font-black text-white tracking-tighter tabular-nums">
+                    <p className="text-4xl font-black text-white tracking-tighter tabular-nums">
                         {formatCurrency(goal?.revenue_actual || 0)}
                     </p>
                 </div>
 
-                <div className="group bg-white/5 border-l-4 border-slate-500 p-8 rounded-tr-3xl rounded-br-3xl backdrop-blur-md transition-all hover:bg-white/10 hover:translate-x-4">
-                    <div className="flex items-center gap-3 mb-4">
-                        <Target className="w-6 h-6 text-slate-400" />
-                        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Objetivo do Mês</p>
+                <div className="group bg-white/5 border-l-4 border-slate-500 p-5 rounded-tr-2xl rounded-br-2xl backdrop-blur-md transition-all hover:bg-white/10 hover:translate-x-2">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Target className="w-5 h-5 text-slate-400" />
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-wider">Objetivo do Mês</p>
                     </div>
-                    <p className="text-6xl font-black text-slate-300 tracking-tighter tabular-nums">
+                    <p className="text-4xl font-black text-slate-300 tracking-tighter tabular-nums">
                         {formatCurrency(goal?.revenue_goal || 0)}
                     </p>
                 </div>
 
-                <div className="flex items-center gap-6 bg-indigo-600 p-8 rounded-3xl shadow-[0_20px_40px_rgba(99,102,241,0.4)] relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 scale-150 blur-2xl" />
-                    <Calendar className="w-12 h-12 text-white shrink-0 group-hover:scale-110 transition-transform duration-500" />
+                <div className="flex items-center gap-4 bg-indigo-600 p-5 rounded-2xl shadow-[0_15px_30px_rgba(99,102,241,0.4)] relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 scale-150 blur-2xl" />
+                    <Calendar className="w-10 h-10 text-white shrink-0 group-hover:scale-110 transition-transform duration-500" />
                     <div>
-                        <p className="text-xs font-black text-white/60 uppercase tracking-widest mb-1">Time to Deadline</p>
-                        <p className="text-5xl font-black text-white tracking-tighter italic">{goal?.days_remaining || 0} Dias</p>
+                        <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-0.5">Time to Deadline</p>
+                        <p className="text-4xl font-black text-white tracking-tighter italic">{goal?.days_remaining || 0} Dias</p>
                     </div>
                 </div>
             </div>
@@ -572,40 +572,40 @@ function RankingView({ metrics }: { metrics: any }) {
     const ranking = metrics?.seller_ranking || [];
 
     return (
-        <div className="w-full space-y-16">
-            <div className="flex items-end justify-between border-b-2 border-white/5 pb-10">
-                <div className="flex items-center gap-6">
-                    <div className="w-20 h-20 bg-amber-500/10 border border-amber-500/30 rounded-3xl flex items-center justify-center">
-                        <Trophy className="w-12 h-12 text-amber-500" />
+        <div className="w-full space-y-10 max-w-7xl mx-auto px-8">
+            <div className="flex items-end justify-between border-b-2 border-white/5 pb-6">
+                <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center">
+                        <Trophy className="w-10 h-10 text-amber-500" />
                     </div>
                     <div>
-                        <h2 className="text-7xl font-black tracking-tighter uppercase italic">LEADERBOARD</h2>
-                        <p className="text-slate-500 font-bold uppercase tracking-[0.4em] text-sm">Performance Individual de Elite</p>
+                        <h2 className="text-5xl font-black tracking-tighter uppercase italic">LEADERBOARD</h2>
+                        <p className="text-slate-500 font-bold uppercase tracking-[0.3em] text-xs">Performance Individual de Elite</p>
                     </div>
                 </div>
 
-                <div className="flex gap-4">
-                    <div className="bg-white/5 px-6 py-4 rounded-2xl border border-white/10 text-center">
-                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Top Conversão</p>
-                        <p className="text-2xl font-black text-amber-500">
+                <div className="flex gap-3">
+                    <div className="bg-white/5 px-4 py-3 rounded-xl border border-white/10 text-center">
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">Top Conversão</p>
+                        <p className="text-xl font-black text-amber-500">
                             {ranking.length > 0 ? Math.max(...ranking.map((s: any) => s.conversion_rate)).toFixed(1) : 0}%
                         </p>
                     </div>
                 </div>
             </div>
 
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-3">
                 {ranking.map((seller: any, index: number) => (
                     <div
                         key={seller.seller_id}
-                        className={`group relative flex items-center gap-10 p-4 pl-8 rounded-[2rem] border transition-all duration-500 
+                        className={`group relative flex items-center gap-6 p-3 pl-6 rounded-[1.5rem] border transition-all duration-500
                             ${index === 0
-                                ? 'bg-gradient-to-r from-amber-500/20 via-slate-900/50 to-transparent border-amber-500/40 py-10 scale-[1.03] shadow-[0_30px_60px_-12px_rgba(245,158,11,0.2)]'
+                                ? 'bg-gradient-to-r from-amber-500/20 via-slate-900/50 to-transparent border-amber-500/40 py-6 scale-[1.02] shadow-[0_20px_40px_-12px_rgba(245,158,11,0.2)]'
                                 : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20'}`}
                     >
                         {/* Rank Number */}
-                        <div className={`relative w-24 h-24 shrink-0 rounded-2.5xl flex items-center justify-center text-5xl font-black skew-x-[-8deg]
-                            ${index === 0 ? 'bg-amber-500 text-slate-950 shadow-[0_0_20px_#f59e0b]' :
+                        <div className={`relative w-16 h-16 shrink-0 rounded-xl flex items-center justify-center text-3xl font-black skew-x-[-8deg]
+                            ${index === 0 ? 'bg-amber-500 text-slate-950 shadow-[0_0_15px_#f59e0b]' :
                                 index === 1 ? 'bg-slate-300 text-slate-950' :
                                     index === 2 ? 'bg-orange-600 text-white' :
                                         'bg-white/10 text-white'}`}>
@@ -614,17 +614,17 @@ function RankingView({ metrics }: { metrics: any }) {
 
                         {/* Seller Data */}
                         <div className="flex-1 min-w-0">
-                            <h3 className="text-5xl font-extrabold text-white tracking-tight truncate mb-2">{seller.seller_name}</h3>
-                            <div className="flex gap-8">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-3 h-3 bg-emerald-500 rounded-full" />
-                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                            <h3 className="text-3xl font-extrabold text-white tracking-tight truncate mb-1">{seller.seller_name}</h3>
+                            <div className="flex gap-6">
+                                <div className="flex items-center gap-1.5">
+                                    <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
                                         Conversão: <span className="text-white">{seller.conversion_rate.toFixed(1)}%</span>
                                     </p>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-3 h-3 bg-indigo-500 rounded-full" />
-                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                                <div className="flex items-center gap-1.5">
+                                    <div className="w-2 h-2 bg-indigo-500 rounded-full" />
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
                                         Volume: <span className="text-white">{seller.leads_assigned} Leads</span>
                                     </p>
                                 </div>
@@ -632,24 +632,24 @@ function RankingView({ metrics }: { metrics: any }) {
                         </div>
 
                         {/* Visual Progress Bar (Background) */}
-                        <div className="absolute bottom-0 left-[180px] right-0 h-1 bg-white/5 rounded-full overflow-hidden opacity-50 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute bottom-0 left-[120px] right-0 h-0.5 bg-white/5 rounded-full overflow-hidden opacity-50 group-hover:opacity-100 transition-opacity">
                             <div className={`h-full animate-grow-width ${index === 0 ? 'bg-amber-500' : 'bg-white/50'}`} style={{ width: `${(seller.deals_count / (ranking[0]?.deals_count || 1)) * 100}%` }} />
                         </div>
 
                         {/* Deals Count */}
-                        <div className="text-right pr-12">
-                            <h4 className={`text-8xl font-black leading-none italic ${index === 0 ? 'text-amber-500' : 'text-white/80'}`}>
+                        <div className="text-right pr-6">
+                            <h4 className={`text-5xl font-black leading-none italic ${index === 0 ? 'text-amber-500' : 'text-white/80'}`}>
                                 <NumberTicker value={seller.deals_count} />
                             </h4>
-                            <p className="text-xs font-black text-slate-500 uppercase tracking-[0.3em] mt-1">Concluídas</p>
+                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mt-0.5">Concluídas</p>
                         </div>
                     </div>
                 ))}
 
                 {ranking.length === 0 && (
-                    <div className="text-center py-32 border-2 border-dashed border-white/5 rounded-[3rem] bg-white/[0.02]">
-                        <Users className="w-32 h-32 text-white/5 mx-auto mb-8 animate-pulse" />
-                        <h3 className="text-3xl font-black text-white/20 uppercase tracking-[0.5em]">Processando Ranking Semanal</h3>
+                    <div className="text-center py-20 border-2 border-dashed border-white/5 rounded-[2rem] bg-white/[0.02]">
+                        <Users className="w-20 h-20 text-white/5 mx-auto mb-6 animate-pulse" />
+                        <h3 className="text-2xl font-black text-white/20 uppercase tracking-[0.4em]">Processando Ranking Semanal</h3>
                     </div>
                 )}
             </div>
@@ -661,73 +661,73 @@ function BadgesView({ badges }: { badges: Badge[] }) {
     const unlockedCount = badges.filter(b => b.unlocked).length;
 
     return (
-        <div className="w-full flex flex-col gap-12">
+        <div className="w-full flex flex-col gap-8 max-w-7xl mx-auto px-8">
             {/* Header */}
-            <div className="flex items-center justify-between border-b-2 border-white/5 pb-10">
-                <div className="flex items-center gap-6">
-                    <div className="w-20 h-20 bg-indigo-500/10 border border-indigo-500/30 rounded-3xl flex items-center justify-center">
-                        <Sparkles className="w-12 h-12 text-indigo-500" />
+            <div className="flex items-center justify-between border-b-2 border-white/5 pb-6">
+                <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl flex items-center justify-center">
+                        <Sparkles className="w-10 h-10 text-indigo-500" />
                     </div>
                     <div>
-                        <h2 className="text-7xl font-black tracking-tighter uppercase italic">CONQUISTAS</h2>
-                        <p className="text-slate-500 font-bold uppercase tracking-[0.4em] text-sm">
+                        <h2 className="text-5xl font-black tracking-tighter uppercase italic">CONQUISTAS</h2>
+                        <p className="text-slate-500 font-bold uppercase tracking-[0.3em] text-xs">
                             {unlockedCount}/{badges.length} Desbloqueadas
                         </p>
                     </div>
                 </div>
 
-                <div className="bg-white/5 px-8 py-4 rounded-2xl border border-white/10">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Progresso Geral</p>
-                    <p className="text-4xl font-black text-indigo-500">
+                <div className="bg-white/5 px-6 py-3 rounded-xl border border-white/10">
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-1">Progresso Geral</p>
+                    <p className="text-3xl font-black text-indigo-500">
                         {((unlockedCount / badges.length) * 100).toFixed(0)}%
                     </p>
                 </div>
             </div>
 
             {/* Badges Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-5">
                 {badges.map((badge) => {
                     const Icon = badge.icon;
                     return (
                         <div
                             key={badge.id}
-                            className={`group relative bg-white/[0.03] border rounded-[2rem] p-8 transition-all duration-500
+                            className={`group relative bg-white/[0.03] border rounded-[1.5rem] p-5 transition-all duration-500
                                 ${badge.unlocked
-                                    ? 'border-white/20 hover:bg-white/10 hover:scale-105 hover:shadow-[0_20px_40px_rgba(99,102,241,0.3)]'
+                                    ? 'border-white/20 hover:bg-white/10 hover:scale-105 hover:shadow-[0_15px_30px_rgba(99,102,241,0.3)]'
                                     : 'border-white/5 grayscale opacity-40'
                                 }`}
                         >
                             {/* Glow Effect */}
                             {badge.unlocked && (
-                                <div className={`absolute inset-0 bg-gradient-to-br ${badge.color} opacity-0 group-hover:opacity-10 blur-xl transition-opacity duration-500 rounded-[2rem]`} />
+                                <div className={`absolute inset-0 bg-gradient-to-br ${badge.color} opacity-0 group-hover:opacity-10 blur-xl transition-opacity duration-500 rounded-[1.5rem]`} />
                             )}
 
                             {/* Icon */}
-                            <div className={`relative w-24 h-24 rounded-2xl flex items-center justify-center mb-6 transition-all duration-500
+                            <div className={`relative w-16 h-16 rounded-xl flex items-center justify-center mb-4 transition-all duration-500
                                 ${badge.unlocked
                                     ? `bg-gradient-to-br ${badge.color} shadow-lg group-hover:scale-110`
                                     : 'bg-white/5'
                                 }`}
                             >
-                                <Icon className={`w-12 h-12 ${badge.unlocked ? 'text-white' : 'text-white/20'}`} />
+                                <Icon className={`w-8 h-8 ${badge.unlocked ? 'text-white' : 'text-white/20'}`} />
                             </div>
 
                             {/* Content */}
-                            <h3 className={`text-2xl font-black mb-2 ${badge.unlocked ? 'text-white' : 'text-white/30'}`}>
+                            <h3 className={`text-lg font-black mb-1 ${badge.unlocked ? 'text-white' : 'text-white/30'}`}>
                                 {badge.title}
                             </h3>
-                            <p className="text-sm text-slate-400 font-medium mb-4">
+                            <p className="text-xs text-slate-400 font-medium mb-3">
                                 {badge.description}
                             </p>
 
                             {/* Progress Bar */}
                             {!badge.unlocked && badge.progress !== undefined && badge.requirement && (
-                                <div className="mt-4">
-                                    <div className="flex justify-between text-xs font-bold text-slate-500 mb-2">
+                                <div className="mt-3">
+                                    <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-1.5">
                                         <span>{badge.progress.toFixed(0)}</span>
                                         <span>{badge.requirement}</span>
                                     </div>
-                                    <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                                    <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
                                         <div
                                             className={`h-full bg-gradient-to-r ${badge.color} transition-all duration-1000`}
                                             style={{ width: `${Math.min((badge.progress / badge.requirement) * 100, 100)}%` }}
@@ -738,10 +738,10 @@ function BadgesView({ badges }: { badges: Badge[] }) {
 
                             {/* Unlocked Badge */}
                             {badge.unlocked && (
-                                <div className="absolute top-4 right-4">
-                                    <div className="bg-emerald-500 px-3 py-1 rounded-full flex items-center gap-1">
-                                        <Star className="w-3 h-3 text-white fill-white" />
-                                        <span className="text-[10px] font-black text-white uppercase">Conquistado</span>
+                                <div className="absolute top-3 right-3">
+                                    <div className="bg-emerald-500 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                        <Star className="w-2.5 h-2.5 text-white fill-white" />
+                                        <span className="text-[8px] font-black text-white uppercase">Conquistado</span>
                                     </div>
                                 </div>
                             )}
@@ -761,112 +761,112 @@ function EvolutionView({ metrics, goal }: { metrics: any; goal: any }) {
     const dailyTarget = daysRemaining > 0 ? Math.ceil((goal?.revenue_goal - goal?.revenue_actual) / 100 / daysRemaining) : 0;
 
     return (
-        <div className="w-full flex flex-col gap-12">
+        <div className="w-full flex flex-col gap-8 max-w-7xl mx-auto px-8">
             {/* Header */}
-            <div className="flex items-center justify-center gap-10 mb-8">
-                <div className="w-24 h-2 bg-emerald-500 rounded-full" />
-                <h2 className="text-6xl font-black tracking-tighter uppercase italic px-10">
+            <div className="flex items-center justify-center gap-6">
+                <div className="w-16 h-1.5 bg-emerald-500 rounded-full" />
+                <h2 className="text-4xl font-black tracking-tighter uppercase italic px-6">
                     EVOLUÇÃO & PERFORMANCE
                 </h2>
-                <div className="w-24 h-2 bg-emerald-500 rounded-full" />
+                <div className="w-16 h-1.5 bg-emerald-500 rounded-full" />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Daily Performance */}
-                <div className="bg-white/[0.03] border border-white/5 rounded-[3rem] p-12 relative overflow-hidden group">
+                <div className="bg-white/[0.03] border border-white/5 rounded-[2rem] p-8 relative overflow-hidden group">
                     <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
-                    <div className="flex items-center gap-4 mb-8">
-                        <div className="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center">
-                            <Clock className="w-10 h-10 text-emerald-400" />
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+                            <Clock className="w-7 h-7 text-emerald-400" />
                         </div>
                         <div>
-                            <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Vendas Hoje</p>
-                            <p className="text-xs font-bold text-slate-500">Performance Diária</p>
+                            <p className="text-xs font-black text-slate-400 uppercase tracking-wide">Vendas Hoje</p>
+                            <p className="text-[10px] font-bold text-slate-500">Performance Diária</p>
                         </div>
                     </div>
 
-                    <div className="flex items-end gap-6 mb-8">
-                        <h3 className="text-[12rem] font-black italic tracking-tighter text-emerald-500 leading-none drop-shadow-2xl">
+                    <div className="flex items-end gap-4 mb-6">
+                        <h3 className="text-[7rem] font-black italic tracking-tighter text-emerald-500 leading-none drop-shadow-2xl">
                             <NumberTicker value={dealsToday} />
                         </h3>
-                        <div className="pb-8">
-                            <p className="text-2xl font-black text-white mb-1">vendas</p>
-                            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">concluídas</p>
+                        <div className="pb-4">
+                            <p className="text-xl font-black text-white mb-0.5">vendas</p>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">concluídas</p>
                         </div>
                     </div>
 
                     {/* Meta Diária */}
-                    <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
-                        <div className="flex items-center justify-between mb-4">
-                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Meta Diária Recomendada</p>
-                            <Target className="w-5 h-5 text-indigo-400" />
+                    <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                        <div className="flex items-center justify-between mb-3">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Meta Diária Recomendada</p>
+                            <Target className="w-4 h-4 text-indigo-400" />
                         </div>
-                        <p className="text-4xl font-black text-white">
+                        <p className="text-3xl font-black text-white">
                             R$ {dailyTarget.toLocaleString('pt-BR')}
                         </p>
-                        <p className="text-xs text-slate-500 mt-2">
+                        <p className="text-[10px] text-slate-500 mt-1.5">
                             Para atingir meta mensal em {daysRemaining} dias
                         </p>
                     </div>
                 </div>
 
                 {/* Weekly & Monthly */}
-                <div className="flex flex-col gap-8">
+                <div className="flex flex-col gap-5">
                     {/* This Week */}
-                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[3rem] p-12 relative overflow-hidden group">
+                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[2rem] p-8 relative overflow-hidden group">
                         <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="w-12 h-12 bg-indigo-500/20 rounded-xl flex items-center justify-center">
-                                <Calendar className="w-7 h-7 text-indigo-400" />
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center">
+                                <Calendar className="w-6 h-6 text-indigo-400" />
                             </div>
-                            <span className="text-sm font-black text-slate-400 uppercase tracking-widest">Esta Semana</span>
+                            <span className="text-xs font-black text-slate-400 uppercase tracking-wide">Esta Semana</span>
                         </div>
 
-                        <div className="flex items-baseline gap-4">
-                            <p className="text-8xl font-black text-white tracking-tighter">
+                        <div className="flex items-baseline gap-3">
+                            <p className="text-6xl font-black text-white tracking-tighter">
                                 <NumberTicker value={dealsThisWeek} />
                             </p>
                             <div>
-                                <TrendingUp className="w-8 h-8 text-emerald-500 mb-2" />
-                                <p className="text-xs font-black text-slate-500 uppercase">Vendas</p>
+                                <TrendingUp className="w-6 h-6 text-emerald-500 mb-1" />
+                                <p className="text-[10px] font-black text-slate-500 uppercase">Vendas</p>
                             </div>
                         </div>
 
                         {/* Progress Bar */}
-                        <div className="mt-6 h-3 bg-white/5 rounded-full overflow-hidden">
-                            <div className="h-full bg-indigo-500 rounded-full shadow-[0_0_20px_rgba(99,102,241,0.5)]"
+                        <div className="mt-4 h-2.5 bg-white/5 rounded-full overflow-hidden">
+                            <div className="h-full bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]"
                                 style={{ width: `${Math.min((dealsThisWeek / 20) * 100, 100)}%` }}
                             />
                         </div>
                     </div>
 
                     {/* This Month */}
-                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[3rem] p-12 relative overflow-hidden group">
+                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[2rem] p-8 relative overflow-hidden group">
                         <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">
-                                <BarChart3 className="w-7 h-7 text-purple-400" />
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center">
+                                <BarChart3 className="w-6 h-6 text-purple-400" />
                             </div>
-                            <span className="text-sm font-black text-slate-400 uppercase tracking-widest">Este Mês</span>
+                            <span className="text-xs font-black text-slate-400 uppercase tracking-wide">Este Mês</span>
                         </div>
 
-                        <div className="flex items-baseline gap-4">
-                            <p className="text-8xl font-black text-white tracking-tighter">
+                        <div className="flex items-baseline gap-3">
+                            <p className="text-6xl font-black text-white tracking-tighter">
                                 <NumberTicker value={dealsThisMonth} />
                             </p>
                             <div>
-                                <Trophy className="w-8 h-8 text-amber-500 mb-2" />
-                                <p className="text-xs font-black text-slate-500 uppercase">Total</p>
+                                <Trophy className="w-6 h-6 text-amber-500 mb-1" />
+                                <p className="text-[10px] font-black text-slate-500 uppercase">Total</p>
                             </div>
                         </div>
 
                         {/* Comparison */}
-                        <div className="mt-6 flex items-center gap-3 py-2 px-4 bg-white/5 rounded-full border border-white/5">
-                            <Activity className="w-4 h-4 text-purple-400" />
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        <div className="mt-4 flex items-center gap-2 py-1.5 px-3 bg-white/5 rounded-full border border-white/5">
+                            <Activity className="w-3.5 h-3.5 text-purple-400" />
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">
                                 Crescimento: <span className="text-emerald-500">+{metrics?.growth_percentage?.toFixed(0) || 0}%</span>
                             </p>
                         </div>
@@ -879,82 +879,82 @@ function EvolutionView({ metrics, goal }: { metrics: any; goal: any }) {
 
 function InsightsView({ metrics }: { metrics: any }) {
     return (
-        <div className="w-full flex flex-col gap-12">
-            <div className="flex items-center justify-center gap-10">
-                <div className="w-1 w-24 h-2 bg-indigo-500 rounded-full" />
-                <h2 className="text-6xl font-black tracking-tighter uppercase italic px-10">INSIGHTS ESTRATÉGICOS</h2>
-                <div className="w-1 w-24 h-2 bg-indigo-500 rounded-full" />
+        <div className="w-full flex flex-col gap-8 max-w-7xl mx-auto px-8">
+            <div className="flex items-center justify-center gap-6">
+                <div className="w-16 h-1.5 bg-indigo-500 rounded-full" />
+                <h2 className="text-4xl font-black tracking-tighter uppercase italic px-6">INSIGHTS ESTRATÉGICOS</h2>
+                <div className="w-16 h-1.5 bg-indigo-500 rounded-full" />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* LARGE METRIC - CLOSED DEALS */}
-                <div className="bg-white/[0.03] border border-white/5 rounded-[3rem] p-16 relative overflow-hidden group">
-                    <div className="absolute -top-10 -right-10 w-64 h-64 bg-emerald-500/10 blur-[80px] rounded-full group-hover:bg-emerald-500/20 transition-all duration-700" />
+                <div className="bg-white/[0.03] border border-white/5 rounded-[2rem] p-10 relative overflow-hidden group">
+                    <div className="absolute -top-8 -right-8 w-48 h-48 bg-emerald-500/10 blur-[60px] rounded-full group-hover:bg-emerald-500/20 transition-all duration-700" />
 
-                    <div className="flex items-center gap-4 mb-4">
-                        <Award className="w-10 h-10 text-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.5)]" />
-                        <span className="text-xl font-black text-slate-500 uppercase tracking-widest">Total Conversões Mês</span>
+                    <div className="flex items-center gap-3 mb-3">
+                        <Award className="w-8 h-8 text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
+                        <span className="text-base font-black text-slate-500 uppercase tracking-wide">Total Conversões Mês</span>
                     </div>
 
-                    <div className="flex items-baseline gap-6">
-                        <h3 className="text-[14rem] font-black italic tracking-tighter text-white drop-shadow-2xl leading-none">
+                    <div className="flex items-baseline gap-4">
+                        <h3 className="text-[8rem] font-black italic tracking-tighter text-white drop-shadow-2xl leading-none">
                             <NumberTicker value={metrics?.total_deals || 0} />
                         </h3>
                         <div>
-                            <div className="flex items-center gap-2 text-emerald-500 mb-2">
-                                <TrendingUp className="w-8 h-8" />
-                                <span className="text-4xl font-black tabular-nums">+{metrics?.deals_this_week || 0}</span>
+                            <div className="flex items-center gap-2 text-emerald-500 mb-1">
+                                <TrendingUp className="w-6 h-6" />
+                                <span className="text-3xl font-black tabular-nums">+{metrics?.deals_this_week || 0}</span>
                             </div>
-                            <p className="text-sm font-black text-slate-500 uppercase tracking-[0.3em]">Novas essa semana</p>
+                            <p className="text-xs font-black text-slate-500 uppercase tracking-wider">Novas essa semana</p>
                         </div>
                     </div>
 
                     {/* Progress indicator bar at bottom */}
-                    <div className="mt-12 h-4 bg-white/5 rounded-full overflow-hidden p-1 border border-white/10">
+                    <div className="mt-8 h-3 bg-white/5 rounded-full overflow-hidden p-0.5 border border-white/10">
                         <div className="h-full bg-emerald-500 rounded-full animate-shine" style={{ width: '75%' }} />
                     </div>
                 </div>
 
                 {/* TWO MEDIUM CARDS */}
-                <div className="flex flex-col gap-10">
-                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[3rem] p-12 relative overflow-hidden group">
+                <div className="flex flex-col gap-6">
+                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[2rem] p-8 relative overflow-hidden group">
                         <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="w-12 h-12 bg-indigo-500/20 rounded-xl flex items-center justify-center">
-                                <DollarSign className="w-7 h-7 text-indigo-400" />
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center">
+                                <DollarSign className="w-6 h-6 text-indigo-400" />
                             </div>
-                            <span className="text-sm font-black text-slate-400 uppercase tracking-widest">Ticket Médio por Operação</span>
+                            <span className="text-xs font-black text-slate-400 uppercase tracking-wide">Ticket Médio por Operação</span>
                         </div>
 
-                        <p className="text-7xl font-black text-white tracking-tighter tabular-nums mb-4">
+                        <p className="text-5xl font-black text-white tracking-tighter tabular-nums mb-3">
                             <NumberTicker value={metrics?.average_ticket || 0} prefix="R$ " />
                         </p>
-                        <div className="flex items-center gap-3 py-2 px-6 bg-white/5 rounded-full inline-flex border border-white/5">
-                            <Activity className="w-4 h-4 text-indigo-400" />
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estabilidade: <span className="text-emerald-500">Alta</span></p>
+                        <div className="flex items-center gap-2 py-1.5 px-4 bg-white/5 rounded-full inline-flex border border-white/5">
+                            <Activity className="w-3.5 h-3.5 text-indigo-400" />
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Estabilidade: <span className="text-emerald-500">Alta</span></p>
                         </div>
                     </div>
 
-                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[3rem] p-12 relative overflow-hidden group">
+                    <div className="flex-1 bg-white/[0.03] border border-white/5 rounded-[2rem] p-8 relative overflow-hidden group">
                         <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center">
-                                <BarChart3 className="w-7 h-7 text-emerald-400" />
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+                                <BarChart3 className="w-6 h-6 text-emerald-400" />
                             </div>
-                            <span className="text-sm font-black text-slate-400 uppercase tracking-widest">Eficiência Global do Funil</span>
+                            <span className="text-xs font-black text-slate-400 uppercase tracking-wide">Eficiência Global do Funil</span>
                         </div>
 
-                        <div className="flex items-end gap-3 mb-6">
-                            <p className="text-8xl font-black text-emerald-500 tracking-tighter leading-none italic">
+                        <div className="flex items-end gap-2 mb-4">
+                            <p className="text-6xl font-black text-emerald-500 tracking-tighter leading-none italic">
                                 <NumberTicker value={metrics?.conversion_rate || 0} decimalPlaces={1} />
                             </p>
-                            <span className="text-4xl font-black text-emerald-700 pb-2">%</span>
+                            <span className="text-3xl font-black text-emerald-700 pb-1">%</span>
                         </div>
 
-                        <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-500 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.5)]" style={{ width: `${(metrics?.conversion_rate || 0) * 2}%` }} />
+                        <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)]" style={{ width: `${(metrics?.conversion_rate || 0) * 2}%` }} />
                         </div>
                     </div>
                 </div>
