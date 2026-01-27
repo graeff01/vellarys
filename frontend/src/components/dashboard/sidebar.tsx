@@ -117,37 +117,39 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
     return (
         <aside
             className={cn(
-                "fixed left-0 top-0 h-full w-72 bg-slate-950 border-r border-slate-800 z-50 flex flex-col transition-all duration-300 ease-in-out select-none",
+                "fixed left-0 top-0 h-full w-72 bg-white border-r border-slate-200 z-50 flex flex-col transition-all duration-300 ease-in-out select-none",
                 isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
             )}
         >
             {/* 🚀 HEADER: Logo & Brand */}
             <div className="p-8 flex items-center justify-between group">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform">
+                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:rotate-6 transition-transform">
                         <Bot className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex flex-col">
-                        <span className="text-xl font-bold text-white tracking-tight">vellarys</span>
-                        <span className="text-[10px] uppercase tracking-widest text-indigo-400 font-bold -mt-1">Intelligence</span>
+                        <span className="text-xl font-bold text-slate-900 tracking-tight leading-none">vellarys</span>
+                        <span className="text-[10px] uppercase tracking-widest text-indigo-600 font-bold mt-0.5 truncate max-w-[140px]">
+                            {isSuperAdmin ? "Admin Master" : (user?.tenant?.name || "Enterprise")}
+                        </span>
                     </div>
                 </div>
                 <button
                     onClick={onClose}
-                    className="lg:hidden p-2 hover:bg-slate-800 rounded-lg text-slate-400 transition-colors"
+                    className="lg:hidden p-2 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
                 >
                     <X className="w-5 h-5" />
                 </button>
             </div>
 
             {/* 🧭 NAVIGATION: Scrolled area (sem barra visível) */}
-            <nav className="flex-1 px-4 space-y-8 overflow-y-auto no-scrollbar py-4">
+            <nav className="flex-1 px-4 space-y-7 overflow-y-auto no-scrollbar py-2">
                 {menuGroups.map((group, idx) => (
-                    <div key={idx} className="space-y-2">
-                        <h3 className="px-4 text-[11px] font-bold text-slate-500 uppercase tracking-[2px]">
+                    <div key={idx} className="space-y-1.5">
+                        <h3 className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[2px]">
                             {group.title}
                         </h3>
-                        <ul className="space-y-1">
+                        <ul className="space-y-0.5">
                             {group.items.map((item) => {
                                 const isActive = pathname === item.href ||
                                     (item.href !== '/dashboard' && pathname.startsWith(item.href));
@@ -157,32 +159,32 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                                         <Link
                                             href={item.href}
                                             className={cn(
-                                                "group flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative overflow-hidden",
+                                                "group flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all relative overflow-hidden",
                                                 isActive
-                                                    ? "bg-indigo-600/10 text-white shadow-sm ring-1 ring-white/10"
-                                                    : "text-slate-400 hover:text-white hover:bg-white/[0.03]"
+                                                    ? "bg-indigo-50 text-indigo-700 shadow-sm"
+                                                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
                                             )}
                                         >
                                             {/* Active Indicator Bar */}
                                             {isActive && (
-                                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-500 rounded-r-full shadow-lg shadow-indigo-500/50" />
+                                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-indigo-600 rounded-r-full" />
                                             )}
 
                                             <item.icon className={cn(
-                                                "w-5 h-5 transition-transform group-hover:scale-110",
-                                                isActive ? "text-indigo-400" : "text-slate-500 group-hover:text-indigo-300"
+                                                "w-5 h-5 transition-transform group-hover:scale-105",
+                                                isActive ? "text-indigo-600" : "text-slate-400 group-hover:text-indigo-500"
                                             )} />
 
-                                            <span className="text-sm font-medium flex-1">{item.label}</span>
+                                            <span className="text-sm font-semibold flex-1">{item.label}</span>
 
                                             {item.badge && (
-                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-600 border border-indigo-200">
                                                     {item.badge}
                                                 </span>
                                             )}
 
                                             {!isActive && (
-                                                <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-slate-600" />
+                                                <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-slate-300" />
                                             )}
                                         </Link>
                                     </li>
@@ -194,23 +196,23 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
             </nav>
 
             {/* 👤 FOOTER: Profile & Logout */}
-            <div className="p-4 border-t border-slate-800 bg-slate-900/50">
-                <div className="flex items-center gap-3 p-3 rounded-2xl bg-slate-800/40 border border-white/5 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-inner">
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+                <div className="flex items-center gap-3 p-3 rounded-2xl bg-white border border-slate-200 shadow-sm mb-3">
+                    <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-inner">
                         {user?.name?.charAt(0) || 'U'}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
-                        <p className="text-[10px] text-slate-500 truncate">{user?.email}</p>
+                        <p className="text-sm font-bold text-slate-900 truncate">{user?.name}</p>
+                        <p className="text-[10px] font-medium text-slate-400 truncate">{user?.email}</p>
                     </div>
                     {isSuperAdmin && (
-                        <Shield className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                        <Shield className="w-4 h-4 text-indigo-500 flex-shrink-0" />
                     )}
                 </div>
 
                 <button
                     onClick={onLogout}
-                    className="flex items-center gap-3 px-4 py-3 w-full text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all font-medium text-sm"
+                    className="flex items-center gap-3 px-4 py-2.5 w-full text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all font-bold text-sm"
                 >
                     <LogOut className="w-4 h-4" />
                     Sair da Conta
