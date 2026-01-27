@@ -284,6 +284,12 @@ function GestorDashboard() {
   useEffect(() => {
     loadConfig();
     loadData();
+
+    // Check for TV mode in URL
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tv') === 'true') {
+      setSalesWallOpen(true);
+    }
   }, [loadConfig, loadData]);
 
   // Handlers

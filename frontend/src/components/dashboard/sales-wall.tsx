@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
     Trophy,
     Target,
@@ -108,6 +109,16 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+        // Desabilitar scroll no body ao abrir
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, []);
 
     const views = ['goal', 'ranking', 'latest', 'badges', 'evolution'];
 
@@ -245,11 +256,21 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
         ];
     }, [salesData.metrics]);
 
-    return (
+    if (!mounted) return null;
+
+    const content = (
         <div
             ref={containerRef}
-            className={`fixed inset-0 z-[100] bg-slate-950 text-white flex flex-col overflow-hidden font-sans select-none ${isFullscreen ? 'w-screen h-screen' : ''}`}
-            style={isFullscreen ? { width: '100vw', height: '100vh' } : undefined}
+            className={`fixed inset-0 z-[9999] bg-slate-950 text-white flex flex-col overflow-hidden font-sans select-none animate-in fade-in duration-500 ${isFullscreen ? 'w-screen h-screen' : ''}`}
+            style={{
+                width: '100vw',
+                height: '100vh',
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0
+            }}
         >
             {/* ADVANCED BACKGROUND */}
             <div className="absolute inset-0 pointer-events-none">
@@ -480,6 +501,8 @@ export function SalesWall({ metrics, salesData, onClose }: SalesWallProps) {
             `}</style>
         </div>
     );
+
+    return createPortal(content, document.body);
 }
 
 // =============================================
