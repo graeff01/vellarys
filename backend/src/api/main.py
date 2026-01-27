@@ -169,14 +169,31 @@ app = FastAPI(
 logger.info(f"🌐 CORS Origins configuradas: {settings.cors_origins_list}")
 logger.info(f"🌐 CORS Regex: ^https://[a-zA-Z0-9-]+\\.up\\.railway\\.app$")
 
+# Handler explícito para OPTIONS (preflight requests)
+@app.options("/{rest_of_path:path}")
+async def preflight_handler(request: Request, rest_of_path: str):
+    """Handle CORS preflight requests explicitly"""
+    origin = request.headers.get("origin", "")
+    logger.info(f"🔍 Preflight request from origin: {origin}")
+
+    response = JSONResponse(content={}, status_code=200)
+    response.headers["Access-Control-Allow-Origin"] = origin if origin else "*"
+    response.headers["Access-Control-Allow-Methods"] = "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Max-Age"] = "3600"
+
+    return response
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_origin_regex=r"^https://[a-zA-Z0-9-]+\.up\.railway\.app$", # CORRIGIDO: Aceita vellarys.up.railway.app
+    allow_origins=settings.cors_origins_list if settings.cors_origins_list != ["*"] else ["*"],
+    allow_origin_regex=r"^https://[a-zA-Z0-9\-]+\.up\.railway\.app$", # Aceita vellarys.up.railway.app (hífen escapado)
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"],
     allow_headers=["*"],
     expose_headers=["*"],
+    max_age=3600,
 )
 
 
