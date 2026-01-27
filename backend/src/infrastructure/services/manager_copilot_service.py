@@ -116,7 +116,13 @@ class ManagerCopilotService:
         # 2. Se a IA decidiu usar ferramentas, executamos
         if tool_calls:
             # Adiciona a resposta da IA (com a intenção de chamada) ao histórico
-            messages.append(response)
+            # IMPORTANTE: Precisamos construir a mensagem corretamente para a OpenAI
+            assistant_message = {
+                "role": "assistant",
+                "content": response.get("content") or "",  # Pode ser vazio quando há tool_calls
+                "tool_calls": tool_calls
+            }
+            messages.append(assistant_message)
 
             for tool_call in tool_calls:
                 function_name = tool_call["function"]["name"]
