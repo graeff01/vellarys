@@ -163,14 +163,44 @@ app = FastAPI(
 )
 
 # ============================================================
-# ⭐ CORS - Configuração Permissiva (Temporária para Debug)
+# 🛡️ MIDDLEWARE DE SEGURANÇA (Headers Globais)
 # ============================================================
-logger.info(f"🌐 CORS Origins configuradas: {settings.cors_origins_list}")
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    
+    # Previne ataques de XSS e injeção (Ajustar conforme necessário para o frontend)
+    csp_policy = (
+        "default-src 'self' https://vellarys.app; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.sentry-cdn.com https://browser.sentry-cdn.com; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https:; "
+        "font-src 'self' data:; "
+        "connect-src 'self' https://*.sentry.io https://api.openai.com https://vellarys.app;"
+    )
+    
+    response.headers["Content-Security-Policy"] = csp_policy
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    
+    return response
+
+# ============================================================
+# ⭐ CORS - Configuração Endurecida
+# ============================================================
+logger.info(f"🌐 CORS Origins configuradas para {settings.environment}: {settings.cors_origins_list}")
+
+# Em produção, não usamos "*"
+final_origins = settings.cors_origins_list
+is_permissive = "*" in final_origins and not settings.is_production
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TEMPORÁRIO: Permite todas as origins para debug
-    allow_credentials=False,  # Deve ser False quando allow_origins=["*"]
+    allow_origins=final_origins if not is_permissive else ["*"],
+    allow_credentials=True if not is_permissive else False,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],

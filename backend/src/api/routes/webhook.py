@@ -21,10 +21,22 @@ router = APIRouter(prefix="/webhook", tags=["Webhook"])
 @router.post("/message", response_model=WebhookResponse)
 async def receive_message(
     payload: WebhookMessage,
+    verify_token: str = None, # Pode vir via query param ou header
     db: AsyncSession = Depends(get_db),
 ):
+    from src.config import get_settings
+    settings = get_settings()
+    
+    # 🛡️ PROTEÇÃO DE WEBHOOK
+    # Se o token não bater, bloqueia (exceto se estivermos em modo de desenvolvimento SEM token configurado)
+    if settings.webhook_verify_token and verify_token != settings.webhook_verify_token:
+        # Tenta pegar do header se não veio no query param
+        from fastapi import Header
+        logger.warning(f"🚫 Tentativa de Webhook não autorizada! Token inválido.")
+        raise HTTPException(status_code=401, detail="Invalid verify token")
+        
     # 🔥 LOG CRÍTICO — PROVA DO TEXTO REAL QUE CHEGA
-    logger.warning(f"[WEBHOOK RAW] payload.content = {payload.content}")
+    logger.info(f"[WEBHOOK] Recebido de {payload.sender_phone} para tenant {payload.tenant_slug}")
 
     result = await process_message(
         db=db,

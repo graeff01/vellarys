@@ -105,6 +105,7 @@ async def create_tenant(
 async def get_tenant(
     slug: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user), # 🔥 Adicionado autenticação
 ):
     """Busca tenant por slug."""
     
@@ -116,6 +117,10 @@ async def get_tenant(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant não encontrado")
     
+    # 🛡️ PROTEÇÃO: Apenas superadmin ou o administrador do próprio tenant pode ver os detalhes
+    if current_user.role != UserRole.SUPERADMIN and current_user.tenant_id != tenant.id:
+        raise HTTPException(status_code=403, detail="Você não tem permissão para visualizar este tenant")
+    
     return TenantResponse.model_validate(tenant)
 
 
@@ -124,6 +129,7 @@ async def update_tenant(
     slug: str,
     payload: dict,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user), # 🔥 Adicionado autenticação
 ):
     """Atualiza configurações do tenant."""
 
@@ -134,6 +140,10 @@ async def update_tenant(
 
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant não encontrado")
+
+    # 🛡️ PROTEÇÃO: Apenas admins do próprio tenant ou superadmin
+    if current_user.role != UserRole.SUPERADMIN and (current_user.tenant_id != tenant.id or current_user.role not in [UserRole.ADMIN, UserRole.MANAGER]):
+        raise HTTPException(status_code=403, detail="Apenas administradores podem modificar as configurações da empresa")
 
     # Atualiza campos permitidos
     allowed_fields = ["name", "plan", "settings", "active"]

@@ -224,7 +224,7 @@ export function InboxConversation({ lead, onBack, onLeadUpdated }: InboxConversa
         <div className="text-center space-y-4">
           <div className="w-64 h-64 mx-auto opacity-20">
             <svg viewBox="0 0 303 172" fill="none">
-              <circle cx="151.5" cy="86" r="86" fill="#e5e7eb"/>
+              <circle cx="151.5" cy="86" r="86" fill="#e5e7eb" />
             </svg>
           </div>
           <div className="space-y-2">
@@ -264,7 +264,13 @@ export function InboxConversation({ lead, onBack, onLeadUpdated }: InboxConversa
                 onError={(e) => {
                   // Fallback para inicial se imagem falhar
                   e.currentTarget.style.display = 'none';
-                  e.currentTarget.parentElement!.innerHTML = `<span class="text-lg font-medium text-gray-700">${lead.name ? lead.name.charAt(0).toUpperCase() : '?'}</span>`;
+                  const parent = e.currentTarget.parentElement;
+                  if (parent) {
+                    const span = document.createElement('span');
+                    span.className = "text-lg font-medium text-gray-700";
+                    span.textContent = lead.name ? lead.name.charAt(0).toUpperCase() : '?';
+                    parent.appendChild(span);
+                  }
                 }}
               />
             ) : (

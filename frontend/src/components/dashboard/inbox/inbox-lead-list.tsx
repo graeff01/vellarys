@@ -82,7 +82,13 @@ export function InboxLeadList({
                       onError={(e) => {
                         // Fallback para inicial se imagem falhar
                         e.currentTarget.style.display = 'none';
-                        e.currentTarget.parentElement!.innerHTML = `<span class="text-xl font-medium text-gray-700">${lead.name ? lead.name.charAt(0).toUpperCase() : '?'}</span>`;
+                        const parent = e.currentTarget.parentElement;
+                        if (parent) {
+                          const span = document.createElement('span');
+                          span.className = "text-xl font-medium text-gray-700";
+                          span.textContent = lead.name ? lead.name.charAt(0).toUpperCase() : '?';
+                          parent.appendChild(span);
+                        }
                       }}
                     />
                   ) : (
@@ -146,8 +152,8 @@ export function InboxLeadList({
                     {lead.qualification && (
                       <span className="text-xs text-gray-500">
                         {lead.qualification === 'quente' || lead.qualification === 'Quente' ? '🔥' :
-                         lead.qualification === 'morno' || lead.qualification === 'Morno' ? '☀️' :
-                         lead.qualification === 'frio' || lead.qualification === 'Frio' ? '❄️' : '📋'}
+                          lead.qualification === 'morno' || lead.qualification === 'Morno' ? '☀️' :
+                            lead.qualification === 'frio' || lead.qualification === 'Frio' ? '❄️' : '📋'}
                       </span>
                     )}
 

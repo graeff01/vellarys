@@ -145,8 +145,10 @@ async def login(
             detail=f"Email ou senha incorretos. Tentativas restantes: {remaining - 1}",
         )
     
-    # Senha incorreta
-    if not verify_password(payload.password, user.password_hash):
+    # Verifica senha
+    is_valid, needs_upgrade = verify_password(payload.password, user.password_hash)
+    
+    if not is_valid:
         await log_login_attempt(
             db,
             email=payload.email,
@@ -161,6 +163,12 @@ async def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Email ou senha incorretos. Tentativas restantes: {remaining - 1}",
         )
+    
+    # Se a senha for válida mas o hash for antigo/fraco, fazemos o upgrade agora
+    if needs_upgrade:
+        logger.info(f"Fazendo upgrade automático de segurança para o usuário: {user.email}")
+        user.password_hash = hash_password(payload.password)
+        # O commit será feito ao final do processo de login logo abaixo
     
     # Usuário inativo
     if not user.active:
@@ -230,10 +238,19 @@ async def register(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Registra novo usuário e tenant.
-    
     Usado no onboarding de novos clientes.
     """
+    # 🛡️ LISTA DE SLUGS RESERVADOS (SEGURANÇA)
+    reserved_slugs = {"admin", "api", "auth", "dashboard", "master", "root", "system", "vellarys"}
+    if company_slug.lower() in reserved_slugs:
+        raise HTTPException(
+            status_code=400,
+            detail=f"O nome da empresa '{company_slug}' não pode ser usado."
+        )
+
+    # 🛡️ PROTEÇÃO: Verificação básica de spam (pode ser expandida para Redis depois)
+    # Por enquanto, logamos a tentativa para auditoria
+    logger.info(f"✨ Nova tentativa de registro: {email} ({company_name})")
     
     # Verifica se email já existe
     result = await db.execute(
