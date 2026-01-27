@@ -9,7 +9,8 @@ import { useToast } from '@/hooks/use-toast';
 import { getToken } from '@/lib/auth';
 import {
   Calendar, MessageSquare, StickyNote, Paperclip, Zap, Search,
-  BarChart3, Archive, Mic, Shield, RefreshCw, Brain, Save, Loader2
+  BarChart3, Archive, Mic, Shield, RefreshCw, Brain, Save, Loader2,
+  UserCheck, HeartPulse, EyeOff, Lock, Users, Bell
 } from 'lucide-react';
 
 interface Feature {
@@ -17,7 +18,7 @@ interface Feature {
   name: string;
   description: string;
   icon: any;
-  category: 'core' | 'advanced' | 'experimental';
+  category: 'core' | 'advanced' | 'security' | 'experimental';
   comingSoon?: boolean;
 }
 
@@ -87,6 +88,43 @@ const FEATURES: Feature[] = [
     description: 'IA responde com mensagens de voz',
     icon: Mic,
     category: 'advanced'
+  },
+  {
+    key: 'ai_auto_handoff_enabled',
+    name: 'Auto-Transferência (IA)',
+    description: 'Transfere para o vendedor assim que qualificado',
+    icon: UserCheck,
+    category: 'advanced'
+  },
+  {
+    key: 'ai_sentiment_alerts_enabled',
+    name: 'Alertas de Sentimento',
+    description: 'Monitora humor e urgência dos leads (IA)',
+    icon: HeartPulse,
+    category: 'advanced'
+  },
+
+  // Security Features
+  {
+    key: 'security_ghost_mode_enabled',
+    name: 'Modo Privacidade',
+    description: 'Oculta telefone dos leads para os vendedores',
+    icon: EyeOff,
+    category: 'security'
+  },
+  {
+    key: 'security_export_lock_enabled',
+    name: 'Trava de Exportação',
+    description: 'Apenas Admins Master podem baixar dados',
+    icon: Lock,
+    category: 'security'
+  },
+  {
+    key: 'distrib_auto_assign_enabled',
+    name: 'Atribuição Inteligente',
+    description: 'Distribuição automática ativada globalmente',
+    icon: Users,
+    category: 'security'
   },
 
   // Experimental Features
@@ -239,6 +277,7 @@ export default function ControlCenterPage() {
   const categories = {
     core: FEATURES.filter(f => f.category === 'core'),
     advanced: FEATURES.filter(f => f.category === 'advanced'),
+    security: FEATURES.filter(f => f.category === 'security'),
     experimental: FEATURES.filter(f => f.category === 'experimental'),
   };
 
@@ -303,6 +342,25 @@ export default function ControlCenterPage() {
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {categories.advanced.map(feature => (
+            <FeatureCard
+              key={feature.key}
+              feature={feature}
+              enabled={features[feature.key] ?? false}
+              onToggle={() => handleToggle(feature.key)}
+              loading={loading}
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* Security Features */}
+      <section className="mb-8">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+          <Badge className="bg-red-100 text-red-700">Segurança</Badge>
+          Controle e Acesso
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {categories.security.map(feature => (
             <FeatureCard
               key={feature.key}
               feature={feature}

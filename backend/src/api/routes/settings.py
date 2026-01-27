@@ -287,6 +287,13 @@ DEFAULT_SETTINGS = {
         "metrics_enabled": True,            # Métricas e analytics
         "archive_enabled": True,            # Arquivamento de leads
         "voice_response_enabled": False,    # Respostas em áudio
+        "ai_auto_handoff_enabled": False,   # Transferência automática por IA
+        "ai_sentiment_alerts_enabled": False, # Alertas de sentimento (IA)
+
+        # Security & Control
+        "security_ghost_mode_enabled": False, # Ocultar telefones (vendedores)
+        "security_export_lock_enabled": True, # Restringir exportação a admins
+        "distrib_auto_assign_enabled": True,  # Atribuição automática de leads
 
         # Experimental Features
         "ai_guard_enabled": True,           # Guardrails avançados da IA
