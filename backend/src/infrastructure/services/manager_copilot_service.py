@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.llm.factory import LLMFactory
 from src.config import get_settings
-from src.domain.entities import Lead, User, Tenant, LeadStatus, Deal
+from src.domain.entities import Lead, User, Tenant, LeadStatus
 from src.infrastructure.services.openai_service import chat_completion
 
 logger = logging.getLogger(__name__)
@@ -635,14 +635,8 @@ Lembre-se: Você é um aliado estratégico do gestor. Ajude-o a tomar as melhore
         qual_rows = (await self.db.execute(q_qual)).all()
         qualification_distribution = {str(r[0]): r[1] for r in qual_rows}
 
-        # Receita total (do Deal se existir)
-        try:
-            q_revenue = select(func.sum(Deal.value)).where(
-                and_(Deal.tenant_id == self.tenant.id, Deal.status == "won")
-            )
-            total_revenue = (await self.db.execute(q_revenue)).scalar() or 0
-        except:
-            total_revenue = 0
+        # Receita total (baseado em conversões - Deal não implementado)
+        total_revenue = 0  # TODO: Implementar quando Deal estiver disponível
 
         return {
             "total_leads": total_leads,
@@ -1652,72 +1646,45 @@ Lembre-se: Você é um aliado estratégico do gestor. Ajude-o a tomar as melhore
         }
 
     async def _tool_get_revenue_analysis(self, period_days: int = 30) -> Dict:
-        """Análise de receita e vendas."""
+        """Análise de receita e vendas (baseado em conversões)."""
         since = datetime.now() - timedelta(days=period_days)
 
-        # Tentar buscar dados de Deal se existir
-        try:
-            q_revenue = select(
-                func.sum(Deal.value).label("total"),
-                func.count(Deal.id).label("count"),
-                func.avg(Deal.value).label("avg")
-            ).where(
-                and_(
-                    Deal.tenant_id == self.tenant.id,
-                    Deal.status == "won",
-                    Deal.created_at >= since
-                )
+        # Usar conversões como proxy para vendas (Deal não implementado ainda)
+        q_conversions = select(func.count(Lead.id)).where(
+            and_(
+                Lead.tenant_id == self.tenant.id,
+                Lead.status == "converted",
+                Lead.updated_at >= since
             )
-            result = (await self.db.execute(q_revenue)).one()
+        )
+        deal_count = (await self.db.execute(q_conversions)).scalar() or 0
 
-            total_revenue = result.total or 0
-            deal_count = result.count or 0
-            avg_ticket = result.avg or 0
-
-            # Por vendedor
-            q_by_seller = select(
-                User.name,
-                func.sum(Deal.value).label("revenue"),
-                func.count(Deal.id).label("deals")
-            ).join(
-                Deal, Deal.seller_id == User.id
-            ).where(
-                and_(
-                    Deal.tenant_id == self.tenant.id,
-                    Deal.status == "won",
-                    Deal.created_at >= since
-                )
-            ).group_by(User.name).order_by(desc("revenue"))
-
-            seller_rows = (await self.db.execute(q_by_seller)).all()
-            by_seller = [
-                {"seller": r.name, "revenue": r.revenue or 0, "deals": r.deals or 0}
-                for r in seller_rows
-            ]
-
-        except Exception:
-            # Se Deal não existir, usar conversões como proxy
-            q_conversions = select(func.count(Lead.id)).where(
-                and_(
-                    Lead.tenant_id == self.tenant.id,
-                    Lead.status == "converted",
-                    Lead.updated_at >= since
-                )
+        # Conversões por vendedor
+        q_by_seller = select(
+            User.name,
+            func.count(Lead.id).label("conversions")
+        ).join(
+            Lead, Lead.assigned_to == User.id
+        ).where(
+            and_(
+                Lead.tenant_id == self.tenant.id,
+                Lead.status == "converted",
+                Lead.updated_at >= since
             )
-            deal_count = (await self.db.execute(q_conversions)).scalar() or 0
-            total_revenue = 0
-            avg_ticket = 0
-            by_seller = []
+        ).group_by(User.name).order_by(desc("conversions"))
+
+        seller_rows = (await self.db.execute(q_by_seller)).all()
+        by_seller = [
+            {"seller": r.name, "conversions": r.conversions or 0}
+            for r in seller_rows
+        ]
 
         return {
             "period_days": period_days,
-            "revenue": {
-                "total": total_revenue,
-                "total_formatted": f"R$ {total_revenue/100:,.2f}" if total_revenue else "N/A",
-                "deals_count": deal_count,
-                "average_ticket": avg_ticket,
-                "avg_formatted": f"R$ {avg_ticket/100:,.2f}" if avg_ticket else "N/A"
+            "sales": {
+                "total_conversions": deal_count,
+                "note": "Valores de receita não disponíveis - mostrando conversões"
             },
             "by_seller": by_seller,
-            "note": "Dados baseados em negócios fechados" if total_revenue else "Receita não disponível - mostrando conversões"
+            "tip": "Para análise de receita detalhada, configure os valores nos negócios fechados"
         }
