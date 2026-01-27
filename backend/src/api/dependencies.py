@@ -6,7 +6,7 @@ Funções que são injetadas nas rotas para validação.
 """
 
 from typing import Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -65,15 +65,34 @@ async def get_current_user(
 
 
 async def get_current_tenant(
+    request: Request,
+    target_tenant_id: Optional[int] = Query(None),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Tenant:
     """
     Retorna o tenant do usuário autenticado.
+    Se for superadmin, permite override via query param ou header.
     """
     
+    tenant_id = user.tenant_id
+    
+    # Lógica de override para Superadmin (God Mode)
+    is_super = user.role == "superadmin" or getattr(user, "is_superadmin", False)
+    
+    if is_super:
+        # 1. Prioridade: Query Parameter
+        if target_tenant_id:
+            tenant_id = target_tenant_id
+        # 2. Segunda opção: Header X-Tenant-Override
+        elif "x-tenant-override" in request.headers:
+            try:
+                tenant_id = int(request.headers.get("x-tenant-override"))
+            except:
+                pass
+
     result = await db.execute(
-        select(Tenant).where(Tenant.id == user.tenant_id).where(Tenant.active == True)
+        select(Tenant).where(Tenant.id == tenant_id).where(Tenant.active == True)
     )
     tenant = result.scalar_one_or_none()
     

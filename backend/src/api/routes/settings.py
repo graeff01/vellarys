@@ -1193,91 +1193,70 @@ async def get_faq_index_status(
 
 @router.get("/features")
 async def get_features(
-    target_tenant_id: Optional[int] = None,
-    user: User = Depends(get_current_user),
-    current_tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Retorna feature flags do tenant (Centro de Controle).
-    Se for superadmin e passar target_tenant_id, busca desse tenant.
     
-    A lógica agora é automática baseada no PLANO do cliente.
+    Lógica de Prioridade:
+    1. Tenant Overrides (settings['features'])
+    2. Plan Features (do banco de dados)
+    3. PLAN_FEATURES (hardcoded fallback)
     """
-    tenant = current_tenant
-    
-    # Suporte para provisionamento Master (Superadmin gerenciando clientes)
-    if target_tenant_id and (user.role == "superadmin" or getattr(user, "is_superadmin", False)):
-        result = await db.execute(select(Tenant).where(Tenant.id == target_tenant_id))
-        target = result.scalar_one_or_none()
-        if target:
-            tenant = target
-            logger.info(f"👑 Superadmin gerenciando tenant: {tenant.name} (ID: {tenant.id})")
+    logger.info(f"🎛️ [FEATURES GET] Contexto Tenant: {tenant.name} (ID: {tenant.id})")
 
-    logger.info(f"🎛️ [FEATURES GET] Lógica automática por plano")
-    logger.info(f"🎛️ Tenant: {tenant.slug} (Plano: {tenant.plan})")
+    # 1. Tentar pegar as features do Plano no Banco de Dados
+    plan_features = {}
+    try:
+        from src.domain.entities.tenant_subscription import TenantSubscription
+        from sqlalchemy.orm import selectinload
+        
+        # Busca a assinatura ativa com o plano carregado
+        stmt = select(TenantSubscription).where(
+            TenantSubscription.tenant_id == tenant.id
+        ).options(selectinload(TenantSubscription.plan))
+        
+        result = await db.execute(stmt)
+        sub = result.scalar_one_or_none()
+        
+        if sub and sub.plan:
+            plan_features = sub.plan.features or {}
+            logger.info(f"✅ Features carregadas do plano '{sub.plan.name}' via DB")
+    except Exception as e:
+        logger.error(f"⚠️ Erro ao buscar plano no DB: {e}")
 
-    # 1. Busca defaults do plano
-    plan_slug = tenant.plan.lower() if tenant.plan else "starter"
-    
-    # Se o plano não estiver no mapeamento, usa Starter como base
-    base_features = PLAN_FEATURES.get(plan_slug, PLAN_FEATURES["starter"])
-    
-    # 2. Busca overrides manuais (se existirem nos settings do tenant)
+    # 2. Fallback se o banco estiver vazio ou falhar
+    if not plan_features:
+        plan_slug = tenant.plan.lower() if tenant.plan else "starter"
+        plan_features = PLAN_FEATURES.get(plan_slug, PLAN_FEATURES["starter"])
+        logger.info(f"ℹ️ Usando hardcoded PLAN_FEATURES para o plano '{plan_slug}'")
+
+    # 3. Busca overrides manuais do tenant
     tenant_overrides = (tenant.settings or {}).get("features", {})
     
-    # 3. Merge Final: PLANO + OVERRIDES do banco
-    # Isso permite que você como admin master mude o plano E AINDA ASSIM 
-    # consiga ligar/desligar algo específico que o plano não cobre.
-    final_features = copy.deepcopy(base_features)
-    final_features.update(tenant_overrides)
-
-    return final_features
+    # 4. Merge Final
+    # Retornamos as features do plano, os overrides e o merge final
+    return {
+        "plan_features": plan_features,
+        "overrides": tenant_overrides,
+        "final_features": {**plan_features, **tenant_overrides},
+        "plan_name": sub.plan.name if 'sub' in locals() and sub and sub.plan else tenant.plan
+    }
 
 
 @router.patch("/features")
 async def update_features(
     features: dict,
-    target_tenant_id: Optional[int] = None,
     user: User = Depends(get_current_user),
-    current_tenant: Tenant = Depends(get_current_tenant),
+    tenant: Tenant = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Atualiza feature flags (Centro de Controle).
-
-    IMPORTANTE: Apenas usuários com role 'admin', 'gestor' ou 'superadmin'
-    podem alterar feature flags.
-
-    Args:
-        features: Dict com features a atualizar (ex: {"calendar_enabled": true})
-
-    Returns:
-        Confirmação de sucesso com features atualizadas
+    Apenas superadmins ou gestores autorizados.
     """
-    tenant = current_tenant
-    
-    # Suporte para provisionamento Master (Superadmin gerenciando clientes)
-    if target_tenant_id and (user.role == "superadmin" or getattr(user, "is_superadmin", False)):
-        result = await db.execute(select(Tenant).where(Tenant.id == target_tenant_id))
-        target = result.scalar_one_or_none()
-        if target:
-            tenant = target
-            logger.info(f"👑 Superadmin atualizando tenant: {tenant.name} (ID: {tenant.id})")
-
-    logger.info(f"🎛️ [FEATURES PATCH] Atualizar features")
-
-    # Validar permissão
-    if user.role not in ["admin", "gestor", "superadmin"]:
-        logger.warning(
-            f"❌ Usuário {user.email} (role: {user.role}) tentou alterar feature flags - PERMISSÃO NEGADA"
-        )
-        raise HTTPException(
-            status_code=403,
-            detail="Apenas gestores e administradores podem alterar funcionalidades",
-        )
-
-    logger.info(f"✅ Permissão validada: role {user.role} autorizado")
+    logger.info(f"🎛️ [FEATURES PATCH] Atualizar features para: {tenant.name}")
 
     try:
         # Validar que todas as keys são features válidas
