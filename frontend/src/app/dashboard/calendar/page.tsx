@@ -150,6 +150,79 @@ export default function CalendarPage() {
 
   const selectedDayAppointments = selectedDay ? getAppointmentsForDay(selectedDay) : [];
 
+  async function handleCompleteAppointment(appointmentId: number) {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1';
+      const token = getToken();
+
+      const response = await fetch(`${apiUrl}/appointments/${appointmentId}/complete`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          outcome: 'sale',
+          outcome_notes: 'Agendamento concluído com sucesso',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao completar agendamento');
+      }
+
+      toast({
+        title: 'Agendamento completado!',
+        description: 'O agendamento foi marcado como concluído',
+      });
+
+      loadAppointments();
+    } catch (err) {
+      console.error('Erro ao completar agendamento:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao completar agendamento',
+        description: 'Tente novamente',
+      });
+    }
+  }
+
+  async function handleCancelAppointment(appointmentId: number) {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1';
+      const token = getToken();
+
+      const response = await fetch(`${apiUrl}/appointments/${appointmentId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          reason: 'Cancelado pelo usuário',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao cancelar agendamento');
+      }
+
+      toast({
+        title: 'Agendamento cancelado!',
+        description: 'O agendamento foi cancelado com sucesso',
+      });
+
+      loadAppointments();
+    } catch (err) {
+      console.error('Erro ao cancelar agendamento:', err);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao cancelar agendamento',
+        description: 'Tente novamente',
+      });
+    }
+  }
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -294,11 +367,23 @@ export default function CalendarPage() {
                       </div>
 
                       <div className="mt-3 flex gap-2">
-                        <Button size="sm" variant="outline" className="flex-1 gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 gap-1"
+                          onClick={() => handleCompleteAppointment(appt.id)}
+                          disabled={appt.status === 'completed' || appt.status === 'cancelled'}
+                        >
                           <CheckCircle2 className="w-3 h-3" />
                           Completar
                         </Button>
-                        <Button size="sm" variant="outline" className="flex-1 gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 gap-1"
+                          onClick={() => handleCancelAppointment(appt.id)}
+                          disabled={appt.status === 'completed' || appt.status === 'cancelled'}
+                        >
                           <XCircle className="w-3 h-3" />
                           Cancelar
                         </Button>
