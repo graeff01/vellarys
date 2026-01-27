@@ -241,31 +241,53 @@ async def list_sellers(
     result = await db.execute(query)
     sellers = result.scalars().all()
     
+    # 🆕 Buscar métricas reais de cada vendedor via SQL agregados
+    # para evitar números defasados na tabela Sellers
+    enriched_sellers = []
+    for s in sellers:
+        # Leads atribuídos reais
+        leads_count_res = await db.execute(
+            select(func.count(Lead.id)).where(Lead.assigned_seller_id == s.id)
+        )
+        real_total_leads = leads_count_res.scalar() or 0
+        
+        # Conversões reais (status handed_off)
+        from src.domain.entities.enums import LeadStatus
+        conv_count_res = await db.execute(
+            select(func.count(Lead.id))
+            .where(Lead.assigned_seller_id == s.id)
+            .where(Lead.status == LeadStatus.HANDED_OFF.value)
+        )
+        real_converted_leads = conv_count_res.scalar() or 0
+        
+        # Cálculo de taxa
+        real_conversion_rate = round((real_converted_leads / real_total_leads * 100), 1) if real_total_leads > 0 else 0.0
+
+        enriched_sellers.append({
+            "id": s.id,
+            "name": s.name,
+            "whatsapp": s.whatsapp,
+            "email": s.email,
+            "cities": s.cities or [],
+            "specialties": s.specialties or [],
+            "active": s.active,
+            "available": s.available,
+            "max_leads_per_day": s.max_leads_per_day,
+            "leads_today": s.leads_today if s.leads_today_date == date.today() else 0,
+            "total_leads": real_total_leads,
+            "converted_leads": real_converted_leads,
+            "conversion_rate": real_conversion_rate,
+            "priority": s.priority,
+            "on_vacation": s.on_vacation,
+            "vacation_until": s.vacation_until.isoformat() if s.vacation_until else None,
+            "notification_channels": s.notification_channels or ["whatsapp"],
+            "last_lead_at": s.last_lead_at.isoformat() if s.last_lead_at else None,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+            "user_id": s.user_id,
+        })
+    
     return {
-        "sellers": [
-            {
-                "id": s.id,
-                "name": s.name,
-                "whatsapp": s.whatsapp,
-                "email": s.email,
-                "cities": s.cities or [],
-                "specialties": s.specialties or [],
-                "active": s.active,
-                "available": s.available,
-                "max_leads_per_day": s.max_leads_per_day,
-                "leads_today": s.leads_today if s.leads_today_date == date.today() else 0,
-                "total_leads": s.total_leads,
-                "converted_leads": s.converted_leads,
-                "conversion_rate": s.conversion_rate,
-                "priority": s.priority,
-                "on_vacation": s.on_vacation,
-                "vacation_until": s.vacation_until.isoformat() if s.vacation_until else None,
-                "notification_channels": s.notification_channels or ["whatsapp"],
-                "last_lead_at": s.last_lead_at.isoformat() if s.last_lead_at else None,
-                "created_at": s.created_at.isoformat() if s.created_at else None,
-            }
-            for s in sellers
-        ],
+        "sellers": enriched_sellers,
         "total": len(sellers),
     }
 
