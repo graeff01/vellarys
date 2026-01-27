@@ -302,6 +302,68 @@ DEFAULT_SETTINGS = {
     },
 }
 
+# ⭐ MAPEAMENTO DE FUNCIONALIDADES POR PLANO
+# Starter = Básico, Premium = Avançado, Enterprise = Completo
+PLAN_FEATURES = {
+    "starter": {
+        "calendar_enabled": True,
+        "templates_enabled": True,
+        "notes_enabled": True,
+        "attachments_enabled": True,
+        "sse_enabled": True,
+        "search_enabled": True,
+        "metrics_enabled": False,
+        "archive_enabled": False,
+        "voice_response_enabled": False,
+        "ai_auto_handoff_enabled": False,
+        "ai_sentiment_alerts_enabled": False,
+        "security_ghost_mode_enabled": False,
+        "security_export_lock_enabled": True,
+        "distrib_auto_assign_enabled": False,
+        "ai_guard_enabled": False,
+        "reengagement_enabled": False,
+        "knowledge_base_enabled": False,
+    },
+    "premium": {
+        "calendar_enabled": True,
+        "templates_enabled": True,
+        "notes_enabled": True,
+        "attachments_enabled": True,
+        "sse_enabled": True,
+        "search_enabled": True,
+        "metrics_enabled": True,
+        "archive_enabled": True,
+        "voice_response_enabled": True,
+        "ai_auto_handoff_enabled": True,
+        "ai_sentiment_alerts_enabled": True,
+        "security_ghost_mode_enabled": True,
+        "security_export_lock_enabled": True,
+        "distrib_auto_assign_enabled": True,
+        "ai_guard_enabled": False,
+        "reengagement_enabled": False,
+        "knowledge_base_enabled": False,
+    },
+    "enterprise": {
+        "calendar_enabled": True,
+        "templates_enabled": True,
+        "notes_enabled": True,
+        "attachments_enabled": True,
+        "sse_enabled": True,
+        "search_enabled": True,
+        "metrics_enabled": True,
+        "archive_enabled": True,
+        "voice_response_enabled": True,
+        "ai_auto_handoff_enabled": True,
+        "ai_sentiment_alerts_enabled": True,
+        "security_ghost_mode_enabled": True,
+        "security_export_lock_enabled": True,
+        "distrib_auto_assign_enabled": True,
+        "ai_guard_enabled": True,
+        "reengagement_enabled": True,
+        "knowledge_base_enabled": True,
+    }
+}
+
 
 # =============================================================================
 # OPÇÕES DE CONFIGURAÇÃO
@@ -1131,41 +1193,54 @@ async def get_faq_index_status(
 
 @router.get("/features")
 async def get_features(
+    target_tenant_id: Optional[int] = None,
     user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
+    current_tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Retorna feature flags do tenant (Centro de Controle).
-
-    Feature flags permitem ao gestor ativar/desativar funcionalidades
-    do sistema de forma dinâmica, sem precisar redeployar código.
-
-    Returns:
-        Dict com features habilitadas/desabilitadas
+    Se for superadmin e passar target_tenant_id, busca desse tenant.
+    
+    A lógica agora é automática baseada no PLANO do cliente.
     """
-    logger.info(f"🎛️ [FEATURES GET] Requisição de features")
-    logger.info(f"🎛️ User: {user.email} (role: {user.role}, id: {user.id})")
-    logger.info(f"🎛️ Tenant: {tenant.slug} (id: {tenant.id})")
+    tenant = current_tenant
+    
+    # Suporte para provisionamento Master (Superadmin gerenciando clientes)
+    if target_tenant_id and (user.role == "superadmin" or getattr(user, "is_superadmin", False)):
+        result = await db.execute(select(Tenant).where(Tenant.id == target_tenant_id))
+        target = result.scalar_one_or_none()
+        if target:
+            tenant = target
+            logger.info(f"👑 Superadmin gerenciando tenant: {tenant.name} (ID: {tenant.id})")
 
-    settings = tenant.settings or {}
-    features = settings.get("features", {})
+    logger.info(f"🎛️ [FEATURES GET] Lógica automática por plano")
+    logger.info(f"🎛️ Tenant: {tenant.slug} (Plano: {tenant.plan})")
 
-    logger.info(f"🎛️ Features salvas no tenant: {features}")
+    # 1. Busca defaults do plano
+    plan_slug = tenant.plan.lower() if tenant.plan else "starter"
+    
+    # Se o plano não estiver no mapeamento, usa Starter como base
+    base_features = PLAN_FEATURES.get(plan_slug, PLAN_FEATURES["starter"])
+    
+    # 2. Busca overrides manuais (se existirem nos settings do tenant)
+    tenant_overrides = (tenant.settings or {}).get("features", {})
+    
+    # 3. Merge Final: PLANO + OVERRIDES do banco
+    # Isso permite que você como admin master mude o plano E AINDA ASSIM 
+    # consiga ligar/desligar algo específico que o plano não cobre.
+    final_features = copy.deepcopy(base_features)
+    final_features.update(tenant_overrides)
 
-    # Merge com defaults para garantir que todos os campos existem
-    default_features = DEFAULT_SETTINGS["features"]
-    merged_features = deep_merge(default_features, features)
-
-    logger.info(f"✅ Features retornadas (merged): {merged_features}")
-
-    return merged_features
+    return final_features
 
 
 @router.patch("/features")
 async def update_features(
     features: dict,
+    target_tenant_id: Optional[int] = None,
     user: User = Depends(get_current_user),
-    tenant: Tenant = Depends(get_current_tenant),
+    current_tenant: Tenant = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -1180,11 +1255,17 @@ async def update_features(
     Returns:
         Confirmação de sucesso com features atualizadas
     """
+    tenant = current_tenant
+    
+    # Suporte para provisionamento Master (Superadmin gerenciando clientes)
+    if target_tenant_id and (user.role == "superadmin" or getattr(user, "is_superadmin", False)):
+        result = await db.execute(select(Tenant).where(Tenant.id == target_tenant_id))
+        target = result.scalar_one_or_none()
+        if target:
+            tenant = target
+            logger.info(f"👑 Superadmin atualizando tenant: {tenant.name} (ID: {tenant.id})")
+
     logger.info(f"🎛️ [FEATURES PATCH] Atualizar features")
-    logger.info(f"🎛️ User: {user.email} (role: {user.role}, id: {user.id})")
-    logger.info(f"🎛️ Tenant: {tenant.slug} (id: {tenant.id})")
-    logger.info(f"🎛️ Features recebidas: {features}")
-    logger.info(f"🎛️ Tipo do payload: {type(features)}")
 
     # Validar permissão
     if user.role not in ["admin", "gestor", "superadmin"]:

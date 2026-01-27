@@ -99,7 +99,6 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                 title: "Equipe",
                 items: [
                     { href: '/dashboard/sellers', label: 'Vendedores', icon: UserCheck },
-                    { href: '/dashboard/control-center', label: 'Regras de Negócio', icon: Sliders },
                 ]
             },
             {

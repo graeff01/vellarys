@@ -12,7 +12,7 @@ import {
   Calendar, MessageSquare, StickyNote, Paperclip, Zap, Search,
   BarChart3, Archive, Mic, Shield, RefreshCw, Brain, Save, Loader2,
   UserCheck, HeartPulse, EyeOff, Lock, Users, Bell, ChevronDown, CheckCircle2,
-  Bot, Rocket, Sparkles
+  Bot, Rocket, Sparkles, CreditCard
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -162,6 +162,12 @@ const FEATURES: Feature[] = [
   },
 ];
 
+const PLANS = [
+  { id: 'starter', name: 'Starter (Básico)', color: 'bg-blue-100 text-blue-700' },
+  { id: 'premium', name: 'Premium (Avançado)', color: 'bg-purple-100 text-purple-700' },
+  { id: 'enterprise', name: 'Enterprise (Completo)', color: 'bg-indigo-100 text-indigo-700' }
+];
+
 export default function ControlCenterPage() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>}>
@@ -178,6 +184,7 @@ function ControlCenterContent() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [availableTenants, setAvailableTenants] = useState<any[]>([]);
   const [currentTenantName, setCurrentTenantName] = useState('');
+  const [currentPlan, setCurrentPlan] = useState('starter');
 
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -196,6 +203,16 @@ function ControlCenterContent() {
 
   useEffect(() => {
     loadFeatures();
+  }, [targetTenantId]);
+
+  useEffect(() => {
+    if (targetTenantId && availableTenants.length > 0) {
+      const tenant = availableTenants.find(t => t.id === parseInt(targetTenantId));
+      if (tenant) {
+        setCurrentTenantName(tenant.name);
+        setCurrentPlan(tenant.plan || 'starter');
+      }
+    }
   }, [targetTenantId, availableTenants]);
 
   async function fetchTenants() {
@@ -220,6 +237,38 @@ function ControlCenterContent() {
     window.location.href = url.pathname + url.search;
   };
 
+  async function handlePlanChange(planId: string) {
+    if (!targetTenantId) return;
+
+    try {
+      setSaving(true);
+      const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://vellarys-production.up.railway.app/api/v1').replace(/\/v1$/, '/api/v1');
+      const token = getToken();
+
+      const response = await fetch(`${apiUrl}/admin/tenants/${targetTenantId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ plan: planId }),
+      });
+
+      if (!response.ok) throw new Error('Erro ao atualizar plano');
+
+      setCurrentPlan(planId);
+      toast({ title: 'Plano Atualizado!', description: `O cliente agora é ${planId.toUpperCase()}.` });
+
+      // Recarrega as features para ver o que mudou automaticamente
+      setTimeout(() => loadFeatures(), 1000);
+
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Erro ao mudar plano', description: err.message });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function loadFeatures() {
     try {
       setLoading(true);
@@ -238,13 +287,7 @@ function ControlCenterContent() {
       if (!response.ok) throw new Error('Erro ao carregar features');
 
       const data = await response.json();
-      // Ajuste para lidar com diferentes formatos de resposta do backend
       setFeatures(data.features || data);
-
-      if (targetTenantId) {
-        const tenant = availableTenants.find(t => t.id === parseInt(targetTenantId));
-        if (tenant) setCurrentTenantName(tenant.name);
-      }
     } catch (err) {
       console.error('❌ Erro:', err);
     } finally {
@@ -302,13 +345,7 @@ function ControlCenterContent() {
     experimental: FEATURES.filter(f => f.category === 'experimental'),
   };
 
-  if (loading && !availableTenants.length) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
+  const planInfo = PLANS.find(p => p.id === currentPlan) || PLANS[0];
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -320,7 +357,7 @@ function ControlCenterContent() {
               <Users className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Provisionamento de Cliente</p>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Gestão de Clientes</p>
               <h3 className="font-semibold text-gray-900">
                 {targetTenantId ? (currentTenantName || `Cliente ID: ${targetTenantId}`) : 'Meu Próprio Plano'}
               </h3>
@@ -359,47 +396,62 @@ function ControlCenterContent() {
         </div>
       )}
 
-      {/* Mode Alert */}
+      {/* Plan Status & Switcher */}
       {targetTenantId && (
-        <div className="bg-indigo-600 text-white rounded-xl p-4 flex items-center justify-between shadow-lg shadow-indigo-100 animate-in fade-in slide-in-from-top-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-              <Rocket className="w-5 h-5 text-white" />
+        <Card className="p-5 border-indigo-100 bg-indigo-50/10 shadow-lg shadow-indigo-100/20">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                <CreditCard className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest">Nível de Acesso</span>
+                  <Badge className={`${planInfo.color} border-none`}>{planInfo.name}</Badge>
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">Configuração de Plano Automática</h2>
+              </div>
             </div>
-            <div>
-              <p className="font-bold">Modo Admin Master</p>
-              <p className="text-sm opacity-90">Definindo recursos ativos para: <strong>{currentTenantName}</strong></p>
+
+            <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-indigo-100">
+              {PLANS.map((plan) => (
+                <button
+                  key={plan.id}
+                  onClick={() => handlePlanChange(plan.id)}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${currentPlan === plan.id ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+                >
+                  {plan.name.split(' ')[0]}
+                </button>
+              ))}
             </div>
           </div>
-          <Badge variant="outline" className="text-white border-white/30">Plano Ativo</Badge>
-        </div>
+        </Card>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pt-4 border-t">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
             Centro de Controle
             <Sparkles className="w-6 h-6 text-yellow-500 fill-yellow-500" />
           </h1>
-          <p className="text-gray-500 mt-1">Habilite módulos e funcionalidades na conta do cliente</p>
+          <p className="text-gray-500 mt-1">
+            {targetTenantId ? `Personalizando permissões para ${currentTenantName}` : 'Gerencie as funcionalidades da sua conta'}
+          </p>
         </div>
 
         {hasChanges && (
-          <Button onClick={handleSave} disabled={saving} size="lg" className="gap-2 shadow-lg shadow-blue-100">
+          <Button onClick={handleSave} disabled={saving} size="lg" className="gap-2 shadow-xl shadow-blue-100 animate-bounce">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Provisionar Agora
+            Salvar Exceção Manual
           </Button>
         )}
       </div>
 
-      {/* Tabs / Categories Grid */}
       <div className="grid grid-cols-1 gap-8">
-        {/* Core */}
         <section>
           <div className="flex items-center gap-2 mb-4">
-            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">ESSENCIAIS</Badge>
-            <h2 className="text-lg font-bold text-gray-800">Módulos Base</h2>
+            <Badge className="bg-blue-100 text-blue-700">MÓDULOS ESSENCIAIS</Badge>
+            {currentPlan === 'starter' && <span className="text-xs text-blue-600 font-medium italic">Incluídos no seu plano</span>}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {categories.core.map(f => (
@@ -408,24 +460,21 @@ function ControlCenterContent() {
           </div>
         </section>
 
-        {/* Advanced */}
         <section>
           <div className="flex items-center gap-2 mb-4">
-            <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100">PREMIUM</Badge>
-            <h2 className="text-lg font-bold text-gray-800">Recursos de Inteligência</h2>
+            <Badge className="bg-purple-100 text-purple-700">INTELIGÊNCIA ARTIFICIAL</Badge>
+            {currentPlan === 'starter' && <span className="text-xs text-red-500 font-medium animate-pulse flex items-center gap-1"><Lock className="w-3 h-3" /> Requer Plano Premium</span>}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {categories.advanced.map(f => (
-              <FeatureCard key={f.key} feature={f} enabled={features[f.key] ?? false} onToggle={() => handleToggle(f.key)} loading={loading} />
+              <FeatureCard key={f.key} feature={f} enabled={features[f.key] ?? false} onToggle={() => handleToggle(f.key)} loading={loading} disabled={currentPlan === 'starter' && !features[f.key]} />
             ))}
           </div>
         </section>
 
-        {/* Security */}
         <section>
           <div className="flex items-center gap-2 mb-4">
-            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">GOVERNANÇA</Badge>
-            <h2 className="text-lg font-bold text-gray-800">Segurança & Controle</h2>
+            <Badge className="bg-emerald-100 text-emerald-700">SEGURANÇA & DADOS</Badge>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {categories.security.map(f => (
@@ -434,15 +483,14 @@ function ControlCenterContent() {
           </div>
         </section>
 
-        {/* Experimental */}
         <section>
           <div className="flex items-center gap-2 mb-4">
-            <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">BETA</Badge>
-            <h2 className="text-lg font-bold text-gray-800">Laboratório de IA</h2>
+            <Badge className="bg-orange-100 text-orange-700">LABORATÓRIO BETA</Badge>
+            {currentPlan !== 'enterprise' && <span className="text-xs text-orange-600 font-medium flex items-center gap-1"><Lock className="w-3 h-3" /> Requer Plano Enterprise</span>}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {categories.experimental.map(f => (
-              <FeatureCard key={f.key} feature={f} enabled={features[f.key] ?? false} onToggle={() => handleToggle(f.key)} loading={loading} />
+              <FeatureCard key={f.key} feature={f} enabled={features[f.key] ?? false} onToggle={() => handleToggle(f.key)} loading={loading} disabled={currentPlan !== 'enterprise' && !features[f.key]} />
             ))}
           </div>
         </section>
@@ -451,10 +499,10 @@ function ControlCenterContent() {
   );
 }
 
-function FeatureCard({ feature, enabled, onToggle, loading }: { feature: Feature, enabled: boolean, onToggle: () => void, loading: boolean }) {
+function FeatureCard({ feature, enabled, onToggle, loading, disabled }: { feature: Feature, enabled: boolean, onToggle: () => void, loading: boolean, disabled?: boolean }) {
   const Icon = feature.icon;
   return (
-    <Card className={`relative overflow-hidden p-5 transition-all duration-300 border-2 ${enabled ? 'border-blue-500 bg-blue-50/20 shadow-md' : 'border-gray-100 hover:border-gray-200 shadow-sm'}`}>
+    <Card className={`relative overflow-hidden p-5 transition-all duration-300 border-2 ${enabled ? 'border-blue-500 bg-blue-50/20 shadow-md' : 'border-gray-100 hover:border-gray-200 shadow-sm'} ${disabled ? 'opacity-50 grayscale' : ''}`}>
       <div className="flex items-start justify-between">
         <div className="flex gap-4">
           <div className={`p-3 rounded-2xl transition-colors ${enabled ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-400'}`}>
@@ -468,9 +516,10 @@ function FeatureCard({ feature, enabled, onToggle, loading }: { feature: Feature
             <p className="text-xs text-gray-500 leading-relaxed font-medium">{feature.description}</p>
           </div>
         </div>
-        <Switch checked={enabled} onCheckedChange={onToggle} disabled={loading || feature.comingSoon} className="data-[state=checked]:bg-blue-600" />
+        <Switch checked={enabled} onCheckedChange={onToggle} disabled={loading || feature.comingSoon || disabled} className="data-[state=checked]:bg-blue-600" />
       </div>
       {enabled && <div className="absolute top-0 right-0 p-1"><div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" /></div>}
+      {disabled && <Lock className="absolute top-2 right-2 w-4 h-4 text-gray-400" />}
     </Card>
   );
 }
