@@ -147,8 +147,15 @@ async def login(
             detail=f"Email ou senha incorretos. Tentativas restantes: {remaining - 1}",
         )
     
-    # Verifica senha
-    is_valid, needs_upgrade = verify_password(payload.password, user.password_hash)
+    # Verifica senha com captura de erro robusta para PRD
+    try:
+        is_valid, needs_upgrade = verify_password(payload.password, user.password_hash)
+    except Exception as e:
+        logger.error(f"❌ ERRO CRÍTICO NA VERIFICAÇÃO DE SENHA ({payload.email}): {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Erro ao processar sua autenticação. Nossa equipe foi notificada."
+        )
     
     if not is_valid:
         await log_login_attempt(

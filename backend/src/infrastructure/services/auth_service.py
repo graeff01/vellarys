@@ -19,7 +19,7 @@ settings = get_settings()
 pwd_context = CryptContext(
     schemes=["pbkdf2_sha256", "sha256_crypt"], 
     deprecated="auto",
-    pbkdf2_sha256__rounds=600000  # Padrão OWASP 2025 de alta segurança
+    pbkdf2_sha256__rounds=200000  # 200k é seguro e evita timeouts em PRD
 )
 # Configurações JWT
 ALGORITHM = "HS256"
@@ -35,25 +35,28 @@ def verify_password(plain_password: str, hashed_password: str) -> Tuple[bool, bo
     Verifica se a senha está correta.
     Retorna (senha_valida, precisa_de_upgrade)
     """
-    if not hashed_password:
-        return False, False
-        
-    # Se o hash for do tipo antigo (SHA256 simples com salt$), convertemos para o contexto do passlib
-    # Isso lida com sua implementação anterior de salt$hash
-    if "$" in hashed_password and not hashed_password.startswith("$argon2"):
-        # Verificação compatível com a lógica antiga para permitir migração
+    # Identificação de hashes SHA256 legados (ex: 'salt$hash')
+    # Diferencia de hashes passlib que começam com '$' (ex: '$pbkdf2-sha256$...')
+    is_legacy = "$" in hashed_password and not hashed_password.startswith("$")
+
+    if is_legacy:
         try:
             salt, old_hash = hashed_password.split("$", 1)
             import hashlib
             is_valid = hashlib.sha256((plain_password + salt).encode()).hexdigest() == old_hash
-            return is_valid, True # Se válida, precisa de upgrade para Argon2
-        except:
+            return is_valid, True # Se válida, precisa de upgrade para PBKDF2
+        except Exception as e:
+            from src.api.routes.auth import logger
+            logger.error(f"Erro na verificação de hash legado: {e}")
             return False, False
 
-    isValid = pwd_context.verify(plain_password, hashed_password)
-    needsUpgrade = pwd_context.needs_update(hashed_password)
-    
-    return isValid, needsUpgrade
+    try:
+        isValid = pwd_context.verify(plain_password, hashed_password)
+        needsUpgrade = pwd_context.needs_update(hashed_password)
+        return isValid, needsUpgrade
+    except Exception as e:
+        # Se falhar a verificação (ex: hash corrompido ou formato desconhecido)
+        return False, False
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
