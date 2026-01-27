@@ -170,13 +170,14 @@ async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     
     # Previne ataques de XSS e injeção (Ajustar conforme necessário para o frontend)
+    # Incluindo o domínio da Vercel/Railway para connect-src
     csp_policy = (
-        "default-src 'self' https://vellarys.app; "
+        "default-src 'self' https://vellarys.app https://vellarys.up.railway.app; "
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.sentry-cdn.com https://browser.sentry-cdn.com; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data: https:; "
         "font-src 'self' data:; "
-        "connect-src 'self' https://*.sentry.io https://api.openai.com https://vellarys.app;"
+        "connect-src 'self' https://*.sentry.io https://api.openai.com https://vellarys.app https://vellarys.up.railway.app https://hopeful-purpose-production-3a2b.up.railway.app;"
     )
     
     response.headers["Content-Security-Policy"] = csp_policy
@@ -191,16 +192,13 @@ async def add_security_headers(request: Request, call_next):
 # ============================================================
 # ⭐ CORS - Configuração Endurecida
 # ============================================================
-logger.info(f"🌐 CORS Origins configuradas para {settings.environment}: {settings.cors_origins_list}")
-
-# Em produção, não usamos "*"
+# Configuração de origens permitidas
 final_origins = settings.cors_origins_list
-is_permissive = "*" in final_origins and not settings.is_production
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=final_origins if not is_permissive else ["*"],
-    allow_credentials=True if not is_permissive else False,
+    allow_origins=final_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
