@@ -1293,6 +1293,7 @@ async def get_features(
     # 1. Busca features do PLANO
     plan_features = {}
     plan_name = "starter"  # Fallback padrão
+    plan_slug_from_db = None
 
     try:
         from src.domain.entities.tenant_subscription import TenantSubscription
@@ -1307,15 +1308,40 @@ async def get_features(
 
         if sub and sub.plan:
             plan_features = sub.plan.features or {}
+            plan_slug_from_db = (sub.plan.slug or sub.plan.name or "").lower().strip()
             plan_name = sub.plan.slug or sub.plan.name
             logger.info(f"✅ Features do plano '{plan_name}' carregadas do DB")
     except Exception as e:
         logger.error(f"⚠️ Erro ao buscar plano do banco: {e}")
 
+    # Se as features do DB não usam as chaves esperadas pelo app (ex.: calendar_enabled),
+    # fazemos fallback para o mapeamento interno PLAN_FEATURES baseado no slug do plano.
+    expected_feature_keys = set(DEFAULT_SETTINGS["features"].keys())
+    if plan_features and not (set(plan_features.keys()) & expected_feature_keys):
+        logger.warning(
+            "⚠️ Features do plano no DB não batem com as chaves esperadas do app. "
+            f"Exemplo chaves DB: {list(plan_features.keys())[:8]}"
+        )
+        plan_features = {}
+
     # Fallback para PLAN_FEATURES hardcoded se não carregou do banco
     if not plan_features:
         # Normaliza o nome do plano (remove espaços, lowercase)
-        plan_slug = (tenant.plan or "premium").lower().strip()
+        plan_slug = (plan_slug_from_db or tenant.plan or "premium").lower().strip()
+        plan_slug = plan_slug.replace("_", "-")
+
+        # Aliases comuns vindos do DB / legacy
+        plan_slug_aliases = {
+            "enterprise-plus": "enterprise",
+            "enterprise_plus": "enterprise",
+            "essencial": "starter",
+            "essential": "starter",
+            "starter-plus": "starter",
+            "premium-plus": "premium",
+            "professional": "premium",
+            "pro": "premium",
+        }
+        plan_slug = plan_slug_aliases.get(plan_slug, plan_slug)
 
         # Tenta encontrar o plano
         if plan_slug in PLAN_FEATURES:
@@ -1433,6 +1459,7 @@ async def update_features(
         # ==========================================
         plan_features = {}
         plan_name = "starter"  # Fallback padrão
+        plan_slug_from_db = None
 
         try:
             from src.domain.entities.tenant_subscription import TenantSubscription
@@ -1447,15 +1474,37 @@ async def update_features(
 
             if sub and sub.plan:
                 plan_features = sub.plan.features or {}
+                plan_slug_from_db = (sub.plan.slug or sub.plan.name or "").lower().strip()
                 plan_name = sub.plan.slug or sub.plan.name
                 logger.info(f"✅ Features do plano '{plan_name}' carregadas do DB")
         except Exception as e:
             logger.error(f"⚠️ Erro ao buscar plano do banco: {e}")
 
+        expected_feature_keys = set(DEFAULT_SETTINGS["features"].keys())
+        if plan_features and not (set(plan_features.keys()) & expected_feature_keys):
+            logger.warning(
+                "⚠️ Features do plano no DB não batem com as chaves esperadas do app. "
+                f"Exemplo chaves DB: {list(plan_features.keys())[:8]}"
+            )
+            plan_features = {}
+
         # Fallback para PLAN_FEATURES hardcoded se não carregou do banco
         if not plan_features:
             # Normaliza o nome do plano (remove espaços, lowercase)
-            plan_slug = (tenant.plan or "premium").lower().strip()
+            plan_slug = (plan_slug_from_db or tenant.plan or "premium").lower().strip()
+            plan_slug = plan_slug.replace("_", "-")
+
+            plan_slug_aliases = {
+                "enterprise-plus": "enterprise",
+                "enterprise_plus": "enterprise",
+                "essencial": "starter",
+                "essential": "starter",
+                "starter-plus": "starter",
+                "premium-plus": "premium",
+                "professional": "premium",
+                "pro": "premium",
+            }
+            plan_slug = plan_slug_aliases.get(plan_slug, plan_slug)
 
             # Tenta encontrar o plano
             if plan_slug in PLAN_FEATURES:
