@@ -90,7 +90,6 @@ class Plan(Base, TimestampMixin):
         "PlanEntitlement",
         back_populates="plan",
         cascade="all, delete-orphan",
-        lazy="selectinload",
         doc="Entitlements do plano (nova arquitetura)"
     )
 
