@@ -6,6 +6,7 @@ import { getToken } from '@/lib/auth';
 import {
     Bot, Send, Sparkles, Loader2, User, Trash2, Info
 } from 'lucide-react';
+import { FeatureGate } from '@/components/FeatureGate';
 
 // Ajuste para pegar a URL da API do ambiente
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
@@ -18,6 +19,14 @@ interface ChatMessage {
 }
 
 export default function CopilotPage() {
+    return (
+        <FeatureGate feature="copilot_enabled">
+            <CopilotContent />
+        </FeatureGate>
+    );
+}
+
+function CopilotContent() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);

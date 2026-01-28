@@ -1,8 +1,15 @@
 'use client';
 
+/**
+ * Sidebar - Menu lateral com controle de acesso por features
+ * ==========================================================
+ *
+ * Usa o FeaturesContext para filtrar itens do menu baseado no plano do tenant.
+ * Inspirado em grandes players como Salesforce, HubSpot e Intercom.
+ */
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useEffect } from 'react';
 import {
     LayoutDashboard,
     Users,
@@ -18,21 +25,38 @@ import {
     Bot,
     MessageCircle,
     Calendar,
-    Sliders,
     X,
     ChevronRight,
     LucideIcon,
-    Sparkles
+    Sparkles,
+    BarChart3,
+    Lock,
+    Crown,
+    FileText
 } from 'lucide-react';
-import { User, getToken } from '@/lib/auth';
+import { User } from '@/lib/auth';
+import { useFeatures, Features } from '@/contexts/FeaturesContext';
 import { cn } from '@/lib/utils';
+
+// ============================================================================
+// TIPOS
+// ============================================================================
 
 interface MenuItem {
     href: string;
     label: string;
     icon: LucideIcon;
     badge?: string;
-    feature?: string;
+    /**
+     * Feature required to show this item.
+     * If undefined, always shows.
+     */
+    feature?: keyof Features;
+    /**
+     * If true, this is a "lock" feature (enabled = blocked).
+     * Used for security_export_lock_enabled.
+     */
+    isLockFeature?: boolean;
 }
 
 interface MenuGroup {
@@ -47,40 +71,25 @@ interface SidebarProps {
     onLogout: () => void;
 }
 
+// ============================================================================
+// COMPONENTE
+// ============================================================================
+
 export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
     const pathname = usePathname();
+    const { features, isEnabled, isLoading } = useFeatures();
+
     const isSuperAdmin = user?.role === 'superadmin';
-    const isSeller = user?.role === 'corretor';
+    const isGestor = user?.role === 'admin' || user?.role === 'gestor';
+    const isSeller = user?.role === 'corretor' || user?.role === 'vendedor';
 
-    const [features, setFeatures] = useState<Record<string, boolean>>({});
-
-    useEffect(() => {
-        const fetchFeatures = async () => {
-            try {
-                const token = getToken(); // Assuming getToken is imported or available via context/props if not imported.
-                // If getToken is not imported, I need to import it. It IS imported in previous files but maybe not here.
-                // Checking imports... "import { User } from '@/lib/auth';" 
-                // I need to update imports to include getToken.
-                if (!token) return;
-
-                const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/v1/settings/features`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    setFeatures(data.final_features || data);
-                }
-            } catch (error) {
-                console.error('Failed to load features:', error);
-            }
-        };
-
-        fetchFeatures();
-    }, []);
-
-    // Definição de grupos de menu
+    /**
+     * Retorna os grupos de menu baseado no role do usuário
+     */
     const getMenuGroups = (): MenuGroup[] => {
+        // =====================================================================
+        // SUPERADMIN: Acesso total ao sistema
+        // =====================================================================
         if (isSuperAdmin) {
             return [
                 {
@@ -109,6 +118,9 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
             ];
         }
 
+        // =====================================================================
+        // VENDEDOR: Apenas o que precisa para atender
+        // =====================================================================
         if (isSeller) {
             return [
                 {
@@ -128,14 +140,16 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
             ];
         }
 
-        // GESTOR (Default)
+        // =====================================================================
+        // GESTOR: Visão gerencial completa
+        // =====================================================================
         return [
             {
                 title: "Operação",
                 items: [
                     { href: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard },
                     { href: '/dashboard/leads', label: 'Leads', icon: Users },
-                    { href: '/dashboard/calendar', label: 'Agenda Equipe', icon: Calendar, feature: 'calendar_enabled' },
+                    { href: '/dashboard/calendar', label: 'Calendário', icon: Calendar, feature: 'calendar_enabled' },
                 ]
             },
             {
@@ -147,12 +161,42 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
             {
                 title: "Inteligência",
                 items: [
-                    { href: '/dashboard/copilot', label: 'Vellarys Copilot', icon: Sparkles, badge: "AI" },
-                    { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot },
-                    { href: '/dashboard/export', label: 'Exportar Dados', icon: FileDown, feature: 'security_export_lock_enabled' },
+                    { href: '/dashboard/copilot', label: 'Vellarys Copilot', icon: Sparkles, badge: "AI", feature: 'copilot_enabled' },
+                    { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot, feature: 'simulator_enabled' },
+                    { href: '/dashboard/reports', label: 'Relatórios', icon: BarChart3, feature: 'reports_enabled' },
+                ]
+            },
+            {
+                title: "Administração",
+                items: [
+                    { href: '/dashboard/export', label: 'Exportar Dados', icon: FileDown, feature: 'security_export_lock_enabled', isLockFeature: true },
+                    { href: '/dashboard/settings', label: 'Configurações', icon: Settings },
                 ]
             }
         ];
+    };
+
+    /**
+     * Verifica se um item deve ser exibido baseado na feature
+     */
+    const shouldShowItem = (item: MenuItem): boolean => {
+        // Sem feature definida = sempre mostra
+        if (!item.feature) return true;
+
+        // SuperAdmin sempre vê tudo
+        if (isSuperAdmin) return true;
+
+        // Features ainda carregando = mostra (evita flicker)
+        if (isLoading || !features) return true;
+
+        // Lock features: habilitado = bloqueado
+        if (item.isLockFeature) {
+            // Se o lock está ATIVO, esconde o item
+            return !isEnabled(item.feature);
+        }
+
+        // Features normais: habilitado = mostra
+        return isEnabled(item.feature);
     };
 
     const menuGroups = getMenuGroups();
@@ -164,7 +208,7 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                 isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
             )}
         >
-            {/* 🚀 HEADER: Logo & Brand */}
+            {/* HEADER: Logo & Brand */}
             <div className="p-8 flex items-center justify-between group">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:rotate-6 transition-transform">
@@ -185,77 +229,68 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                 </button>
             </div>
 
-            {/* 🧭 NAVIGATION: Scrolled area (sem barra visível) */}
+            {/* NAVIGATION */}
             <nav className="flex-1 px-4 space-y-7 overflow-y-auto no-scrollbar py-2">
-                {menuGroups.map((group, idx) => (
-                    <div key={idx} className="space-y-1.5">
-                        <h3 className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[2px]">
-                            {group.title}
-                        </h3>
-                        <ul className="space-y-0.5">
-                            {group.items.map((item) => {
-                                // 🔒 Feature Gating Logic
-                                if (item.feature) {
-                                    // Caso especial: Lock Feature (Enable = Bloqueado)
-                                    if (item.feature === 'security_export_lock_enabled') {
-                                        // Se o bloqueio está ATIVO e NÃO é superadmin, esconde
-                                        if (features[item.feature] === true && !isSuperAdmin) return null;
-                                    } else {
-                                        // Casos normais: Feature Flag (False = Esconde)
-                                        // Se a feature está explicitamente FALSE no objeto, esconde.
-                                        // Se undefined (ainda não carregou ou não existe), mostra por padrão para evitar layout shift agressivo ou assume false?
-                                        // Assumindo que o backend retorna o set completo. Se não vier, assume false para segurança (opt-in)?
-                                        // No código SubscriptionSettings, features padrão do plano vêm. 
-                                        // Vamos assumir: se features já carregou (tem chaves) e a chave é false/undefined, esconde.
-                                        if (Object.keys(features).length > 0 && !features[item.feature]) return null;
-                                    }
-                                }
+                {menuGroups.map((group, idx) => {
+                    // Filtra itens que devem ser mostrados
+                    const visibleItems = group.items.filter(shouldShowItem);
 
-                                const isActive = pathname === item.href ||
-                                    (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                    // Se não tem itens visíveis, não mostra o grupo
+                    if (visibleItems.length === 0) return null;
 
-                                return (
-                                    <li key={item.href}>
-                                        <Link
-                                            href={item.href}
-                                            className={cn(
-                                                "group flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all relative overflow-hidden",
-                                                isActive
-                                                    ? "bg-indigo-50 text-indigo-700 shadow-sm"
-                                                    : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
-                                            )}
-                                        >
-                                            {/* Active Indicator Bar */}
-                                            {isActive && (
-                                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-indigo-600 rounded-r-full" />
-                                            )}
+                    return (
+                        <div key={idx} className="space-y-1.5">
+                            <h3 className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-[2px]">
+                                {group.title}
+                            </h3>
+                            <ul className="space-y-0.5">
+                                {visibleItems.map((item) => {
+                                    const isActive = pathname === item.href ||
+                                        (item.href !== '/dashboard' && pathname.startsWith(item.href));
 
-                                            <item.icon className={cn(
-                                                "w-5 h-5 transition-transform group-hover:scale-105",
-                                                isActive ? "text-indigo-600" : "text-slate-400 group-hover:text-indigo-500"
-                                            )} />
+                                    return (
+                                        <li key={item.href}>
+                                            <Link
+                                                href={item.href}
+                                                className={cn(
+                                                    "group flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all relative overflow-hidden",
+                                                    isActive
+                                                        ? "bg-indigo-50 text-indigo-700 shadow-sm"
+                                                        : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                                                )}
+                                            >
+                                                {/* Active Indicator Bar */}
+                                                {isActive && (
+                                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-indigo-600 rounded-r-full" />
+                                                )}
 
-                                            <span className="text-sm font-semibold flex-1">{item.label}</span>
+                                                <item.icon className={cn(
+                                                    "w-5 h-5 transition-transform group-hover:scale-105",
+                                                    isActive ? "text-indigo-600" : "text-slate-400 group-hover:text-indigo-500"
+                                                )} />
 
-                                            {item.badge && (
-                                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-600 border border-indigo-200">
-                                                    {item.badge}
-                                                </span>
-                                            )}
+                                                <span className="text-sm font-semibold flex-1">{item.label}</span>
 
-                                            {!isActive && (
-                                                <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-slate-300" />
-                                            )}
-                                        </Link>
-                                    </li>
-                                );
-                            })}
-                        </ul>
-                    </div>
-                ))}
+                                                {item.badge && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-600 border border-indigo-200">
+                                                        {item.badge}
+                                                    </span>
+                                                )}
+
+                                                {!isActive && (
+                                                    <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all text-slate-300" />
+                                                )}
+                                            </Link>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
+                    );
+                })}
             </nav>
 
-            {/* 👤 FOOTER: Profile & Logout */}
+            {/* FOOTER: Profile & Logout */}
             <div className="p-4 border-t border-slate-100 bg-slate-50/50">
                 <div className="flex items-center gap-3 p-3 rounded-2xl bg-white border border-slate-200 shadow-sm mb-3">
                     <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-inner">
@@ -280,14 +315,14 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
             </div>
 
             <style jsx global>{`
-        .no-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-        .no-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
+                .no-scrollbar::-webkit-scrollbar {
+                    display: none;
+                }
+                .no-scrollbar {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
+                }
+            `}</style>
         </aside>
     );
 }

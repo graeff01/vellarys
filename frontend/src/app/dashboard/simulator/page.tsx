@@ -9,6 +9,7 @@ import {
   MessageSquare, Zap, ThermometerSun, Info,
   AlertTriangle, CheckCircle2, ChevronRight, Settings, ChevronDown
 } from 'lucide-react';
+import { FeatureGate } from '@/components/FeatureGate';
 
 declare const process: any;
 
@@ -30,9 +31,11 @@ interface SuggestionCategory {
 
 export default function SimulatorPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><Loader2 className="w-8 h-8 animate-spin text-purple-600" /></div>}>
-      <SimulatorContent />
-    </Suspense>
+    <FeatureGate feature="simulator_enabled">
+      <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><Loader2 className="w-8 h-8 animate-spin text-purple-600" /></div>}>
+        <SimulatorContent />
+      </Suspense>
+    </FeatureGate>
   );
 }
 

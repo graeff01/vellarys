@@ -29,6 +29,7 @@ import { getToken, getUser, logout, User } from '@/lib/auth';
 import { NotificationBell } from '@/components/dashboard/notification-bell';
 import { ServiceWorkerRegistration } from '@/components/pwa/service-worker-registration';
 import { Sidebar } from '@/components/dashboard/sidebar';
+import { FeaturesProvider } from '@/contexts/FeaturesContext';
 import { cn } from '@/lib/utils';
 
 declare const process: any;
@@ -180,6 +181,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isInboxPage = pathname === '/dashboard/inbox';
 
   return (
+    <FeaturesProvider>
     <div className="min-h-screen bg-gray-100">
       <ServiceWorkerRegistration />
       {/* CORRIGIDO: Overlay para mobile - z-index 40 */}
@@ -231,5 +233,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {children}
       </main>
     </div>
+    </FeaturesProvider>
   );
 }

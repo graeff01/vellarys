@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { FileSpreadsheet, FileText, FileDown, Calendar, Loader2, CheckCircle } from 'lucide-react';
+import { FileSpreadsheet, FileText, FileDown, Calendar, Loader2, CheckCircle, Lock } from 'lucide-react';
 import { getToken } from '@/lib/auth';
+import { useFeatures } from '@/contexts/FeaturesContext';
+import Link from 'next/link';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
@@ -39,6 +41,48 @@ const formats: { value: ExportFormat; label: string; description: string; icon: 
 ];
 
 export default function ExportPage() {
+  const { isEnabled, isLoading: featuresLoading } = useFeatures();
+
+  // Lock feature: se está HABILITADO, o export está BLOQUEADO
+  const isExportLocked = isEnabled('security_export_lock_enabled');
+
+  // Enquanto carrega features, mostra loading
+  if (featuresLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      </div>
+    );
+  }
+
+  // Se export está bloqueado, mostra mensagem
+  if (isExportLocked) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl border border-slate-200 text-center min-h-[400px]">
+        <div className="w-16 h-16 bg-gradient-to-br from-red-500 to-orange-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-red-500/25">
+          <Lock className="w-8 h-8 text-white" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900 mb-2">
+          Exportação de Dados Bloqueada
+        </h3>
+        <p className="text-sm text-slate-500 mb-4 max-w-md">
+          A exportação de dados está restrita pelo administrador da sua conta.
+          Entre em contato com o gestor caso precise exportar informações.
+        </p>
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          Voltar ao Dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  return <ExportContent />;
+}
+
+function ExportContent() {
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>('excel');
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('month');
   const [includeMetrics, setIncludeMetrics] = useState(true);

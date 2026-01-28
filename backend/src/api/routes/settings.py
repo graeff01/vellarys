@@ -281,24 +281,32 @@ DEFAULT_SETTINGS = {
         "notes_enabled": True,              # Anotações internas
         "attachments_enabled": True,        # Upload de anexos
 
-        # Advanced Features
+        # Communication
         "sse_enabled": True,                # Server-Sent Events (tempo real)
         "search_enabled": True,             # Busca de mensagens
+
+        # Analytics & Intelligence
         "metrics_enabled": True,            # Métricas e analytics
         "archive_enabled": True,            # Arquivamento de leads
         "voice_response_enabled": False,    # Respostas em áudio
+        "reports_enabled": True,            # Relatórios detalhados
+
+        # AI Features
         "ai_auto_handoff_enabled": False,   # Transferência automática por IA
         "ai_sentiment_alerts_enabled": False, # Alertas de sentimento (IA)
+        "copilot_enabled": True,            # Vellarys Copilot (IA para gestores)
+        "simulator_enabled": True,          # Simulador de IA
 
         # Security & Control
         "security_ghost_mode_enabled": False, # Ocultar telefones (vendedores)
         "security_export_lock_enabled": True, # Restringir exportação a admins
         "distrib_auto_assign_enabled": True,  # Atribuição automática de leads
 
-        # Experimental Features
+        # Enterprise Features
         "ai_guard_enabled": True,           # Guardrails avançados da IA
         "reengagement_enabled": False,      # Re-engajamento automático
         "knowledge_base_enabled": False,    # Base de conhecimento / RAG
+        "api_access_enabled": False,        # Acesso via API
     },
 }
 
@@ -306,61 +314,91 @@ DEFAULT_SETTINGS = {
 # Starter = Básico, Premium = Avançado, Enterprise = Completo
 PLAN_FEATURES = {
     "starter": {
+        # Core - Básico para todos
         "calendar_enabled": True,
         "templates_enabled": True,
         "notes_enabled": True,
         "attachments_enabled": True,
+        # Communication
         "sse_enabled": True,
         "search_enabled": True,
+        # Analytics - Limitado
         "metrics_enabled": False,
         "archive_enabled": False,
         "voice_response_enabled": False,
+        "reports_enabled": False,
+        # AI - Não disponível
         "ai_auto_handoff_enabled": False,
         "ai_sentiment_alerts_enabled": False,
+        "copilot_enabled": False,
+        "simulator_enabled": False,
+        # Security
         "security_ghost_mode_enabled": False,
-        "security_export_lock_enabled": True,
+        "security_export_lock_enabled": True,  # Lock ativo = bloqueado
         "distrib_auto_assign_enabled": False,
+        # Enterprise - Não disponível
         "ai_guard_enabled": False,
         "reengagement_enabled": False,
         "knowledge_base_enabled": False,
+        "api_access_enabled": False,
     },
     "premium": {
+        # Core - Completo
         "calendar_enabled": True,
         "templates_enabled": True,
         "notes_enabled": True,
         "attachments_enabled": True,
+        # Communication
         "sse_enabled": True,
         "search_enabled": True,
+        # Analytics - Completo
         "metrics_enabled": True,
         "archive_enabled": True,
         "voice_response_enabled": True,
+        "reports_enabled": True,
+        # AI - Disponível
         "ai_auto_handoff_enabled": True,
         "ai_sentiment_alerts_enabled": True,
+        "copilot_enabled": True,
+        "simulator_enabled": True,
+        # Security
         "security_ghost_mode_enabled": True,
         "security_export_lock_enabled": True,
         "distrib_auto_assign_enabled": True,
+        # Enterprise - Não disponível
         "ai_guard_enabled": False,
         "reengagement_enabled": False,
         "knowledge_base_enabled": False,
+        "api_access_enabled": False,
     },
     "enterprise": {
+        # Core - Completo
         "calendar_enabled": True,
         "templates_enabled": True,
         "notes_enabled": True,
         "attachments_enabled": True,
+        # Communication
         "sse_enabled": True,
         "search_enabled": True,
+        # Analytics - Completo
         "metrics_enabled": True,
         "archive_enabled": True,
         "voice_response_enabled": True,
+        "reports_enabled": True,
+        # AI - Completo
         "ai_auto_handoff_enabled": True,
         "ai_sentiment_alerts_enabled": True,
+        "copilot_enabled": True,
+        "simulator_enabled": True,
+        # Security
         "security_ghost_mode_enabled": True,
         "security_export_lock_enabled": True,
         "distrib_auto_assign_enabled": True,
+        # Enterprise - Tudo liberado
         "ai_guard_enabled": True,
         "reengagement_enabled": True,
         "knowledge_base_enabled": True,
+        "api_access_enabled": True,
     }
 }
 

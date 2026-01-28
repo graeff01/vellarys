@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { FeatureGate } from '@/components/FeatureGate';
 
 interface Appointment {
   id: number;
@@ -53,6 +54,14 @@ const TYPE_LABELS = {
 };
 
 export default function CalendarPage() {
+  return (
+    <FeatureGate feature="calendar_enabled">
+      <CalendarContent />
+    </FeatureGate>
+  );
+}
+
+function CalendarContent() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
