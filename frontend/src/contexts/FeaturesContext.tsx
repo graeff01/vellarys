@@ -252,8 +252,8 @@ const FeaturesContext = createContext<FeaturesContextType | undefined>(undefined
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/v1$/, '');
 
-async function fetchFeatures(): Promise<{ features: Features; plan: string }> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+async function fetchFeatures(): Promise<{ features: Features; plan: string; userRole: string }> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('vellarys_token') : null;
 
   if (!token) {
     throw new Error('Não autenticado');
@@ -276,11 +276,42 @@ async function fetchFeatures(): Promise<{ features: Features; plan: string }> {
 
   const data = await response.json();
 
-  // O backend retorna { plan_features, overrides, final_features }
-  // Vamos usar final_features que já é o merge
+  /**
+   * 🔴 NOVA ESTRUTURA DO BACKEND:
+   * ========================================
+   * - plan_features: Features do plano contratado
+   * - overrides: SuperAdmin overrides (feature_overrides)
+   * - team_features: O que o gestor liberou para a equipe
+   * - final_features: Merge final (plan + overrides + team)
+   * - user_role: Role do usuário (superadmin/admin/gestor/vendedor)
+   *
+   * 🔴 LÓGICA POR ROLE:
+   * ========================================
+   * SuperAdmin: Bypass completo (ALL_FEATURES_ENABLED)
+   * Gestor/Admin: Usa final_features (plano + overrides + team)
+   * Vendedor: Usa APENAS team_features (o que gestor liberou)
+   */
+
+  const userRole = data.user_role || 'vendedor';
+  let effectiveFeatures: Features;
+
+  if (userRole === 'superadmin') {
+    // SuperAdmin tem acesso total (já tratado no Provider)
+    effectiveFeatures = ALL_FEATURES_ENABLED;
+  } else if (userRole === 'vendedor' || userRole === 'seller') {
+    // Vendedor vê apenas o que gestor liberou
+    effectiveFeatures = data.team_features || DEFAULT_FEATURES;
+    console.log('🟢 [VENDEDOR] Usando team_features:', effectiveFeatures);
+  } else {
+    // Gestor/Admin vê final_features (plano + overrides + team)
+    effectiveFeatures = data.final_features || data;
+    console.log('🟡 [GESTOR] Usando final_features:', effectiveFeatures);
+  }
+
   return {
-    features: data.final_features || data.features || data,
-    plan: data.plan || 'starter',
+    features: effectiveFeatures,
+    plan: data.plan_name || 'starter',
+    userRole,
   };
 }
 
@@ -358,7 +389,7 @@ export function FeaturesProvider({
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      const { features, plan } = await fetchFeatures();
+      const { features, plan, userRole } = await fetchFeatures();
       const currentUser = getUser();
       setState({
         features: { ...DEFAULT_FEATURES, ...features },
@@ -366,11 +397,13 @@ export function FeaturesProvider({
         error: null,
         lastUpdated: new Date(),
         plan,
-        userRole: currentUser?.role || null,
-        isSuperAdmin: currentUser?.role === 'superadmin',
+        userRole: userRole || currentUser?.role || null,
+        isSuperAdmin: userRole === 'superadmin',
       });
+      console.log('✅ Features carregadas:', { plan, userRole, features });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro desconhecido';
+      console.error('❌ Erro ao carregar features:', err);
       setState(prev => ({
         ...prev,
         isLoading: false,

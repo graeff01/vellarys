@@ -1274,127 +1274,231 @@ async def get_faq_index_status(
 
 @router.get("/features")
 async def get_features(
+    target_tenant_id: Optional[int] = None,
+    user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Retorna feature flags do tenant (Centro de Controle).
-    
-    Lógica de Prioridade:
-    1. Tenant Overrides (settings['features'])
-    2. Plan Features (do banco de dados)
-    3. PLAN_FEATURES (hardcoded fallback)
-    """
-    logger.info(f"🎛️ [FEATURES GET] Contexto Tenant: {tenant.name} (ID: {tenant.id})")
 
-    # 1. Tentar pegar as features do Plano no Banco de Dados
+    🔴 HIERARQUIA DE PERMISSÕES:
+    ===============================================
+    1. SuperAdmin:
+       - Bypass total (vê tudo)
+       - Pode alterar PLANO do cliente
+       - Pode fazer OVERRIDES individuais
+       - Usa target_tenant_id para gerenciar clientes
+
+    2. Gestor (Admin/Manager):
+       - Vê features do SEU PLANO + overrides do SuperAdmin
+       - Pode DESATIVAR features para equipe (team_features)
+       - NÃO pode ativar além do plano
+
+    3. Vendedor:
+       - Vê apenas team_features (o que gestor liberou)
+
+    Lógica de Resolução:
+    ===============================================
+    Final Features = Plan Features (do plano contratado)
+                   + SuperAdmin Overrides (casos especiais)
+                   + Gestor Team Controls (o que gestor liberou)
+    """
+
+    # SuperAdmin pode gerenciar outro tenant
+    if target_tenant_id and user.role == "superadmin":
+        logger.info(f"🔴 [SUPERADMIN] {user.email} consultando features do tenant_id {target_tenant_id}")
+        result = await db.execute(select(Tenant).where(Tenant.id == target_tenant_id))
+        target_tenant = result.scalar_one_or_none()
+        if not target_tenant:
+            raise HTTPException(404, "Cliente não encontrado")
+        tenant = target_tenant
+
+    logger.info(f"🎛️ [FEATURES GET] Tenant: {tenant.name} (ID: {tenant.id}) | User Role: {user.role}")
+
+    # 1. Busca features do PLANO
     plan_features = {}
     try:
         from src.domain.entities.tenant_subscription import TenantSubscription
         from sqlalchemy.orm import selectinload
-        
-        # Busca a assinatura ativa com o plano carregado
+
         stmt = select(TenantSubscription).where(
             TenantSubscription.tenant_id == tenant.id
         ).options(selectinload(TenantSubscription.plan))
-        
+
         result = await db.execute(stmt)
         sub = result.scalar_one_or_none()
-        
+
         if sub and sub.plan:
             plan_features = sub.plan.features or {}
-            logger.info(f"✅ Features carregadas do plano '{sub.plan.name}' via DB")
+            logger.info(f"✅ Features do plano '{sub.plan.name}' carregadas do DB")
     except Exception as e:
-        logger.error(f"⚠️ Erro ao buscar plano no DB: {e}")
+        logger.error(f"⚠️ Erro ao buscar plano: {e}")
 
-    # 2. Fallback se o banco estiver vazio ou falhar
+    # Fallback para PLAN_FEATURES hardcoded
     if not plan_features:
         plan_slug = tenant.plan.lower() if tenant.plan else "starter"
         plan_features = PLAN_FEATURES.get(plan_slug, PLAN_FEATURES["starter"])
-        logger.info(f"ℹ️ Usando hardcoded PLAN_FEATURES para o plano '{plan_slug}'")
+        logger.info(f"ℹ️ Usando PLAN_FEATURES hardcoded para '{plan_slug}'")
 
-    # 3. Busca overrides manuais do tenant
-    tenant_overrides = (tenant.settings or {}).get("features", {})
-    
+    # 2. SuperAdmin Overrides (casos especiais)
+    superadmin_overrides = (tenant.settings or {}).get("feature_overrides", {})
+
+    # 3. Gestor Team Controls (o que o gestor liberou para a equipe)
+    team_features = (tenant.settings or {}).get("team_features", {})
+
     # 4. Merge Final
-    # Retornamos as features do plano, os overrides e o merge final
+    final_features = {**plan_features, **superadmin_overrides, **team_features}
+
     return {
         "plan_features": plan_features,
-        "overrides": tenant_overrides,
-        "final_features": {**plan_features, **tenant_overrides},
-        "plan_name": sub.plan.name if 'sub' in locals() and sub and sub.plan else tenant.plan
+        "overrides": superadmin_overrides,  # SuperAdmin overrides
+        "team_features": team_features,      # Gestor controls
+        "final_features": final_features,
+        "plan_name": sub.plan.name if 'sub' in locals() and sub and sub.plan else tenant.plan,
+        "user_role": user.role,
+        "can_edit": user.role in ["superadmin", "admin", "gestor"]
     }
 
 
 @router.patch("/features")
 async def update_features(
     features: dict,
+    target_tenant_id: Optional[int] = None,
     user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Atualiza feature flags (Centro de Controle).
-    Apenas superadmins ou gestores autorizados.
+
+    🔴 HIERARQUIA DE PERMISSÕES:
+    ===============================================
+    1. SuperAdmin:
+       - Pode alterar features de QUALQUER tenant
+       - Salva em "feature_overrides" (casos especiais)
+       - Usa target_tenant_id para gerenciar clientes
+
+    2. Gestor (Admin/Manager):
+       - Pode apenas DESATIVAR features do próprio tenant
+       - Salva em "team_features"
+       - NÃO pode ativar features além do plano
+
+    3. Vendedor:
+       - SEM permissão para alterar features
     """
-    logger.info(f"🎛️ [FEATURES PATCH] Atualizar features para: {tenant.name}")
+
+    # ==========================================
+    # 1. VALIDAÇÃO DE PERMISSÕES
+    # ==========================================
+    if user.role not in ["superadmin", "admin", "gestor"]:
+        logger.warning(f"⛔ Acesso negado: {user.email} (role: {user.role}) tentou alterar features")
+        raise HTTPException(403, "Apenas gestores podem alterar features")
+
+    # SuperAdmin pode gerenciar outro tenant
+    is_managing_other_tenant = False
+    if target_tenant_id and user.role == "superadmin":
+        logger.info(f"🔴 [SUPERADMIN] {user.email} alterando features do tenant_id {target_tenant_id}")
+        result = await db.execute(select(Tenant).where(Tenant.id == target_tenant_id))
+        target_tenant = result.scalar_one_or_none()
+        if not target_tenant:
+            raise HTTPException(404, "Cliente não encontrado")
+        tenant = target_tenant
+        is_managing_other_tenant = True
+    elif target_tenant_id and user.role != "superadmin":
+        # Não-superadmin tentando gerenciar outro tenant
+        logger.warning(f"⛔ {user.email} tentou gerenciar tenant {target_tenant_id} sem permissão")
+        raise HTTPException(403, "Apenas SuperAdmin pode gerenciar outros clientes")
+
+    logger.info(f"🎛️ [FEATURES PATCH] Tenant: {tenant.name} | User: {user.email} (role: {user.role})")
 
     try:
-        # Validar que todas as keys são features válidas
+        # ==========================================
+        # 2. VALIDAÇÃO DE FEATURES
+        # ==========================================
         valid_features = set(DEFAULT_SETTINGS["features"].keys())
         invalid_keys = set(features.keys()) - valid_features
 
-        logger.info(f"🎛️ Features válidas: {valid_features}")
-        logger.info(f"🎛️ Keys recebidas: {set(features.keys())}")
-
         if invalid_keys:
-            logger.error(f"❌ Features inválidas detectadas: {invalid_keys}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Features inválidas: {', '.join(invalid_keys)}",
-            )
+            logger.error(f"❌ Features inválidas: {invalid_keys}")
+            raise HTTPException(400, f"Features inválidas: {', '.join(invalid_keys)}")
 
-        # Validar que todos os valores são booleanos
         non_bool_values = [k for k, v in features.items() if not isinstance(v, bool)]
         if non_bool_values:
-            logger.error(f"❌ Valores não-booleanos detectados: {non_bool_values}")
-            raise HTTPException(
-                status_code=400,
-                detail=f"Features devem ser booleanas: {', '.join(non_bool_values)}",
-            )
+            logger.error(f"❌ Valores não-booleanos: {non_bool_values}")
+            raise HTTPException(400, f"Features devem ser booleanas: {', '.join(non_bool_values)}")
 
-        logger.info(f"✅ Validações OK - Atualizando settings...")
+        # ==========================================
+        # 3. BUSCAR FEATURES DO PLANO
+        # ==========================================
+        plan_features = {}
+        try:
+            from src.domain.entities.tenant_subscription import TenantSubscription
+            from sqlalchemy.orm import selectinload
 
-        # Atualizar settings
+            stmt = select(TenantSubscription).where(
+                TenantSubscription.tenant_id == tenant.id
+            ).options(selectinload(TenantSubscription.plan))
+
+            result = await db.execute(stmt)
+            sub = result.scalar_one_or_none()
+
+            if sub and sub.plan:
+                plan_features = sub.plan.features or {}
+        except Exception as e:
+            logger.error(f"⚠️ Erro ao buscar plano: {e}")
+
+        # Fallback
+        if not plan_features:
+            plan_slug = tenant.plan.lower() if tenant.plan else "starter"
+            plan_features = PLAN_FEATURES.get(plan_slug, PLAN_FEATURES["starter"])
+
+        # ==========================================
+        # 4. VALIDAÇÃO: GESTOR NÃO PODE ATIVAR ALÉM DO PLANO
+        # ==========================================
+        if user.role in ["admin", "gestor"] and not is_managing_other_tenant:
+            # Gestor só pode DESATIVAR, não pode ativar além do plano
+            for feature_key, feature_value in features.items():
+                plan_allows = plan_features.get(feature_key, False)
+                if feature_value and not plan_allows:
+                    logger.warning(f"⛔ Gestor tentou ativar {feature_key} fora do plano")
+                    raise HTTPException(
+                        403,
+                        f"Feature '{feature_key}' não disponível no seu plano. Faça upgrade para ativar."
+                    )
+
+        # ==========================================
+        # 5. SALVAR FEATURES
+        # ==========================================
         current_settings = copy.deepcopy(tenant.settings or {})
 
-        logger.info(f"🎛️ Settings atuais: {current_settings.get('features', {})}")
+        if user.role == "superadmin" and is_managing_other_tenant:
+            # SuperAdmin gerenciando cliente: salva em "feature_overrides"
+            if "feature_overrides" not in current_settings:
+                current_settings["feature_overrides"] = {}
+            current_settings["feature_overrides"].update(features)
+            logger.info(f"🔴 SuperAdmin override aplicado: {features}")
+        else:
+            # Gestor: salva em "team_features"
+            if "team_features" not in current_settings:
+                current_settings["team_features"] = {}
+            current_settings["team_features"].update(features)
+            logger.info(f"🟡 Gestor team_features atualizado: {features}")
 
-        # Garantir que "features" existe
-        if "features" not in current_settings:
-            current_settings["features"] = DEFAULT_SETTINGS["features"].copy()
-            logger.info(f"🎛️ Features não existiam - criando com defaults")
-
-        # Merge das features (atualiza apenas as enviadas)
-        current_settings["features"].update(features)
-
-        logger.info(f"🎛️ Novos settings após merge: {current_settings['features']}")
-
-        # Salvar
+        # Commit
         tenant.settings = current_settings
         flag_modified(tenant, "settings")
 
-        logger.info(f"🎛️ Commitando mudanças no banco...")
         await db.commit()
         await db.refresh(tenant)
 
-        logger.info(f"✅ Features atualizadas com sucesso!")
-        logger.info(f"✅ Features finais: {current_settings['features']}")
+        logger.info(f"✅ Features salvas com sucesso!")
 
         return {
             "success": True,
             "message": "Funcionalidades atualizadas com sucesso",
-            "features": current_settings["features"],
+            "features": features,
+            "saved_as": "feature_overrides" if (user.role == "superadmin" and is_managing_other_tenant) else "team_features"
         }
 
     except HTTPException:
@@ -1402,4 +1506,4 @@ async def update_features(
     except Exception as e:
         logger.error(f"❌ Erro ao atualizar features: {e}", exc_info=True)
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Erro ao atualizar: {str(e)}")
+        raise HTTPException(500, f"Erro ao atualizar: {str(e)}")
