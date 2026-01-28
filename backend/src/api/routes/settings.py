@@ -310,95 +310,138 @@ DEFAULT_SETTINGS = {
     },
 }
 
+# =============================================================================
 # ⭐ MAPEAMENTO DE FUNCIONALIDADES POR PLANO
-# Starter = Básico, Premium = Avançado, Enterprise = Completo
+# =============================================================================
+#
+# 🟢 STARTER (Essencial) - Para começar a usar o sistema
+#    → Funcionalidades básicas de atendimento
+#    → Sem IA avançada, sem relatórios, sem exportação
+#
+# 🔵 PREMIUM (Profissional) - Para escalar o negócio
+#    → Tudo do Starter + Analytics + IA + Exportação
+#    → Ideal para empresas em crescimento
+#
+# 🟣 ENTERPRISE (Completo) - Poder total
+#    → TODAS as funcionalidades liberadas
+#    → IA avançada, automações, API, base de conhecimento
+#    → Para operações de alta escala
+#
+# =============================================================================
+
 PLAN_FEATURES = {
+    # =========================================================================
+    # 🟢 STARTER - Plano Essencial (Básico)
+    # =========================================================================
     "starter": {
-        # Core - Básico para todos
-        "calendar_enabled": True,
-        "templates_enabled": True,
-        "notes_enabled": True,
-        "attachments_enabled": True,
-        # Communication
-        "sse_enabled": True,
-        "search_enabled": True,
-        # Analytics - Limitado
-        "metrics_enabled": False,
-        "archive_enabled": False,
-        "voice_response_enabled": False,
-        "reports_enabled": False,
-        # AI - Não disponível
-        "ai_auto_handoff_enabled": False,
-        "ai_sentiment_alerts_enabled": False,
-        "copilot_enabled": False,
-        "simulator_enabled": False,
-        # Security
-        "security_ghost_mode_enabled": False,
-        "security_export_lock_enabled": True,  # Lock ativo = bloqueado
-        "distrib_auto_assign_enabled": False,
-        # Enterprise - Não disponível
-        "ai_guard_enabled": False,
-        "reengagement_enabled": False,
-        "knowledge_base_enabled": False,
-        "api_access_enabled": False,
+        # ✅ Core - Básico para atendimento
+        "calendar_enabled": True,           # Agenda de compromissos
+        "templates_enabled": True,          # Respostas rápidas
+        "notes_enabled": True,              # Anotações internas
+        "attachments_enabled": True,        # Envio de arquivos
+
+        # ✅ Comunicação básica
+        "sse_enabled": True,                # Tempo real
+        "search_enabled": True,             # Busca de leads
+
+        # ❌ Analytics - Não disponível
+        "metrics_enabled": False,           # Dashboard de métricas
+        "archive_enabled": False,           # Arquivamento
+        "voice_response_enabled": False,    # Respostas em áudio
+        "reports_enabled": False,           # Relatórios
+
+        # ❌ IA - Não disponível
+        "ai_auto_handoff_enabled": False,   # Transferência automática
+        "ai_sentiment_alerts_enabled": False, # Alertas de sentimento
+        "copilot_enabled": False,           # Vellarys Copilot
+        "simulator_enabled": False,         # Simulador IA
+
+        # 🔒 Segurança - Restrito
+        "security_ghost_mode_enabled": False,  # Modo fantasma
+        "security_export_lock_enabled": True,  # ⚠️ BLOQUEADO - não pode exportar
+        "distrib_auto_assign_enabled": False,  # Distribuição manual
+
+        # ❌ Enterprise - Não disponível
+        "ai_guard_enabled": False,          # Guardrails IA
+        "reengagement_enabled": False,      # Follow-up automático
+        "knowledge_base_enabled": False,    # Base de conhecimento
+        "api_access_enabled": False,        # Acesso via API
     },
+
+    # =========================================================================
+    # 🔵 PREMIUM - Plano Profissional (Intermediário)
+    # =========================================================================
     "premium": {
-        # Core - Completo
+        # ✅ Core - Completo
         "calendar_enabled": True,
         "templates_enabled": True,
         "notes_enabled": True,
         "attachments_enabled": True,
-        # Communication
+
+        # ✅ Comunicação
         "sse_enabled": True,
         "search_enabled": True,
-        # Analytics - Completo
-        "metrics_enabled": True,
-        "archive_enabled": True,
-        "voice_response_enabled": True,
-        "reports_enabled": True,
-        # AI - Disponível
-        "ai_auto_handoff_enabled": True,
-        "ai_sentiment_alerts_enabled": True,
-        "copilot_enabled": True,
-        "simulator_enabled": True,
-        # Security
-        "security_ghost_mode_enabled": True,
-        "security_export_lock_enabled": True,
-        "distrib_auto_assign_enabled": True,
-        # Enterprise - Não disponível
-        "ai_guard_enabled": False,
-        "reengagement_enabled": False,
-        "knowledge_base_enabled": False,
-        "api_access_enabled": False,
+
+        # ✅ Analytics - Completo
+        "metrics_enabled": True,            # Dashboard completo
+        "archive_enabled": True,            # Arquivamento
+        "voice_response_enabled": True,     # Respostas em áudio
+        "reports_enabled": True,            # Relatórios detalhados
+
+        # ✅ IA - Disponível
+        "ai_auto_handoff_enabled": True,    # Transferência automática
+        "ai_sentiment_alerts_enabled": True, # Alertas de sentimento
+        "copilot_enabled": True,            # Vellarys Copilot
+        "simulator_enabled": True,          # Simulador IA
+
+        # ✅ Segurança - Liberado
+        "security_ghost_mode_enabled": True,   # Modo fantasma
+        "security_export_lock_enabled": False, # ✅ LIBERADO - pode exportar
+        "distrib_auto_assign_enabled": True,   # Distribuição automática
+
+        # ❌ Enterprise - Não disponível (upgrade necessário)
+        "ai_guard_enabled": False,          # Guardrails avançados
+        "reengagement_enabled": False,      # Follow-up automático
+        "knowledge_base_enabled": False,    # Base de conhecimento/RAG
+        "api_access_enabled": False,        # Acesso via API
     },
+
+    # =========================================================================
+    # 🟣 ENTERPRISE - Plano Completo (Máximo)
+    # =========================================================================
     "enterprise": {
-        # Core - Completo
+        # ✅ Core - Completo
         "calendar_enabled": True,
         "templates_enabled": True,
         "notes_enabled": True,
         "attachments_enabled": True,
-        # Communication
+
+        # ✅ Comunicação
         "sse_enabled": True,
         "search_enabled": True,
-        # Analytics - Completo
+
+        # ✅ Analytics - Completo
         "metrics_enabled": True,
         "archive_enabled": True,
         "voice_response_enabled": True,
         "reports_enabled": True,
-        # AI - Completo
+
+        # ✅ IA - Completo
         "ai_auto_handoff_enabled": True,
         "ai_sentiment_alerts_enabled": True,
         "copilot_enabled": True,
         "simulator_enabled": True,
-        # Security
+
+        # ✅ Segurança - Completo
         "security_ghost_mode_enabled": True,
-        "security_export_lock_enabled": True,
+        "security_export_lock_enabled": False,  # ✅ LIBERADO - pode exportar
         "distrib_auto_assign_enabled": True,
-        # Enterprise - Tudo liberado
-        "ai_guard_enabled": True,
-        "reengagement_enabled": True,
-        "knowledge_base_enabled": True,
-        "api_access_enabled": True,
+
+        # ✅ Enterprise - TUDO LIBERADO 🚀
+        "ai_guard_enabled": True,           # Guardrails avançados da IA
+        "reengagement_enabled": True,       # Follow-up automático inteligente
+        "knowledge_base_enabled": True,     # Base de conhecimento/RAG
+        "api_access_enabled": True,         # Integração via API
     }
 }
 

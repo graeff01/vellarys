@@ -192,40 +192,52 @@ const ALL_FEATURES_ENABLED: Features = {
 
 /**
  * Metadata de todas as features para UI
+ * Sincronizado com backend PLAN_FEATURES
+ *
+ * Planos:
+ * 🟢 starter = Essencial (básico)
+ * 🔵 premium = Profissional (intermediário)
+ * 🟣 enterprise = Completo (máximo)
  */
 export const FEATURES_METADATA: FeatureMetadata[] = [
-  // Core Business
-  { key: 'calendar_enabled', name: 'Calendário', description: 'Agendar compromissos e eventos', category: 'core', minPlan: 'starter' },
-  { key: 'templates_enabled', name: 'Templates', description: 'Mensagens pré-definidas', category: 'core', minPlan: 'starter' },
-  { key: 'notes_enabled', name: 'Notas', description: 'Anotações nos leads', category: 'core', minPlan: 'starter' },
-  { key: 'attachments_enabled', name: 'Anexos', description: 'Enviar arquivos', category: 'core', minPlan: 'starter' },
-
-  // Communication
-  { key: 'sse_enabled', name: 'Real-time', description: 'Atualizações em tempo real', category: 'communication', minPlan: 'starter' },
+  // ==========================================================================
+  // 🟢 STARTER - Core Features (disponível em todos os planos)
+  // ==========================================================================
+  { key: 'calendar_enabled', name: 'Calendário', description: 'Agenda de compromissos e visitas', category: 'core', minPlan: 'starter' },
+  { key: 'templates_enabled', name: 'Templates', description: 'Respostas rápidas personalizadas', category: 'core', minPlan: 'starter' },
+  { key: 'notes_enabled', name: 'Notas', description: 'Anotações internas nos leads', category: 'core', minPlan: 'starter' },
+  { key: 'attachments_enabled', name: 'Anexos', description: 'Envio de arquivos e imagens', category: 'core', minPlan: 'starter' },
+  { key: 'sse_enabled', name: 'Tempo Real', description: 'Atualizações instantâneas', category: 'communication', minPlan: 'starter' },
   { key: 'search_enabled', name: 'Busca', description: 'Busca avançada de leads', category: 'communication', minPlan: 'starter' },
 
-  // Analytics & Intelligence
-  { key: 'metrics_enabled', name: 'Métricas', description: 'Dashboard de métricas', category: 'analytics', minPlan: 'premium' },
-  { key: 'archive_enabled', name: 'Arquivo', description: 'Arquivar conversas', category: 'analytics', minPlan: 'premium' },
-  { key: 'voice_response_enabled', name: 'Voz', description: 'Respostas por áudio', category: 'analytics', minPlan: 'premium' },
-  { key: 'reports_enabled', name: 'Relatórios', description: 'Relatórios detalhados', category: 'analytics', minPlan: 'premium' },
+  // ==========================================================================
+  // 🔵 PREMIUM - Analytics & IA (a partir do Premium)
+  // ==========================================================================
+  { key: 'metrics_enabled', name: 'Dashboard', description: 'Métricas e KPIs em tempo real', category: 'analytics', minPlan: 'premium' },
+  { key: 'archive_enabled', name: 'Arquivo', description: 'Arquivamento de conversas antigas', category: 'analytics', minPlan: 'premium' },
+  { key: 'voice_response_enabled', name: 'Áudio IA', description: 'Respostas em áudio da IA', category: 'analytics', minPlan: 'premium' },
+  { key: 'reports_enabled', name: 'Relatórios', description: 'Relatórios detalhados e exportação', category: 'analytics', minPlan: 'premium' },
+  { key: 'ai_auto_handoff_enabled', name: 'Handoff Inteligente', description: 'Transferência automática para humano', category: 'ai', minPlan: 'premium' },
+  { key: 'ai_sentiment_alerts_enabled', name: 'Detector de Sentimento', description: 'Alertas de leads frustrados', category: 'ai', minPlan: 'premium' },
+  { key: 'copilot_enabled', name: 'Vellarys Copilot', description: 'Assistente IA para gestores', category: 'ai', minPlan: 'premium' },
+  { key: 'simulator_enabled', name: 'Simulador IA', description: 'Teste conversas antes de ativar', category: 'ai', minPlan: 'premium' },
+  { key: 'security_ghost_mode_enabled', name: 'Modo Fantasma', description: 'Oculta presença online', category: 'security', minPlan: 'premium' },
+  { key: 'distrib_auto_assign_enabled', name: 'Distribuição Auto', description: 'Atribuição automática de leads', category: 'security', minPlan: 'premium' },
 
-  // AI Features
-  { key: 'ai_auto_handoff_enabled', name: 'Handoff Auto', description: 'Transferência automática para humano', category: 'ai', minPlan: 'premium' },
-  { key: 'ai_sentiment_alerts_enabled', name: 'Alertas de Sentimento', description: 'Detectar leads frustrados', category: 'ai', minPlan: 'premium' },
-  { key: 'copilot_enabled', name: 'Copilot IA', description: 'Assistente inteligente para gestores', category: 'ai', minPlan: 'premium' },
-  { key: 'simulator_enabled', name: 'Simulador IA', description: 'Testar conversas com a IA', category: 'ai', minPlan: 'premium' },
+  // ==========================================================================
+  // 🟣 ENTERPRISE - Recursos Avançados (exclusivo Enterprise)
+  // ==========================================================================
+  { key: 'ai_guard_enabled', name: 'AI Guard', description: 'Guardrails avançados para IA', category: 'enterprise', minPlan: 'enterprise' },
+  { key: 'reengagement_enabled', name: 'Reengajamento', description: 'Follow-up automático inteligente', category: 'enterprise', minPlan: 'enterprise' },
+  { key: 'knowledge_base_enabled', name: 'Base de Conhecimento', description: 'RAG - IA aprende seus documentos', category: 'enterprise', minPlan: 'enterprise' },
+  { key: 'api_access_enabled', name: 'API Access', description: 'Integração via API REST', category: 'enterprise', minPlan: 'enterprise' },
 
-  // Security & Governance
-  { key: 'security_ghost_mode_enabled', name: 'Modo Fantasma', description: 'Ocultar presença online', category: 'security', minPlan: 'premium' },
-  { key: 'security_export_lock_enabled', name: 'Bloqueio de Export', description: 'Impedir exportação de dados', category: 'security', minPlan: 'starter' },
-  { key: 'distrib_auto_assign_enabled', name: 'Distribuição Auto', description: 'Atribuir leads automaticamente', category: 'security', minPlan: 'premium' },
-
-  // Enterprise
-  { key: 'ai_guard_enabled', name: 'AI Guard', description: 'Proteção avançada de IA', category: 'enterprise', minPlan: 'enterprise' },
-  { key: 'reengagement_enabled', name: 'Reengajamento', description: 'Follow-up automático', category: 'enterprise', minPlan: 'enterprise' },
-  { key: 'knowledge_base_enabled', name: 'Base de Conhecimento', description: 'Documentos para a IA', category: 'enterprise', minPlan: 'enterprise' },
-  { key: 'api_access_enabled', name: 'Acesso API', description: 'Integração via API', category: 'enterprise', minPlan: 'enterprise' },
+  // ==========================================================================
+  // 🔒 LOCK FEATURES (lógica invertida)
+  // ==========================================================================
+  // Nota: security_export_lock_enabled = TRUE significa BLOQUEADO
+  // Starter: bloqueado | Premium/Enterprise: liberado
+  { key: 'security_export_lock_enabled', name: 'Exportação de Dados', description: 'Exportar leads e relatórios', category: 'security', minPlan: 'premium' },
 ];
 
 // ============================================================================
