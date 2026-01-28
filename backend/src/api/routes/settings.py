@@ -1316,6 +1316,8 @@ async def get_features(
 
     # 1. Busca features do PLANO
     plan_features = {}
+    plan_name = "starter"  # Fallback padrão
+
     try:
         from src.domain.entities.tenant_subscription import TenantSubscription
         from sqlalchemy.orm import selectinload
@@ -1329,15 +1331,27 @@ async def get_features(
 
         if sub and sub.plan:
             plan_features = sub.plan.features or {}
-            logger.info(f"✅ Features do plano '{sub.plan.name}' carregadas do DB")
+            plan_name = sub.plan.slug or sub.plan.name
+            logger.info(f"✅ Features do plano '{plan_name}' carregadas do DB")
     except Exception as e:
-        logger.error(f"⚠️ Erro ao buscar plano: {e}")
+        logger.error(f"⚠️ Erro ao buscar plano do banco: {e}")
 
-    # Fallback para PLAN_FEATURES hardcoded
+    # Fallback para PLAN_FEATURES hardcoded se não carregou do banco
     if not plan_features:
-        plan_slug = tenant.plan.lower() if tenant.plan else "starter"
-        plan_features = PLAN_FEATURES.get(plan_slug, PLAN_FEATURES["starter"])
-        logger.info(f"ℹ️ Usando PLAN_FEATURES hardcoded para '{plan_slug}'")
+        # Normaliza o nome do plano (remove espaços, lowercase)
+        plan_slug = (tenant.plan or "premium").lower().strip()
+
+        # Tenta encontrar o plano
+        if plan_slug in PLAN_FEATURES:
+            plan_features = PLAN_FEATURES[plan_slug]
+            plan_name = plan_slug
+        else:
+            # Se não encontrou, usa premium como padrão (ao invés de starter)
+            logger.warning(f"⚠️ Plano '{plan_slug}' não encontrado, usando 'premium' como padrão")
+            plan_features = PLAN_FEATURES["premium"]
+            plan_name = "premium"
+
+        logger.info(f"ℹ️ Usando PLAN_FEATURES hardcoded para '{plan_name}': {len(plan_features)} features")
 
     # 2. Gestor Team Controls (o que o gestor ativou/desativou)
     team_features = (tenant.settings or {}).get("team_features", {})
@@ -1426,6 +1440,8 @@ async def update_features(
         # 3. BUSCAR FEATURES DO PLANO
         # ==========================================
         plan_features = {}
+        plan_name = "starter"  # Fallback padrão
+
         try:
             from src.domain.entities.tenant_subscription import TenantSubscription
             from sqlalchemy.orm import selectinload
@@ -1439,13 +1455,27 @@ async def update_features(
 
             if sub and sub.plan:
                 plan_features = sub.plan.features or {}
+                plan_name = sub.plan.slug or sub.plan.name
+                logger.info(f"✅ Features do plano '{plan_name}' carregadas do DB")
         except Exception as e:
-            logger.error(f"⚠️ Erro ao buscar plano: {e}")
+            logger.error(f"⚠️ Erro ao buscar plano do banco: {e}")
 
-        # Fallback
+        # Fallback para PLAN_FEATURES hardcoded se não carregou do banco
         if not plan_features:
-            plan_slug = tenant.plan.lower() if tenant.plan else "starter"
-            plan_features = PLAN_FEATURES.get(plan_slug, PLAN_FEATURES["starter"])
+            # Normaliza o nome do plano (remove espaços, lowercase)
+            plan_slug = (tenant.plan or "premium").lower().strip()
+
+            # Tenta encontrar o plano
+            if plan_slug in PLAN_FEATURES:
+                plan_features = PLAN_FEATURES[plan_slug]
+                plan_name = plan_slug
+            else:
+                # Se não encontrou, usa premium como padrão (ao invés de starter)
+                logger.warning(f"⚠️ Plano '{plan_slug}' não encontrado em PLAN_FEATURES, usando 'premium' como padrão")
+                plan_features = PLAN_FEATURES["premium"]
+                plan_name = "premium"
+
+            logger.info(f"ℹ️ Usando PLAN_FEATURES hardcoded para '{plan_name}': {len(plan_features)} features")
 
         # ==========================================
         # 4. VALIDAÇÃO: GESTOR NÃO PODE ATIVAR ALÉM DO PLANO
@@ -1453,13 +1483,19 @@ async def update_features(
         # SuperAdmin pode ativar qualquer feature
         # Gestor só pode ativar features dentro do plano
         if user.role in ["admin", "gestor"] and not is_managing_other_tenant:
+            logger.info(f"📋 Validando features do gestor. Plano: {plan_name}")
+            logger.info(f"📋 Plan features disponíveis: {list(plan_features.keys())}")
+            logger.info(f"📋 Features sendo enviadas: {features}")
+
             for feature_key, feature_value in features.items():
                 plan_allows = plan_features.get(feature_key, False)
                 if feature_value and not plan_allows:
-                    logger.warning(f"⛔ Gestor tentou ativar {feature_key} fora do plano")
+                    logger.error(f"⛔ Gestor tentou ativar '{feature_key}' fora do plano '{plan_name}'")
+                    logger.error(f"⛔ Feature '{feature_key}' no plano: {plan_allows}")
+                    logger.error(f"⛔ Todas features do plano: {plan_features}")
                     raise HTTPException(
                         403,
-                        f"Feature '{feature_key}' não disponível no seu plano. Faça upgrade para ativar."
+                        f"Feature '{feature_key}' não disponível no plano {plan_name.upper()}. Entre em contato para fazer upgrade."
                     )
 
         # ==========================================

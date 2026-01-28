@@ -145,6 +145,10 @@ export default function SubscriptionSettings({
                 headers['X-Tenant-Override'] = targetTenantId.toString();
             }
 
+            console.log('💾 Salvando features:', teamFeatures);
+            console.log('📦 Plan features:', planFeatures);
+            console.log('🎯 Final features:', finalFeatures);
+
             const response = await fetch(url, {
                 method: 'PATCH',
                 headers,
@@ -153,12 +157,14 @@ export default function SubscriptionSettings({
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({ detail: 'Erro desconhecido' }));
+                console.error('❌ Erro da API:', errorData);
                 throw new Error(errorData.detail || 'Erro ao salvar');
             }
 
             toast({ title: 'Configurações Salvas', description: 'Funcionalidades atualizadas com sucesso.' });
             loadFeatures();
         } catch (err: any) {
+            console.error('❌ Erro completo:', err);
             toast({ variant: 'destructive', title: 'Erro ao salvar', description: err.message });
         } finally {
             setSaving(false);
