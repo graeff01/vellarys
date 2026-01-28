@@ -76,8 +76,8 @@ export default function SubscriptionSettings({
     const [saving, setSaving] = useState(false);
     const { toast } = useToast();
 
-    // SuperAdmin gerenciando cliente: apenas visualização + mudança de plano
-    const isReadOnly = isSuperAdmin && targetTenantId;
+    // SuperAdmin e Gestor podem editar features
+    const canEdit = isSuperAdmin || !targetTenantId;
 
     useEffect(() => {
         loadFeatures();
@@ -119,7 +119,7 @@ export default function SubscriptionSettings({
     }
 
     async function handleToggle(key: string, enabled: boolean) {
-        if (isReadOnly) return; // SuperAdmin gerenciando cliente: read-only
+        if (!canEdit) return;
         const newTeamFeatures = { ...teamFeatures, [key]: enabled };
         setTeamFeatures(newTeamFeatures);
         setFinalFeatures({ ...planFeatures, ...newTeamFeatures });
@@ -132,18 +132,29 @@ export default function SubscriptionSettings({
             const apiUrl = `${baseUrl}/v1`;
             const token = getToken();
 
-            const url = `${apiUrl}/settings/features`;
+            let url = `${apiUrl}/settings/features`;
+            if (targetTenantId) url += `?target_tenant_id=${targetTenantId}`;
+
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            };
+
+            // Se SuperAdmin gerenciando cliente, usa X-Tenant-Override header
+            if (targetTenantId) {
+                headers['X-Tenant-Override'] = targetTenantId.toString();
+            }
 
             const response = await fetch(url, {
                 method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
+                headers,
                 body: JSON.stringify(teamFeatures),
             });
 
-            if (!response.ok) throw new Error('Erro ao salvar');
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ detail: 'Erro desconhecido' }));
+                throw new Error(errorData.detail || 'Erro ao salvar');
+            }
 
             toast({ title: 'Configurações Salvas', description: 'Funcionalidades atualizadas com sucesso.' });
             loadFeatures();
@@ -231,21 +242,21 @@ export default function SubscriptionSettings({
                 </div>
             )}
 
-            {/* Warning if SuperAdmin managing client */}
+            {/* Info para SuperAdmin gerenciando cliente */}
             {isSuperAdmin && targetTenantId && (
-                <div className="bg-blue-50 border border-blue-100 p-6 rounded-2xl flex items-center gap-4 text-blue-800">
+                <div className="bg-purple-50 border border-purple-100 p-6 rounded-2xl flex items-center gap-4 text-purple-800">
                     <AlertCircle className="w-6 h-6 flex-shrink-0" />
                     <div>
-                        <p className="font-bold">Modo Visualização</p>
+                        <p className="font-bold">Modo Admin Master</p>
                         <p className="text-sm opacity-80">
-                            Você está visualizando o plano do cliente. Para alterar recursos individuais, o gestor da empresa deve fazer login.
+                            Você está gerenciando as funcionalidades do cliente. Alterações serão salvas na conta dele.
                         </p>
                     </div>
                 </div>
             )}
 
-            {/* Botões de ação (apenas para Gestor) */}
-            {!isReadOnly && (
+            {/* Botões de ação */}
+            {canEdit && (
                 <div className="flex justify-end gap-3">
                     <Button
                         variant="outline"
@@ -296,10 +307,10 @@ export default function SubscriptionSettings({
                                                     <Switch
                                                         checked={isEnabled}
                                                         onCheckedChange={(val) => handleToggle(f.key, val)}
-                                                        disabled={isReadOnly || loading || f.comingSoon}
+                                                        disabled={!canEdit || loading || f.comingSoon}
                                                         className="data-[state=checked]:bg-indigo-600 scale-90"
                                                     />
-                                                    {isCustomized && !isReadOnly && (
+                                                    {isCustomized && canEdit && (
                                                         <span className="text-[9px] font-black text-indigo-600 uppercase tracking-tighter">Customizado</span>
                                                     )}
                                                 </div>

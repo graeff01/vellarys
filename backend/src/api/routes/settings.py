@@ -1274,6 +1274,7 @@ async def get_faq_index_status(
 
 @router.get("/features")
 async def get_features(
+    target_tenant_id: Optional[int] = None,
     user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db),
@@ -1281,12 +1282,12 @@ async def get_features(
     """
     Retorna feature flags do tenant (Centro de Controle).
 
-    🔴 NOVA HIERARQUIA (Self-Service):
+    🔴 HIERARQUIA COMPLETA:
     ===============================================
     1. SuperAdmin:
-       - NÃO gerencia features individuais dos clientes
-       - Apenas controla PLANO (starter/premium/enterprise)
-       - Clientes são independentes
+       - Controla TUDO de TODOS os clientes
+       - Pode editar features de qualquer cliente via target_tenant_id
+       - Pode alterar PLANO de qualquer cliente
 
     2. Gestor (Admin/Manager):
        - Controla features da PRÓPRIA empresa
@@ -1299,8 +1300,17 @@ async def get_features(
     Lógica de Resolução:
     ===============================================
     Final Features = Plan Features (do plano contratado)
-                   + Gestor Team Controls (o que gestor ativou/desativou)
+                   + Team Features (o que gestor/admin configurou)
     """
+
+    # SuperAdmin pode gerenciar outro tenant
+    if target_tenant_id and user.role == "superadmin":
+        logger.info(f"🔴 [SUPERADMIN] {user.email} consultando features do tenant_id {target_tenant_id}")
+        result = await db.execute(select(Tenant).where(Tenant.id == target_tenant_id))
+        target_tenant = result.scalar_one_or_none()
+        if not target_tenant:
+            raise HTTPException(404, "Cliente não encontrado")
+        tenant = target_tenant
 
     logger.info(f"🎛️ [FEATURES GET] Tenant: {tenant.name} (ID: {tenant.id}) | User Role: {user.role}")
 
@@ -1348,6 +1358,7 @@ async def get_features(
 @router.patch("/features")
 async def update_features(
     features: dict,
+    target_tenant_id: Optional[int] = None,
     user: User = Depends(get_current_user),
     tenant: Tenant = Depends(get_current_tenant),
     db: AsyncSession = Depends(get_db),
@@ -1355,11 +1366,12 @@ async def update_features(
     """
     Atualiza feature flags (Centro de Controle).
 
-    🔴 NOVA HIERARQUIA (Self-Service):
+    🔴 HIERARQUIA COMPLETA:
     ===============================================
     1. SuperAdmin:
-       - NÃO pode alterar features individuais
-       - Apenas controla PLANO via endpoint separado
+       - Pode alterar features de QUALQUER cliente
+       - Usa target_tenant_id para gerenciar clientes
+       - Salva em "team_features" do cliente
 
     2. Gestor (Admin/Manager):
        - Pode ATIVAR/DESATIVAR features da própria empresa
@@ -1373,9 +1385,24 @@ async def update_features(
     # ==========================================
     # 1. VALIDAÇÃO DE PERMISSÕES
     # ==========================================
-    if user.role not in ["admin", "gestor"]:
+    if user.role not in ["superadmin", "admin", "gestor"]:
         logger.warning(f"⛔ Acesso negado: {user.email} (role: {user.role}) tentou alterar features")
-        raise HTTPException(403, "Apenas gestores podem alterar features")
+        raise HTTPException(403, "Apenas gestores e administradores podem alterar features")
+
+    # SuperAdmin pode gerenciar outro tenant
+    is_managing_other_tenant = False
+    if target_tenant_id and user.role == "superadmin":
+        logger.info(f"🔴 [SUPERADMIN] {user.email} alterando features do tenant_id {target_tenant_id}")
+        result = await db.execute(select(Tenant).where(Tenant.id == target_tenant_id))
+        target_tenant = result.scalar_one_or_none()
+        if not target_tenant:
+            raise HTTPException(404, "Cliente não encontrado")
+        tenant = target_tenant
+        is_managing_other_tenant = True
+    elif target_tenant_id and user.role != "superadmin":
+        # Não-superadmin tentando gerenciar outro tenant
+        logger.warning(f"⛔ {user.email} tentou gerenciar tenant {target_tenant_id} sem permissão")
+        raise HTTPException(403, "Apenas SuperAdmin pode gerenciar outros clientes")
 
     logger.info(f"🎛️ [FEATURES PATCH] Tenant: {tenant.name} | User: {user.email} (role: {user.role})")
 
@@ -1423,15 +1450,17 @@ async def update_features(
         # ==========================================
         # 4. VALIDAÇÃO: GESTOR NÃO PODE ATIVAR ALÉM DO PLANO
         # ==========================================
-        # Gestor pode ativar/desativar apenas features dentro do plano
-        for feature_key, feature_value in features.items():
-            plan_allows = plan_features.get(feature_key, False)
-            if feature_value and not plan_allows:
-                logger.warning(f"⛔ Gestor tentou ativar {feature_key} fora do plano")
-                raise HTTPException(
-                    403,
-                    f"Feature '{feature_key}' não disponível no seu plano. Faça upgrade para ativar."
-                )
+        # SuperAdmin pode ativar qualquer feature
+        # Gestor só pode ativar features dentro do plano
+        if user.role in ["admin", "gestor"] and not is_managing_other_tenant:
+            for feature_key, feature_value in features.items():
+                plan_allows = plan_features.get(feature_key, False)
+                if feature_value and not plan_allows:
+                    logger.warning(f"⛔ Gestor tentou ativar {feature_key} fora do plano")
+                    raise HTTPException(
+                        403,
+                        f"Feature '{feature_key}' não disponível no seu plano. Faça upgrade para ativar."
+                    )
 
         # ==========================================
         # 5. SALVAR FEATURES (apenas team_features)
