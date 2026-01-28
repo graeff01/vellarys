@@ -298,14 +298,22 @@ async function fetchFeatures(): Promise<{ features: Features; plan: string; user
   if (userRole === 'superadmin') {
     // SuperAdmin tem acesso total (já tratado no Provider)
     effectiveFeatures = ALL_FEATURES_ENABLED;
-  } else if (userRole === 'vendedor' || userRole === 'seller') {
-    // Vendedor vê apenas o que gestor liberou
-    effectiveFeatures = data.team_features || DEFAULT_FEATURES;
-    console.log('🟢 [VENDEDOR] Usando team_features:', effectiveFeatures);
   } else {
-    // Gestor/Admin vê final_features (plano + overrides + team)
-    effectiveFeatures = data.final_features || data;
-    console.log('🟡 [GESTOR] Usando final_features:', effectiveFeatures);
+    // Para qualquer role não-superadmin, preferimos final_features quando disponível
+    // (plan + overrides + team). Isso garante que overrides do Admin Master sejam respeitados.
+    // Fallbacks:
+    // - vendedor/seller: team_features
+    // - demais: objeto inteiro (compatibilidade)
+    if (data?.final_features) {
+      effectiveFeatures = data.final_features;
+      console.log('🟡 [FEATURES] Usando final_features:', effectiveFeatures);
+    } else if (userRole === 'vendedor' || userRole === 'seller') {
+      effectiveFeatures = data.team_features || DEFAULT_FEATURES;
+      console.log('🟢 [VENDEDOR] Usando team_features:', effectiveFeatures);
+    } else {
+      effectiveFeatures = data || DEFAULT_FEATURES;
+      console.log('🟡 [GESTOR] Fallback usando payload:', effectiveFeatures);
+    }
   }
 
   return {

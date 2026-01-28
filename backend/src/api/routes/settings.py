@@ -1329,14 +1329,30 @@ async def get_features(
 
         logger.info(f"ℹ️ Usando PLAN_FEATURES hardcoded para '{plan_name}': {len(plan_features)} features")
 
-    # 2. Gestor Team Controls (o que o gestor ativou/desativou)
-    team_features = (tenant.settings or {}).get("team_features", {})
+    # 2. Overrides do SuperAdmin (Admin Master) - fica separado do controle do gestor
+    #    Motivo: gestor não deve "herdar" flags fora do plano em team_features,
+    #    senão o PATCH do gestor falha na validação de plano.
+    settings = tenant.settings or {}
+    feature_overrides = settings.get("feature_overrides", {}) or {}
 
-    # 3. Merge Final (plan + team_features do gestor)
-    final_features = {**plan_features, **team_features}
+    # 3. Gestor Team Controls (o que o gestor ativou/desativou)
+    team_features_raw = settings.get("team_features", {}) or {}
+
+    # Para gestor/admin, nunca devolvemos "team_features" com chaves fora do plano,
+    # porque o frontend salva exatamente `team_features` e isso causaria 403.
+    if user.role in ["admin", "gestor"]:
+        team_features = {k: v for k, v in team_features_raw.items() if k in plan_features}
+    else:
+        team_features = team_features_raw
+
+    # 4. Merge Final (plan + overrides + team_features)
+    # Ordem: team_features por último para permitir que configurações do time sobrescrevam
+    # (ex.: desligar uma feature que estava ligada via override).
+    final_features = {**plan_features, **feature_overrides, **team_features}
 
     return {
         "plan_features": plan_features,
+        "overrides": feature_overrides,
         "team_features": team_features,      # Gestor controls
         "final_features": final_features,
         "plan_name": sub.plan.name if 'sub' in locals() and sub and sub.plan else tenant.plan,
@@ -1456,8 +1472,8 @@ async def update_features(
         # ==========================================
         # 4. VALIDAÇÃO: GESTOR NÃO PODE ATIVAR ALÉM DO PLANO
         # ==========================================
-        # SuperAdmin pode ativar qualquer feature
-        # Gestor só pode ativar features dentro do plano
+        # SuperAdmin pode ativar qualquer feature (via overrides)
+        # Gestor/Admin só pode ativar dentro do plano (false sempre permitido)
         if user.role in ["admin", "gestor"] and not is_managing_other_tenant:
             logger.info(f"📋 Validando features do gestor. Plano: {plan_name}")
             logger.info(f"📋 Plan features disponíveis: {list(plan_features.keys())}")
@@ -1475,15 +1491,29 @@ async def update_features(
                     )
 
         # ==========================================
-        # 5. SALVAR FEATURES (apenas team_features)
+        # 5. SALVAR FEATURES
         # ==========================================
         current_settings = copy.deepcopy(tenant.settings or {})
 
-        # Gestor sempre salva em "team_features"
-        if "team_features" not in current_settings:
-            current_settings["team_features"] = {}
-        current_settings["team_features"].update(features)
-        logger.info(f"🟡 Gestor team_features atualizado: {features}")
+        # SuperAdmin (Admin Master) salva em "feature_overrides" para não conflitar com validação do gestor
+        if user.role == "superadmin":
+            if "feature_overrides" not in current_settings:
+                current_settings["feature_overrides"] = {}
+            current_settings["feature_overrides"].update(features)
+            logger.info(f"🟣 SuperAdmin feature_overrides atualizado: {features}")
+
+            # Higieniza dados legados: se antes o superadmin gravou fora do plano em team_features,
+            # removemos para não quebrar o gestor.
+            if "team_features" in current_settings and isinstance(current_settings["team_features"], dict):
+                for k in list(features.keys()):
+                    if k in current_settings["team_features"]:
+                        current_settings["team_features"].pop(k, None)
+        else:
+            # Gestor/admin salva em "team_features"
+            if "team_features" not in current_settings:
+                current_settings["team_features"] = {}
+            current_settings["team_features"].update(features)
+            logger.info(f"🟡 Gestor team_features atualizado: {features}")
 
         # Commit
         tenant.settings = current_settings
