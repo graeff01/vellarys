@@ -8,6 +8,7 @@ from .metrics import router as metrics_router
 from .tenants import router as tenants_router
 from .auth import router as auth_router
 from .settings import router as settings_router
+from .settings_v2 import router as settings_v2_router  # ← NOVA ARQUITETURA
 from .notifications import router as notifications_router
 from .sellers import router as sellers_router
 from .reengagement import router as reengagement_router
@@ -48,6 +49,7 @@ __all__ = [
     "tenants_router",
     "auth_router",
     "settings_router",
+    "settings_v2_router",  # ← NOVA ARQUITETURA
     "notifications_router",
     "sellers_router",
     "reengagement_router",

@@ -14,6 +14,7 @@ from .base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from .models import Tenant
+    from .plan_entitlement import PlanEntitlement
 
 
 class Plan(Base, TimestampMixin):
@@ -81,3 +82,63 @@ class Plan(Base, TimestampMixin):
     def is_unlimited(self, key: str) -> bool:
         """Verifica se um limite é ilimitado (-1)."""
         return self.limits.get(key, 0) == -1
+
+    # =========================================================================
+    # NOVA ARQUITETURA: Relacionamento com entitlements (não quebra código antigo)
+    # =========================================================================
+    entitlements: Mapped[List["PlanEntitlement"]] = relationship(
+        "PlanEntitlement",
+        back_populates="plan",
+        cascade="all, delete-orphan",
+        lazy="selectinload",
+        doc="Entitlements do plano (nova arquitetura)"
+    )
+
+    def get_entitlements_by_type(self, etype: str) -> Dict[str, Any]:
+        """
+        Retorna entitlements de um tipo específico (nova arquitetura).
+
+        Args:
+            etype: "feature" | "limit" | "addon"
+
+        Returns:
+            dict: {key: value}
+        """
+        if not self.entitlements:
+            return {}
+
+        return {
+            e.entitlement_key: e.entitlement_value
+            for e in self.entitlements
+            if e.entitlement_type == etype
+        }
+
+    @property
+    def features_v2(self) -> Dict[str, bool]:
+        """
+        Features como dict {key: bool} (nova arquitetura).
+
+        Se entitlements não existirem, fallback para self.features (JSONB antigo).
+        """
+        if self.entitlements:
+            return {
+                k: v.get("included", False)
+                for k, v in self.get_entitlements_by_type("feature").items()
+            }
+        # Fallback para JSONB antigo
+        return self.features or {}
+
+    @property
+    def limits_v2(self) -> Dict[str, int]:
+        """
+        Limits como dict {key: int} (nova arquitetura).
+
+        Se entitlements não existirem, fallback para self.limits (JSONB antigo).
+        """
+        if self.entitlements:
+            return {
+                k: v.get("max", 0)
+                for k, v in self.get_entitlements_by_type("limit").items()
+            }
+        # Fallback para JSONB antigo
+        return self.limits or {}

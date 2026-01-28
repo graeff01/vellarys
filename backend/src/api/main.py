@@ -35,6 +35,7 @@ from src.api.routes import (
     tenants_router,
     auth_router,
     settings_router,
+    settings_v2_router,  # ← NOVA ARQUITETURA
     notifications_router,
     sellers_router,
     seller_inbox_router,
@@ -270,6 +271,7 @@ app.include_router(messages_router, prefix="/api/v1")
 app.include_router(metrics_router, prefix="/api/v1")
 app.include_router(tenants_router, prefix="/api/v1")
 app.include_router(settings_router, prefix="/api/v1")
+app.include_router(settings_v2_router, prefix="/api")  # ← NOVA ARQUITETURA (já tem /v2 no router)
 app.include_router(notifications_router, prefix="/api/v1")
 app.include_router(sellers_router, prefix="/api/v1")
 app.include_router(seller_inbox_router, prefix="/api/v1")

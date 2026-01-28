@@ -6,12 +6,15 @@ Controla o período de assinatura, trial e status de pagamento.
 """
 
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List, TYPE_CHECKING
 from sqlalchemy import String, Boolean, Integer, ForeignKey, DateTime, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from .subscription_override import SubscriptionOverride
 
 
 class TenantSubscription(Base, TimestampMixin):
@@ -67,6 +70,15 @@ class TenantSubscription(Base, TimestampMixin):
     # Relacionamentos
     tenant: Mapped["Tenant"] = relationship(back_populates="subscription")
     plan: Mapped["Plan"] = relationship()
+
+    # Nova arquitetura: Overrides
+    overrides: Mapped[List["SubscriptionOverride"]] = relationship(
+        "SubscriptionOverride",
+        back_populates="subscription",
+        cascade="all, delete-orphan",
+        lazy="selectinload",
+        doc="Overrides de entitlements (SuperAdmin)"
+    )
     
     def is_trial(self) -> bool:
         """Verifica se está em trial."""
