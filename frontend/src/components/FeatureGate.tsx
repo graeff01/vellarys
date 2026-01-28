@@ -189,7 +189,12 @@ export function FeatureGate({
   blur = false,
   className,
 }: FeatureGateProps) {
-  const { isEnabled, hasAnyFeature, hasAllFeatures, isLoading } = useFeatures();
+  const { isEnabled, hasAnyFeature, hasAllFeatures, isLoading, isSuperAdmin } = useFeatures();
+
+  // SuperAdmin SEMPRE tem acesso total - bypass completo
+  if (isSuperAdmin) {
+    return <>{children}</>;
+  }
 
   // Determina quais features verificar
   const featuresToCheck = features || (feature ? [feature] : []);

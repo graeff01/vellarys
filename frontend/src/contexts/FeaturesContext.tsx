@@ -14,6 +14,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { getUser } from '@/lib/auth';
 
 // ============================================================================
 // TIPOS E INTERFACES
@@ -81,6 +82,8 @@ interface FeaturesState {
   error: string | null;
   lastUpdated: Date | null;
   plan: string | null;
+  userRole: string | null;
+  isSuperAdmin: boolean;
 }
 
 /**
@@ -144,6 +147,47 @@ const DEFAULT_FEATURES: Features = {
   simulator_enabled: false,
   reports_enabled: false,
   api_access_enabled: false,
+};
+
+/**
+ * Features TODAS HABILITADAS (para SuperAdmin)
+ * SuperAdmin tem acesso total ao sistema
+ */
+const ALL_FEATURES_ENABLED: Features = {
+  // Core
+  calendar_enabled: true,
+  templates_enabled: true,
+  notes_enabled: true,
+  attachments_enabled: true,
+
+  // Communication
+  sse_enabled: true,
+  search_enabled: true,
+
+  // Analytics
+  metrics_enabled: true,
+  archive_enabled: true,
+  voice_response_enabled: true,
+
+  // AI
+  ai_auto_handoff_enabled: true,
+  ai_sentiment_alerts_enabled: true,
+  copilot_enabled: true,
+
+  // Security - Locks desabilitados para superadmin ter acesso
+  security_ghost_mode_enabled: true,
+  security_export_lock_enabled: false, // FALSE = export liberado
+  distrib_auto_assign_enabled: true,
+
+  // Enterprise
+  ai_guard_enabled: true,
+  reengagement_enabled: true,
+  knowledge_base_enabled: true,
+
+  // Extras
+  simulator_enabled: true,
+  reports_enabled: true,
+  api_access_enabled: true,
 };
 
 /**
@@ -251,26 +295,50 @@ export function FeaturesProvider({
   autoLoad = true,
   refreshInterval = 300000 // 5 minutos
 }: FeaturesProviderProps) {
+  // Verifica role do usuário
+  const user = typeof window !== 'undefined' ? getUser() : null;
+  const isSuperAdmin = user?.role === 'superadmin';
+
   const [state, setState] = useState<FeaturesState>({
-    features: null,
-    isLoading: true,
+    features: isSuperAdmin ? ALL_FEATURES_ENABLED : null,
+    isLoading: !isSuperAdmin, // SuperAdmin não precisa carregar
     error: null,
-    lastUpdated: null,
-    plan: null,
+    lastUpdated: isSuperAdmin ? new Date() : null,
+    plan: isSuperAdmin ? 'superadmin' : null,
+    userRole: user?.role || null,
+    isSuperAdmin,
   });
 
   /**
    * Carrega features do backend
+   * SuperAdmin NUNCA precisa carregar - tem acesso total
    */
   const refresh = useCallback(async () => {
+    // SuperAdmin tem acesso total - não precisa carregar features
+    if (isSuperAdmin) {
+      setState(prev => ({
+        ...prev,
+        features: ALL_FEATURES_ENABLED,
+        isLoading: false,
+        error: null,
+        lastUpdated: new Date(),
+        plan: 'superadmin',
+        userRole: 'superadmin',
+        isSuperAdmin: true,
+      }));
+      return;
+    }
+
     // Verifica se tem token antes de tentar
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('vellarys_token') : null;
     if (!token) {
       setState(prev => ({
         ...prev,
         isLoading: false,
         features: DEFAULT_FEATURES,
-        error: null
+        error: null,
+        userRole: null,
+        isSuperAdmin: false,
       }));
       return;
     }
@@ -279,12 +347,15 @@ export function FeaturesProvider({
 
     try {
       const { features, plan } = await fetchFeatures();
+      const currentUser = getUser();
       setState({
         features: { ...DEFAULT_FEATURES, ...features },
         isLoading: false,
         error: null,
         lastUpdated: new Date(),
         plan,
+        userRole: currentUser?.role || null,
+        isSuperAdmin: currentUser?.role === 'superadmin',
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro desconhecido';
@@ -296,7 +367,7 @@ export function FeaturesProvider({
         features: prev.features || DEFAULT_FEATURES,
       }));
     }
-  }, []);
+  }, [isSuperAdmin]);
 
   /**
    * Invalida cache e força reload na próxima verificação
@@ -307,11 +378,20 @@ export function FeaturesProvider({
 
   /**
    * Verifica se feature está habilitada
+   * SuperAdmin SEMPRE tem acesso a tudo
    */
   const isEnabled = useCallback((feature: keyof Features): boolean => {
+    // SuperAdmin bypass - acesso total
+    if (state.isSuperAdmin) {
+      // Para lock features, SuperAdmin NÃO é bloqueado
+      if (feature === 'security_export_lock_enabled') {
+        return false; // Lock desativado = export liberado
+      }
+      return true;
+    }
     if (!state.features) return false;
     return state.features[feature] === true;
-  }, [state.features]);
+  }, [state.features, state.isSuperAdmin]);
 
   /**
    * Alias para isEnabled (para compatibilidade)
@@ -322,17 +402,21 @@ export function FeaturesProvider({
 
   /**
    * Verifica se tem QUALQUER uma das features
+   * SuperAdmin sempre retorna true
    */
   const hasAnyFeature = useCallback((features: (keyof Features)[]): boolean => {
+    if (state.isSuperAdmin) return true;
     return features.some(f => isEnabled(f));
-  }, [isEnabled]);
+  }, [isEnabled, state.isSuperAdmin]);
 
   /**
    * Verifica se tem TODAS as features
+   * SuperAdmin sempre retorna true
    */
   const hasAllFeatures = useCallback((features: (keyof Features)[]): boolean => {
+    if (state.isSuperAdmin) return true;
     return features.every(f => isEnabled(f));
-  }, [isEnabled]);
+  }, [isEnabled, state.isSuperAdmin]);
 
   /**
    * Retorna metadata de uma feature
