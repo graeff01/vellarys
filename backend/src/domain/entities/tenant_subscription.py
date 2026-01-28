@@ -76,7 +76,6 @@ class TenantSubscription(Base, TimestampMixin):
         "SubscriptionOverride",
         back_populates="subscription",
         cascade="all, delete-orphan",
-        lazy="selectinload",
         doc="Overrides de entitlements (SuperAdmin)"
     )
     
