@@ -69,12 +69,15 @@ export default function SubscriptionSettings({
     onPlanChange
 }: SubscriptionSettingsProps) {
     const [planFeatures, setPlanFeatures] = useState<Record<string, boolean>>({});
-    const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+    const [teamFeatures, setTeamFeatures] = useState<Record<string, boolean>>({});
     const [finalFeatures, setFinalFeatures] = useState<Record<string, boolean>>({});
 
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const { toast } = useToast();
+
+    // SuperAdmin gerenciando cliente: apenas visualização + mudança de plano
+    const isReadOnly = isSuperAdmin && targetTenantId;
 
     useEffect(() => {
         loadFeatures();
@@ -87,22 +90,25 @@ export default function SubscriptionSettings({
             const apiUrl = `${baseUrl}/v1`;
             const token = getToken();
 
+            // SuperAdmin gerenciando cliente: precisa carregar do cliente específico
             let url = `${apiUrl}/settings/features`;
-            if (targetTenantId) url += `?target_tenant_id=${targetTenantId}`;
+            const headers: Record<string, string> = {
+                'Authorization': `Bearer ${token}`,
+            };
 
-            const response = await fetch(url, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'X-Tenant-Override': targetTenantId ? targetTenantId.toString() : ''
-                },
-            });
+            // Se SuperAdmin gerenciando cliente, usa X-Tenant-Override header
+            if (targetTenantId) {
+                headers['X-Tenant-Override'] = targetTenantId.toString();
+            }
+
+            const response = await fetch(url, { headers });
 
             if (!response.ok) throw new Error('Erro ao carregar features');
 
             const data = await response.json();
 
             setPlanFeatures(data.plan_features || {});
-            setOverrides(data.overrides || {});
+            setTeamFeatures(data.team_features || {});
             setFinalFeatures(data.final_features || data);
         } catch (err) {
             console.error('❌ Erro:', err);
@@ -113,35 +119,33 @@ export default function SubscriptionSettings({
     }
 
     async function handleToggle(key: string, enabled: boolean) {
-        if (!isSuperAdmin) return; // Só superadmin pode alterar features individuais
-        const newOverrides = { ...overrides, [key]: enabled };
-        setOverrides(newOverrides);
-        setFinalFeatures({ ...planFeatures, ...newOverrides });
+        if (isReadOnly) return; // SuperAdmin gerenciando cliente: read-only
+        const newTeamFeatures = { ...teamFeatures, [key]: enabled };
+        setTeamFeatures(newTeamFeatures);
+        setFinalFeatures({ ...planFeatures, ...newTeamFeatures });
     }
 
-    async function saveOverrides(targetOverrides: any = overrides) {
+    async function saveFeatures() {
         try {
             setSaving(true);
             const baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/v1$/, '');
             const apiUrl = `${baseUrl}/v1`;
             const token = getToken();
 
-            let url = `${apiUrl}/settings/features`;
-            if (targetTenantId) url += `?target_tenant_id=${targetTenantId}`;
+            const url = `${apiUrl}/settings/features`;
 
             const response = await fetch(url, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
-                    'X-Tenant-Override': targetTenantId ? targetTenantId.toString() : ''
                 },
-                body: JSON.stringify(targetOverrides),
+                body: JSON.stringify(teamFeatures),
             });
 
             if (!response.ok) throw new Error('Erro ao salvar');
 
-            toast({ title: 'Configurações Salvas', description: 'Permissões do cliente atualizadas.' });
+            toast({ title: 'Configurações Salvas', description: 'Funcionalidades atualizadas com sucesso.' });
             loadFeatures();
         } catch (err: any) {
             toast({ variant: 'destructive', title: 'Erro ao salvar', description: err.message });
@@ -151,8 +155,8 @@ export default function SubscriptionSettings({
     }
 
     async function resetToDefaults() {
-        await saveOverrides({});
-        setOverrides({});
+        await saveFeatures();
+        setTeamFeatures({});
         toast({ title: 'Resetado!', description: 'Voltamos para as configurações padrão do plano.' });
     }
 
@@ -227,40 +231,41 @@ export default function SubscriptionSettings({
                 </div>
             )}
 
-            {/* Warning if no tenant selected by SuperAdmin */}
-            {isSuperAdmin && !targetTenantId && (
-                <div className="bg-amber-50 border border-amber-100 p-6 rounded-2xl flex items-center gap-4 text-amber-800">
+            {/* Warning if SuperAdmin managing client */}
+            {isSuperAdmin && targetTenantId && (
+                <div className="bg-blue-50 border border-blue-100 p-6 rounded-2xl flex items-center gap-4 text-blue-800">
                     <AlertCircle className="w-6 h-6 flex-shrink-0" />
                     <div>
-                        <p className="font-bold">Modo de Visualização (Próprio)</p>
-                        <p className="text-sm opacity-80">Você está visualizando os recursos do ADMIN. Para provisionar outros status, selecione um cliente no menu superior.</p>
+                        <p className="font-bold">Modo Visualização</p>
+                        <p className="text-sm opacity-80">
+                            Você está visualizando o plano do cliente. Para alterar recursos individuais, o gestor da empresa deve fazer login.
+                        </p>
                     </div>
                 </div>
             )}
 
-            <div className="flex justify-end gap-3">
-                {isSuperAdmin && targetTenantId && (
-                    <>
-                        <Button
-                            variant="outline"
-                            onClick={resetToDefaults}
-                            disabled={saving}
-                            className="gap-2 text-slate-600"
-                        >
-                            <RotateCcw className="w-4 h-4" />
-                            Resetar Overrides
-                        </Button>
-                        <Button
-                            onClick={() => saveOverrides()}
-                            disabled={saving}
-                            className="bg-indigo-600 hover:bg-indigo-700 gap-2 font-bold"
-                        >
-                            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                            Salvar Recusos
-                        </Button>
-                    </>
-                )}
-            </div>
+            {/* Botões de ação (apenas para Gestor) */}
+            {!isReadOnly && (
+                <div className="flex justify-end gap-3">
+                    <Button
+                        variant="outline"
+                        onClick={resetToDefaults}
+                        disabled={saving}
+                        className="gap-2 text-slate-600"
+                    >
+                        <RotateCcw className="w-4 h-4" />
+                        Resetar para Padrão
+                    </Button>
+                    <Button
+                        onClick={saveFeatures}
+                        disabled={saving}
+                        className="bg-indigo-600 hover:bg-indigo-700 gap-2 font-bold"
+                    >
+                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        Salvar Recursos
+                    </Button>
+                </div>
+            )}
 
             <div className="space-y-12">
                 {sections.map(section => (
@@ -273,7 +278,7 @@ export default function SubscriptionSettings({
 
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
                             {FEATURES.filter(f => f.category === section.category).map(f => {
-                                const isOverridden = overrides.hasOwnProperty(f.key);
+                                const isCustomized = teamFeatures.hasOwnProperty(f.key);
                                 const isEnabled = finalFeatures[f.key] ?? false;
                                 const planValue = planFeatures[f.key] ?? false;
 
@@ -291,11 +296,11 @@ export default function SubscriptionSettings({
                                                     <Switch
                                                         checked={isEnabled}
                                                         onCheckedChange={(val) => handleToggle(f.key, val)}
-                                                        disabled={!isSuperAdmin || loading || f.comingSoon || !targetTenantId}
+                                                        disabled={isReadOnly || loading || f.comingSoon}
                                                         className="data-[state=checked]:bg-indigo-600 scale-90"
                                                     />
-                                                    {isOverridden && (
-                                                        <span className="text-[9px] font-black text-indigo-600 uppercase tracking-tighter">Override</span>
+                                                    {isCustomized && !isReadOnly && (
+                                                        <span className="text-[9px] font-black text-indigo-600 uppercase tracking-tighter">Customizado</span>
                                                     )}
                                                 </div>
                                             </div>
@@ -312,11 +317,11 @@ export default function SubscriptionSettings({
                                                 {/* Plan Status Indicator */}
                                                 <div className="flex items-center gap-1.5">
                                                     <div className={`w-1.5 h-1.5 rounded-full ${planValue ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                                                    <span className="text-[10px] text-slate-400 font-medium">Plano</span>
+                                                    <span className="text-[10px] text-slate-400 font-medium">No Plano</span>
                                                 </div>
 
-                                                {isEnabled && !planValue && (
-                                                    <Badge className="bg-indigo-50 text-indigo-600 border-none text-[9px] font-black px-1.5 py-0">UPSALE</Badge>
+                                                {!planValue && (
+                                                    <Badge className="bg-slate-50 text-slate-400 border-slate-200 text-[9px] font-black px-1.5 py-0">Indisponível</Badge>
                                                 )}
                                             </div>
                                         </div>
