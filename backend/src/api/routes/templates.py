@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from src.domain.entities.response_template import ResponseTemplate
 from src.domain.entities.models import Tenant, User
 from src.infrastructure.database import get_db
-from src.api.deps import get_current_user, get_current_tenant
+from src.api.dependencies import get_current_user, get_current_tenant
 
 
 router = APIRouter(prefix="/templates", tags=["templates"])

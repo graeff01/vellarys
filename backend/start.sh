@@ -34,10 +34,13 @@ alembic current || echo "No current revision"
 echo ""
 echo "Upgrading to head..."
 
-# Run migrations (sem set -e para não falhar se migrations já estão aplicadas)
-alembic upgrade head || {
-    echo "⚠️ Migrations failed or already up to date"
-    alembic current
+# Run migrations - If multiple heads exist, merge them first
+alembic upgrade heads || {
+    echo "⚠️ Multiple heads detected, trying merge..."
+    alembic upgrade 20260128_merge_heads || {
+        echo "⚠️ Migrations failed or already up to date"
+        alembic current
+    }
 }
 
 echo "✅ Database ready!"
