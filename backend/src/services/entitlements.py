@@ -194,13 +194,19 @@ class EntitlementResolver:
 
                 # Security
                 "security_ghost_mode_enabled": False,
-                "security_export_lock_enabled": True,  # Bloqueado
+                "security_export_lock_enabled": False,  # Desbloqueado
                 "distrib_auto_assign_enabled": False,
 
                 # Experimental
                 "ai_guard_enabled": False,
                 "reengagement_enabled": False,
                 "knowledge_base_enabled": False,
+
+                # Inteligência (Gestor) - RESTAURADO
+                "copilot_enabled": False,  # Apenas Premium/Enterprise
+                "simulator_enabled": True,  # TODOS os planos
+                "reports_enabled": True,    # TODOS os planos
+                "export_enabled": True,      # TODOS os planos
             },
             limits={
                 "leads_per_month": 50,

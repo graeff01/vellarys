@@ -162,14 +162,14 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                 title: "Inteligência",
                 items: [
                     { href: '/dashboard/copilot', label: 'Vellarys Copilot', icon: Sparkles, badge: "AI", feature: 'copilot_enabled' },
-                    { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot, feature: 'simulator_enabled' },
-                    { href: '/dashboard/reports', label: 'Relatórios', icon: BarChart3, feature: 'reports_enabled' },
+                    { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot, badge: "Lab", feature: 'simulator_enabled' },
+                    { href: '/dashboard/reports', label: 'Relatórios', icon: FileText, feature: 'reports_enabled' },
                 ]
             },
             {
                 title: "Administração",
                 items: [
-                    { href: '/dashboard/export', label: 'Exportar Dados', icon: FileDown, feature: 'security_export_lock_enabled', isLockFeature: true },
+                    { href: '/dashboard/export', label: 'Exportar Dados', icon: FileDown, feature: 'export_enabled' },
                     { href: '/dashboard/settings', label: 'Configurações', icon: Settings },
                 ]
             }

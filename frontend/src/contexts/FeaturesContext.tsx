@@ -58,6 +58,7 @@ export interface Features {
   // Extras
   simulator_enabled: boolean;
   reports_enabled: boolean;
+  export_enabled: boolean;
   api_access_enabled: boolean;
 }
 
@@ -146,6 +147,7 @@ const DEFAULT_FEATURES: Features = {
   // Extras
   simulator_enabled: false,
   reports_enabled: false,
+  export_enabled: false,
   api_access_enabled: false,
 };
 
@@ -187,6 +189,7 @@ const ALL_FEATURES_ENABLED: Features = {
   // Extras
   simulator_enabled: true,
   reports_enabled: true,
+  export_enabled: true,
   api_access_enabled: true,
 };
 
