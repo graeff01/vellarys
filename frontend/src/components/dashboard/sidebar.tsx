@@ -134,8 +134,7 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                 {
                     title: "Negociações",
                     items: [
-                        { href: '/dashboard/proposals', label: 'Propostas', icon: Building2, badge: "Novo" },
-                        { href: '/dashboard/properties', label: 'Imóveis', icon: Building2 },
+                        { href: '/dashboard/opportunities', label: 'Oportunidades', icon: TrendingUp },
                     ]
                 },
                 {
@@ -169,8 +168,7 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
             {
                 title: "Negociações",
                 items: [
-                    { href: '/dashboard/proposals', label: 'Propostas', icon: Building2, badge: "Novo" },
-                    { href: '/dashboard/properties', label: 'Imóveis', icon: Building2 },
+                    { href: '/dashboard/opportunities', label: 'Oportunidades', icon: TrendingUp },
                 ]
             },
             {
