@@ -65,6 +65,29 @@ else
     fi
 fi
 
+# 4. SEED RESPONSE TEMPLATES (uma vez só)
+TEMPLATES_MARKER="/tmp/.vellarys_templates_seeded"
+
+if [ ! -f "$TEMPLATES_MARKER" ] && [ -f "scripts/seed_response_templates.py" ]; then
+    echo ""
+    echo "🌱 Seeding response templates for sellers..."
+
+    if python3 scripts/seed_response_templates.py; then
+        echo "✅ Response templates seeded successfully!"
+        touch "$TEMPLATES_MARKER"
+    else
+        echo "⚠️ Template seed failed - will continue anyway"
+        echo "Templates may need manual seeding"
+        # Não falha - continua mesmo se der erro
+    fi
+else
+    if [ -f "$TEMPLATES_MARKER" ]; then
+        echo "ℹ️ Response templates already seeded previously"
+    else
+        echo "ℹ️ Template seed script not found - skipping"
+    fi
+fi
+
 echo ""
 echo "Starting Uvicorn server..."
 exec uvicorn src.api.main:app --host 0.0.0.0 --port 8000
