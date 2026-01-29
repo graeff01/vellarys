@@ -28,6 +28,7 @@ import {
     X,
     ChevronRight,
     LucideIcon,
+    TrendingUp,
     Sparkles,
     BarChart3,
     Lock,

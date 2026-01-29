@@ -14,6 +14,7 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 from datetime import datetime
+import json
 
 
 # revision identifiers, used by Alembic.
@@ -111,8 +112,8 @@ def upgrade():
             WHERE slug = 'professional'
         """),
         {
-            "limits": sa.JSON(professional_limits),
-            "features": sa.JSON(professional_features),
+            "limits": json.dumps(professional_limits),
+            "features": json.dumps(professional_features),
             "updated_at": datetime.utcnow()
         }
     )
@@ -206,8 +207,8 @@ def upgrade():
             WHERE slug = 'enterprise'
         """),
         {
-            "limits": sa.JSON(enterprise_limits),
-            "features": sa.JSON(enterprise_features),
+            "limits": json.dumps(enterprise_limits),
+            "features": json.dumps(enterprise_features),
             "updated_at": datetime.utcnow()
         }
     )
@@ -293,8 +294,8 @@ def downgrade():
             VALUES ('essencial', 'Essencial', 'Para imobiliárias iniciando com IA', 297.00, 2970.00, :limits, :features, 1, false, true, :created_at, :updated_at)
         """),
         {
-            "limits": sa.JSON(essencial_limits),
-            "features": sa.JSON(essencial_features),
+            "limits": json.dumps(essencial_limits),
+            "features": json.dumps(essencial_features),
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }
