@@ -19,7 +19,7 @@ import {
   ArrowLeft,
   MoreVertical,
   Search,
-  Smile,
+  MessageSquare,
   Paperclip,
   Check,
   CheckCheck,
@@ -537,8 +537,9 @@ export function InboxConversation({ lead, onBack, onLeadUpdated }: InboxConversa
                   ? "text-gray-600 hover:bg-gray-300/50"
                   : "text-gray-400 cursor-not-allowed"
               )}
+              title="Templates de Respostas"
             >
-              <Smile className="h-6 w-6" />
+              <MessageSquare className="h-6 w-6" />
             </button>
           </TemplatesPopover>
 
