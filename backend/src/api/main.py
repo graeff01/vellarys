@@ -59,6 +59,7 @@ from src.api.routes import (
     appointments_router,
     manager_ai_router,
     templates_router,
+    proposals_router,
 )
 
 # Domain
@@ -291,6 +292,7 @@ app.include_router(opportunities_leads_router, prefix="/api/v1")
 app.include_router(appointments_router, prefix="/api/v1")
 app.include_router(manager_ai_router, prefix="/api/v1")
 app.include_router(templates_router, prefix="/api/v1")
+app.include_router(proposals_router, prefix="/api/v1")
 
 # Admin
 app.include_router(admin_dashboard_router, prefix="/api/v1")

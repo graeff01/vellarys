@@ -28,6 +28,7 @@ from .opportunities import router as opportunities_router, leads_router as oppor
 from .appointments import router as appointments_router  # ← APPOINTMENTS (CALENDÁRIO)
 from .manager_ai import router as manager_ai_router  # ← MANAGER AI (JARVIS)
 from .templates import router as templates_router  # ← RESPONSE TEMPLATES (RESPOSTAS RÁPIDAS)
+from .commercial_proposals import router as proposals_router  # ← COMMERCIAL PROPOSALS (PROPOSTAS COMERCIAIS)
 
 # Admin routes
 from .admin import (
@@ -70,6 +71,7 @@ __all__ = [
     "appointments_router",
     "manager_ai_router",
     "templates_router",
+    "proposals_router",
     # Admin
     "admin_dashboard_router",
     "admin_tenants_router",
