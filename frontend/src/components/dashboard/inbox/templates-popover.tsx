@@ -42,8 +42,14 @@ export function TemplatesPopover({ leadId, onSelectTemplate, children }: Templat
     return matchesSearch && matchesCategory;
   });
 
-  // Extrai categorias únicas
+  // Extrai categorias únicas e capitaliza
   const categories = Array.from(new Set(templates.map(t => t.category).filter(Boolean)));
+
+  // Capitaliza categoria
+  const capitalizeCategory = (cat: string) => {
+    if (!cat) return '';
+    return cat.charAt(0).toUpperCase() + cat.slice(1);
+  };
 
   // Seleciona template
   const handleSelectTemplate = async (template: ResponseTemplate) => {
@@ -106,7 +112,7 @@ export function TemplatesPopover({ leadId, onSelectTemplate, children }: Templat
                 size="sm"
                 onClick={() => setSelectedCategory(category)}
               >
-                {category}
+                {capitalizeCategory(category as string)}
               </Button>
             ))}
           </div>
