@@ -42,6 +42,29 @@ alembic upgrade head || {
 
 echo "✅ Database ready!"
 
+# 3. UPDATE PLAN FEATURES (uma vez só)
+FEATURES_MARKER="/tmp/.vellarys_features_updated"
+
+if [ ! -f "$FEATURES_MARKER" ] && [ -f "scripts/update_plan_features.py" ]; then
+    echo ""
+    echo "🔧 Updating plan features (copilot, simulator, reports, export)..."
+
+    if python3 scripts/update_plan_features.py; then
+        echo "✅ Plan features updated successfully!"
+        touch "$FEATURES_MARKER"
+    else
+        echo "⚠️ Feature update failed - will continue anyway"
+        echo "Features may need manual update"
+        # Não falha - continua mesmo se der erro
+    fi
+else
+    if [ -f "$FEATURES_MARKER" ]; then
+        echo "ℹ️ Plan features already updated previously"
+    else
+        echo "ℹ️ Feature update script not found - skipping"
+    fi
+fi
+
 echo ""
 echo "Starting Uvicorn server..."
 exec uvicorn src.api.main:app --host 0.0.0.0 --port 8000
