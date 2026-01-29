@@ -132,6 +132,13 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                     ]
                 },
                 {
+                    title: "Negociações",
+                    items: [
+                        { href: '/dashboard/proposals', label: 'Propostas', icon: Building2, badge: "Novo" },
+                        { href: '/dashboard/properties', label: 'Imóveis', icon: Building2 },
+                    ]
+                },
+                {
                     title: "Ferramentas",
                     items: [
                         { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot, badge: "Lab", feature: 'simulator_enabled' },
@@ -157,6 +164,13 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                     { href: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard },
                     { href: '/dashboard/leads', label: 'Leads', icon: Users },
                     { href: '/dashboard/calendar', label: 'Calendário', icon: Calendar, feature: 'calendar_enabled' },
+                ]
+            },
+            {
+                title: "Negociações",
+                items: [
+                    { href: '/dashboard/proposals', label: 'Propostas', icon: Building2, badge: "Novo" },
+                    { href: '/dashboard/properties', label: 'Imóveis', icon: Building2 },
                 ]
             },
             {
