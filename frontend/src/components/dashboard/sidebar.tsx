@@ -132,6 +132,13 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                     ]
                 },
                 {
+                    title: "Ferramentas",
+                    items: [
+                        { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot, badge: "Lab", feature: 'simulator_enabled' },
+                        { href: '/dashboard/export', label: 'Exportar Dados', icon: FileDown, feature: 'export_enabled' },
+                    ]
+                },
+                {
                     title: "Performance",
                     items: [
                         { href: '/dashboard', label: 'Meus Resultados', icon: LayoutDashboard, feature: 'metrics_enabled' },
@@ -163,7 +170,6 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                 items: [
                     { href: '/dashboard/copilot', label: 'Vellarys Copilot', icon: Sparkles, badge: "AI", feature: 'copilot_enabled' },
                     { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot, badge: "Lab", feature: 'simulator_enabled' },
-                    { href: '/dashboard/reports', label: 'Relatórios', icon: FileText, feature: 'reports_enabled' },
                 ]
             },
             {
