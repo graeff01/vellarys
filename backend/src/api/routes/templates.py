@@ -301,6 +301,72 @@ async def increment_usage(
     }
 
 
+@router.post("/{template_id}/interpolate", response_model=dict)
+async def interpolate_template(
+    template_id: int,
+    lead_id: int,
+    user: User = Depends(get_current_user),
+    tenant: Tenant = Depends(get_current_tenant),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Interpola variáveis do template com dados reais do lead.
+
+    Busca dados do lead e vendedor, substitui variáveis e retorna conteúdo pronto.
+    Também incrementa contador de uso automaticamente.
+    """
+    from datetime import datetime
+    from src.domain.entities.models import Lead
+    from src.domain.entities.seller import Seller
+
+    # Buscar template
+    template = await db.get(ResponseTemplate, template_id)
+    if not template or template.tenant_id != tenant.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Template não encontrado"
+        )
+
+    # Buscar lead
+    lead = await db.get(Lead, lead_id)
+    if not lead or lead.tenant_id != tenant.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lead não encontrado"
+        )
+
+    # Buscar vendedor (se existir seller_id no lead)
+    seller_name = user.name  # Default: nome do usuário atual
+    if hasattr(lead, 'seller_id') and lead.seller_id:
+        seller = await db.get(Seller, lead.seller_id)
+        if seller:
+            seller_name = seller.name
+
+    # Interpolar variáveis
+    content = template.content
+    content = content.replace("{{lead_name}}", lead.name or "Cliente")
+    content = content.replace("{{seller_name}}", seller_name)
+    content = content.replace("{{company_name}}", tenant.name)
+    content = content.replace("{{current_date}}", datetime.now().strftime("%d/%m/%Y"))
+    content = content.replace("{{current_time}}", datetime.now().strftime("%H:%M"))
+
+    # Incrementar contador de uso
+    template.usage_count += 1
+    await db.commit()
+
+    return {
+        "template_id": template_id,
+        "content": content,
+        "variables_used": {
+            "lead_name": lead.name,
+            "seller_name": seller_name,
+            "company_name": tenant.name,
+            "current_date": datetime.now().strftime("%d/%m/%Y"),
+            "current_time": datetime.now().strftime("%H:%M"),
+        }
+    }
+
+
 @router.post("/preview", response_model=dict)
 async def preview_template(
     content: str,
