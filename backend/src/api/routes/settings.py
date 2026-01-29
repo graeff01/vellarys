@@ -354,6 +354,12 @@ PLAN_FEATURES = {
         "ai_guard_enabled": False,
         "reengagement_enabled": False,
         "knowledge_base_enabled": False,
+
+        # ✅ Inteligência - Parcialmente disponível
+        "copilot_enabled": False,        # Apenas Premium+
+        "simulator_enabled": True,       # TODOS os planos
+        "reports_enabled": True,         # TODOS os planos
+        "export_enabled": True,          # TODOS os planos
     },
 
     # =========================================================================
@@ -386,6 +392,12 @@ PLAN_FEATURES = {
         "ai_guard_enabled": False,
         "reengagement_enabled": False,
         "knowledge_base_enabled": False,
+
+        # ✅ Inteligência - TUDO liberado
+        "copilot_enabled": True,         # Premium+
+        "simulator_enabled": True,       # TODOS os planos
+        "reports_enabled": True,         # TODOS os planos
+        "export_enabled": True,          # TODOS os planos
     },
 
     # =========================================================================
@@ -418,6 +430,12 @@ PLAN_FEATURES = {
         "ai_guard_enabled": True,
         "reengagement_enabled": True,
         "knowledge_base_enabled": True,  # Mesmo "Coming Soon", está no plano
+
+        # ✅ Inteligência - TUDO liberado
+        "copilot_enabled": True,         # Premium+
+        "simulator_enabled": True,       # TODOS os planos
+        "reports_enabled": True,         # TODOS os planos
+        "export_enabled": True,          # TODOS os planos
     }
 }
 
