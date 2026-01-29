@@ -18,6 +18,13 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def table_exists(table_name: str) -> bool:
+    """Verifica se tabela existe no banco."""
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    return table_name in inspector.get_table_names()
+
+
 def upgrade() -> None:
     """
     Cria nova arquitetura de entitlements SEM remover estrutura antiga.
@@ -27,7 +34,8 @@ def upgrade() -> None:
     # =========================================================================
     # 1. PLAN_ENTITLEMENTS - Define o que cada plano oferece
     # =========================================================================
-    op.create_table(
+    if not table_exists('plan_entitlements'):
+        op.create_table(
         'plan_entitlements',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('plan_id', sa.Integer(), nullable=False),
@@ -52,15 +60,16 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(['plan_id'], ['plans.id'], ondelete='CASCADE'),
         sa.UniqueConstraint('plan_id', 'entitlement_key', name='uq_plan_entitlement'),
-    )
+        )
 
-    op.create_index('ix_plan_entitlements_plan_id', 'plan_entitlements', ['plan_id'])
-    op.create_index('ix_plan_entitlements_type_key', 'plan_entitlements', ['entitlement_type', 'entitlement_key'])
+        op.create_index('ix_plan_entitlements_plan_id', 'plan_entitlements', ['plan_id'])
+        op.create_index('ix_plan_entitlements_type_key', 'plan_entitlements', ['entitlement_type', 'entitlement_key'])
 
     # =========================================================================
     # 2. SUBSCRIPTION_OVERRIDES - SuperAdmin customizações
     # =========================================================================
-    op.create_table(
+    if not table_exists('subscription_overrides'):
+        op.create_table(
         'subscription_overrides',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('subscription_id', sa.Integer(), nullable=False),
@@ -84,15 +93,16 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['subscription_id'], ['tenant_subscriptions.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['created_by_id'], ['users.id'], ondelete='SET NULL'),
         sa.UniqueConstraint('subscription_id', 'override_key', name='uq_subscription_override'),
-    )
+        )
 
-    op.create_index('ix_subscription_overrides_subscription_id', 'subscription_overrides', ['subscription_id'])
-    op.create_index('ix_subscription_overrides_expires_at', 'subscription_overrides', ['expires_at'])
+        op.create_index('ix_subscription_overrides_subscription_id', 'subscription_overrides', ['subscription_id'])
+        op.create_index('ix_subscription_overrides_expires_at', 'subscription_overrides', ['expires_at'])
 
     # =========================================================================
     # 3. FEATURE_FLAGS - Gestor toggles operacionais
     # =========================================================================
-    op.create_table(
+    if not table_exists('feature_flags'):
+        op.create_table(
         'feature_flags',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('tenant_id', sa.Integer(), nullable=False),
@@ -114,15 +124,16 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['last_changed_by_id'], ['users.id'], ondelete='SET NULL'),
         sa.UniqueConstraint('tenant_id', 'flag_key', name='uq_tenant_feature_flag'),
-    )
+        )
 
-    op.create_index('ix_feature_flags_tenant_id', 'feature_flags', ['tenant_id'])
-    op.create_index('ix_feature_flags_tenant_flag', 'feature_flags', ['tenant_id', 'flag_key'])
+        op.create_index('ix_feature_flags_tenant_id', 'feature_flags', ['tenant_id'])
+        op.create_index('ix_feature_flags_tenant_flag', 'feature_flags', ['tenant_id', 'flag_key'])
 
     # =========================================================================
     # 4. FEATURE_AUDIT_LOGS - Histórico completo
     # =========================================================================
-    op.create_table(
+    if not table_exists('feature_audit_logs'):
+        op.create_table(
         'feature_audit_logs',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('tenant_id', sa.Integer(), nullable=False),
@@ -149,11 +160,11 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['changed_by_id'], ['users.id'], ondelete='SET NULL'),
-    )
+        )
 
-    op.create_index('ix_feature_audit_logs_tenant_id', 'feature_audit_logs', ['tenant_id'])
-    op.create_index('ix_feature_audit_logs_created_at', 'feature_audit_logs', ['created_at'])
-    op.create_index('ix_feature_audit_logs_entity', 'feature_audit_logs', ['entity_type', 'entity_key'])
+        op.create_index('ix_feature_audit_logs_tenant_id', 'feature_audit_logs', ['tenant_id'])
+        op.create_index('ix_feature_audit_logs_created_at', 'feature_audit_logs', ['created_at'])
+        op.create_index('ix_feature_audit_logs_entity', 'feature_audit_logs', ['entity_type', 'entity_key'])
 
 
 def downgrade() -> None:
