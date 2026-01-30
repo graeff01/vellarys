@@ -198,8 +198,11 @@ def opportunity_to_detail_response(opp: Opportunity) -> OpportunityDetailRespons
         
         # Product info
         product_id=opp.product_id,
-        product_name=opp.product.name if opp.product else opp.custom_data.get("product_name"),
-        product_data=opp.custom_data if opp.custom_data else None,
+        product_name=opp.product.name if opp.product else (opp.custom_data.get("product_name") if opp.custom_data else None),
+        product_data=(
+            opp.product.attributes if opp.product else 
+            (opp.custom_data.get("product_data") if opp.custom_data else None)
+        ),
         
         # Opportunity details
         expected_close_date=opp.expected_close_date,

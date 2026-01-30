@@ -34,6 +34,7 @@ interface OpportunityDetails {
   value: number;
   created_at: string;
   updated_at: string;
+  notes?: string;
 
   lead_id: number;
   lead_name: string;
@@ -186,7 +187,7 @@ export function OpportunityModal({ opportunityId, open, onClose, onUpdate }: Opp
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-6xl h-[90vh] p-0 gap-0 overflow-hidden bg-white flex flex-col border-none shadow-2xl rounded-3xl">
+      <DialogContent className="w-[95vw] max-w-6xl h-[85vh] p-0 gap-0 overflow-hidden bg-white flex flex-col border-none shadow-2xl rounded-3xl">
         <VisuallyHidden>
           <DialogTitle>{opportunity.title}</DialogTitle>
           <DialogDescription>Detalhes completos da oportunidade e gestão de status</DialogDescription>
