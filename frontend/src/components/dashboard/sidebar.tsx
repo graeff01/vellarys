@@ -141,7 +141,6 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                 {
                     title: "Ferramentas",
                     items: [
-                        { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot, badge: "Lab", feature: 'simulator_enabled' },
                         { href: '/dashboard/export', label: 'Exportar Dados', icon: FileDown, feature: 'export_enabled' },
                     ]
                 },
@@ -182,7 +181,7 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                 title: "Inteligência",
                 items: [
                     { href: '/dashboard/copilot', label: 'Vellarys Copilot', icon: Sparkles, badge: "AI", feature: 'copilot_enabled' },
-                    // Simulador removido para vendedores - apenas gestores têm acesso
+                    { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot, badge: "Lab", feature: 'simulator_enabled' },
                 ]
             },
             {

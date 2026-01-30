@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Criar Oportunidade de Teste</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #718096;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .info-box {
+            background: #f7fafc;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 25px;
+            border-radius: 5px;
+        }
+
+        .info-box p {
+            color: #4a5568;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 8px;
+        }
+
+        .info-box p:last-child {
+            margin-bottom: 0;
+        }
+
+        .info-box strong {
+            color: #2d3748;
+        }
+
+        button {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .result {
+            margin-top: 25px;
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .result.success {
+            background: #c6f6d5;
+            border: 2px solid #48bb78;
+            color: #22543d;
+            display: block;
+        }
+
+        .result.error {
+            background: #fed7d7;
+            border: 2px solid #f56565;
+            color: #742a2a;
+            display: block;
+        }
+
+        .result h3 {
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .result pre {
+            background: rgba(0, 0, 0, 0.05);
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .loader {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Criar Oportunidade de Teste</h1>
+        <p class="subtitle">Ferramenta para validar o modal de oportunidades</p>
+
+        <div class="info-box">
+            <p><strong>📝 O que será criado:</strong></p>
+            <p>• Lead de teste: João Silva</p>
+            <p>• Imóvel: Casa 3 Quartos em Canoas</p>
+            <p>• Código: 722585</p>
+            <p>• Valor: R$ 450.000,00</p>
+            <p>• Status: Nova oportunidade</p>
+        </div>
+
+        <button id="createBtn" onclick="createTestOpportunity()">
+            Criar Oportunidade de Teste
+        </button>
+
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        const API_URL = 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1';
+
+        async function createTestOpportunity() {
+            const btn = document.getElementById('createBtn');
+            const resultDiv = document.getElementById('result');
+
+            // Get token from localStorage
+            const token = localStorage.getItem('auth_token');
+
+            if (!token) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <h3>❌ Erro de Autenticação</h3>
+                    <p>Token não encontrado. Por favor:</p>
+                    <ol style="margin-left: 20px; margin-top: 10px;">
+                        <li>Faça login no sistema Vellarys</li>
+                        <li>Depois abra este arquivo novamente</li>
+                    </ol>
+                `;
+                return;
+            }
+
+            // Disable button and show loading
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loader"></span>Criando...';
+            resultDiv.style.display = 'none';
+
+            try {
+                const response = await fetch(`${API_URL}/opportunities/test/create-sample`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <h3>✅ Oportunidade criada com sucesso!</h3>
+                        <p><strong>ID:</strong> ${data.id}</p>
+                        <p><strong>Título:</strong> ${data.title}</p>
+                        <p><strong>Valor:</strong> ${formatCurrency(data.value)}</p>
+                        <p><strong>Status:</strong> ${data.status}</p>
+                        <p style="margin-top: 15px;">
+                            <a href="https://vellarys-frontend.up.railway.app/dashboard/opportunities"
+                               style="color: #667eea; font-weight: 600; text-decoration: none;"
+                               target="_blank">
+                                🔗 Abrir página de Oportunidades
+                            </a>
+                        </p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                } else {
+                    throw new Error(data.detail || 'Erro ao criar oportunidade');
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <h3>❌ Erro ao criar oportunidade</h3>
+                    <p>${error.message}</p>
+                    <p style="margin-top: 10px; font-size: 13px;">
+                        Verifique se você está logado como Admin ou Gestor.
+                    </p>
+                `;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Criar Oportunidade de Teste';
+            }
+        }
+
+        function formatCurrency(cents) {
+            const reais = cents / 100;
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+            }).format(reais);
+        }
+    </script>
+</body>
+</html>

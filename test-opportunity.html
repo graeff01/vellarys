@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Criar Oportunidade de Teste - Vellarys</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #444;
+            font-weight: 500;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: 600;
+        }
+        button:hover {
+            background: #4f46e5;
+        }
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 8px;
+            display: none;
+        }
+        .result.success {
+            background: #d1fae5;
+            border: 1px solid #6ee7b7;
+            color: #065f46;
+            display: block;
+        }
+        .result.error {
+            background: #fee2e2;
+            border: 1px solid #fca5a5;
+            color: #991b1b;
+            display: block;
+        }
+        .instructions {
+            background: #e0e7ff;
+            border: 1px solid #a5b4fc;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .instructions h3 {
+            margin-top: 0;
+            color: #3730a3;
+        }
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 8px 0;
+            color: #4338ca;
+        }
+        pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🧪 Criar Oportunidade de Teste</h1>
+        <p class="subtitle">Crie uma oportunidade de amostra para testar o modal de detalhes</p>
+
+        <div class="instructions">
+            <h3>📋 Instruções:</h3>
+            <ol>
+                <li>Cole seu token de autenticação abaixo</li>
+                <li>Clique em "Criar Oportunidade de Teste"</li>
+                <li>Acesse <strong>/dashboard/opportunities</strong> no sistema</li>
+                <li>Clique na oportunidade criada para abrir o modal</li>
+            </ol>
+        </div>
+
+        <div class="input-group">
+            <label for="token">🔑 Token de Autenticação:</label>
+            <input 
+                type="text" 
+                id="token" 
+                placeholder="Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                autocomplete="off"
+            >
+            <small style="color: #64748b; display: block; margin-top: 8px;">
+                Você pode pegar o token no localStorage do navegador: <code>localStorage.getItem('token')</code>
+            </small>
+        </div>
+
+        <button onclick="createOpportunity()">🚀 Criar Oportunidade de Teste</button>
+
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        const API_URL = 'https://hopeful-purpose-production-3a2b.up.railway.app/api/v1';
+
+        async function createOpportunity() {
+            const token = document.getElementById('token').value.trim();
+            const resultDiv = document.getElementById('result');
+            const button = document.querySelector('button');
+
+            if (!token) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = '❌ Por favor, insira o token de autenticação';
+                resultDiv.style.display = 'block';
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = '⏳ Criando...';
+            resultDiv.style.display = 'none';
+
+            try {
+                const response = await fetch(`${API_URL}/opportunities/test/create-sample`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Erro ao criar oportunidade');
+                }
+
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = `
+                    <h3 style="margin-top: 0;">✅ Oportunidade Criada com Sucesso!</h3>
+                    <p><strong>ID:</strong> ${data.id}</p>
+                    <p><strong>Título:</strong> ${data.title}</p>
+                    <p><strong>Status:</strong> ${data.status}</p>
+                    <p><strong>Valor:</strong> R$ ${(data.value / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    <p><strong>Lead:</strong> ${data.lead_name || 'João Silva (TESTE)'}</p>
+                    <hr style="margin: 16px 0; border: none; border-top: 1px solid #6ee7b7;">
+                    <p><strong>📍 Próximo Passo:</strong></p>
+                    <p>Acesse <a href="http://localhost:3000/dashboard/opportunities" target="_blank" style="color: #0369a1; text-decoration: underline;">
+                        /dashboard/opportunities
+                    </a> e clique na oportunidade para abrir o modal!</p>
+                `;
+
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `
+                    <h3 style="margin-top: 0;">❌ Erro ao Criar Oportunidade</h3>
+                    <p>${error.message}</p>
+                    <p style="font-size: 13px; margin-top: 12px;">
+                        <strong>Dica:</strong> Verifique se o token está correto e se você tem permissão.
+                    </p>
+                `;
+            } finally {
+                button.disabled = false;
+                button.textContent = '🚀 Criar Oportunidade de Teste';
+            }
+        }
+
+        // Auto-preencher token do localStorage se disponível
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedToken = localStorage.getItem('token');
+            if (savedToken) {
+                document.getElementById('token').value = savedToken;
+            }
+        });
+    </script>
+</body>
+</html>
