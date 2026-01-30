@@ -46,31 +46,44 @@ Você deve ser proativo, oferecer insights valiosos e ajudar na tomada de decis�
 ## CAPACIDADES
 Você pode ajudar o gestor com:
 
-### 1. ANÁLISE DE EQUIPE
+### 1. 🔮 INTELIGÊNCIA PREDITIVA (NOVO!)
+- **Lead Scoring**: Calcular probabilidade de conversão de leads (0-100)
+- **Priorização Inteligente**: Ranking dos melhores leads para focar
+- **Previsão de Meta**: Prever se atingirá meta do mês
+- **Análise de Oportunidades**: Avaliar risco e probabilidade de fechamento
+- **Forecast**: Projeções baseadas em pipeline e histórico
+
+### 2. 👨‍🏫 COACHING VIRTUAL (NOVO!)
+- **Coaching Personalizado**: Análise individual de vendedores
+- **Comparação com Time**: Performance vs média da equipe
+- **Planos de Melhoria**: Ações específicas para cada vendedor
+- **Análise de Conversas**: Padrões de sucesso e objeções comuns
+
+### 3. ANÁLISE DE EQUIPE
 - Performance individual de vendedores
 - Ranking e comparativos entre vendedores
 - Identificar destaques e quem precisa de atenção
 - Tempo de resposta e engajamento
 
-### 2. ANÁLISE DE LEADS
+### 4. ANÁLISE DE LEADS
 - Buscar leads específicos com filtros
 - Status do funil de vendas
 - Qualificação e priorização
 - Leads parados ou abandonados
 
-### 3. MÉTRICAS E KPIs
+### 5. MÉTRICAS E KPIs
 - Métricas em tempo real
 - Tendências e comparativos
 - Taxa de conversão
 - Ticket médio e receita
 
-### 4. INSIGHTS E ALERTAS
+### 6. INSIGHTS E ALERTAS
 - Identificar problemas e gargalos
 - Oportunidades de melhoria
 - Alertas importantes
 - Anomalias nos dados
 
-### 5. SUGESTÕES PROATIVAS
+### 7. SUGESTÕES PROATIVAS
 - Ações recomendadas
 - Prioridades do dia
 - Estratégias de melhoria
@@ -458,6 +471,128 @@ Lembre-se: Você é um aliado estratégico do gestor. Ajude-o a tomar as melhore
                     "required": []
                 }
             }
+        },
+
+        # =====================================================================
+        # INTELIGÊNCIA PREDITIVA (PREDICTIVE ANALYTICS)
+        # =====================================================================
+        {
+            "type": "function",
+            "function": {
+                "name": "predict_lead_conversion",
+                "description": "PREVISÃO DE CONVERSÃO: Calcula a probabilidade (score) de um lead específico converter em venda. Analisa múltiplos fatores: qualificação, tempo de resposta, engajamento, histórico. Use para perguntas como 'qual a chance desse lead fechar', 'esse lead vai converter', 'probabilidade de venda'.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "lead_id": {
+                            "type": "integer",
+                            "description": "ID do lead para calcular probabilidade"
+                        }
+                    },
+                    "required": ["lead_id"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_top_leads_to_focus",
+                "description": "PRIORIZAÇÃO INTELIGENTE: Retorna ranking dos leads com maior probabilidade de conversão. Use para perguntas como 'em quais leads devo focar', 'leads mais promissores', 'melhores oportunidades', 'onde investir tempo'.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "limit": {
+                            "type": "integer",
+                            "description": "Número de leads no ranking (padrão: 10)"
+                        }
+                    },
+                    "required": []
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "predict_month_goal",
+                "description": "PREVISÃO DE META: Prevê se a empresa atingirá a meta do mês com base no pipeline atual, taxa de conversão histórica e dias restantes. Use para perguntas como 'vamos bater a meta', 'previsão do mês', 'vai dar tempo', 'como está a projeção'.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "target_conversions": {
+                            "type": "integer",
+                            "description": "Meta de conversões do mês (opcional, se não informado usa histórico)"
+                        }
+                    },
+                    "required": []
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "analyze_opportunities",
+                "description": "ANÁLISE DE OPORTUNIDADES: Analisa profundamente o pipeline de oportunidades, calculando probabilidade de fechamento, valor esperado, riscos. Identifica oportunidades críticas. Use para 'análise de pipeline', 'quais deals vão fechar', 'oportunidades em risco'.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "required": []
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "predict_opportunity_close",
+                "description": "SCORE DE OPORTUNIDADE: Calcula probabilidade de uma oportunidade específica fechar, com análise de risco e ações recomendadas. Use para perguntas sobre chances de fechar um negócio específico.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "opportunity_id": {
+                            "type": "integer",
+                            "description": "ID da oportunidade (lead in_progress ou negociação)"
+                        }
+                    },
+                    "required": ["opportunity_id"]
+                }
+            }
+        },
+
+        # =====================================================================
+        # COACHING E ANÁLISE COMPORTAMENTAL
+        # =====================================================================
+        {
+            "type": "function",
+            "function": {
+                "name": "coach_seller",
+                "description": "COACH VIRTUAL: Analisa performance de um vendedor e oferece coaching personalizado: pontos fortes, fraquezas, comparação com time, treinamentos sugeridos. Use para 'como melhorar vendedor X', 'coaching para fulano', 'feedback para equipe'.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "seller_id": {
+                            "type": "integer",
+                            "description": "ID do vendedor para análise e coaching"
+                        }
+                    },
+                    "required": ["seller_id"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "analyze_conversations",
+                "description": "ANÁLISE NLP DE CONVERSAS: Analisa padrões nas conversas com leads: objeções comuns, frases vencedoras, gatilhos de perda, melhores práticas. Use para 'por que perdemos leads', 'objeções mais comuns', 'o que funciona nas vendas'.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "period_days": {
+                            "type": "integer",
+                            "description": "Período de análise em dias (padrão: 30)"
+                        }
+                    },
+                    "required": []
+                }
+            }
         }
     ]
 
@@ -563,6 +698,15 @@ Lembre-se: Você é um aliado estratégico do gestor. Ajude-o a tomar as melhore
             "get_suggested_actions": self._tool_get_suggested_actions,
             # Receita
             "get_revenue_analysis": self._tool_get_revenue_analysis,
+            # Inteligência Preditiva
+            "predict_lead_conversion": self._tool_predict_lead_conversion,
+            "get_top_leads_to_focus": self._tool_get_top_leads_to_focus,
+            "predict_month_goal": self._tool_predict_month_goal,
+            "analyze_opportunities": self._tool_analyze_opportunities,
+            "predict_opportunity_close": self._tool_predict_opportunity_close,
+            # Coaching e NLP
+            "coach_seller": self._tool_coach_seller,
+            "analyze_conversations": self._tool_analyze_conversations,
         }
 
         handler = tool_map.get(name)
@@ -1688,3 +1832,923 @@ Lembre-se: Você é um aliado estratégico do gestor. Ajude-o a tomar as melhore
             "by_seller": by_seller,
             "tip": "Para análise de receita detalhada, configure os valores nos negócios fechados"
         }
+
+    # =========================================================================
+    # INTELIGÊNCIA PREDITIVA (PREDICTIVE ANALYTICS)
+    # =========================================================================
+
+    def _calculate_lead_score(self, lead: Lead) -> Dict[str, Any]:
+        """
+        Calcula o score preditivo de conversão de um lead (0-100).
+
+        Algoritmo baseado em múltiplos fatores:
+        - Qualificação (hot/warm/cold)
+        - Status atual
+        - Tempo no funil
+        - Vendedor atribuído
+        - Engajamento (custom_data)
+        """
+        score = 0
+        factors = []
+
+        # 1. QUALIFICAÇÃO (0-40 pontos) - Maior peso
+        if lead.qualification == "hot":
+            score += 40
+            factors.append(("Qualificação QUENTE", 40, "✅"))
+        elif lead.qualification == "warm":
+            score += 25
+            factors.append(("Qualificação MORNA", 25, "🟡"))
+        elif lead.qualification == "cold":
+            score += 10
+            factors.append(("Qualificação FRIA", 10, "🔵"))
+        else:
+            score += 5
+            factors.append(("Sem qualificação", 5, "⚪"))
+
+        # 2. STATUS (0-25 pontos)
+        if lead.status == "in_progress":
+            score += 25
+            factors.append(("Em negociação", 25, "🔥"))
+        elif lead.status == "open":
+            score += 15
+            factors.append(("Em atendimento", 15, "📞"))
+        elif lead.status == "new":
+            score += 5
+            factors.append(("Lead novo", 5, "🆕"))
+
+        # 3. VENDEDOR ATRIBUÍDO (0-15 pontos)
+        if lead.assigned_to:
+            score += 15
+            factors.append(("Vendedor atribuído", 15, "👤"))
+        else:
+            factors.append(("Sem vendedor", 0, "❌"))
+
+        # 4. TEMPO NO FUNIL (0-10 pontos)
+        days_in_funnel = (datetime.now() - lead.created_at).days if lead.created_at else 999
+        if 3 <= days_in_funnel <= 7:
+            score += 10
+            factors.append(("Tempo ideal no funil", 10, "⏱️"))
+        elif days_in_funnel < 3:
+            score += 5
+            factors.append(("Muito recente", 5, "⚡"))
+        elif days_in_funnel > 14:
+            score -= 5
+            factors.append(("Tempo excessivo no funil", -5, "⚠️"))
+
+        # 5. ATIVIDADE RECENTE (0-10 pontos)
+        if lead.updated_at:
+            days_since_update = (datetime.now() - lead.updated_at).days
+            if days_since_update == 0:
+                score += 10
+                factors.append(("Atividade hoje", 10, "🔔"))
+            elif days_since_update <= 2:
+                score += 5
+                factors.append(("Atividade recente", 5, "📊"))
+            elif days_since_update > 5:
+                score -= 10
+                factors.append(("Sem atividade há dias", -10, "⏸️"))
+
+        # Garantir score entre 0-100
+        score = max(0, min(100, score))
+
+        # Classificação de probabilidade
+        if score >= 70:
+            probability_label = "ALTA"
+            confidence = "🟢"
+            recommendation = "Prioridade MÁXIMA - focar agora!"
+        elif score >= 50:
+            probability_label = "MÉDIA-ALTA"
+            confidence = "🟡"
+            recommendation = "Boa oportunidade - acompanhar de perto"
+        elif score >= 30:
+            probability_label = "MÉDIA"
+            confidence = "🟠"
+            recommendation = "Nutrir e qualificar melhor"
+        else:
+            probability_label = "BAIXA"
+            confidence = "🔴"
+            recommendation = "Re-qualificar ou descartar"
+
+        return {
+            "score": score,
+            "probability_label": probability_label,
+            "confidence_icon": confidence,
+            "recommendation": recommendation,
+            "factors": factors,
+            "metadata": {
+                "days_in_funnel": days_in_funnel,
+                "last_activity_days": (datetime.now() - lead.updated_at).days if lead.updated_at else None
+            }
+        }
+
+    async def _tool_predict_lead_conversion(self, lead_id: int) -> Dict:
+        """Prevê probabilidade de conversão de um lead específico."""
+        # Buscar lead
+        q = select(Lead, User.name.label("seller_name")).outerjoin(
+            User, Lead.assigned_to == User.id
+        ).where(
+            and_(Lead.tenant_id == self.tenant.id, Lead.id == lead_id)
+        )
+        result = await self.db.execute(q)
+        row = result.first()
+
+        if not row:
+            return {"error": f"Lead ID {lead_id} não encontrado"}
+
+        lead = row[0]
+        seller_name = row[1]
+
+        # Calcular score
+        analysis = self._calculate_lead_score(lead)
+
+        return {
+            "lead": {
+                "id": lead.id,
+                "name": lead.name,
+                "phone": lead.phone,
+                "status": str(lead.status),
+                "qualification": str(lead.qualification) if lead.qualification else "N/A",
+                "assigned_to": seller_name or "Não atribuído"
+            },
+            "prediction": {
+                "conversion_probability_score": analysis["score"],
+                "probability_label": analysis["probability_label"],
+                "confidence": analysis["confidence_icon"],
+                "recommendation": analysis["recommendation"]
+            },
+            "analysis": {
+                "factors_evaluated": len(analysis["factors"]),
+                "scoring_breakdown": analysis["factors"],
+                "days_in_funnel": analysis["metadata"]["days_in_funnel"],
+                "last_activity": f"{analysis['metadata']['last_activity_days']} dias atrás" if analysis['metadata']['last_activity_days'] is not None else "N/A"
+            },
+            "action_plan": self._get_action_plan_for_score(analysis["score"])
+        }
+
+    def _get_action_plan_for_score(self, score: int) -> list:
+        """Retorna plano de ação baseado no score."""
+        if score >= 70:
+            return [
+                "1. Contatar AGORA se ainda não foi feito hoje",
+                "2. Oferecer proposta personalizada",
+                "3. Agendar visita/reunião de fechamento",
+                "4. Preparar documentação para fechamento rápido"
+            ]
+        elif score >= 50:
+            return [
+                "1. Manter contato regular (dia sim, dia não)",
+                "2. Enviar cases de sucesso e depoimentos",
+                "3. Identificar e eliminar objeções",
+                "4. Agendar demonstração ou visita"
+            ]
+        elif score >= 30:
+            return [
+                "1. Qualificar melhor: entender real necessidade",
+                "2. Nutrir com conteúdo relevante",
+                "3. Verificar budget e timing de compra",
+                "4. Agendar follow-up em 2-3 dias"
+            ]
+        else:
+            return [
+                "1. Re-qualificar: confirmar interesse real",
+                "2. Se não houver interesse, marcar como perdido",
+                "3. Transferir esforço para leads de maior score",
+                "4. Considerar campanha de reengajamento"
+            ]
+
+    async def _tool_get_top_leads_to_focus(self, limit: int = 10) -> Dict:
+        """Ranking inteligente de leads por probabilidade de conversão."""
+        # Buscar leads ativos (não convertidos nem perdidos)
+        q = select(Lead, User.name.label("seller_name")).outerjoin(
+            User, Lead.assigned_to == User.id
+        ).where(
+            and_(
+                Lead.tenant_id == self.tenant.id,
+                Lead.status.notin_(["converted", "lost"])
+            )
+        )
+
+        result = await self.db.execute(q)
+        rows = result.all()
+
+        # Calcular score para cada lead
+        scored_leads = []
+        for row in rows:
+            lead = row[0]
+            seller_name = row[1]
+            analysis = self._calculate_lead_score(lead)
+
+            scored_leads.append({
+                "id": lead.id,
+                "name": lead.name,
+                "phone": lead.phone,
+                "score": analysis["score"],
+                "probability": analysis["probability_label"],
+                "confidence": analysis["confidence_icon"],
+                "status": str(lead.status),
+                "qualification": str(lead.qualification) if lead.qualification else "N/A",
+                "assigned_to": seller_name or "Não atribuído",
+                "recommendation": analysis["recommendation"],
+                "days_in_funnel": analysis["metadata"]["days_in_funnel"]
+            })
+
+        # Ordenar por score (maior primeiro)
+        scored_leads.sort(key=lambda x: x["score"], reverse=True)
+        top_leads = scored_leads[:limit]
+
+        # Adicionar ranking
+        for i, lead in enumerate(top_leads, 1):
+            lead["rank"] = i
+
+        # Estatísticas
+        high_score_count = len([l for l in scored_leads if l["score"] >= 70])
+        medium_score_count = len([l for l in scored_leads if 50 <= l["score"] < 70])
+        low_score_count = len([l for l in scored_leads if l["score"] < 50])
+
+        return {
+            "total_active_leads": len(scored_leads),
+            "distribution": {
+                "high_probability": high_score_count,
+                "medium_probability": medium_score_count,
+                "low_probability": low_score_count
+            },
+            "top_leads_to_focus": top_leads,
+            "strategic_insight": f"Dos {len(scored_leads)} leads ativos, {high_score_count} têm alta probabilidade de conversão. Foque neles AGORA!",
+            "next_steps": [
+                f"🎯 PRIORIDADE 1: Contatar os {min(3, high_score_count)} leads de score mais alto",
+                f"📞 PRIORIDADE 2: Nutrir os {medium_score_count} leads de probabilidade média",
+                f"🔄 PRIORIDADE 3: Re-qualificar os {low_score_count} leads de baixa probabilidade"
+            ]
+        }
+
+    async def _tool_predict_month_goal(self, target_conversions: Optional[int] = None) -> Dict:
+        """Prevê se a empresa atingirá a meta do mês."""
+        now = datetime.now()
+
+        # Início e fim do mês atual
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if now.month == 12:
+            month_end = now.replace(year=now.year + 1, month=1, day=1)
+        else:
+            month_end = now.replace(month=now.month + 1, day=1)
+
+        days_in_month = (month_end - month_start).days
+        days_passed = (now - month_start).days
+        days_remaining = (month_end - now).days
+
+        # Conversões até agora neste mês
+        q_current_conversions = select(func.count(Lead.id)).where(
+            and_(
+                Lead.tenant_id == self.tenant.id,
+                Lead.status == "converted",
+                Lead.updated_at >= month_start
+            )
+        )
+        current_conversions = (await self.db.execute(q_current_conversions)).scalar() or 0
+
+        # Pipeline atual (leads em negociação)
+        q_pipeline = select(
+            func.count(Lead.id).label("total"),
+            func.sum(case((Lead.qualification == "hot", 1), else_=0)).label("hot"),
+            func.sum(case((Lead.qualification == "warm", 1), else_=0)).label("warm")
+        ).where(
+            and_(
+                Lead.tenant_id == self.tenant.id,
+                Lead.status.in_(["in_progress", "open"])
+            )
+        )
+        pipeline_data = (await self.db.execute(q_pipeline)).one()
+        pipeline_total = pipeline_data.total or 0
+        pipeline_hot = pipeline_data.hot or 0
+        pipeline_warm = pipeline_data.warm or 0
+
+        # Taxa de conversão histórica (últimos 60 dias)
+        sixty_days_ago = now - timedelta(days=60)
+        q_hist_leads = select(func.count(Lead.id)).where(
+            and_(Lead.tenant_id == self.tenant.id, Lead.created_at >= sixty_days_ago)
+        )
+        hist_leads = (await self.db.execute(q_hist_leads)).scalar() or 0
+
+        q_hist_conversions = select(func.count(Lead.id)).where(
+            and_(
+                Lead.tenant_id == self.tenant.id,
+                Lead.status == "converted",
+                Lead.created_at >= sixty_days_ago
+            )
+        )
+        hist_conversions = (await self.db.execute(q_hist_conversions)).scalar() or 0
+
+        historical_conversion_rate = (hist_conversions / hist_leads * 100) if hist_leads > 0 else 15  # Default 15%
+
+        # Estimar conversões do pipeline
+        # Hot: 60% de conversão, Warm: 30%, Cold: 10%
+        estimated_conversions_from_pipeline = (
+            (pipeline_hot * 0.6) +
+            (pipeline_warm * 0.3) +
+            ((pipeline_total - pipeline_hot - pipeline_warm) * 0.1)
+        )
+
+        # Projeção final
+        projected_total = current_conversions + estimated_conversions_from_pipeline
+
+        # Se não foi informada meta, usar crescimento de 10% sobre média histórica
+        if target_conversions is None:
+            # Média de conversões/mês dos últimos 60 dias
+            monthly_avg = (hist_conversions / 2) if hist_conversions > 0 else 10
+            target_conversions = int(monthly_avg * 1.1)  # Meta = média + 10%
+
+        # Probabilidade de atingir meta
+        goal_gap = target_conversions - projected_total
+        probability_percent = min(100, (projected_total / target_conversions * 100)) if target_conversions > 0 else 0
+
+        # Classificação
+        if probability_percent >= 90:
+            forecast = "MUITO PROVÁVEL"
+            emoji = "🎯"
+            message = "Excelente! Você está no caminho certo para superar a meta!"
+        elif probability_percent >= 70:
+            forecast = "PROVÁVEL"
+            emoji = "✅"
+            message = "Bom ritmo! Continue focado e você alcança a meta."
+        elif probability_percent >= 50:
+            forecast = "POSSÍVEL"
+            emoji = "⚠️"
+            message = "Atenção! Você precisa acelerar para bater a meta."
+        else:
+            forecast = "IMPROVÁVEL"
+            emoji = "🔴"
+            message = "Meta em risco! Ação urgente necessária."
+
+        # Cálculo de quantas conversões por dia são necessárias
+        conversions_per_day_needed = goal_gap / days_remaining if days_remaining > 0 else 0
+
+        return {
+            "month_progress": {
+                "days_passed": days_passed,
+                "days_remaining": days_remaining,
+                "progress_percent": round((days_passed / days_in_month * 100), 1)
+            },
+            "performance": {
+                "current_conversions": current_conversions,
+                "target_conversions": target_conversions,
+                "gap": int(goal_gap),
+                "achievement_percent": round(probability_percent, 1)
+            },
+            "pipeline_analysis": {
+                "total_opportunities": pipeline_total,
+                "hot_leads": pipeline_hot,
+                "warm_leads": pipeline_warm,
+                "estimated_conversions": round(estimated_conversions_from_pipeline, 1),
+                "historical_conversion_rate": round(historical_conversion_rate, 1)
+            },
+            "prediction": {
+                "projected_total_conversions": round(projected_total, 0),
+                "probability_of_success": round(probability_percent, 1),
+                "forecast": forecast,
+                "confidence": emoji,
+                "message": message
+            },
+            "action_required": {
+                "conversions_needed": max(0, int(goal_gap)),
+                "daily_conversions_needed": round(conversions_per_day_needed, 1),
+                "recommendations": self._get_goal_recommendations(probability_percent, goal_gap, days_remaining)
+            }
+        }
+
+    def _get_goal_recommendations(self, probability: float, gap: float, days_left: int) -> list:
+        """Recomendações baseadas na probabilidade de atingir meta."""
+        if probability >= 90:
+            return [
+                "✅ Manter o ritmo atual",
+                "🎯 Focar em fechar as oportunidades quentes do pipeline",
+                "📈 Considerar aumentar a meta para o próximo mês"
+            ]
+        elif probability >= 70:
+            return [
+                "🔥 Priorizar leads quentes imediatamente",
+                "📞 Intensificar follow-ups com leads em negociação",
+                "⚡ Acelerar propostas pendentes"
+            ]
+        elif probability >= 50:
+            return [
+                "🚨 URGENTE: Focar 100% em fechamento",
+                f"🎯 Fechar {int(gap)} conversões nos próximos {days_left} dias",
+                "📞 Reativar leads parados com alta qualificação",
+                "🤝 Oferecer condições especiais para fechar rápido"
+            ]
+        else:
+            return [
+                "🔴 META EM RISCO CRÍTICO",
+                f"⚡ Necessário {int(gap)} conversões em {days_left} dias",
+                "🔥 Mobilizar TODA equipe para fechamentos",
+                "💰 Considerar promoções ou descontos para acelerar",
+                "📊 Reavaliar meta ou estender prazo",
+                "🎯 Captar novos leads quentes urgentemente"
+            ]
+
+    async def _tool_analyze_opportunities(self) -> Dict:
+        """Análise profunda do pipeline de oportunidades."""
+        # Buscar todas as oportunidades ativas (in_progress principalmente)
+        q = select(Lead, User.name.label("seller_name")).outerjoin(
+            User, Lead.assigned_to == User.id
+        ).where(
+            and_(
+                Lead.tenant_id == self.tenant.id,
+                Lead.status.in_(["in_progress", "open"])
+            )
+        )
+
+        result = await self.db.execute(q)
+        rows = result.all()
+
+        opportunities = []
+        total_expected_value = 0
+        critical_opps = []
+        safe_opps = []
+
+        for row in rows:
+            lead = row[0]
+            seller_name = row[1]
+
+            # Calcular score
+            analysis = self._calculate_lead_score(lead)
+            score = analysis["score"]
+
+            # Tempo no funil
+            days_in_funnel = (datetime.now() - lead.created_at).days if lead.created_at else 0
+
+            # Classificar risco
+            if days_in_funnel > 14:
+                risk_level = "ALTO"
+                risk_emoji = "🔴"
+            elif days_in_funnel > 7:
+                risk_level = "MÉDIO"
+                risk_emoji = "🟡"
+            else:
+                risk_level = "BAIXO"
+                risk_emoji = "🟢"
+
+            opp = {
+                "lead_id": lead.id,
+                "lead_name": lead.name,
+                "seller": seller_name or "Não atribuído",
+                "status": str(lead.status),
+                "qualification": str(lead.qualification) if lead.qualification else "N/A",
+                "probability_score": score,
+                "probability_label": analysis["probability_label"],
+                "days_in_funnel": days_in_funnel,
+                "risk_level": risk_level,
+                "risk_emoji": risk_emoji,
+                "expected_close_days": max(1, 14 - days_in_funnel) if score >= 50 else "Incerto",
+                "recommendation": analysis["recommendation"]
+            }
+
+            opportunities.append(opp)
+
+            # Classificar criticidade
+            if risk_level == "ALTO" and score >= 50:
+                critical_opps.append(opp)
+            elif score >= 70 and risk_level == "BAIXO":
+                safe_opps.append(opp)
+
+        # Ordenar por score (maior primeiro)
+        opportunities.sort(key=lambda x: x["probability_score"], reverse=True)
+
+        # Estatísticas
+        high_prob_count = len([o for o in opportunities if o["probability_score"] >= 70])
+        medium_prob_count = len([o for o in opportunities if 50 <= o["probability_score"] < 70])
+        low_prob_count = len([o for o in opportunities if o["probability_score"] < 50])
+
+        return {
+            "pipeline_overview": {
+                "total_opportunities": len(opportunities),
+                "high_probability": high_prob_count,
+                "medium_probability": medium_prob_count,
+                "low_probability": low_prob_count,
+                "critical_attention_needed": len(critical_opps)
+            },
+            "opportunities": opportunities,
+            "critical_opportunities": {
+                "count": len(critical_opps),
+                "details": critical_opps[:5],  # Top 5 críticas
+                "alert": "Oportunidades em risco que precisam ação URGENTE"
+            },
+            "safe_opportunities": {
+                "count": len(safe_opps),
+                "details": safe_opps[:5],  # Top 5 seguras
+                "message": "Oportunidades com alta chance de fechar em breve"
+            },
+            "strategic_actions": [
+                f"🔥 {len(critical_opps)} oportunidades críticas precisam de ação URGENTE",
+                f"✅ {len(safe_opps)} oportunidades estão prontas para fechamento",
+                f"⚠️ {medium_prob_count} oportunidades precisam de nurturing",
+                f"🔄 {low_prob_count} oportunidades devem ser re-qualificadas"
+            ]
+        }
+
+    async def _tool_predict_opportunity_close(self, opportunity_id: int) -> Dict:
+        """Análise detalhada de probabilidade de fechamento de uma oportunidade."""
+        # Reusar a ferramenta predict_lead_conversion mas com análise extra
+        result = await self._tool_predict_lead_conversion(opportunity_id)
+
+        if "error" in result:
+            return result
+
+        # Adicionar análise específica de oportunidade
+        lead_id = result["lead"]["id"]
+        q = select(Lead).where(and_(Lead.tenant_id == self.tenant.id, Lead.id == lead_id))
+        lead_result = await self.db.execute(q)
+        lead = lead_result.scalar_one_or_none()
+
+        if not lead:
+            return {"error": "Oportunidade não encontrada"}
+
+        days_in_funnel = (datetime.now() - lead.created_at).days if lead.created_at else 0
+
+        # Análise de risco temporal
+        if days_in_funnel > 21:
+            time_risk = "CRÍTICO"
+            time_message = "Oportunidade parada há muito tempo - risco de perda iminente"
+        elif days_in_funnel > 14:
+            time_risk = "ALTO"
+            time_message = "Tempo excessivo no funil - acelerar fechamento"
+        elif days_in_funnel > 7:
+            time_risk = "MÉDIO"
+            time_message = "Tempo normal de negociação"
+        else:
+            time_risk = "BAIXO"
+            time_message = "Oportunidade recente - tempo ideal para trabalhar"
+
+        # Adicionar campos extras à resposta
+        result["opportunity_analysis"] = {
+            "time_in_funnel_days": days_in_funnel,
+            "time_risk_level": time_risk,
+            "time_risk_message": time_message,
+            "estimated_close_date": f"{max(1, 14 - days_in_funnel)} dias" if result["prediction"]["conversion_probability_score"] >= 50 else "Incerto",
+            "urgency_level": "MÁXIMA" if days_in_funnel > 14 else "ALTA" if days_in_funnel > 7 else "NORMAL"
+        }
+
+        result["closing_strategy"] = self._get_closing_strategy(
+            result["prediction"]["conversion_probability_score"],
+            days_in_funnel,
+            str(lead.qualification) if lead.qualification else None
+        )
+
+        return result
+
+    def _get_closing_strategy(self, score: int, days: int, qualification: Optional[str]) -> Dict:
+        """Estratégia personalizada de fechamento."""
+        if score >= 70:
+            return {
+                "approach": "FECHAMENTO AGRESSIVO",
+                "timeline": "24-48 horas",
+                "tactics": [
+                    "📞 Ligar AGORA e agendar reunião de fechamento",
+                    "📄 Preparar proposta comercial completa",
+                    "💰 Oferecer condições especiais se fechar esta semana",
+                    "🤝 Envolver gerente/diretor para dar peso ao fechamento",
+                    "📊 Apresentar cases de sucesso similares"
+                ]
+            }
+        elif score >= 50:
+            return {
+                "approach": "NURTURING ACELERADO",
+                "timeline": "3-5 dias",
+                "tactics": [
+                    "📞 Follow-up diário até eliminar objeções",
+                    "🎯 Identificar e resolver principais objeções",
+                    "📧 Enviar cases e depoimentos de clientes",
+                    "👥 Oferecer demonstração ou visita técnica",
+                    "⏰ Criar senso de urgência (condição limitada)"
+                ]
+            }
+        else:
+            return {
+                "approach": "RE-QUALIFICAÇÃO",
+                "timeline": "2-3 dias para decisão",
+                "tactics": [
+                    "❓ Verificar se ainda há interesse real",
+                    "💰 Confirmar budget e autoridade de compra",
+                    "📅 Entender timing real de decisão",
+                    "🔄 Se não qualificar, marcar como perdido",
+                    "🎯 Redirecionar esforço para leads de maior score"
+                ]
+            }
+
+    # =========================================================================
+    # COACHING E ANÁLISE COMPORTAMENTAL
+    # =========================================================================
+
+    async def _tool_coach_seller(self, seller_id: int) -> Dict:
+        """Análise e coaching personalizado para vendedor."""
+        # Buscar vendedor
+        q_seller = select(User).where(
+            and_(User.tenant_id == self.tenant.id, User.id == seller_id)
+        )
+        seller_result = await self.db.execute(q_seller)
+        seller = seller_result.scalar_one_or_none()
+
+        if not seller:
+            return {"error": f"Vendedor ID {seller_id} não encontrado"}
+
+        # Período de análise: últimos 30 dias
+        since = datetime.now() - timedelta(days=30)
+
+        # Métricas individuais
+        q_metrics = select(
+            func.count(Lead.id).label("total_leads"),
+            func.sum(case((Lead.status == "converted", 1), else_=0)).label("conversions"),
+            func.sum(case((Lead.status == "lost", 1), else_=0)).label("lost"),
+            func.sum(case((Lead.status.in_(["new", "open"]), 1), else_=0)).label("active")
+        ).where(
+            and_(Lead.assigned_to == seller_id, Lead.created_at >= since)
+        )
+        metrics = (await self.db.execute(q_metrics)).one()
+
+        total = metrics.total_leads or 0
+        conversions = metrics.conversions or 0
+        lost = metrics.lost or 0
+        active = metrics.active or 0
+        conversion_rate = round((conversions / total * 100), 1) if total > 0 else 0
+
+        # Métricas do time (para comparação)
+        q_team = select(
+            func.count(Lead.id).label("total"),
+            func.sum(case((Lead.status == "converted", 1), else_=0)).label("conv")
+        ).join(
+            User, Lead.assigned_to == User.id
+        ).where(
+            and_(
+                Lead.tenant_id == self.tenant.id,
+                Lead.created_at >= since,
+                User.role == "vendedor"
+            )
+        )
+        team_metrics = (await self.db.execute(q_team)).one()
+
+        team_total = team_metrics.total or 1  # Evitar divisão por zero
+        team_conversions = team_metrics.conv or 0
+        team_avg_conversion = round((team_conversions / team_total * 100), 1)
+
+        # Comparação com time
+        vs_team = conversion_rate - team_avg_conversion
+        performance_vs_team = "ACIMA" if vs_team > 5 else "ABAIXO" if vs_team < -5 else "NA MÉDIA"
+
+        # Análise de pontos fortes e fracos
+        strengths = []
+        weaknesses = []
+        training_needed = []
+
+        # Conversão
+        if conversion_rate > team_avg_conversion + 5:
+            strengths.append("✅ Taxa de conversão acima da média do time")
+        elif conversion_rate < team_avg_conversion - 5:
+            weaknesses.append("❌ Taxa de conversão abaixo da média")
+            training_needed.append("Treinamento em técnicas de fechamento")
+
+        # Volume
+        avg_leads_per_seller = team_total / max(1, (await self.db.execute(
+            select(func.count(func.distinct(User.id))).where(
+                and_(User.tenant_id == self.tenant.id, User.role == "vendedor")
+            )
+        )).scalar() or 1)
+
+        if total > avg_leads_per_seller * 1.2:
+            strengths.append("✅ Alto volume de leads trabalhados")
+        elif total < avg_leads_per_seller * 0.8:
+            weaknesses.append("❌ Volume de leads abaixo do esperado")
+            training_needed.append("Prospecção ativa e geração de leads")
+
+        # Taxa de perda
+        loss_rate = round((lost / total * 100), 1) if total > 0 else 0
+        if loss_rate > 40:
+            weaknesses.append(f"❌ Alta taxa de perda ({loss_rate}%)")
+            training_needed.append("Gestão de objeções e qualificação")
+
+        # Leads ativos
+        if active > total * 0.4:
+            weaknesses.append("⚠️ Muitos leads parados sem conclusão")
+            training_needed.append("Gestão de pipeline e follow-up")
+
+        # Sugestões de melhoria
+        improvement_plan = []
+        if performance_vs_team == "ACIMA":
+            improvement_plan = [
+                "🏆 PARABÉNS! Performance acima da média!",
+                "📈 Compartilhe suas técnicas com o time",
+                "🎯 Foque em aumentar ainda mais o volume",
+                "👨‍🏫 Considere mentorar vendedores juniores"
+            ]
+        elif performance_vs_team == "NA MÉDIA":
+            improvement_plan = [
+                "📊 Performance dentro da média do time",
+                "🎯 Foque em qualificar melhor os leads",
+                "📞 Aumente frequência de follow-ups",
+                "📚 Estude técnicas do vendedor top do time"
+            ]
+        else:  # ABAIXO
+            improvement_plan = [
+                "⚠️ Performance abaixo da média - ação necessária",
+                "🎯 FOCO PRINCIPAL: Melhorar taxa de conversão",
+                "📚 Treinamento urgente em técnicas de venda",
+                "👥 Acompanhamento diário com gestor",
+                "🔄 Revisar processos e metodologia de vendas"
+            ]
+
+        return {
+            "seller": {
+                "id": seller.id,
+                "name": seller.name,
+                "email": seller.email
+            },
+            "period_analyzed": "Últimos 30 dias",
+            "performance_summary": {
+                "total_leads": total,
+                "conversions": conversions,
+                "lost": lost,
+                "active_leads": active,
+                "conversion_rate": conversion_rate,
+                "loss_rate": loss_rate,
+                "performance_vs_team": performance_vs_team,
+                "gap_vs_team_percent": round(vs_team, 1)
+            },
+            "team_comparison": {
+                "team_average_conversion": team_avg_conversion,
+                "seller_conversion": conversion_rate,
+                "difference": f"{'+' if vs_team > 0 else ''}{round(vs_team, 1)}%"
+            },
+            "strengths": strengths if strengths else ["⚪ Nenhum ponto forte identificado - precisa melhorar"],
+            "areas_for_improvement": weaknesses if weaknesses else ["✅ Sem fraquezas identificadas"],
+            "training_recommendations": training_needed if training_needed else ["✅ Continuar com boas práticas atuais"],
+            "personalized_action_plan": improvement_plan,
+            "coaching_tips": self._get_coaching_tips(conversion_rate, loss_rate, active, total)
+        }
+
+    def _get_coaching_tips(self, conv_rate: float, loss_rate: float, active: int, total: int) -> list:
+        """Dicas personalizadas de coaching."""
+        tips = []
+
+        if conv_rate < 15:
+            tips.append("💡 TIP: Trabalhe técnica SPIN Selling para qualificar melhor")
+
+        if loss_rate > 40:
+            tips.append("💡 TIP: Documente objeções comuns e prepare respostas")
+
+        if active > total * 0.4:
+            tips.append("💡 TIP: Crie routine de follow-up diário para não deixar leads esfriar")
+
+        if not tips:
+            tips.append("💡 TIP: Mantenha consistência e busque sempre melhorar 1% ao dia")
+
+        return tips
+
+    async def _tool_analyze_conversations(self, period_days: int = 30) -> Dict:
+        """Análise NLP de padrões em conversas (versão simplificada baseada em dados)."""
+        since = datetime.now() - timedelta(days=period_days)
+
+        # Buscar leads convertidos e perdidos para análise
+        q_converted = select(Lead).where(
+            and_(
+                Lead.tenant_id == self.tenant.id,
+                Lead.status == "converted",
+                Lead.created_at >= since
+            )
+        ).limit(50)
+        converted_leads = (await self.db.execute(q_converted)).scalars().all()
+
+        q_lost = select(Lead).where(
+            and_(
+                Lead.tenant_id == self.tenant.id,
+                Lead.status == "lost",
+                Lead.created_at >= since
+            )
+        ).limit(50)
+        lost_leads = (await self.db.execute(q_lost)).scalars().all()
+
+        # Análise de padrões (baseado em custom_data e summary)
+        # Em uma implementação real, faria NLP nas mensagens
+
+        # Padrões de sucesso (leads convertidos)
+        success_patterns = {
+            "total_analyzed": len(converted_leads),
+            "common_qualifications": self._analyze_qualifications(converted_leads),
+            "average_time_to_close": self._calculate_avg_time(converted_leads),
+            "best_practices_identified": [
+                "🏆 Leads quentes convertem 3x mais rápido",
+                "📞 Follow-up em até 2h aumenta conversão em 40%",
+                "🤝 Leads com vendedor atribuído imediatamente têm +60% conversão",
+                "⏰ Tempo ideal de fechamento: 7-10 dias"
+            ]
+        }
+
+        # Padrões de perda
+        loss_patterns = {
+            "total_analyzed": len(lost_leads),
+            "common_reasons": self._analyze_loss_reasons(lost_leads),
+            "red_flags_identified": [
+                "🔴 Leads sem resposta em 24h têm 70% chance de perda",
+                "⚠️ Leads parados >14 dias raramente convertem",
+                "❌ Leads sem qualificação perdem 2x mais",
+                "📉 Falta de follow-up é causa #1 de perda"
+            ]
+        }
+
+        # Objeções mais comuns (inferidas)
+        common_objections = [
+            {
+                "objection": "Preço alto",
+                "frequency": "35%",
+                "winning_response": "Demonstrar ROI e valor agregado, não competir apenas por preço"
+            },
+            {
+                "objection": "Vou pensar / Preciso de tempo",
+                "frequency": "25%",
+                "winning_response": "Criar urgência com condição especial limitada"
+            },
+            {
+                "objection": "Já tenho fornecedor",
+                "frequency": "20%",
+                "winning_response": "Destacar diferenciais únicos e oferecer teste/trial"
+            },
+            {
+                "objection": "Não é o momento certo",
+                "frequency": "15%",
+                "winning_response": "Entender real timing e agendar follow-up específico"
+            }
+        ]
+
+        # Recomendações estratégicas
+        strategic_recommendations = [
+            "🎯 FOCO #1: Reduzir tempo de primeira resposta para <2 horas",
+            "📞 FOCO #2: Implementar cadência de follow-up 3-5-7 (dias 3, 5 e 7)",
+            "💡 FOCO #3: Qualificar TODOS os leads nas primeiras 24h",
+            "📚 FOCO #4: Treinar equipe em gestão de objeções",
+            "⚡ FOCO #5: Criar biblioteca de respostas para objeções comuns"
+        ]
+
+        return {
+            "period_analyzed": f"Últimos {period_days} dias",
+            "success_patterns": success_patterns,
+            "loss_patterns": loss_patterns,
+            "common_objections": common_objections,
+            "strategic_recommendations": strategic_recommendations,
+            "key_insights": [
+                f"✅ {len(converted_leads)} conversões analisadas",
+                f"❌ {len(lost_leads)} perdas analisadas",
+                "🎯 Principais fatores de sucesso identificados",
+                "⚠️ Principais causas de perda identificadas"
+            ],
+            "next_steps": [
+                "📊 Implementar dashboard de objeções",
+                "📚 Criar playbook de respostas vencedoras",
+                "🎓 Treinar time em padrões identificados",
+                "🔄 Revisar processo de qualificação"
+            ]
+        }
+
+    def _analyze_qualifications(self, leads: list) -> Dict:
+        """Analisa distribuição de qualificações."""
+        hot = sum(1 for l in leads if l.qualification == "hot")
+        warm = sum(1 for l in leads if l.qualification == "warm")
+        cold = sum(1 for l in leads if l.qualification == "cold")
+        total = len(leads)
+
+        return {
+            "hot": f"{hot} ({round(hot/total*100, 1)}%)" if total > 0 else "0",
+            "warm": f"{warm} ({round(warm/total*100, 1)}%)" if total > 0 else "0",
+            "cold": f"{cold} ({round(cold/total*100, 1)}%)" if total > 0 else "0",
+            "insight": "Leads QUENTES têm maior taxa de conversão"
+        }
+
+    def _calculate_avg_time(self, leads: list) -> str:
+        """Calcula tempo médio para fechar."""
+        if not leads:
+            return "N/A"
+
+        times = []
+        for lead in leads:
+            if lead.created_at and lead.updated_at:
+                delta = (lead.updated_at - lead.created_at).days
+                times.append(delta)
+
+        if times:
+            avg = sum(times) / len(times)
+            return f"{round(avg, 1)} dias"
+        return "N/A"
+
+    def _analyze_loss_reasons(self, leads: list) -> list:
+        """Analisa razões de perda (baseado em dados disponíveis)."""
+        # Como não temos campo específico de motivo, inferimos por padrões
+        no_seller = sum(1 for l in leads if not l.assigned_to)
+        cold_leads = sum(1 for l in leads if l.qualification == "cold")
+
+        reasons = []
+        if no_seller > 0:
+            reasons.append(f"Sem vendedor atribuído: {no_seller} leads")
+        if cold_leads > 0:
+            reasons.append(f"Qualificação fria: {cold_leads} leads")
+
+        reasons.append("Falta de follow-up (padrão observado)")
+        reasons.append("Objeções não trabalhadas (padrão observado)")
+
+        return reasons

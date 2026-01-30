@@ -200,22 +200,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         onLogout={handleLogout}
       />
 
-      {/* CORRIGIDO: Header - Oculto no inbox */}
+      {/* CORRIGIDO: Header - Oculto no inbox - Mobile Optimized */}
       {!isInboxPage && (
-        <div className="lg:ml-72 bg-white/80 backdrop-blur-md border-b px-4 lg:px-8 py-4 flex justify-between items-center sticky top-0 z-30">
+        <div className="lg:ml-72 bg-white/80 backdrop-blur-md border-b px-3 sm:px-4 lg:px-8 py-3 lg:py-4 flex justify-between items-center sticky top-0 z-30">
           {/* Botão hamburguer - só mobile */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden p-2 hover:bg-slate-100 rounded-lg mr-4 transition-colors"
+            className="lg:hidden p-2 hover:bg-slate-100 rounded-lg transition-colors -ml-2"
+            aria-label="Abrir menu"
           >
-            <Menu className="w-6 h-6 text-slate-600" />
+            <Menu className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600" />
           </button>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {isSuperAdmin && (
-              <span className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-bold flex items-center gap-2 border border-indigo-100">
-                <Shield className="w-3 h-3" />
-                MODO ADMIN MASTER
+              <span className="text-[10px] sm:text-xs bg-indigo-50 text-indigo-600 px-2 sm:px-3 py-1 rounded-full font-bold flex items-center gap-1 sm:gap-2 border border-indigo-100">
+                <Shield className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                <span className="hidden sm:inline">MODO ADMIN MASTER</span>
+                <span className="sm:hidden">ADMIN</span>
               </span>
             )}
           </div>
@@ -225,10 +227,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       )}
 
-      {/* CORRIGIDO: Conteúdo principal - ajustado para w-72 da sidebar */}
+      {/* CORRIGIDO: Conteúdo principal - Mobile Optimized */}
       <main className={cn(
         "lg:ml-72 relative z-10 transition-all duration-300",
-        isInboxPage ? "h-screen" : "p-4 lg:p-8"
+        isInboxPage ? "h-screen" : "p-3 sm:p-4 lg:p-8"
       )}>
         {children}
       </main>

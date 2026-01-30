@@ -61,8 +61,8 @@ export const viewport: Viewport = {
   themeColor: '#2563eb',
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5, // Permite zoom até 5x para acessibilidade
+  userScalable: true, // Permite zoom manual
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

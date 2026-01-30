@@ -97,33 +97,45 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
       setLoadingData(true);
       const token = getToken();
 
-      const [leadsRes, sellersRes, productsRes] = await Promise.all([
+      // Carregar leads e sellers (obrigatórios)
+      const [leadsRes, sellersRes] = await Promise.all([
         fetch(`${API_URL}/v1/leads?limit=100`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
         fetch(`${API_URL}/v1/sellers`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch(`${API_URL}/v1/products?limit=200`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
       ]);
 
-      if (leadsRes.ok && sellersRes.ok && productsRes.ok) {
-        const leadsData = await leadsRes.json();
-        const sellersData = await sellersRes.json();
-        const productsData = await productsRes.json();
-
-        setLeads(leadsData.items || []);
-        setSellers(sellersData.sellers || []);
-        setProducts(productsData || []);
+      if (!leadsRes.ok || !sellersRes.ok) {
+        throw new Error('Erro ao carregar dados essenciais');
       }
+
+      const leadsData = await leadsRes.json();
+      const sellersData = await sellersRes.json();
+
+      setLeads(leadsData.items || []);
+      setSellers(sellersData.sellers || []);
+
+      // Carregar produtos em background (opcional)
+      try {
+        const productsRes = await fetch(`${API_URL}/v1/products?limit=200`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (productsRes.ok) {
+          const productsData = await productsRes.json();
+          setProducts(productsData.items || productsData || []);
+        }
+      } catch (err) {
+        console.warn('Produtos não disponíveis:', err);
+      }
+
     } catch (error) {
       console.error('Erro carregando dados:', error);
       toast({
         variant: 'destructive',
         title: 'Erro ao carregar dados',
-        description: 'Não foi possível carregar leads, vendedores e produtos'
+        description: 'Não foi possível carregar leads e vendedores'
       });
     } finally {
       setLoadingData(false);
@@ -196,18 +208,31 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
+    console.log('🔍 [SUBMIT] Form Data completo:', formData);
+    console.log('🔍 [SUBMIT] Lead ID:', formData.lead_id, 'Tipo:', typeof formData.lead_id);
+    console.log('🔍 [SUBMIT] Title:', formData.title, 'Length:', formData.title.length);
+
     const errors = [];
-    if (!formData.lead_id) errors.push('Lead');
-    if (!formData.title.trim()) errors.push('Título');
+    if (!formData.lead_id || formData.lead_id === '' || formData.lead_id === '0') {
+      errors.push('Lead');
+      console.log('❌ Lead vazio ou inválido');
+    }
+    if (!formData.title || formData.title.trim() === '') {
+      errors.push('Título');
+      console.log('❌ Título vazio ou inválido');
+    }
 
     if (errors.length > 0) {
+      console.log('❌ Validação falhou. Erros:', errors);
       toast({
         variant: 'destructive',
-        title: 'Campos obrigatórios',
-        description: `Preencha: ${errors.join(', ')}`
+        title: 'Campos obrigatórios faltando',
+        description: `Por favor, preencha: ${errors.join(', ')}`
       });
       return;
     }
+
+    console.log('✅ Validação passou! Enviando...');
 
     try {
       setLoading(true);
@@ -261,8 +286,8 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden border-none shadow-2xl rounded-3xl">
-        <DialogHeader className="px-8 py-6 bg-white border-b border-gray-100 flex flex-row items-center justify-between space-y-0 text-left">
+      <DialogContent className="max-w-2xl p-0 overflow-hidden border-none shadow-2xl rounded-3xl sm:max-h-[90vh] max-h-screen sm:rounded-3xl rounded-none w-full">
+        <DialogHeader className="px-4 sm:px-8 py-4 sm:py-6 bg-white border-b border-gray-100 flex flex-row items-center justify-between space-y-0 text-left">
           <div className="flex-1">
             <DialogTitle className="text-xl font-black text-gray-900 flex items-center gap-2">
               <Plus className="w-5 h-5 text-blue-600" />
@@ -328,7 +353,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-8 space-y-6 bg-white">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-8 space-y-4 sm:space-y-6 bg-white overflow-y-auto max-h-[calc(100vh-200px)] sm:max-h-none">
             <div className="grid grid-cols-1 gap-6">
 
               {/* Lead & Título */}

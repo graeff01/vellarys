@@ -98,19 +98,20 @@ export default function OpportunitiesPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-3 sm:p-6 max-w-7xl mx-auto">
+      {/* Header - Mobile Optimized */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-4 sm:mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-            <TrendingUp className="w-8 h-8" />
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
+            <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8" />
             Oportunidades
           </h1>
-          <p className="text-gray-500 mt-1">Gerencie suas oportunidades de negócio</p>
+          <p className="text-sm sm:text-base text-gray-500 mt-1">Gerencie suas oportunidades de negócio</p>
         </div>
-        <Button onClick={() => setCreateModalOpen(true)} className="gap-2">
+        <Button onClick={() => setCreateModalOpen(true)} className="gap-2 w-full sm:w-auto">
           <Plus className="w-4 h-4" />
-          Nova Oportunidade
+          <span className="hidden sm:inline">Nova Oportunidade</span>
+          <span className="sm:hidden">Criar</span>
         </Button>
       </div>
 
@@ -169,8 +170,8 @@ export default function OpportunitiesPage() {
         </div>
       )}
 
-      {/* Filtros */}
-      <div className="flex gap-4 mb-6">
+      {/* Filtros - Mobile Optimized */}
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
@@ -181,11 +182,13 @@ export default function OpportunitiesPage() {
           />
         </div>
 
-        <div className="flex gap-2">
+        {/* Mobile: Scroll horizontal | Desktop: Normal flex */}
+        <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
           <Button
             variant={statusFilter === 'all' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setStatusFilter('all')}
+            className="whitespace-nowrap"
           >
             Todas
           </Button>
@@ -193,6 +196,7 @@ export default function OpportunitiesPage() {
             variant={statusFilter === 'novo' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setStatusFilter('novo')}
+            className="whitespace-nowrap"
           >
             Novas
           </Button>
@@ -200,25 +204,46 @@ export default function OpportunitiesPage() {
             variant={statusFilter === 'negociacao' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setStatusFilter('negociacao')}
+            className="whitespace-nowrap hidden sm:flex"
           >
             Em Negociação
+          </Button>
+          <Button
+            variant={statusFilter === 'negociacao' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setStatusFilter('negociacao')}
+            className="whitespace-nowrap sm:hidden"
+          >
+            Negociação
           </Button>
           <Button
             variant={statusFilter === 'proposta' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setStatusFilter('proposta')}
+            className="whitespace-nowrap"
           >
-            Proposta Enviada
+            Proposta
           </Button>
           <Button
             variant={statusFilter === 'ganho' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setStatusFilter('ganho')}
+            className="whitespace-nowrap"
           >
             Fechadas
           </Button>
         </div>
       </div>
+
+      <style jsx global>{`
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
 
       {/* Grid de Oportunidades */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
