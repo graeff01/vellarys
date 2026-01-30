@@ -1,16 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Building2, User, Phone, Mail, MapPin, DollarSign,
   Calendar, TrendingUp, CheckCircle2, XCircle, Clock,
-  Loader2, Home, Bed, Bath, Tag, Sparkles, X
+  Loader2, Home, Bed, Bath, Tag, Sparkles, X, Car, Maximize2
 } from 'lucide-react';
 import { getToken } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/v1$/, '');
 
@@ -29,19 +30,16 @@ interface OpportunityDetails {
   created_at: string;
   updated_at: string;
 
-  // Lead
   lead_id: number;
   lead_name: string;
   lead_phone?: string;
   lead_email?: string;
   lead_status?: string;
 
-  // Seller
   seller_id?: number;
   seller_name?: string;
   seller_phone?: string;
 
-  // Product/Imóvel
   product_id?: number;
   product_name?: string;
   product_data?: {
@@ -77,14 +75,10 @@ export function OpportunityModal({ opportunityId, open, onClose, onUpdate }: Opp
       setLoading(true);
       const token = getToken();
       const response = await fetch(`${API_URL}/v1/opportunities/${opportunityId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
-      if (!response.ok) {
-        throw new Error('Erro ao carregar oportunidade');
-      }
+      if (!response.ok) throw new Error('Erro ao carregar oportunidade');
 
       const data = await response.json();
       setOpportunity(data);
@@ -116,9 +110,7 @@ export function OpportunityModal({ opportunityId, open, onClose, onUpdate }: Opp
         body: JSON.stringify({ status: newStatus }),
       });
 
-      if (!response.ok) {
-        throw new Error('Erro ao atualizar status');
-      }
+      if (!response.ok) throw new Error('Erro ao atualizar status');
 
       toast({
         title: 'Status atualizado!',
@@ -141,47 +133,26 @@ export function OpportunityModal({ opportunityId, open, onClose, onUpdate }: Opp
 
   const getStatusConfig = (status: string) => {
     const configs: Record<string, { label: string; color: string; icon: any }> = {
-      novo: {
-        label: 'Nova',
-        color: 'blue',
-        icon: Sparkles
-      },
-      negociacao: {
-        label: 'Em Negociação',
-        color: 'yellow',
-        icon: TrendingUp
-      },
-      proposta: {
-        label: 'Proposta Enviada',
-        color: 'purple',
-        icon: TrendingUp
-      },
-      ganho: {
-        label: 'Fechada',
-        color: 'green',
-        icon: CheckCircle2
-      },
-      perdido: {
-        label: 'Perdida',
-        color: 'red',
-        icon: XCircle
-      },
+      novo: { label: 'Nova', color: 'bg-blue-500', icon: Sparkles },
+      negociacao: { label: 'Em Negociação', color: 'bg-yellow-500', icon: TrendingUp },
+      proposta: { label: 'Proposta Enviada', color: 'bg-purple-500', icon: TrendingUp },
+      ganho: { label: 'Fechada', color: 'bg-green-500', icon: CheckCircle2 },
+      perdido: { label: 'Perdida', color: 'bg-red-500', icon: XCircle },
     };
     return configs[status] || configs.novo;
   };
 
   const formatValue = (cents: number) => {
-    const reais = cents / 100;
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
-    }).format(reais);
+    }).format(cents / 100);
   };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR', {
       day: '2-digit',
-      month: 'short',
+      month: 'long',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
@@ -191,7 +162,11 @@ export function OpportunityModal({ opportunityId, open, onClose, onUpdate }: Opp
   if (!opportunity && loading) {
     return (
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="max-w-6xl h-[90vh] p-0">
+        <DialogContent className="max-w-7xl h-[85vh] p-0">
+          <VisuallyHidden>
+            <DialogTitle>Carregando oportunidade</DialogTitle>
+            <DialogDescription>Aguarde enquanto carregamos os detalhes</DialogDescription>
+          </VisuallyHidden>
           <div className="flex items-center justify-center h-full">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
           </div>
@@ -207,242 +182,287 @@ export function OpportunityModal({ opportunityId, open, onClose, onUpdate }: Opp
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl h-[90vh] p-0 gap-0">
-        {/* Header Fixo */}
-        <div className="bg-gradient-to-r from-gray-900 to-gray-800 px-8 py-6 flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-3">
-              <Building2 className="w-7 h-7 text-white" />
-              <h2 className="text-2xl font-bold text-white">{opportunity.title}</h2>
+      <DialogContent className="max-w-7xl h-[85vh] p-0 gap-0 overflow-hidden">
+        <VisuallyHidden>
+          <DialogTitle>{opportunity.title}</DialogTitle>
+          <DialogDescription>Detalhes completos da oportunidade</DialogDescription>
+        </VisuallyHidden>
+
+        {/* Header */}
+        <div className="bg-white border-b px-6 py-4 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <div className={`p-3 ${statusConfig.color} rounded-xl`}>
+              <Building2 className="w-6 h-6 text-white" />
             </div>
-            <div className="flex items-center gap-3">
-              <Badge className={`bg-${statusConfig.color}-500 text-white border-0 px-3 py-1`}>
-                <StatusIcon className="w-4 h-4 mr-2" />
-                {statusConfig.label}
-              </Badge>
-              {opportunity.value > 0 && (
-                <span className="text-2xl font-bold text-green-400">
-                  {formatValue(opportunity.value)}
-                </span>
-              )}
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">{opportunity.title}</h2>
+              <div className="flex items-center gap-3 mt-1">
+                <Badge className={`${statusConfig.color} text-white border-0`}>
+                  <StatusIcon className="w-3 h-3 mr-1.5" />
+                  {statusConfig.label}
+                </Badge>
+                {opportunity.value > 0 && (
+                  <span className="text-lg font-bold text-green-600">
+                    {formatValue(opportunity.value)}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-white/70 hover:text-white transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
-        {/* Conteúdo - Grid 3 Colunas SEM SCROLL */}
-        <div className="grid grid-cols-3 gap-6 p-8 h-[calc(90vh-140px)]">
-          {/* Coluna 1: Lead */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <User className="w-5 h-5 text-blue-600" />
-              </div>
-              <h3 className="font-bold text-gray-900 text-lg">Lead</h3>
-            </div>
+        {/* Content - 2 Columns */}
+        <div className="flex-1 overflow-y-auto bg-gray-50">
+          <div className="grid grid-cols-2 gap-6 p-6">
+            {/* Left Column - Lead & Seller */}
+            <div className="space-y-6">
+              {/* Lead Card */}
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="p-2.5 bg-blue-50 rounded-lg">
+                    <User className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">Informações do Lead</h3>
+                </div>
 
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs text-gray-500 mb-1">Nome</p>
-                <p className="font-semibold text-gray-900">{opportunity.lead_name}</p>
-              </div>
-              {opportunity.lead_phone && (
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Telefone</p>
-                  <p className="font-medium text-gray-700 flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-blue-500" />
-                    {opportunity.lead_phone}
-                  </p>
-                </div>
-              )}
-              {opportunity.lead_email && (
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Email</p>
-                  <p className="font-medium text-gray-700 flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-blue-500" />
-                    {opportunity.lead_email}
-                  </p>
-                </div>
-              )}
-              {opportunity.lead_status && (
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Status</p>
-                  <Badge variant="outline" className="font-medium">{opportunity.lead_status}</Badge>
-                </div>
-              )}
-            </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Nome Completo</label>
+                    <p className="mt-1 text-base font-semibold text-gray-900">{opportunity.lead_name}</p>
+                  </div>
 
-            {/* Vendedor */}
-            {opportunity.seller_name && (
-              <>
-                <div className="border-t pt-4 mt-4">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="p-2 bg-purple-100 rounded-lg">
+                  {opportunity.lead_phone && (
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Telefone</label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Phone className="w-4 h-4 text-blue-500" />
+                        <p className="text-base font-medium text-gray-700">{opportunity.lead_phone}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {opportunity.lead_email && (
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email</label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-blue-500" />
+                        <p className="text-base font-medium text-gray-700">{opportunity.lead_email}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {opportunity.lead_status && (
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Status do Lead</label>
+                      <Badge variant="outline" className="mt-1 font-medium capitalize">{opportunity.lead_status}</Badge>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Seller Card */}
+              {opportunity.seller_name && (
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="p-2.5 bg-purple-50 rounded-lg">
                       <User className="w-5 h-5 text-purple-600" />
                     </div>
-                    <h3 className="font-bold text-gray-900 text-lg">Vendedor</h3>
+                    <h3 className="text-lg font-bold text-gray-900">Vendedor Responsável</h3>
                   </div>
-                  <div className="space-y-3">
+
+                  <div className="space-y-4">
                     <div>
-                      <p className="text-xs text-gray-500 mb-1">Nome</p>
-                      <p className="font-semibold text-gray-900">{opportunity.seller_name}</p>
+                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Nome</label>
+                      <p className="mt-1 text-base font-semibold text-gray-900">{opportunity.seller_name}</p>
                     </div>
+
                     {opportunity.seller_phone && (
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Telefone</p>
-                        <p className="font-medium text-gray-700 flex items-center gap-2">
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Telefone</label>
+                        <div className="mt-1 flex items-center gap-2">
                           <Phone className="w-4 h-4 text-purple-500" />
-                          {opportunity.seller_phone}
-                        </p>
+                          <p className="text-base font-medium text-gray-700">{opportunity.seller_phone}</p>
+                        </div>
                       </div>
                     )}
                   </div>
                 </div>
-              </>
-            )}
+              )}
 
-            {/* Datas */}
-            <div className="border-t pt-4 mt-4 space-y-2">
-              <div className="flex items-center gap-2 text-sm">
-                <Calendar className="w-4 h-4 text-gray-400" />
-                <div>
-                  <p className="text-xs text-gray-500">Criada em</p>
-                  <p className="font-medium text-gray-700">{formatDate(opportunity.created_at)}</p>
+              {/* Timeline Card */}
+              <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="p-2.5 bg-gray-50 rounded-lg">
+                    <Clock className="w-5 h-5 text-gray-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">Timeline</h3>
                 </div>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Calendar className="w-4 h-4 text-gray-400" />
-                <div>
-                  <p className="text-xs text-gray-500">Atualizada em</p>
-                  <p className="font-medium text-gray-700">{formatDate(opportunity.updated_at)}</p>
+
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-medium text-gray-500">Criada em</p>
+                      <p className="text-sm font-medium text-gray-900">{formatDate(opportunity.created_at)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-medium text-gray-500">Última atualização</p>
+                      <p className="text-sm font-medium text-gray-900">{formatDate(opportunity.updated_at)}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Coluna 2: Imóvel */}
-          <div className="col-span-2 space-y-4">
-            {opportunity.product_data ? (
-              <>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <Home className="w-6 h-6 text-green-600" />
-                  </div>
-                  <h3 className="font-bold text-gray-900 text-xl">Imóvel de Interesse</h3>
-                </div>
-
-                {opportunity.product_data.codigo && (
-                  <div className="mb-4">
-                    <Badge className="bg-green-600 text-white text-base px-4 py-1.5 border-0">
-                      Código: {opportunity.product_data.codigo}
-                    </Badge>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-4 gap-4 mb-5">
-                  {opportunity.product_data.tipo && (
-                    <div className="flex items-start gap-2">
-                      <Tag className="w-5 h-5 text-green-600 mt-0.5" />
-                      <div>
-                        <p className="text-xs text-gray-500">Tipo</p>
-                        <p className="font-semibold text-gray-900">{opportunity.product_data.tipo}</p>
-                      </div>
+            {/* Right Column - Property */}
+            <div className="space-y-6">
+              {opportunity.product_data ? (
+                <>
+                  {/* Property Header */}
+                  <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white">
+                    <div className="flex items-center gap-3 mb-4">
+                      <Home className="w-7 h-7" />
+                      <h3 className="text-2xl font-bold">Imóvel de Interesse</h3>
                     </div>
-                  )}
-                  {opportunity.product_data.regiao && (
-                    <div className="flex items-start gap-2">
-                      <MapPin className="w-5 h-5 text-green-600 mt-0.5" />
-                      <div>
-                        <p className="text-xs text-gray-500">Região</p>
-                        <p className="font-semibold text-gray-900">{opportunity.product_data.regiao}</p>
+                    {opportunity.product_data.codigo && (
+                      <div className="inline-block bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg">
+                        <p className="text-sm font-medium">Código: <span className="font-bold">{opportunity.product_data.codigo}</span></p>
                       </div>
-                    </div>
-                  )}
-                  {opportunity.product_data.quartos && (
-                    <div className="flex items-start gap-2">
-                      <Bed className="w-5 h-5 text-green-600 mt-0.5" />
-                      <div>
-                        <p className="text-xs text-gray-500">Quartos</p>
-                        <p className="font-semibold text-gray-900">{opportunity.product_data.quartos}</p>
-                      </div>
-                    </div>
-                  )}
-                  {opportunity.product_data.banheiros && (
-                    <div className="flex items-start gap-2">
-                      <Bath className="w-5 h-5 text-green-600 mt-0.5" />
-                      <div>
-                        <p className="text-xs text-gray-500">Banheiros</p>
-                        <p className="font-semibold text-gray-900">{opportunity.product_data.banheiros}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {opportunity.product_data.preco && (
-                  <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-4">
-                    <p className="text-sm text-gray-600 mb-2">Valor do Imóvel</p>
-                    <p className="text-3xl font-bold text-green-700">
-                      {formatValue(opportunity.product_data.preco)}
-                    </p>
+                    )}
                   </div>
-                )}
 
-                {opportunity.product_data.descricao && (
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-sm font-semibold text-gray-700 mb-2">Descrição</p>
-                    <p className="text-gray-600 leading-relaxed">{opportunity.product_data.descricao}</p>
-                  </div>
-                )}
-
-                {/* Atualizar Status */}
-                <div className="bg-gray-50 border-2 border-gray-200 rounded-lg p-5 mt-6">
-                  <h3 className="font-bold text-gray-900 mb-4 text-lg">Atualizar Status</h3>
-                  <div className="flex gap-3">
-                    <select
-                      value={newStatus}
-                      onChange={(e) => setNewStatus(e.target.value)}
-                      className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="novo">✨ Nova</option>
-                      <option value="negociacao">📈 Em Negociação</option>
-                      <option value="proposta">📋 Proposta Enviada</option>
-                      <option value="ganho">✅ Fechada (Ganhou)</option>
-                      <option value="perdido">❌ Perdida</option>
-                    </select>
-                    <Button
-                      onClick={handleUpdateStatus}
-                      disabled={updating || newStatus === opportunity.status}
-                      className="gap-2 px-6"
-                    >
-                      {updating ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Atualizando...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle2 className="w-4 h-4" />
-                          Atualizar
-                        </>
+                  {/* Property Details */}
+                  <div className="bg-white rounded-xl border border-gray-200 p-6">
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                      {opportunity.product_data.tipo && (
+                        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                          <Tag className="w-5 h-5 text-green-600" />
+                          <div>
+                            <p className="text-xs text-gray-500">Tipo</p>
+                            <p className="font-semibold text-gray-900">{opportunity.product_data.tipo}</p>
+                          </div>
+                        </div>
                       )}
-                    </Button>
+                      {opportunity.product_data.regiao && (
+                        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                          <MapPin className="w-5 h-5 text-green-600" />
+                          <div>
+                            <p className="text-xs text-gray-500">Região</p>
+                            <p className="font-semibold text-gray-900">{opportunity.product_data.regiao}</p>
+                          </div>
+                        </div>
+                      )}
+                      {opportunity.product_data.quartos && (
+                        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                          <Bed className="w-5 h-5 text-green-600" />
+                          <div>
+                            <p className="text-xs text-gray-500">Quartos</p>
+                            <p className="font-semibold text-gray-900">{opportunity.product_data.quartos}</p>
+                          </div>
+                        </div>
+                      )}
+                      {opportunity.product_data.banheiros && (
+                        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                          <Bath className="w-5 h-5 text-green-600" />
+                          <div>
+                            <p className="text-xs text-gray-500">Banheiros</p>
+                            <p className="font-semibold text-gray-900">{opportunity.product_data.banheiros}</p>
+                          </div>
+                        </div>
+                      )}
+                      {opportunity.product_data.vagas && (
+                        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                          <Car className="w-5 h-5 text-green-600" />
+                          <div>
+                            <p className="text-xs text-gray-500">Vagas</p>
+                            <p className="font-semibold text-gray-900">{opportunity.product_data.vagas}</p>
+                          </div>
+                        </div>
+                      )}
+                      {opportunity.product_data.metragem && (
+                        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                          <Maximize2 className="w-5 h-5 text-green-600" />
+                          <div>
+                            <p className="text-xs text-gray-500">Área</p>
+                            <p className="font-semibold text-gray-900">{opportunity.product_data.metragem}m²</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {opportunity.product_data.preco && (
+                      <div className="bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200 rounded-xl p-5 mb-6">
+                        <div className="flex items-center gap-2 mb-2">
+                          <DollarSign className="w-5 h-5 text-green-700" />
+                          <p className="text-sm font-medium text-green-700">Valor do Imóvel</p>
+                        </div>
+                        <p className="text-3xl font-bold text-green-800">
+                          {formatValue(opportunity.product_data.preco)}
+                        </p>
+                      </div>
+                    )}
+
+                    {opportunity.product_data.descricao && (
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-2">Descrição</label>
+                        <p className="text-gray-700 leading-relaxed">{opportunity.product_data.descricao}</p>
+                      </div>
+                    )}
                   </div>
+                </>
+              ) : (
+                <div className="bg-white rounded-xl border border-gray-200 p-12 flex flex-col items-center justify-center text-center">
+                  <Building2 className="w-16 h-16 text-gray-300 mb-4" />
+                  <p className="text-gray-500 font-medium">Nenhum imóvel vinculado a esta oportunidade</p>
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer - Status Update */}
+        <div className="bg-white border-t px-6 py-4 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-gray-700">Atualizar Status:</label>
+            <select
+              value={newStatus}
+              onChange={(e) => setNewStatus(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium"
+            >
+              <option value="novo">✨ Nova</option>
+              <option value="negociacao">📈 Em Negociação</option>
+              <option value="proposta">📋 Proposta Enviada</option>
+              <option value="ganho">✅ Fechada (Ganhou)</option>
+              <option value="perdido">❌ Perdida</option>
+            </select>
+          </div>
+          <Button
+            onClick={handleUpdateStatus}
+            disabled={updating || newStatus === opportunity.status}
+            size="lg"
+            className="gap-2"
+          >
+            {updating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Atualizando...
               </>
             ) : (
-              <div className="flex items-center justify-center h-full text-gray-400">
-                <div className="text-center">
-                  <Building2 className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>Nenhum imóvel vinculado</p>
-                </div>
-              </div>
+              <>
+                <CheckCircle2 className="w-4 h-4" />
+                Salvar Alterações
+              </>
             )}
-          </div>
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

@@ -330,7 +330,7 @@ async def create_opportunity(
             product_data=data.product_data,
             seller_id=data.seller_id,
             value=data.value,
-            status="new",
+            status="novo",
             expected_close_date=data.expected_close_date,
             notes=data.notes,
             custom_data=data.custom_data or {},
