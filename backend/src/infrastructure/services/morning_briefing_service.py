@@ -206,9 +206,10 @@ class MorningBriefingService:
         - FOCO EM OURO: Identifique gargalos e oportunidades imediatas.
 
         ESTRUTURA DA RESPOSTA (MANDATÓRIO):
-        - 3 a 4 tópicos curtos (máximo 15 palavras por tópico).
-        - Use emojis discretos no início de cada tópico.
-        - Adicione uma única linha final de "Ação Tática Master" em itálico.
+        - Retorne EXATAMENTE 3 a 4 linhas.
+        - Cada linha deve começar com um emoji diferente e ser curta.
+        - Não use subtítulos ou introduções. Apenas as linhas de insight.
+        - Por fim, a "Ação Tática Master" em itálico.
 
         DADOS:
         {context}
@@ -229,9 +230,26 @@ class MorningBriefingService:
     def _build_email_html(self, stats, alerts, ai_analysis):
         """Constrói o HTML Premium do Email."""
         
-        # Formata a análise da IA (Markdown simples para HTML)
-        ai_html = ai_analysis.replace('\n', '<br>')
-        
+        # Transforma a análise da IA em blocos visuais
+        insights = [i.strip() for i in ai_analysis.split('\n') if i.strip()]
+        ai_html = ""
+        for insight in insights:
+            if "Ação Tática Master" in insight or insight.startswith("*") or insight.startswith("_"):
+                continue # Pula a ação master daqui, ela vai no box separado
+            
+            ai_html += f"""
+            <div style="margin-bottom: 12px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #f1f5f9; color: #334155; font-size: 14px; font-weight: 500;">
+                {insight}
+            </div>
+            """
+            
+        # Tenta capturar a última linha como ação master se existir
+        tactical_action = "Foque no resgate de leads parados hoje para garantir o avanço da meta."
+        for insight in reversed(insights):
+            if "Ação Tática Master" in insight or insight.startswith("_") or insight.startswith("*"):
+                tactical_action = insight.replace("_", "").replace("*", "").replace("Ação Tática Master:", "").strip()
+                break
+
         # Lista de Alertas HTML
         alerts_html = ""
         if alerts:
@@ -316,7 +334,7 @@ class MorningBriefingService:
                     </div>
 
                     <!-- INSIGHTS IA -->
-                    <div class="section-title">✨ INSIGHTS DO ESTRATEGISTA</div>
+                    <div class="section-title">✨ INSIGHTS ESTRATÉGICOS</div>
                     <div class="ai-box">
                         {ai_html}
                     </div>
@@ -325,7 +343,7 @@ class MorningBriefingService:
                     <div class="tactical-box">
                         <div style="font-size: 11px; font-weight: 800; color: #92400e; margin-bottom: 5px; text-transform: uppercase;">⚡ AÇÃO TÁTICA SUGERIDA</div>
                         <p style="margin: 0; color: #92400e; font-size: 13px; font-style: italic;">
-                            "Foque 100% no resgate dos leads parados hoje. Se batermos a meta diária de conversão, avançaremos para {stats['progress_percent'] + 2}% da meta total."
+                            "{tactical_action}"
                         </p>
                     </div>
 
