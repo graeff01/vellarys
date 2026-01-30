@@ -11,6 +11,10 @@ import { InboxLeadList } from '@/components/dashboard/inbox/inbox-lead-list';
 import { InboxConversation } from '@/components/dashboard/inbox/inbox-conversation';
 import { MessageSearch } from '@/components/dashboard/inbox/message-search';
 import { ShortcutsHelp } from '@/components/dashboard/inbox/shortcuts-help';
+import { ArchiveModal } from '@/components/dashboard/inbox/archive-modal';
+import { FiltersPanel, InboxFilters } from '@/components/dashboard/inbox/filters-panel';
+import { MetricsDashboard } from '@/components/dashboard/inbox/metrics-dashboard';
+import { ConnectionIndicator } from '@/components/dashboard/inbox/connection-indicator';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useKeyboardShortcuts, createShortcut } from '@/hooks/use-keyboard-shortcuts';
@@ -23,17 +27,12 @@ import {
 } from '@/lib/inbox';
 import {
   RefreshCw,
-  Filter,
-  MoreVertical,
-  Menu,
+  Archive,
+  Search,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 
 export default function InboxPage() {
   const router = useRouter();
@@ -44,21 +43,45 @@ export default function InboxPage() {
   const [selectedLead, setSelectedLead] = useState<InboxLead | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [attendedFilter, setAttendedFilter] = useState<'all' | 'ai' | 'seller'>('all');
   const [showConversation, setShowConversation] = useState(false);
+  const [showMetrics, setShowMetrics] = useState(true);
+
+  // Filtros
+  const [filters, setFilters] = useState<InboxFilters>({
+    attendedBy: 'all',
+  });
+
+  // Bulk selection
+  const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
+  const [bulkMode, setBulkMode] = useState(false);
 
   // Modais
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+
+  // SSE Connection status
+  const [sseStatus, setSseStatus] = useState<'connected' | 'connecting' | 'disconnected'>('disconnected');
 
   // Atalhos de teclado globais
   useKeyboardShortcuts({
     shortcuts: [
       createShortcut('k', 'Buscar mensagens', () => setShowSearchModal(true), { ctrl: true }),
+      createShortcut('a', 'Arquivar lead selecionado', () => {
+        if (selectedLead) {
+          setSelectedLeadIds([selectedLead.id]);
+          setShowArchiveModal(true);
+        } else if (selectedLeadIds.length > 0) {
+          setShowArchiveModal(true);
+        }
+      }, { ctrl: true }),
       createShortcut('?', 'Mostrar ajuda de atalhos', () => setShowShortcutsHelp(true)),
-      createShortcut('Escape', 'Fechar modais', () => {
+      createShortcut('Escape', 'Fechar modais/bulk mode', () => {
         setShowSearchModal(false);
         setShowShortcutsHelp(false);
+        setShowArchiveModal(false);
+        setBulkMode(false);
+        setSelectedLeadIds([]);
       })
     ],
     enabled: true
@@ -72,7 +95,7 @@ export default function InboxPage() {
     if (sellerInfo?.can_use_inbox) {
       loadLeads();
     }
-  }, [sellerInfo, attendedFilter]);
+  }, [sellerInfo, filters]);
 
   const checkAccess = async () => {
     try {
@@ -92,6 +115,7 @@ export default function InboxPage() {
       // Carrega info do corretor
       const info = await getSellerInfo();
       setSellerInfo(info);
+      setSseStatus('connected'); // Simula conexão SSE
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -108,7 +132,12 @@ export default function InboxPage() {
     setLoading(true);
     try {
       const data = await getInboxLeads({
-        attended_filter: attendedFilter,
+        attended_filter: filters.attendedBy,
+        status: filters.status,
+        // Backend ainda não suporta estes filtros, mas preparamos o frontend
+        // qualification: filters.qualification,
+        // date_from: filters.dateFrom,
+        // date_to: filters.dateTo,
       });
       setLeads(data);
 
@@ -187,12 +216,37 @@ export default function InboxPage() {
   };
 
   const handleSelectLead = (lead: InboxLead) => {
-    setSelectedLead(lead);
-    setShowConversation(true);
+    if (bulkMode) {
+      // Modo bulk: toggle selection
+      setSelectedLeadIds(prev =>
+        prev.includes(lead.id)
+          ? prev.filter(id => id !== lead.id)
+          : [...prev, lead.id]
+      );
+    } else {
+      // Modo normal: abre conversa
+      setSelectedLead(lead);
+      setShowConversation(true);
+    }
   };
 
   const handleLeadUpdated = () => {
     loadLeads();
+  };
+
+  const handleArchiveSuccess = () => {
+    loadLeads();
+    setSelectedLeadIds([]);
+    setBulkMode(false);
+    toast({
+      title: 'Lead(s) arquivado(s)!',
+      description: 'Pode recuperar depois em "Arquivados".',
+    });
+  };
+
+  const toggleBulkMode = () => {
+    setBulkMode(!bulkMode);
+    setSelectedLeadIds([]);
   };
 
   if (!sellerInfo) {
@@ -206,16 +260,46 @@ export default function InboxPage() {
   const totalLeads = leads.length;
   const unattendedLeads = leads.filter((l) => !l.is_taken_over).length;
   const attendedLeads = leads.filter((l) => l.is_taken_over).length;
+  const selectedLeadNames = selectedLeadIds.map(id => leads.find(l => l.id === id)?.name || '');
 
   return (
     <div className="h-screen flex flex-col bg-[#f0f2f5]" style={{ fontFamily: 'Segoe UI, Helvetica Neue, Arial, sans-serif' }}>
+      {/* Métricas Dashboard - Colapsável */}
+      {showMetrics && (
+        <div className="px-4 pt-3 pb-2 bg-white border-b border-gray-200">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-gray-700">Suas Métricas</h3>
+            <button
+              onClick={() => setShowMetrics(false)}
+              className="p-1 hover:bg-gray-100 rounded"
+            >
+              <ChevronUp className="h-4 w-4 text-gray-500" />
+            </button>
+          </div>
+          <MetricsDashboard />
+        </div>
+      )}
+
+      {!showMetrics && (
+        <div className="px-4 py-1.5 bg-white border-b border-gray-200">
+          <button
+            onClick={() => setShowMetrics(true)}
+            className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700"
+          >
+            <ChevronDown className="h-3 w-3" />
+            Mostrar métricas
+          </button>
+        </div>
+      )}
+
       {/* Main Content - Layout estilo WhatsApp */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Painel lateral (Lista de Leads) */}
         <div
-          className={`w-full lg:w-[400px] border-r border-gray-300 bg-white flex flex-col ${
+          className={cn(
+            "w-full lg:w-[400px] border-r border-gray-300 bg-white flex flex-col",
             showConversation ? 'hidden lg:flex' : 'flex'
-          }`}
+          )}
         >
           {/* Header do painel lateral - estilo WhatsApp */}
           <div className="bg-[#f0f2f5] border-b border-gray-300">
@@ -241,44 +325,60 @@ export default function InboxPage() {
 
               {/* Botões de ação */}
               <div className="flex items-center gap-1">
+                {/* Connection Indicator */}
+                <ConnectionIndicator status={sseStatus} />
+
+                <button
+                  onClick={() => setShowSearchModal(true)}
+                  className="p-2 text-gray-600 hover:bg-gray-200/50 rounded-full transition-colors"
+                  title="Buscar mensagens (Ctrl+K)"
+                >
+                  <Search className="h-5 w-5" />
+                </button>
+
                 <button
                   onClick={handleRefresh}
                   disabled={refreshing}
                   className="p-2 text-gray-600 hover:bg-gray-200/50 rounded-full transition-colors"
                   title="Atualizar conversas"
                 >
-                  <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
-                </button>
-                <button
-                  className="p-2 text-gray-600 hover:bg-gray-200/50 rounded-full transition-colors"
-                  title="Menu"
-                >
-                  <MoreVertical className="h-5 w-5" />
+                  <RefreshCw className={cn("h-5 w-5", refreshing && 'animate-spin')} />
                 </button>
               </div>
             </div>
 
-            {/* Barra de filtro */}
-            <div className="px-3 pb-2">
-              <Select value={attendedFilter} onValueChange={(value: any) => setAttendedFilter(value)}>
-                <SelectTrigger className="w-full h-9 bg-white border-gray-300 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Filter className="h-3.5 w-3.5 text-gray-500" />
-                    <SelectValue />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">
-                    Todas as conversas ({totalLeads})
-                  </SelectItem>
-                  <SelectItem value="ai">
-                    IA atendendo ({unattendedLeads})
-                  </SelectItem>
-                  <SelectItem value="seller">
-                    Você atendendo ({attendedLeads})
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Barra de filtros avançados */}
+            <div className="px-3 pb-2 flex items-center gap-2">
+              <FiltersPanel
+                filters={filters}
+                onFiltersChange={setFilters}
+                leadsCount={totalLeads}
+              />
+
+              {/* Bulk Actions */}
+              {bulkMode && selectedLeadIds.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowArchiveModal(true)}
+                  className="gap-2"
+                >
+                  <Archive className="h-4 w-4" />
+                  Arquivar {selectedLeadIds.length}
+                </Button>
+              )}
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleBulkMode}
+                className={cn(
+                  "ml-auto text-xs",
+                  bulkMode && "bg-blue-50 text-blue-600"
+                )}
+              >
+                {bulkMode ? 'Cancelar' : 'Selecionar'}
+              </Button>
             </div>
           </div>
 
@@ -289,15 +389,18 @@ export default function InboxPage() {
               selectedLeadId={selectedLead?.id || null}
               onSelectLead={handleSelectLead}
               loading={loading}
+              bulkMode={bulkMode}
+              selectedLeadIds={selectedLeadIds}
             />
           </div>
         </div>
 
         {/* Área de Conversa */}
         <div
-          className={`flex-1 h-full ${
+          className={cn(
+            "flex-1 h-full",
             showConversation ? 'block' : 'hidden lg:block'
-          }`}
+          )}
         >
           <InboxConversation
             lead={selectedLead}
@@ -306,15 +409,6 @@ export default function InboxPage() {
           />
         </div>
       </div>
-
-      {/* Rodapé sutil com informação do modo (opcional) */}
-      {sellerInfo.handoff_mode === 'crm_inbox' && false && ( // Desabilitado por padrão para visual limpo
-        <div className="border-t border-gray-300 bg-[#f0f2f5] px-4 py-2">
-          <p className="text-xs text-gray-600 text-center">
-            Modo CRM Inbox • Mensagens enviadas via WhatsApp Business da empresa
-          </p>
-        </div>
-      )}
 
       {/* Modais */}
       <MessageSearch
@@ -325,6 +419,14 @@ export default function InboxPage() {
       <ShortcutsHelp
         open={showShortcutsHelp}
         onOpenChange={setShowShortcutsHelp}
+      />
+
+      <ArchiveModal
+        open={showArchiveModal}
+        onOpenChange={setShowArchiveModal}
+        leadIds={selectedLeadIds}
+        leadNames={selectedLeadNames}
+        onSuccess={handleArchiveSuccess}
       />
     </div>
   );

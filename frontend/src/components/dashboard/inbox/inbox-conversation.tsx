@@ -30,6 +30,8 @@ import { TemplatesPopover } from './templates-popover';
 import { LeadNotesPanel } from './lead-notes-panel';
 import { AttachmentUpload } from './attachment-upload';
 import { TypingIndicator } from './typing-indicator';
+import { ActionsMenu } from './actions-menu';
+import { MessageAttachments } from './message-attachments';
 import { FloatingIntelligenceCard } from '@/components/leads/floating-intelligence-card';
 
 interface InboxConversationProps {
@@ -307,12 +309,19 @@ export function InboxConversation({ lead, onBack, onLeadUpdated }: InboxConversa
             </button>
           </LeadNotesPanel>
 
-          <button className="p-2 hover:bg-white/10 rounded-full transition-colors">
-            <Search className="h-5 w-5" />
-          </button>
-          <button className="p-2 hover:bg-white/10 rounded-full transition-colors">
-            <MoreVertical className="h-5 w-5" />
-          </button>
+          <ActionsMenu
+            leadId={lead.id}
+            leadName={lead.name || lead.phone}
+            attendedBy={lead.is_taken_over ? 'seller' : 'ai'}
+            onArchive={() => {
+              // TODO: Implementar archive via modal da página principal
+              toast({
+                title: 'Arquivamento',
+                description: 'Use Ctrl+A para arquivar o lead selecionado',
+              });
+            }}
+            onReturnToAI={lead.is_taken_over ? handleReturnToAI : undefined}
+          />
         </div>
       </div>
 
@@ -447,6 +456,11 @@ export function InboxConversation({ lead, onBack, onLeadUpdated }: InboxConversa
                       <p className="text-sm text-gray-900 whitespace-pre-wrap break-words">
                         {msg.content}
                       </p>
+
+                      {/* Anexos */}
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <MessageAttachments attachments={msg.attachments} />
+                      )}
 
                       {/* Timestamp e status */}
                       <div className="flex items-center justify-end gap-1 mt-1">

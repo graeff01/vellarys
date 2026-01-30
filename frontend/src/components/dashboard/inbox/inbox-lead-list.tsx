@@ -7,6 +7,7 @@
 
 import { InboxLead, formatRelativeTime } from '@/lib/inbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { MessageCircle, CheckCheck } from 'lucide-react';
 
@@ -15,6 +16,8 @@ interface InboxLeadListProps {
   selectedLeadId: number | null;
   onSelectLead: (lead: InboxLead) => void;
   loading?: boolean;
+  bulkMode?: boolean;
+  selectedLeadIds?: number[];
 }
 
 export function InboxLeadList({
@@ -22,6 +25,8 @@ export function InboxLeadList({
   selectedLeadId,
   onSelectLead,
   loading = false,
+  bulkMode = false,
+  selectedLeadIds = [],
 }: InboxLeadListProps) {
   if (loading) {
     return (
@@ -60,6 +65,7 @@ export function InboxLeadList({
         {leads.map((lead) => {
           const isSelected = selectedLeadId === lead.id;
           const hasUnread = lead.unread_messages > 0;
+          const isBulkSelected = selectedLeadIds.includes(lead.id);
 
           return (
             <button
@@ -68,10 +74,22 @@ export function InboxLeadList({
               className={cn(
                 'w-full px-4 py-3 transition-colors text-left relative border-b border-gray-100',
                 'hover:bg-[#f5f6f6]',
-                isSelected && 'bg-[#f0f2f5]'
+                isSelected && !bulkMode && 'bg-[#f0f2f5]',
+                isBulkSelected && bulkMode && 'bg-blue-50 border-blue-200'
               )}
             >
               <div className="flex items-start gap-3">
+                {/* Checkbox para bulk mode */}
+                {bulkMode && (
+                  <div className="flex-shrink-0 pt-3" onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={isBulkSelected}
+                      onCheckedChange={() => onSelectLead(lead)}
+                      className="h-5 w-5"
+                    />
+                  </div>
+                )}
+
                 {/* Avatar */}
                 <div className="flex-shrink-0 w-12 h-12 rounded-full bg-[#dfe5e7] flex items-center justify-center overflow-hidden">
                   {lead.profile_picture_url ? (
