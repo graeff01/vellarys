@@ -1,102 +1,63 @@
 /**
- * API Client: Feature Flags (Centro de Controle)
- * ================================================
+ * API Client: Feature Flags
+ * ===========================
  *
- * Gerencia as funcionalidades que podem ser ativadas/desativadas
- * pelo gestor no Centro de Controle.
+ * Cliente para gerenciar feature flags do Centro de Controle.
  */
+
+import { getToken } from './auth';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/v1$/, '');
 
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('token');
-}
-
-export interface Features {
-  // Core Features
-  calendar_enabled: boolean;
-  templates_enabled: boolean;
-  notes_enabled: boolean;
-  attachments_enabled: boolean;
-
-  // Advanced Features
-  sse_enabled: boolean;
-  search_enabled: boolean;
-  metrics_enabled: boolean;
-  archive_enabled: boolean;
-  voice_response_enabled: boolean;
-
-  // Experimental Features
-  ai_guard_enabled: boolean;
-  reengagement_enabled: boolean;
-  knowledge_base_enabled: boolean;
+interface FeatureFlagsResponse {
+  plan_features: Record<string, boolean>;
+  overrides: Record<string, boolean>;
+  team_features: Record<string, boolean>;
+  final_features: Record<string, boolean>;
+  plan_name: string;
+  user_role: string;
+  can_edit: boolean;
 }
 
 /**
- * Carrega feature flags do tenant atual.
- *
- * @returns Features habilitadas/desabilitadas
+ * Busca as feature flags do tenant atual.
  */
-export async function getFeatures(): Promise<Features> {
+export async function getFeatures(): Promise<FeatureFlagsResponse> {
   const token = getToken();
-  if (!token) {
-    throw new Error('Não autenticado');
-  }
 
   const response = await fetch(`${API_URL}/v1/settings/features`, {
     headers: {
       'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
     },
   });
 
   if (!response.ok) {
-    throw new Error('Erro ao carregar features');
+    throw new Error(`Failed to fetch features: ${response.statusText}`);
   }
 
   return response.json();
 }
 
 /**
- * Atualiza feature flags (apenas admin/manager).
+ * Atualiza as feature flags do tenant atual.
  *
- * @param features - Features a atualizar (parcial ou completo)
- * @returns Confirmação de sucesso com features atualizadas
+ * Apenas admins e gestores podem atualizar.
  */
-export async function updateFeatures(features: Partial<Features>): Promise<{
-  success: boolean;
-  message: string;
-  features: Features;
-}> {
+export async function updateFeatures(features: Record<string, boolean>): Promise<void> {
   const token = getToken();
-  if (!token) {
-    throw new Error('Não autenticado');
-  }
 
   const response = await fetch(`${API_URL}/v1/settings/features`, {
     method: 'PATCH',
     headers: {
-      'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify(features),
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.detail || 'Erro ao atualizar features');
+    const errorData = await response.json();
+    throw new Error(errorData.detail || 'Failed to update features');
   }
-
-  return response.json();
-}
-
-/**
- * Verifica se uma feature específica está habilitada.
- *
- * @param featureName - Nome da feature (ex: "calendar_enabled")
- * @returns True se habilitada, false caso contrário
- */
-export async function isFeatureEnabled(featureName: keyof Features): Promise<boolean> {
-  const features = await getFeatures();
-  return features[featureName] ?? false;
 }
