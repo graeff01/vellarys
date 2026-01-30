@@ -101,6 +101,12 @@ DEFAULT_SETTINGS = {
         "greeting_message": "",
         "farewell_message": "",
     },
+
+    # =========================================================================
+    # INTELIGÊNCIA ATIVA / E-MAILBriefing (NOVO)
+    # =========================================================================
+    "ai_sender_email": "",
+    "morning_briefing_recipient": "",
     
     # =========================================================================
     # HANDOFF / TRANSFERÊNCIA (existente)
@@ -914,6 +920,8 @@ async def update_settings(
             "follow_up",
             "messages",
             "voice_response",  # Voice-First
+            "ai_sender_email",
+            "morning_briefing_recipient",
         ]
         
         # Merge das seções
