@@ -641,7 +641,8 @@ function SettingsContent() {
       if (response.ok) {
         alert('Briefing disparado com sucesso! Verifique o e-mail configurado.');
       } else {
-        alert('Erro ao disparar briefing.');
+        const errorData = await response.json().catch(() => ({}));
+        alert(`Erro ao disparar briefing: ${errorData.detail || 'Erro desconhecido'}`);
       }
     } catch (error) {
       console.error(error);
@@ -1303,8 +1304,8 @@ function SettingsContent() {
                     onClick={handleTriggerBriefing}
                     disabled={saving || !servicesStatus?.resend_configured}
                     className={`w-full flex items-center justify-center gap-2 py-3 border rounded-lg font-bold transition-all shadow-sm ${!servicesStatus?.resend_configured
-                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                        : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'
+                      ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                      : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'
                       }`}
                   >
                     <Zap className={`w-4 h-4 ${!servicesStatus?.resend_configured ? 'text-gray-300' : 'text-amber-500'}`} /> Testar Envio Agora
@@ -1331,7 +1332,7 @@ function SettingsContent() {
                     placeholder="Ex: ia@suaempresa.com"
                   />
                   <p className="mt-2 text-xs text-gray-400">
-                    <strong>Atenção:</strong> Este e-mail precisa estar verificado no seu provedor de envio (Resend).
+                    <strong>Atenção:</strong> Este e-mail precisa estar verificado no seu provedor de envio (Resend). Para testes sem domínio próprio, use <code className="bg-gray-100 px-1 rounded">onboarding@resend.dev</code>.
                   </p>
                 </div>
 

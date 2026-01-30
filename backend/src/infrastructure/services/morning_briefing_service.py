@@ -70,6 +70,14 @@ class MorningBriefingService:
            logger.info(f"Morning Briefing enviado para {target_email}")
            return {"success": True}
         except Exception as e:
+            error_msg = str(e)
+            if "domain is not verified" in error_msg:
+                logger.error(f"Erro de domínio não verificado no Resend: {error_msg}")
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Domínio não verificado no Resend. Você precisa verificar seu domínio em resend.com/domains ou usar o remetente padrão 'onboarding@resend.dev' para testes."
+                )
+            
             logger.error(f"Erro ao enviar Morning Briefing: {e}")
             raise
 
