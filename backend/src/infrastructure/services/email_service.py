@@ -14,7 +14,7 @@ if settings.resend_api_key:
     resend.api_key = settings.resend_api_key
 
 
-async def send_password_reset_email(email: str, reset_token: str, user_name: Optional[str] = None) -> bool:
+async def send_password_reset_email(email: str, reset_token: str, user_name: Optional[str] = None, from_email: Optional[str] = None) -> bool:
     """
     Envia email de recuperação de senha.
     
@@ -75,7 +75,7 @@ async def send_password_reset_email(email: str, reset_token: str, user_name: Opt
         """
         
         params = {
-            "from": f"Vellarys <{settings.email_from}>",
+            "from": f"Vellarys <{from_email or settings.email_from}>",
             "to": [email],
             "subject": "🔐 Recuperação de Senha - Vellarys",
             "html": html_content,
@@ -90,7 +90,7 @@ async def send_password_reset_email(email: str, reset_token: str, user_name: Opt
         return False
 
 
-async def send_welcome_email(email: str, user_name: str, temp_password: Optional[str] = None) -> bool:
+async def send_welcome_email(email: str, user_name: str, temp_password: Optional[str] = None, from_email: Optional[str] = None) -> bool:
     """
     Envia email de boas-vindas para novo usuário.
     
@@ -138,7 +138,7 @@ async def send_welcome_email(email: str, user_name: str, temp_password: Optional
         """
         
         params = {
-            "from": f"Vellarys <{settings.email_from}>",
+            "from": f"Vellarys <{from_email or settings.email_from}>",
             "to": [email],
             "subject": "🎉 Bem-vindo ao Vellarys!",
             "html": html_content,

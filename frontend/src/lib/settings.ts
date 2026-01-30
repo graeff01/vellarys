@@ -210,6 +210,10 @@ export interface TenantSettings {
   messages: MessagesSettings;
   follow_up: FollowUpSettings;
   voice_response: VoiceResponseSettings;  // Voice-First
+
+  // Intelligence Active / Briefing
+  ai_sender_email?: string;
+  morning_briefing_recipient?: string;
 }
 
 // =============================================================================

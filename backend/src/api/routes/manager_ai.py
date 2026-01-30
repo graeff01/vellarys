@@ -62,7 +62,7 @@ async def chat_with_copilot(
 
 @router.post("/trigger-briefing")
 async def trigger_manual_briefing(
-    target_email: str = "douglas@velocebm.com",
+    target_email: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     tenant: Tenant = Depends(get_current_tenant),
     user: User = Depends(get_current_user)

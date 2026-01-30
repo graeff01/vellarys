@@ -182,6 +182,7 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                 items: [
                     { href: '/dashboard/copilot', label: 'Vellarys Copilot', icon: Sparkles, badge: "AI", feature: 'copilot_enabled' },
                     { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot, badge: "Lab", feature: 'simulator_enabled' },
+                    { href: '/dashboard/settings?tab=ia', label: 'Configurações de IA', icon: Settings, feature: 'copilot_enabled' },
                 ]
             },
             {

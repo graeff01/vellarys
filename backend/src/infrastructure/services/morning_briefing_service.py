@@ -57,8 +57,11 @@ class MorningBriefingService:
             return
 
         try:
+           # Busca remitente personalizado ou usa padrão
+           sender_email = self.tenant.settings.get('ai_sender_email', settings.email_from)
+           
            params = {
-                "from": f"Vellarys Intelligence <{settings.email_from}>",
+                "from": f"Vellarys Intelligence <{sender_email}>",
                 "to": [target_email],
                 "subject": f"🎯 Briefing Matinal: Sua Estratégia para Hoje ({datetime.now().strftime('%d/%m')})",
                 "html": html_content,

@@ -244,6 +244,10 @@ function SettingsContent() {
   const [voiceResponse, setVoiceResponse] = useState<VoiceResponseSettings>(DEFAULT_VOICE_RESPONSE);
   const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>(DEFAULT_VOICE_OPTIONS);
 
+  // IA Settings
+  const [aiSenderEmail, setAiSenderEmail] = useState('');
+  const [morningBriefingRecipient, setMorningBriefingRecipient] = useState('');
+
   // Após os outros estados, adicionar:
   const [hasProductsAccess, setHasProductsAccess] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -506,6 +510,10 @@ function SettingsContent() {
         const voiceResp = s.voice_response || DEFAULT_VOICE_RESPONSE;
         setVoiceResponse(voiceResp);
 
+        // Intelligence Active
+        setAiSenderEmail(s.ai_sender_email || '');
+        setMorningBriefingRecipient(s.morning_briefing_recipient || '');
+
         // Options - sobrescreve com dados da API se existirem
         const opts = response.options || {};
         // ⭐ REMOVIDO: Nichos agora vêm do endpoint /tenants/niches
@@ -595,6 +603,8 @@ function SettingsContent() {
         ai_behavior: { custom_questions: [], custom_rules: [], greeting_message: '', farewell_message: '' },
         messages: { greeting: '', farewell: '', out_of_hours: outOfHoursMessage, out_of_scope: outOfScopeMessage, handoff_notice: '', qualification_complete: '', waiting_response: '' },
         voice_response: voiceResponse,
+        ai_sender_email: aiSenderEmail,
+        morning_briefing_recipient: morningBriefingRecipient,
       }, targetTenantId || undefined);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -607,6 +617,35 @@ function SettingsContent() {
   };
 
   // HELPERS
+  const handleTriggerBriefing = async () => {
+    try {
+      setSaving(true);
+      const token = getToken();
+      const url = new URL(`${API_URL}/v1/manager/copilot/trigger-briefing`);
+      if (targetTenantId) url.searchParams.set('target_tenant_id', targetTenantId.toString());
+      if (morningBriefingRecipient) url.searchParams.set('target_email', morningBriefingRecipient);
+
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (response.ok) {
+        alert('Briefing disparado com sucesso! Verifique o e-mail configurado.');
+      } else {
+        alert('Erro ao disparar briefing.');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Erro de conexão ao disparar briefing.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const addFaq = () => {
     if (newFaqQuestion.trim() && newFaqAnswer.trim()) {
       setFaqItems([...faqItems, { question: newFaqQuestion.trim(), answer: newFaqAnswer.trim() }]);
@@ -632,6 +671,7 @@ function SettingsContent() {
     { id: 'perfil', label: 'Perfil da IA', icon: Sparkles },
     { id: 'atendimento', label: 'Fluxo Comercial', icon: Phone },
     { id: 'conhecimento', label: 'Conhecimento', icon: Library },
+    { id: 'ia', label: 'Inteligência Ativa', icon: Zap },
     { id: 'avancado', label: 'Avançado', icon: Shield },
     { id: 'assinatura', label: 'Assinatura', icon: CreditCard },
     ...(isSuperAdmin ? [{ id: 'datasources', label: 'Fontes de Dados', icon: Database }] : []),
@@ -1208,6 +1248,89 @@ function SettingsContent() {
             <ChevronDown className="w-4 h-4 rotate-90" /> Voltar para Configuracoes
           </button>
           <ProductsTab sellers={sellers} />
+        </div>
+      )}
+
+      {/* TAB: INTELIGÊNCIA ATIVA */}
+      {activeTab === 'ia' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-6">
+            <Card>
+              <CardHeader
+                title="Morning Briefing"
+                subtitle="Configurações do resumo diário matinal"
+              />
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex gap-3">
+                  <Clock className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-blue-800 mb-1">O que é o Morning Briefing?</p>
+                    <p className="text-xs text-blue-700 leading-relaxed">
+                      Um e-mail enviado diariamente às 08:00 com o panorama de vendas, leads negligenciados e ações táticas sugeridas pela IA.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">E-mail de Recebimento</label>
+                  <input
+                    type="email"
+                    value={morningBriefingRecipient}
+                    onChange={(e) => setMorningBriefingRecipient(e.target.value)}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: gestor@empresa.com"
+                  />
+                  <p className="mt-2 text-xs text-gray-400">
+                    Se deixado em branco, o sistema enviará automaticamente para o primeiro administrador/gestor encontrado.
+                  </p>
+                </div>
+
+                <div className="pt-4 border-t">
+                  <button
+                    onClick={handleTriggerBriefing}
+                    disabled={saving}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg font-bold transition-all shadow-sm"
+                  >
+                    <Zap className="w-4 h-4 text-amber-500" /> Testar Envio Agora
+                  </button>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          <div className="space-y-6">
+            <Card>
+              <CardHeader
+                title="Identidade de Envio"
+                subtitle="Configure como a IA aparece nos e-mails"
+              />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">E-mail de Remetente (From)</label>
+                  <input
+                    type="email"
+                    value={aiSenderEmail}
+                    onChange={(e) => setAiSenderEmail(e.target.value)}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Ex: ia@suaempresa.com"
+                  />
+                  <p className="mt-2 text-xs text-gray-400">
+                    <strong>Atenção:</strong> Este e-mail precisa estar verificado no seu provedor de envio (Resend).
+                  </p>
+                </div>
+
+                <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex gap-3">
+                  <Shield className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-amber-800 mb-1">Dica de Conversão</p>
+                    <p className="text-xs text-amber-700 leading-relaxed">
+                      E-mails que parecem vir de uma assistente real (ex: bruna@suaempresa.com) costumam ter maior taxa de abertura do que e-mails genéricos.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
         </div>
       )}
 
