@@ -187,11 +187,12 @@ def get_scheduler() -> SimpleScheduler:
 def create_scheduler():
     """Cria e configura o scheduler."""
     from src.infrastructure.jobs.follow_up_service import run_follow_up_job
-    
+    from src.infrastructure.jobs.phoenix_engine_service import run_phoenix_engine_job
+
     print("🔧 Criando scheduler nativo...")
-    
+
     scheduler = get_scheduler()
-    
+
     # Registra o job de follow-up (a cada 60 minutos)
     scheduler.add_job(
         job_id="follow_up_job",
@@ -199,7 +200,15 @@ def create_scheduler():
         interval_minutes=60,
         run_immediately=False,
     )
-    
+
+    # Registra o job do Phoenix Engine (a cada 24 horas / 1440 minutos)
+    scheduler.add_job(
+        job_id="phoenix_engine_job",
+        func=run_phoenix_engine_job,
+        interval_minutes=1440,  # Uma vez por dia
+        run_immediately=False,
+    )
+
     print("✅ Scheduler configurado!")
     return scheduler
 

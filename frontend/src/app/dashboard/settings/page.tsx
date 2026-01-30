@@ -19,6 +19,7 @@ import {
   DEFAULT_IDENTITY, DEFAULT_VOICE_RESPONSE, DEFAULT_VOICE_OPTIONS,
 } from '@/lib/settings';
 import VoiceResponseSettingsCard from '@/components/dashboard/VoiceResponseSettings';
+import PhoenixEngineSettingsCard from '@/components/dashboard/PhoenixEngineSettings';
 import {
   Save, X, Phone,
   Shield, CheckCircle2, ChevronDown,
@@ -247,6 +248,21 @@ function SettingsContent() {
   // VOICE-FIRST
   const [voiceResponse, setVoiceResponse] = useState<VoiceResponseSettings>(DEFAULT_VOICE_RESPONSE);
   const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>(DEFAULT_VOICE_OPTIONS);
+
+  // PHOENIX ENGINE
+  const [phoenixEngine, setPhoenixEngine] = useState({
+    enabled: false,
+    inactivity_days: 45,
+    max_attempts: 2,
+    interval_days: 15,
+    require_manager_approval: true,
+    min_interest_score_for_hot: 70,
+    respect_business_hours: true,
+    allowed_hours: {
+      start: "09:00",
+      end: "18:00",
+    },
+  });
 
   // IA Settings
   const [aiSenderEmail, setAiSenderEmail] = useState('');
@@ -515,6 +531,11 @@ function SettingsContent() {
         const voiceResp = s.voice_response || DEFAULT_VOICE_RESPONSE;
         setVoiceResponse(voiceResp);
 
+        // Phoenix Engine
+        if (s.phoenix_engine) {
+          setPhoenixEngine(s.phoenix_engine);
+        }
+
         // Intelligence Active
         setAiSenderEmail(s.ai_sender_email || '');
         setMorningBriefingRecipient(s.morning_briefing_recipient || '');
@@ -608,6 +629,7 @@ function SettingsContent() {
         ai_behavior: { custom_questions: [], custom_rules: [], greeting_message: '', farewell_message: '' },
         messages: { greeting: '', farewell: '', out_of_hours: outOfHoursMessage, out_of_scope: outOfScopeMessage, handoff_notice: '', qualification_complete: '', waiting_response: '' },
         voice_response: voiceResponse,
+        phoenix_engine: phoenixEngine,
         ai_sender_email: aiSenderEmail,
         morning_briefing_recipient: morningBriefingRecipient,
       }, targetTenantId || undefined);
@@ -1164,6 +1186,12 @@ function SettingsContent() {
               settings={voiceResponse}
               voiceOptions={voiceOptions}
               onChange={setVoiceResponse}
+            />
+
+            {/* PHOENIX ENGINE */}
+            <PhoenixEngineSettingsCard
+              settings={phoenixEngine}
+              onChange={setPhoenixEngine}
             />
 
             <Card className="border-indigo-100 bg-indigo-50/50">

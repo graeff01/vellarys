@@ -232,7 +232,38 @@ DEFAULT_SETTINGS = {
             "end": "20:00",
         },
     },
-    
+
+    # =========================================================================
+    # PHOENIX ENGINE - REATIVAÇÃO INTELIGENTE DE LEADS (NOVO)
+    # =========================================================================
+    "phoenix_engine": {
+        "enabled": False,  # Desabilitado por padrão (gestor ativa)
+
+        # Tempo de inatividade para considerar lead "frio" (em dias)
+        "inactivity_days": 45,
+
+        # Máximo de tentativas de reativação
+        "max_attempts": 2,
+
+        # Intervalo entre tentativas (em dias)
+        "interval_days": 15,
+
+        # Requer aprovação do gestor antes de notificar vendedor
+        "require_manager_approval": True,
+
+        # Score mínimo para marcar como "urgente" (0-100)
+        "min_interest_score_for_hot": 70,
+
+        # Respeitar horário comercial?
+        "respect_business_hours": True,
+
+        # Horário permitido para envio
+        "allowed_hours": {
+            "start": "09:00",
+            "end": "18:00",
+        },
+    },
+
     # =========================================================================
     # MENSAGENS PADRÃO PERSONALIZÁVEIS (novo)
     # =========================================================================
@@ -918,6 +949,7 @@ async def update_settings(
             "distribution",
             "guardrails",
             "follow_up",
+            "phoenix_engine",  # Phoenix Engine
             "messages",
             "voice_response",  # Voice-First
             "ai_sender_email",

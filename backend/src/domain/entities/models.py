@@ -215,6 +215,17 @@ class Lead(Base, TimestampMixin):
     reengagement_status: Mapped[Optional[str]] = mapped_column(String(20), default="none")
 
     # ==========================================
+    # PHOENIX ENGINE - Reativação de Leads Inativos
+    # ==========================================
+    phoenix_status: Mapped[Optional[str]] = mapped_column(String(20), default="none", nullable=True)  # none, pending, reactivated, approved, rejected
+    phoenix_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_phoenix_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    phoenix_interest_score: Mapped[int] = mapped_column(Integer, default=0)  # 0-100, análise de intenção de compra
+    phoenix_potential_commission: Mapped[Optional[float]] = mapped_column(nullable=True)  # Comissão estimada
+    phoenix_ai_analysis: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Análise completa da IA
+    phoenix_original_seller_id: Mapped[Optional[int]] = mapped_column(ForeignKey("sellers.id", ondelete="SET NULL"), nullable=True)  # Vendedor original para notificar
+
+    # ==========================================
     # ATRIBUIÇÃO PARA VENDEDOR
     # ==========================================
     assigned_seller_id: Mapped[Optional[int]] = mapped_column(

@@ -33,7 +33,8 @@ import {
     BarChart3,
     Lock,
     Crown,
-    FileText
+    FileText,
+    Flame
 } from 'lucide-react';
 import { User } from '@/lib/auth';
 import { useFeatures, Features } from '@/contexts/FeaturesContext';
@@ -182,6 +183,7 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                 items: [
                     { href: '/dashboard/copilot', label: 'Vellarys Copilot', icon: Sparkles, badge: "AI", feature: 'copilot_enabled' },
                     { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot, badge: "Lab", feature: 'simulator_enabled' },
+                    { href: '/dashboard/phoenix', label: 'Phoenix Engine', icon: Flame, badge: "Beta" },
                 ]
             },
             {

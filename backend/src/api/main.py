@@ -60,6 +60,7 @@ from src.api.routes import (
     manager_ai_router,
     templates_router,
 )
+from src.api.routes.phoenix_routes import router as phoenix_router
 
 # Domain
 from src.domain.entities import User, Tenant
@@ -291,6 +292,7 @@ app.include_router(opportunities_leads_router, prefix="/api/v1")
 app.include_router(appointments_router, prefix="/api/v1")
 app.include_router(manager_ai_router, prefix="/api/v1")
 app.include_router(templates_router, prefix="/api/v1")
+app.include_router(phoenix_router)  # Phoenix Engine (já tem prefix no router)
 
 # Admin
 app.include_router(admin_dashboard_router, prefix="/api/v1")
