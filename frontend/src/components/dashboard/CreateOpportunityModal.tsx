@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, Building2, User, DollarSign, FileText } from 'lucide-react';
 import { getToken } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 
@@ -174,7 +173,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="text-2xl flex items-center gap-2">
             <Plus className="w-6 h-6 text-blue-600" />
@@ -190,36 +189,35 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
           <form onSubmit={handleSubmit} className="space-y-4 mt-4">
             {/* Lead */}
             <div>
-              <Label htmlFor="lead_id">Lead *</Label>
-              <Select
+              <Label htmlFor="lead_id" className="flex items-center gap-2 mb-2">
+                <User className="w-4 h-4 text-blue-600" />
+                Lead *
+              </Label>
+              <select
+                id="lead_id"
                 value={formData.lead_id}
-                onValueChange={(value) => {
-                  console.log('🔵 [SELECT LEAD] Selecionado:', value);
-                  setFormData(prev => ({ ...prev, lead_id: value }));
+                onChange={(e) => {
+                  console.log('🔵 [SELECT LEAD] Selecionado:', e.target.value);
+                  setFormData(prev => ({ ...prev, lead_id: e.target.value }));
                 }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um lead" />
-                </SelectTrigger>
-                <SelectContent>
-                  {leads.length === 0 ? (
-                    <div className="p-4 text-center text-gray-500 text-sm">
-                      Nenhum lead disponível
-                    </div>
-                  ) : (
-                    leads.map(lead => (
-                      <SelectItem key={lead.id} value={lead.id.toString()}>
-                        {lead.name} - {lead.phone}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+                <option value="">Selecione um lead</option>
+                {leads.map(lead => (
+                  <option key={lead.id} value={lead.id.toString()}>
+                    {lead.name} - {lead.phone}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Título */}
             <div>
-              <Label htmlFor="title">Título *</Label>
+              <Label htmlFor="title" className="flex items-center gap-2 mb-2">
+                <FileText className="w-4 h-4 text-blue-600" />
+                Título *
+              </Label>
               <Input
                 id="title"
                 value={formData.title}
@@ -232,18 +230,12 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
               />
             </div>
 
-            {/* Debug Info */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="p-3 bg-gray-100 rounded text-xs font-mono">
-                <div>Lead ID: {formData.lead_id || '(vazio)'}</div>
-                <div>Título: {formData.title || '(vazio)'}</div>
-                <div>Válido: {formData.lead_id && formData.title ? '✅' : '❌'}</div>
-              </div>
-            )}
-
             {/* Produto/Imóvel */}
             <div>
-              <Label htmlFor="product_name">Produto/Imóvel</Label>
+              <Label htmlFor="product_name" className="flex items-center gap-2 mb-2">
+                <Building2 className="w-4 h-4 text-blue-600" />
+                Produto/Imóvel
+              </Label>
               <Input
                 id="product_name"
                 value={formData.product_name}
@@ -254,28 +246,31 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
 
             {/* Vendedor */}
             <div>
-              <Label htmlFor="seller_id">Vendedor</Label>
-              <Select
+              <Label htmlFor="seller_id" className="flex items-center gap-2 mb-2">
+                <User className="w-4 h-4 text-blue-600" />
+                Vendedor
+              </Label>
+              <select
+                id="seller_id"
                 value={formData.seller_id}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, seller_id: value }))}
+                onChange={(e) => setFormData(prev => ({ ...prev, seller_id: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um vendedor (opcional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
-                  {sellers.map(seller => (
-                    <SelectItem key={seller.id} value={seller.id.toString()}>
-                      {seller.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <option value="">Nenhum</option>
+                {sellers.map(seller => (
+                  <option key={seller.id} value={seller.id.toString()}>
+                    {seller.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Valor */}
             <div>
-              <Label htmlFor="value">Valor (R$)</Label>
+              <Label htmlFor="value" className="flex items-center gap-2 mb-2">
+                <DollarSign className="w-4 h-4 text-blue-600" />
+                Valor (R$)
+              </Label>
               <Input
                 id="value"
                 type="number"
