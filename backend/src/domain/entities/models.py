@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from .tenant_subscription import TenantSubscription
     from .tenant_usage import TenantUsage
     from .data_source import DataSource
-    from .commercial_proposal import CommercialProposal
+    # from .commercial_proposal import CommercialProposal  # TODO: Create this model if needed
 
 
 # ============================================
@@ -267,7 +267,7 @@ class Lead(Base, TimestampMixin):
     notes: Mapped[list["LeadNote"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
     handoff_history: Mapped[list["HandoffHistory"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
     appointments: Mapped[list["Appointment"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
-    commercial_proposals: Mapped[list["CommercialProposal"]] = relationship(back_populates="lead", cascade="all, delete-orphan")
+    # commercial_proposals: Mapped[list["CommercialProposal"]] = relationship(back_populates="lead", cascade="all, delete-orphan")  # TODO: Create CommercialProposal model
 
     # ==========================================
     # ÍNDICES DE PERFORMANCE
