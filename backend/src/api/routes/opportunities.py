@@ -326,22 +326,35 @@ async def create_opportunity(
             lead_id=data.lead_id,
             title=data.title,
             product_id=data.product_id,
-            product_name=data.product_name,
-            product_data=data.product_data,
             seller_id=data.seller_id,
             value=data.value,
             status="novo",
             expected_close_date=data.expected_close_date,
             notes=data.notes,
-            custom_data=data.custom_data or {},
+            custom_data={
+                **(data.custom_data or {}),
+                "product_name": data.product_name,
+                "product_data": data.product_data
+            },
         )
 
         db.add(opportunity)
         await db.commit()
-        await db.refresh(opportunity, ["product", "seller"])
+        
+        # Recarregar relacionamentos para a resposta detalhada
+        result = await db.execute(
+            select(Opportunity)
+            .where(Opportunity.id == opportunity.id)
+            .options(
+                selectinload(Opportunity.lead),
+                selectinload(Opportunity.seller),
+                selectinload(Opportunity.product)
+            )
+        )
+        opportunity = result.scalar_one()
 
         logger.info(f"Oportunidade criada manualmente: {opportunity.id} por usuário {current_user.id}")
-        return opportunity_to_response(opportunity)
+        return opportunity_to_detail_response(opportunity)
 
     except HTTPException:
         raise

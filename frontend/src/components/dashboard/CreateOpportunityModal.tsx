@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Loader2, Building2, User, DollarSign, FileText, X } from 'lucide-react';
+import { Plus, Loader2, Building2, User, DollarSign, FileText, X, Search, Check } from 'lucide-react';
 import { getToken } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
+import { Card } from '@/components/ui/card';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api').replace(/\/v1$/, '');
 
@@ -29,11 +30,31 @@ interface Seller {
   name: string;
 }
 
+interface Product {
+  id: number;
+  name: string;
+  attributes?: {
+    codigo?: string;
+    tipo?: string;
+    regiao?: string;
+    preco?: number;
+    quartos?: number;
+    banheiros?: number;
+    vagas?: number;
+    metragem?: number;
+    descricao?: string;
+  };
+  description?: string;
+}
+
 export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOpportunityModalProps) {
   const [loading, setLoading] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [showPropertySelector, setShowPropertySelector] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const [formData, setFormData] = useState({
     lead_id: '',
@@ -41,14 +62,16 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
     title: '',
     value: '',
     notes: '',
+    product_id: '',
     product_name: '',
+    product_data: null as any,
   });
 
   const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
-      loadLeadsAndSellers();
+      loadInitialData();
       resetForm();
     }
   }, [open]);
@@ -60,41 +83,80 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
       title: '',
       value: '',
       notes: '',
+      product_id: '',
       product_name: '',
+      product_data: null,
     });
+    setSearchTerm('');
   }
 
-  async function loadLeadsAndSellers() {
+  async function loadInitialData() {
     try {
       setLoadingData(true);
       const token = getToken();
 
-      const [leadsRes, sellersRes] = await Promise.all([
+      const [leadsRes, sellersRes, productsRes] = await Promise.all([
         fetch(`${API_URL}/v1/leads?limit=100`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
         fetch(`${API_URL}/v1/sellers`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
+        fetch(`${API_URL}/v1/products?limit=200`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
       ]);
 
-      if (leadsRes.ok && sellersRes.ok) {
+      if (leadsRes.ok && sellersRes.ok && productsRes.ok) {
         const leadsData = await leadsRes.json();
         const sellersData = await sellersRes.json();
+        const productsData = await productsRes.json();
 
         setLeads(leadsData.items || []);
         setSellers(sellersData.sellers || []);
+        setProducts(productsData || []);
       }
     } catch (error) {
       console.error('Erro carregando dados:', error);
       toast({
         variant: 'destructive',
         title: 'Erro ao carregar dados',
-        description: 'Não foi possível carregar leads e vendedores'
+        description: 'Não foi possível carregar leads, vendedores e produtos'
       });
     } finally {
       setLoadingData(false);
     }
+  }
+
+  const filteredProducts = products.filter(p => {
+    const code = p.attributes?.codigo || '';
+    const name = p.name || '';
+    return code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      name.toLowerCase().includes(searchTerm.toLowerCase());
+  });
+
+  function handleSelectProperty(product: Product) {
+    const pData = {
+      codigo: product.attributes?.codigo,
+      tipo: product.attributes?.tipo,
+      regiao: product.attributes?.regiao,
+      preco: product.attributes?.preco,
+      quartos: product.attributes?.quartos,
+      banheiros: product.attributes?.banheiros,
+      vagas: product.attributes?.vagas,
+      metragem: product.attributes?.metragem,
+      descricao: product.description || product.attributes?.descricao,
+    };
+
+    setFormData(prev => ({
+      ...prev,
+      product_id: product.id.toString(),
+      product_name: product.name,
+      product_data: pData,
+      title: prev.title || product.name, // Auto preenche o título se estiver vazio
+      value: product.attributes?.preco ? (product.attributes.preco / 100).toString() : prev.value
+    }));
+    setShowPropertySelector(false);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -125,7 +187,9 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
         title: formData.title,
         value: valueInCents,
         notes: formData.notes || null,
+        product_id: formData.product_id ? parseInt(formData.product_id) : null,
         product_name: formData.product_name || null,
+        product_data: formData.product_data,
       };
 
       const response = await fetch(`${API_URL}/v1/opportunities`, {
@@ -163,18 +227,18 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-xl p-0 overflow-hidden border-none shadow-2xl rounded-3xl">
-        <DialogHeader className="px-8 py-6 bg-white border-b border-gray-100 flex flex-row items-center justify-between space-y-0">
-          <div>
+      <DialogContent className="max-w-2xl p-0 overflow-hidden border-none shadow-2xl rounded-3xl">
+        <DialogHeader className="px-8 py-6 bg-white border-b border-gray-100 flex flex-row items-center justify-between space-y-0 text-left">
+          <div className="flex-1">
             <DialogTitle className="text-xl font-black text-gray-900 flex items-center gap-2">
               <Plus className="w-5 h-5 text-blue-600" />
               Nova Oportunidade
             </DialogTitle>
             <DialogDescription className="text-xs font-medium text-gray-400 mt-0.5">
-              Preencha os dados básicos para converter este lead.
+              Converta seu lead em uma nova negociação.
             </DialogDescription>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors order-last">
             <X className="w-5 h-5 text-gray-400" />
           </button>
         </DialogHeader>
@@ -183,6 +247,46 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="w-10 h-10 animate-spin text-blue-600" />
             <p className="text-gray-400 text-sm font-medium">Sincronizando dados...</p>
+          </div>
+        ) : showPropertySelector ? (
+          <div className="flex flex-col h-[500px] bg-white">
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-gray-900">Selecionar Imóvel do Site</h3>
+                <Button variant="ghost" size="sm" onClick={() => setShowPropertySelector(false)}>Voltar</Button>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Buscar por código ou nome..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 h-11 bg-gray-50 border-none rounded-xl"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {filteredProducts.length === 0 ? (
+                <div className="text-center py-10 text-gray-400">Nenhum imóvel encontrado.</div>
+              ) : (
+                filteredProducts.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => handleSelectProperty(p)}
+                    className="w-full text-left p-4 hover:bg-blue-50 border border-transparent hover:border-blue-100 rounded-2xl transition-all flex items-center justify-between group"
+                  >
+                    <div>
+                      <p className="font-bold text-gray-900 text-sm group-hover:text-blue-700">{p.name}</p>
+                      {p.attributes?.codigo && (
+                        <p className="text-xs text-blue-500 font-bold mt-0.5">CÓDIGO: {p.attributes.codigo}</p>
+                      )}
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-blue-500" />
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="p-8 space-y-6 bg-white">
@@ -225,21 +329,31 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                 </div>
               </div>
 
-              {/* Produto/Imóvel & Vendedor */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="product_name" className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <Building2 className="w-3 h-3" /> Imóvel/Referência
-                  </Label>
-                  <Input
-                    id="product_name"
-                    value={formData.product_name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, product_name: e.target.value }))}
-                    placeholder="Ref: 123456"
-                    className="h-11 px-4 bg-gray-50 border-transparent rounded-xl focus:bg-white focus:border-blue-500 font-bold transition-all text-sm"
-                  />
+              {/* Botão de Atalho para Selecionar Imóvel */}
+              <div className="bg-blue-50/50 border border-dashed border-blue-200 rounded-3xl p-5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-100 flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-black text-blue-600 uppercase tracking-widest">Imóvel de Referência</p>
+                    <p className="text-sm font-bold text-gray-600">
+                      {formData.product_name ? `${formData.product_name} (${formData.product_data?.codigo || 'S/Ref'})` : "Clique para selecionar do site"}
+                    </p>
+                  </div>
                 </div>
+                <Button
+                  type="button"
+                  onClick={() => setShowPropertySelector(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl"
+                  size="sm"
+                >
+                  Selecionar Imóvel
+                </Button>
+              </div>
 
+              {/* Vendedor & Valor */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="seller_id" className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
                     <User className="w-3 h-3" /> Corretor Atribuído
@@ -258,13 +372,10 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                     ))}
                   </select>
                 </div>
-              </div>
 
-              {/* Valor & Observações */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2 col-span-1">
+                <div className="space-y-2">
                   <Label htmlFor="value" className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <DollarSign className="w-3 h-3" /> Valor (BRL)
+                    <DollarSign className="w-3 h-3" /> Valor Estimado (BRL)
                   </Label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">R$</span>
@@ -278,17 +389,18 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                     />
                   </div>
                 </div>
+              </div>
 
-                <div className="space-y-2 col-span-2">
-                  <Label htmlFor="notes" className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Observações Internas</Label>
-                  <Textarea
-                    id="notes"
-                    value={formData.notes}
-                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Notas relevantes para o fechamento..."
-                    className="min-h-[44px] max-h-[120px] px-4 py-3 bg-gray-50 border-transparent rounded-xl focus:bg-white focus:border-blue-500 font-medium transition-all text-sm"
-                  />
-                </div>
+              {/* Notas */}
+              <div className="space-y-2">
+                <Label htmlFor="notes" className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Observações Internas</Label>
+                <Textarea
+                  id="notes"
+                  value={formData.notes}
+                  onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                  placeholder="Notas relevantes para o fechamento..."
+                  className="min-h-[60px] max-h-[120px] px-4 py-3 bg-gray-50 border-transparent rounded-xl focus:bg-white focus:border-blue-500 font-medium transition-all text-sm"
+                />
               </div>
             </div>
 
@@ -297,7 +409,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
                 type="button"
                 variant="ghost"
                 onClick={onClose}
-                className="flex-1 h-12 rounded-xl text-gray-400 font-bold hover:text-gray-600 hover:bg-gray-100 transition-all"
+                className="flex-1 h-12 rounded-xl text-gray-400 font-bold hover:text-gray-600 hover:bg-gray-100 transition-all font-sans"
                 disabled={loading}
               >
                 Descartar
@@ -318,5 +430,11 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ChevronRight({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m9 18 6-6-6-6" /></svg>
   );
 }
