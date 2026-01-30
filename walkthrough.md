@@ -1,53 +1,41 @@
-# Walkthrough: Active Intelligence Features
+# Walkthrough: Active Intelligence Refinado
 
-Implementei os dois pilares estratégicos para diferenciar o Vellarys: **Morning Briefing** (Email) e **Intelligence Injection** (UI).
+Refinei os fluxos de Inteligência Ativa com base no seu feedback. Agora o sistema está mais inteligente na identificação do gestor e mais tático para o vendedor no Inbox.
 
-## 1. Intelligence Injection (No Card do Lead)
+## 1. Intelligence Injection (No Inbox - Balão Flutuante)
 
-Agora, ao abrir um Lead, o corretor verá um card amarelo **"Intelligence Injection"** no topo da lista de conversas.
+Movi a inteligência do lead para o **Inbox**, que é onde o vendedor passa a maior parte do tempo respondendo.
 
-### O que ele faz:
-*   **Analisa** as últimas 10 mensagens da conversa.
-*   **Identifica** o tópico chave (ex: "Segurança", "Preço", "Localização").
-*   **Calcula** o sentimento do cliente.
-*   **Sugere** uma ação tática imediata (ex: "Ofereça o imóvel X", "Ligue agora").
-*   **Fallback:** Se não houver conversa, ele dá dicas baseadas na qualificação do lead (Cold/Hot).
+### O que mudou:
+*   **Formato:** Saiu o card fixo da lista e entrou um **Balão Flutuante (Sparkles)** que fica no canto inferior direito da conversa.
+*   **Interação:** O balão pulsa suavemente para chamar a atenção. Ao clicar, ele expande mostrando a dica da IA ("Dica de Ouro") e a ação sugerida.
+*   **Contexto:** Ele analisa a conversa em tempo real enquanto o vendedor está com o chat aberto.
 
-### Arquivos Modificados:
-*   `backend/src/infrastructure/services/sales_advisor_service.py`: Cérebro da análise.
-*   `backend/src/api/routes/leads.py`: Novo endpoint `GET /leads/{id}/ai-insights`.
-*   `frontend/src/components/leads/lead-intelligence-card.tsx`: Componente visual (Yellow Sticky Note).
-*   `frontend/src/app/dashboard/leads/[id]/page.tsx`: Integração na tela.
+### Arquivos:
+*   `frontend/src/components/leads/floating-intelligence-card.tsx`: Novo componente de balão.
+*   `frontend/src/components/dashboard/inbox/inbox-conversation.tsx`: Integração no Inbox.
 
 ---
 
-## 2. Morning Briefing (Email às 06:00)
+## 2. Morning Briefing (Email Dinâmico)
 
-O sistema agora tem um serviço capaz de gerar um **Email Executivo "Edificado"** e enviar para os gestores.
+O email matinal agora identifica automaticamente para quem deve ser enviado, sem depender de hardcode.
 
-### O que ele faz:
-*   **Coleta métricas:** Vendas do mês, Meta (fixada em 2M para teste), Leads de ontem.
-*   **Deal Rescue:** Identifica top 5 leads **QUENTES** que não receberam resposta há 24h.
-*   **Formato Premium:** Email HTML responsivo, limpo e direto ao ponto.
+### Como funciona a identificação:
+1.  **Prioridade 1:** Busca no `tenant.settings` o campo `morning_briefing_recipient`.
+2.  **Prioridade 2:** Busca o primeiro usuário com cargo de **Gestor** ou **Admin** no banco de dados.
+3.  **Fallback:** Se não achar ninguém, envia para o Douglas (velocebm).
 
-### Como Testar:
-Como não tenho acesso ao cronjob do servidor, criei um **gatilho manual** para você testar agora:
+### Como Testar o Fluxo:
+Você pode disparar o envio agora mesmo para validar o layout e os dados:
 
-**Endpoint:** `POST /api/v1/manager/copilot/trigger-briefing`
-**Body:** (Opcional)
-```json
-{
-  "target_email": "douglas@velocebm.com"
-}
-```
-**Auth:** Requer token de Admin ou Gestor.
-
-### Arquivos Modificados:
-*   `backend/src/infrastructure/services/morning_briefing_service.py`: Lógica de geração e envio.
-*   `backend/src/api/routes/manager_ai.py`: Endpoint de gatilho manual.
+**Ação:** Chame o endpoint de trigger (via Postman ou similar).
+**Gatilho:** `POST /api/v1/manager/copilot/trigger-briefing`
+*   *Dica:* Se quiser forçar o recebimento em um email específico para teste, passe no query param: `?target_email=seu@email.com`.
+*   *Sem parâmetro:* Ele usará a lógica automática descrita acima.
 
 ---
 
-## Próximos Passos Sugeridos
-1.  **Configurar Cron Job:** Adicionar chamada ao `generate_and_send` no scheduler do sistema (Celery/APScheduler) para rodar às 06:00.
-2.  **Meta Dinâmica:** Conectar a meta de receita a uma tabela de configurações do Tenant.
+## Próximos Passos
+*   As implementações já estão no repositório (Commit & Push realizados na etapa anterior, e agora enviarei as novas).
+*   Recomendo acessar o **Inbox** e selecionar um lead para ver o novo balão da IA.

@@ -22,9 +22,27 @@ class MorningBriefingService:
         self.db = db
         self.tenant = tenant
 
-    async def generate_and_send(self, target_email: str = "douglas@velocebm.com"):
+    async def generate_and_send(self, target_email: str = None):
         """Gera os dados e envia o email."""
-        logger.info(f"Gerando Morning Briefing para {self.tenant.name}")
+        
+        # Se não informou email, tenta descobrir automaticamente
+        if not target_email:
+            # 1. Tenta settings do tenant
+            target_email = self.tenant.settings.get('morning_briefing_recipient')
+            
+            # 2. Se não tem, busca o primeiro gestor ou admin
+            if not target_email:
+                q_user = select(User).where(
+                    and_(User.tenant_id == self.tenant.id, User.role.in_(['gestor', 'admin']))
+                ).limit(1)
+                user_res = await self.db.execute(q_user)
+                manager = user_res.scalar_one_or_none()
+                if manager:
+                    target_email = manager.email
+                else:
+                    target_email = "douglas@velocebm.com" # Último Fallback
+
+        logger.info(f"Gerando Morning Briefing para {self.tenant.name} -> Destinatário: {target_email}")
 
         # 1. Coletar Dados
         stats = await self._get_daily_stats()

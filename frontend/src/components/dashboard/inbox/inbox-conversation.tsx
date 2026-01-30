@@ -30,6 +30,7 @@ import { TemplatesPopover } from './templates-popover';
 import { LeadNotesPanel } from './lead-notes-panel';
 import { AttachmentUpload } from './attachment-upload';
 import { TypingIndicator } from './typing-indicator';
+import { FloatingIntelligenceCard } from '@/components/leads/floating-intelligence-card';
 
 interface InboxConversationProps {
   lead: InboxLead | null;
@@ -483,6 +484,9 @@ export function InboxConversation({ lead, onBack, onLeadUpdated }: InboxConversa
             </div>
           )}
         </ScrollArea>
+
+        {/* Intelligence Injection - Floating Balloon */}
+        {lead && <FloatingIntelligenceCard leadId={lead.id} />}
       </div>
 
       {/* Aviso se não assumiu ainda */}
