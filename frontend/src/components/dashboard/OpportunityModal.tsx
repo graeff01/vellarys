@@ -30,19 +30,19 @@ interface OpportunityDetails {
   value: number;
   created_at: string;
   updated_at: string;
-  
+
   // Lead
   lead_id: number;
   lead_name: string;
   lead_phone?: string;
   lead_email?: string;
   lead_status?: string;
-  
+
   // Seller
   seller_id?: number;
   seller_name?: string;
   seller_phone?: string;
-  
+
   // Product/Imóvel
   product_id?: number;
   product_name?: string;
@@ -143,12 +143,13 @@ export function OpportunityModal({ opportunityId, open, onClose, onUpdate }: Opp
 
   const getStatusConfig = (status: string) => {
     const configs: Record<string, { label: string; className: string; icon: any }> = {
-      new: { label: 'Nova', className: 'bg-blue-100 text-blue-800', icon: Clock },
-      in_progress: { label: 'Em Progresso', className: 'bg-yellow-100 text-yellow-800', icon: TrendingUp },
-      won: { label: 'Fechada', className: 'bg-green-100 text-green-800', icon: CheckCircle2 },
-      lost: { label: 'Perdida', className: 'bg-red-100 text-red-800', icon: XCircle },
+      novo: { label: 'Nova', className: 'bg-blue-100 text-blue-800', icon: Clock },
+      negociacao: { label: 'Em Negociação', className: 'bg-yellow-100 text-yellow-800', icon: TrendingUp },
+      proposta: { label: 'Proposta Enviada', className: 'bg-purple-100 text-purple-800', icon: TrendingUp },
+      ganho: { label: 'Fechada', className: 'bg-green-100 text-green-800', icon: CheckCircle2 },
+      perdido: { label: 'Perdida', className: 'bg-red-100 text-red-800', icon: XCircle },
     };
-    return configs[status] || configs.new;
+    return configs[status] || configs.novo;
   };
 
   const formatValue = (cents: number) => {
@@ -281,7 +282,7 @@ export function OpportunityModal({ opportunityId, open, onClose, onUpdate }: Opp
                 <Home className="w-5 h-5 text-green-600" />
                 Imóvel de Interesse
               </h3>
-              
+
               {opportunity.product_data.codigo && (
                 <div className="mb-3">
                   <Badge className="bg-green-600 text-white text-sm px-3 py-1">
@@ -356,25 +357,31 @@ export function OpportunityModal({ opportunityId, open, onClose, onUpdate }: Opp
                   <SelectValue placeholder="Selecione o status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="new">
+                  <SelectItem value="novo">
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4" />
                       Nova
                     </div>
                   </SelectItem>
-                  <SelectItem value="in_progress">
+                  <SelectItem value="negociacao">
                     <div className="flex items-center gap-2">
                       <TrendingUp className="w-4 h-4" />
-                      Em Progresso
+                      Em Negociação
                     </div>
                   </SelectItem>
-                  <SelectItem value="won">
+                  <SelectItem value="proposta">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4" />
+                      Proposta Enviada
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="ganho">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="w-4 h-4" />
                       Fechada (Ganhou)
                     </div>
                   </SelectItem>
-                  <SelectItem value="lost">
+                  <SelectItem value="perdido">
                     <div className="flex items-center gap-2">
                       <XCircle className="w-4 h-4" />
                       Perdida

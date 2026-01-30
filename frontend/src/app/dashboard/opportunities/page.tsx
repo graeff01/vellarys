@@ -72,12 +72,13 @@ export default function OpportunitiesPage() {
 
   const getStatusConfig = (status: string) => {
     const configs: Record<string, { label: string; className: string; icon: any }> = {
-      new: { label: 'Nova', className: 'bg-blue-100 text-blue-800', icon: Clock },
-      in_progress: { label: 'Em Progresso', className: 'bg-yellow-100 text-yellow-800', icon: TrendingUp },
-      won: { label: 'Fechada', className: 'bg-green-100 text-green-800', icon: CheckCircle2 },
-      lost: { label: 'Perdida', className: 'bg-red-100 text-red-800', icon: XCircle },
+      novo: { label: 'Nova', className: 'bg-blue-100 text-blue-800', icon: Clock },
+      negociacao: { label: 'Em Negociação', className: 'bg-yellow-100 text-yellow-800', icon: TrendingUp },
+      proposta: { label: 'Proposta Enviada', className: 'bg-purple-100 text-purple-800', icon: TrendingUp },
+      ganho: { label: 'Fechada', className: 'bg-green-100 text-green-800', icon: CheckCircle2 },
+      perdido: { label: 'Perdida', className: 'bg-red-100 text-red-800', icon: XCircle },
     };
-    return configs[status] || configs.new;
+    return configs[status] || configs.novo;
   };
 
   const formatValue = (cents: number) => {
@@ -189,23 +190,30 @@ export default function OpportunitiesPage() {
             Todas
           </Button>
           <Button
-            variant={statusFilter === 'new' ? 'default' : 'outline'}
+            variant={statusFilter === 'novo' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setStatusFilter('new')}
+            onClick={() => setStatusFilter('novo')}
           >
             Novas
           </Button>
           <Button
-            variant={statusFilter === 'in_progress' ? 'default' : 'outline'}
+            variant={statusFilter === 'negociacao' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setStatusFilter('in_progress')}
+            onClick={() => setStatusFilter('negociacao')}
           >
-            Em Progresso
+            Em Negociação
           </Button>
           <Button
-            variant={statusFilter === 'won' ? 'default' : 'outline'}
+            variant={statusFilter === 'proposta' ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setStatusFilter('won')}
+            onClick={() => setStatusFilter('proposta')}
+          >
+            Proposta Enviada
+          </Button>
+          <Button
+            variant={statusFilter === 'ganho' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setStatusFilter('ganho')}
           >
             Fechadas
           </Button>
@@ -230,14 +238,15 @@ export default function OpportunitiesPage() {
             const StatusIcon = statusConfig.icon;
 
             return (
-              <Card
+              <div
                 key={opportunity.id}
-                className="p-4 hover:shadow-lg transition-all cursor-pointer border border-gray-200 h-full"
+                className="cursor-pointer"
                 onClick={() => {
                   setSelectedOpportunityId(opportunity.id);
                   setModalOpen(true);
                 }}
               >
+                <Card className="p-4 hover:shadow-lg transition-all border border-gray-200 h-full">
                   {/* Header com Status */}
                   <div className="flex items-start justify-between mb-3">
                     <Badge className={statusConfig.className}>
@@ -287,6 +296,7 @@ export default function OpportunitiesPage() {
                     </p>
                   )}
                 </Card>
+              </div>
             );
           })
         )}

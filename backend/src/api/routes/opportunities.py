@@ -108,6 +108,45 @@ class LoseInput(BaseModel):
     notes: Optional[str] = None
 
 
+class OpportunityDetailResponse(BaseModel):
+    """Resposta detalhada de oportunidade com informações completas."""
+    id: int
+    lead_id: int
+    tenant_id: int
+    title: str
+    value: int
+    status: str
+    
+    # Lead info
+    lead_name: str
+    lead_phone: Optional[str] = None
+    lead_email: Optional[str] = None
+    lead_status: Optional[str] = None
+    
+    # Seller info
+    seller_id: Optional[int] = None
+    seller_name: Optional[str] = None
+    seller_phone: Optional[str] = None
+    
+    # Product info
+    product_id: Optional[int] = None
+    product_name: Optional[str] = None
+    product_data: Optional[dict] = None
+    
+    # Opportunity details
+    expected_close_date: Optional[datetime] = None
+    won_at: Optional[datetime] = None
+    lost_at: Optional[datetime] = None
+    lost_reason: Optional[str] = None
+    notes: Optional[str] = None
+    custom_data: Optional[dict] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 # =============================================
 # HELPERS
 # =============================================
@@ -125,6 +164,44 @@ def opportunity_to_response(opp: Opportunity) -> OpportunityResponse:
         product_name=opp.product.name if opp.product else None,
         seller_id=opp.seller_id,
         seller_name=opp.seller.name if opp.seller else None,
+        expected_close_date=opp.expected_close_date,
+        won_at=opp.won_at,
+        lost_at=opp.lost_at,
+        lost_reason=opp.lost_reason,
+        notes=opp.notes,
+        custom_data=opp.custom_data,
+        created_at=opp.created_at,
+        updated_at=opp.updated_at,
+    )
+
+
+def opportunity_to_detail_response(opp: Opportunity) -> OpportunityDetailResponse:
+    """Converte Opportunity para resposta detalhada com informações completas."""
+    return OpportunityDetailResponse(
+        id=opp.id,
+        lead_id=opp.lead_id,
+        tenant_id=opp.tenant_id,
+        title=opp.title,
+        value=opp.value,
+        status=opp.status,
+        
+        # Lead info
+        lead_name=opp.lead.name if opp.lead else "Lead não encontrado",
+        lead_phone=opp.lead.phone if opp.lead else None,
+        lead_email=opp.lead.email if opp.lead else None,
+        lead_status=opp.lead.status if opp.lead else None,
+        
+        # Seller info
+        seller_id=opp.seller_id,
+        seller_name=opp.seller.name if opp.seller else None,
+        seller_phone=opp.seller.phone if opp.seller else None,
+        
+        # Product info
+        product_id=opp.product_id,
+        product_name=opp.product.name if opp.product else opp.custom_data.get("product_name"),
+        product_data=opp.custom_data if opp.custom_data else None,
+        
+        # Opportunity details
         expected_close_date=opp.expected_close_date,
         won_at=opp.won_at,
         lost_at=opp.lost_at,
@@ -274,14 +351,14 @@ async def create_opportunity(
         raise HTTPException(status_code=500, detail="Erro ao criar oportunidade")
 
 
-@router.get("/{opportunity_id}", response_model=OpportunityResponse)
+@router.get("/{opportunity_id}", response_model=OpportunityDetailResponse)
 async def get_opportunity(
     opportunity_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Busca oportunidade por ID.
+    Busca oportunidade por ID com detalhes completos.
     """
     try:
         tenant_id = current_user.tenant_id
@@ -291,14 +368,18 @@ async def get_opportunity(
         result = await db.execute(
             select(Opportunity)
             .where(Opportunity.id == opportunity_id, Opportunity.tenant_id == tenant_id)
-            .options(selectinload(Opportunity.product), selectinload(Opportunity.seller))
+            .options(
+                selectinload(Opportunity.product),
+                selectinload(Opportunity.seller),
+                selectinload(Opportunity.lead)
+            )
         )
         opp = result.scalar_one_or_none()
 
         if not opp:
             raise HTTPException(status_code=404, detail="Oportunidade não encontrada")
 
-        return opportunity_to_response(opp)
+        return opportunity_to_detail_response(opp)
 
     except HTTPException:
         raise
