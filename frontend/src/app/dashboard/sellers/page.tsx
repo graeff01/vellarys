@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { Plus, UserPlus, Mail, Lock, Phone, MapPin, Tag, Shield } from 'lucide-react'
+import { Plus, UserPlus, Mail, Lock, Phone, MapPin, Tag, Shield, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import {
@@ -89,6 +89,21 @@ export default function VendedoresPage() {
     setCreateUserAccount(false)
     setUserEmail('')
     setUserPassword('')
+  }
+
+  async function handleDelete(seller: Seller) {
+    if (!confirm(`Tem certeza que deseja excluir ${seller.name}? Esta ação não pode ser desfeita.`)) {
+      return
+    }
+
+    try {
+      await api.delete(`/v1/sellers/${seller.id}`)
+      toast.success('Vendedor excluído com sucesso')
+      loadSellers()
+    } catch (error) {
+      console.error('Erro ao excluir vendedor:', error)
+      toast.error('Erro ao excluir vendedor')
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -399,13 +414,21 @@ export default function VendedoresPage() {
               </div>
             )}
 
-            <div className="mt-4 pt-4 border-t">
+            <div className="mt-4 pt-4 border-t space-y-2">
               <Button
                 variant="outline"
                 className="w-full"
                 onClick={() => openEditDialog(seller)}
               >
                 Editar
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                onClick={() => handleDelete(seller)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Excluir
               </Button>
             </div>
           </Card>
