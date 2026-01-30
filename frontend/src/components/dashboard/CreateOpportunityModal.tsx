@@ -101,11 +101,22 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!formData.lead_id || !formData.title) {
+    console.log('📝 [CREATE OPP] Form data:', formData);
+
+    // Validação detalhada
+    const errors = [];
+    if (!formData.lead_id || formData.lead_id === '') {
+      errors.push('Lead');
+    }
+    if (!formData.title || formData.title.trim() === '') {
+      errors.push('Título');
+    }
+
+    if (errors.length > 0) {
       toast({
         variant: 'destructive',
-        title: 'Campos obrigatórios',
-        description: 'Preencha pelo menos o Lead e o Título'
+        title: 'Campos obrigatórios faltando',
+        description: `Preencha: ${errors.join(', ')}`
       });
       return;
     }
@@ -117,20 +128,24 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
       // Converter valor de reais para centavos
       const valueInCents = formData.value ? Math.round(parseFloat(formData.value) * 100) : 0;
 
+      const payload = {
+        lead_id: parseInt(formData.lead_id),
+        seller_id: formData.seller_id ? parseInt(formData.seller_id) : null,
+        title: formData.title,
+        value: valueInCents,
+        notes: formData.notes || null,
+        product_name: formData.product_name || null,
+      };
+
+      console.log('📤 [CREATE OPP] Enviando payload:', payload);
+
       const response = await fetch(`${API_URL}/v1/opportunities`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          lead_id: parseInt(formData.lead_id),
-          seller_id: formData.seller_id ? parseInt(formData.seller_id) : null,
-          title: formData.title,
-          value: valueInCents,
-          notes: formData.notes || null,
-          product_name: formData.product_name || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -178,17 +193,26 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
               <Label htmlFor="lead_id">Lead *</Label>
               <Select
                 value={formData.lead_id}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, lead_id: value }))}
+                onValueChange={(value) => {
+                  console.log('🔵 [SELECT LEAD] Selecionado:', value);
+                  setFormData(prev => ({ ...prev, lead_id: value }));
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um lead" />
                 </SelectTrigger>
                 <SelectContent>
-                  {leads.map(lead => (
-                    <SelectItem key={lead.id} value={lead.id.toString()}>
-                      {lead.name} - {lead.phone}
-                    </SelectItem>
-                  ))}
+                  {leads.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500 text-sm">
+                      Nenhum lead disponível
+                    </div>
+                  ) : (
+                    leads.map(lead => (
+                      <SelectItem key={lead.id} value={lead.id.toString()}>
+                        {lead.name} - {lead.phone}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -199,11 +223,23 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
               <Input
                 id="title"
                 value={formData.title}
-                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                onChange={(e) => {
+                  console.log('📝 [INPUT TITLE] Digitado:', e.target.value);
+                  setFormData(prev => ({ ...prev, title: e.target.value }));
+                }}
                 placeholder="Ex: Casa 3 Quartos em Porto Alegre"
                 required
               />
             </div>
+
+            {/* Debug Info */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="p-3 bg-gray-100 rounded text-xs font-mono">
+                <div>Lead ID: {formData.lead_id || '(vazio)'}</div>
+                <div>Título: {formData.title || '(vazio)'}</div>
+                <div>Válido: {formData.lead_id && formData.title ? '✅' : '❌'}</div>
+              </div>
+            )}
 
             {/* Produto/Imóvel */}
             <div>
