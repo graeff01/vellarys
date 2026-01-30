@@ -1,4 +1,5 @@
 import logging
+from fastapi import HTTPException
 from datetime import datetime, timedelta
 from typing import List, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
