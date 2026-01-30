@@ -200,14 +200,15 @@ class MorningBriefingService:
         Seu objetivo é analisar os dados do dia anterior e gerar um briefing executivo de alto impacto para o Gestor.
         
         REGRAS:
-        - Tom: Corporativo, executivo, assertivo, extremamente direto.
+        - Tom: Corporativo, executivo, extremamente direto.
         - Idioma: Português do Brasil.
-        - FOCO EM OURO: Identifique o que os números dizem além da superfície.
-        - Identifique GARGALOS e OPORTUNIDADES imediatas.
+        - SEM TEXTOS MASSIVOS. Use frases Curtas e de impacto.
+        - FOCO EM OURO: Identifique gargalos e oportunidades imediatas.
 
-        CONTEÚDO:
-        1. RESUMO EXECUTIVO: Analise a saúde do dia e o progresso estratégico.
-        2. AÇÕES TÁTICAS PARA HOJE: 3 pontos concretos para a reunião matinal.
+        ESTRUTURA DA RESPOSTA (MANDATÓRIO):
+        - 3 a 4 tópicos curtos (máximo 15 palavras por tópico).
+        - Use emojis discretos no início de cada tópico.
+        - Adicione uma única linha final de "Ação Tática Master" em itálico.
 
         DADOS:
         {context}
@@ -218,7 +219,7 @@ class MorningBriefingService:
             response = await provider.chat_completion(
                 messages=[{"role": "system", "content": prompt}],
                 temperature=0.3,
-                max_tokens=600
+                max_tokens=400
             )
             return response["content"].strip()
         except Exception as e:
@@ -235,8 +236,6 @@ class MorningBriefingService:
         alerts_html = ""
         if alerts:
             for alert in alerts:
-                # Tenta buscar nome do vendedor
-                seller_info = alert['seller']
                 alerts_html += f"""
                 <div style="background: #fff5f5; border-left: 4px solid #ef4444; padding: 12px; margin-bottom: 10px; border-radius: 6px;">
                     <div style="font-weight: 700; color: #991b1b; display: flex; justify-content: space-between;">
@@ -244,13 +243,13 @@ class MorningBriefingService:
                         <span style="font-size: 11px; background: #fee2e2; padding: 2px 6px; border-radius: 10px;">-{alert['days']} Dias</span>
                     </div>
                     <div style="font-size: 12px; color: #b91c1c; margin-top: 4px;">
-                        Responsável: Vendedor {seller_info}
+                        Responsável: Vendedor {alert['seller']}
                     </div>
                 </div>
                 """
         else:
             alerts_html = """
-            <div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 15px; border-radius: 6px; color: #166534; font-size: 14px;">
+            <div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 15px; border-radius: 6px; color: #166534; font-size: 13px;">
                 ✅ <strong>Operação Limpa:</strong> Nenhum lead quente negligenciado encontrado.
             </div>
             """
@@ -263,83 +262,83 @@ class MorningBriefingService:
             <style>
                 body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; }}
                 .container {{ max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }}
-                .header {{ background: #1e293b; padding: 40px 30px; color: white; border-bottom: 4px solid #4f46e5; }}
-                .title {{ font-size: 20px; font-weight: 800; margin: 0; text-transform: uppercase; letter-spacing: 1px; }}
-                .subtitle {{ opacity: 0.7; margin-top: 5px; font-size: 12px; font-weight: 500; text-transform: uppercase; }}
+                .header {{ background: #1e293b; padding: 40px 30px; color: white; border-bottom: 4px solid #4f46e5; text-align: left; position: relative; }}
+                .brading {{ position: absolute; right: 30px; top: 35px; width: 50px; height: 50px; background: #4f46e5; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; border: 3px solid rgba(255,255,255,0.2); }}
+                .title {{ font-size: 18px; font-weight: 800; margin: 0; text-transform: uppercase; letter-spacing: 1px; }}
+                .subtitle {{ opacity: 0.7; margin-top: 5px; font-size: 11px; font-weight: 500; text-transform: uppercase; }}
                 .content {{ padding: 30px; }}
-                .section-title {{ font-size: 12px; font-weight: 800; color: #64748b; margin: 30px 0 15px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }}
-                .metric-grid {{ display: flex; gap: 15px; margin-bottom: 20px; }}
-                .metric-card {{ background: #f1f5f9; border-radius: 12px; padding: 15px; flex: 1; text-align: left; }}
-                .metric-value {{ font-size: 24px; font-weight: 800; color: #0f172a; margin: 5px 0; }}
-                .metric-label {{ font-size: 10px; color: #64748b; font-weight: 700; text-transform: uppercase; }}
-                .variation {{ font-size: 10px; font-weight: 700; }}
+                .section-title {{ font-size: 11px; font-weight: 800; color: #64748b; margin: 25px 0 12px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }}
+                .metric-grid {{ display: flex; gap: 12px; margin-bottom: 20px; }}
+                .metric-card {{ background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 12px; padding: 12px; flex: 1; text-align: left; }}
+                .metric-value {{ font-size: 22px; font-weight: 800; color: #0f172a; margin: 4px 0; }}
+                .metric-label {{ font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase; }}
+                .variation {{ font-size: 9px; font-weight: 700; }}
                 .variation.up {{ color: #10b981; }}
                 .variation.down {{ color: #ef4444; }}
-                .ai-box {{ background: #fdfefe; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; font-size: 14px; line-height: 1.6; color: #334155; border-left: 5px solid #4f46e5; }}
+                .ai-box {{ background: #ffffff; border-radius: 12px; font-size: 14px; line-height: 1.5; color: #334155; }}
+                .tactical-box {{ background: #fffbeb; border: 1px solid #fde68a; padding: 15px; border-radius: 12px; margin-top: 15px; }}
                 .footer {{ background: #f8fafc; padding: 25px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; }}
-                .btn {{ display: block; background: #4f46e5; color: white !important; text-decoration: none; padding: 14px; border-radius: 8px; font-weight: 700; margin-top: 30px; text-align: center; font-size: 14px; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2); }}
+                .btn {{ display: block; background: #4f46e5; color: white !important; text-decoration: none; padding: 14px; border-radius: 8px; font-weight: 700; margin-top: 30px; text-align: center; font-size: 14px; }}
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="header">
+                    <div class="brading">🤖</div>
                     <div class="subtitle">{datetime.now().strftime('%d de %B, %Y')}</div>
-                    <h1 class="title">Briefing Matinal - {self.tenant.name}</h1>
+                    <h1 class="title">📈 Briefing Matinal - {self.tenant.name}</h1>
                 </div>
                 
                 <div class="content">
-                    <!-- INDICADORES CHAVE -->
-                    <div class="section-title">📊 KPIs DO DIA ANTERIOR</div>
                     <div class="metric-grid">
                         <div class="metric-card">
-                            <div class="metric-label">Novos Leads</div>
+                            <div class="metric-label">Leads Novos</div>
                             <div class="metric-value">{stats['leads_yesterday']}</div>
                             <div class="variation {'up' if stats['leads_variation_percent'] >= 0 else 'down'}">
-                                {('+' if stats['leads_variation_percent'] >= 0 else '')}{stats['leads_variation_percent']}% vs anteontem
+                                {('+' if stats['leads_variation_percent'] >= 0 else '')}{stats['leads_variation_percent']}%
                             </div>
                         </div>
                         <div class="metric-card">
                             <div class="metric-label">Qualificados</div>
                             <div class="metric-value">{stats['qualified_yesterday']}</div>
-                            <div style="font-size: 10px; color: #64748b;">Warm & Hot</div>
+                            <div style="font-size: 9px; color: #cbd5e1;">WARM & HOT</div>
                         </div>
                         <div class="metric-card">
-                            <div class="metric-label">Oportunidades</div>
-                            <div class="metric-value">{stats['new_opportunities']}</div>
-                            <div style="font-size: 10px; color: #64748b;">Funil de Vendas</div>
+                            <div class="metric-label">Vendas Mês</div>
+                            <div class="metric-value">{stats['sales_month_count']}</div>
+                            <div style="font-size: 9px; color: #cbd5e1;">{stats['progress_percent']}% da Meta</div>
                         </div>
                     </div>
 
-                    <!-- BARRA DE PROGRESSO DA META -->
-                    <div style="margin-top: 10px; margin-bottom: 30px;">
-                        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #64748b; font-weight: 700; margin-bottom: 5px; text-transform: uppercase;">
-                            <span>Meta do Mês (Progresso: {stats['progress_percent']}%)</span>
-                            <span>R$ {stats['revenue_goal']/1000000:.1f}M</span>
-                        </div>
-                        <div style="height: 10px; background: #e2e8f0; border-radius: 5px; overflow: hidden;">
-                            <div style="width: {stats['progress_percent']}%; height: 100%; background: #4f46e5;"></div>
-                        </div>
-                        <div style="text-align: right; font-size: 10px; color: #94a3b8; margin-top: 5px;">
-                            Atual: R$ {stats['revenue_month']/1000:.0f}k | Falta: R$ {stats['revenue_missing']/1000:.0f}k
-                        </div>
+                    <!-- PROGRESSO -->
+                    <div style="height: 6px; background: #f1f5f9; border-radius: 3px; overflow: hidden; margin-bottom: 30px;">
+                        <div style="width: {stats['progress_percent']}%; height: 100%; background: #4f46e5;"></div>
                     </div>
 
-                    <!-- ANALISE EXECUTIVA IA -->
-                    <div class="section-title">🧠 ANÁLISE ESTRATÉGICA (Vellarys AI)</div>
+                    <!-- INSIGHTS IA -->
+                    <div class="section-title">✨ INSIGHTS DO ESTRATEGISTA</div>
                     <div class="ai-box">
                         {ai_html}
                     </div>
 
-                    <!-- LEADS NEGLIGENCIADOS -->
-                    <div class="section-title" style="color: #ef4444;">⚠️ LEADS EM RISCO (NEED ATTENTION)</div>
+                    <!-- AÇÃO TÁTICA -->
+                    <div class="tactical-box">
+                        <div style="font-size: 11px; font-weight: 800; color: #92400e; margin-bottom: 5px; text-transform: uppercase;">⚡ AÇÃO TÁTICA SUGERIDA</div>
+                        <p style="margin: 0; color: #92400e; font-size: 13px; font-style: italic;">
+                            "Foque 100% no resgate dos leads parados hoje. Se batermos a meta diária de conversão, avançaremos para {stats['progress_percent'] + 2}% da meta total."
+                        </p>
+                    </div>
+
+                    <!-- RISCO -->
+                    <div class="section-title" style="color: #ef4444;">🚨 LEADS EM RISCO</div>
                     {alerts_html}
                     
-                    <a href="{settings.frontend_url}/dashboard" class="btn">ABRIR DASHBOARD EXECUTIVO</a>
+                    <a href="{settings.frontend_url}/dashboard" class="btn">ABRIR DASHBOARD</a>
                 </div>
 
                 <div class="footer">
-                    Este é um relatório gerado pela inteligência distribuída Vellarys.<br>
-                    © {datetime.now().year} Vellarys Intelligence. Todos os direitos reservados.
+                    Briefing Executivo • Vellarys Intelligence Agent<br>
+                    © {datetime.now().year} Vellarys
                 </div>
             </div>
         </body>
