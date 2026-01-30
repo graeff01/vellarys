@@ -44,6 +44,7 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { LeadIntelligenceCard } from '@/components/leads/lead-intelligence-card';
 
 // =============================================
 // TIPOS
@@ -248,8 +249,9 @@ export default function LeadDetailPage() {
       {/* Layout 2 colunas - SEM SCROLL EXTERNO - Otimizado para viewport */}
       <div className="flex-1 flex gap-4 px-4 py-4 overflow-hidden">
         {/* Coluna principal (conversas/atividades) - 65% */}
-        <div className="flex-[0_0_65%] h-full min-h-0">
-          <WhatsAppConversation messages={messages} events={events} messagesEndRef={messagesEndRef} />
+        <div className="flex-[0_0_65%] h-full min-h-0 flex flex-col gap-2">
+          <LeadIntelligenceCard leadId={lead.id} />
+          <WhatsAppConversation messages={messages} events={events} messagesEndRef={messagesEndRef as React.RefObject<HTMLDivElement>} />
         </div>
 
         {/* Sidebar direita - Info do Lead - 35% - FIXA SEM SCROLL */}

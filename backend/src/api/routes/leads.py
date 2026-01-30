@@ -31,6 +31,7 @@ from src.api.dependencies import get_current_user, get_current_tenant
 
 # Import correto
 from src.infrastructure.services import assign_lead_to_seller
+from src.infrastructure.services.sales_advisor_service import SalesAdvisorService
 
 logger = logging.getLogger(__name__)
 
@@ -674,3 +675,41 @@ async def get_metrics(
     except Exception as e:
         logger.error(f"Erro ao buscar métricas: {e}", exc_info=True)
         raise HTTPException(500, f"Erro interno: {str(e)}")
+
+
+# ===============================
+# INTELLIGENCE INJECTION (AI INSIGHTS)
+# ===============================
+@router.get("/{lead_id}/ai-insights")
+async def get_lead_insights(
+    lead_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_tenant: Tenant = Depends(get_current_tenant),
+):
+    """
+    Gera insights táticos (Intelligence Injection) para o vendedor.
+    Retorna: Dica, Tópico Chave e Ação Sugerida.
+    """
+    try:
+        # Verifica se lead existe
+        result = await db.execute(
+            select(Lead).where(Lead.id == lead_id, Lead.tenant_id == current_tenant.id)
+        )
+        if not result.scalar_one_or_none():
+            raise HTTPException(404, "Lead não encontrado")
+
+        service = SalesAdvisorService(db)
+        insight = await service.generate_insight(lead_id)
+        return insight
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao gerar insights para lead {lead_id}: {e}", exc_info=True)
+        # Fallback gracioso
+        return {
+            "sentiment": "neutral",
+            "key_topic": "Análise Indisponível",
+            "tip": "Verifique o histórico manualmente.",
+            "action": "Revisar conversa"
+        }

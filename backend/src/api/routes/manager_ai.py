@@ -59,3 +59,28 @@ async def chat_with_copilot(
         logger = getLogger(__name__)
         logger.error(f"Erro no Vellarys Copilot: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro ao processar sua pergunta. Tente novamente.")
+
+@router.post("/trigger-briefing")
+async def trigger_manual_briefing(
+    target_email: str = "douglas@velocebm.com",
+    db: AsyncSession = Depends(get_db),
+    tenant: Tenant = Depends(get_current_tenant),
+    user: User = Depends(get_current_user)
+):
+    """
+    Dispara manualmente o Morning Briefing (para testes ou on-demand).
+    """
+    if user.role not in ["superadmin", "admin", "gestor"]:
+        raise HTTPException(status_code=403, detail="Acesso restrito.")
+
+    from src.infrastructure.services.morning_briefing_service import MorningBriefingService
+    
+    try:
+        service = MorningBriefingService(db, tenant)
+        await service.generate_and_send(target_email)
+        return {"message": f"Morning Briefing enviado com sucesso para {target_email}"}
+    except Exception as e:
+        from logging import getLogger
+        logger = getLogger(__name__)
+        logger.error(f"Erro ao enviar briefing: {e}", exc_info=True)
+        raise HTTPException(500, f"Erro ao enviar briefing: {str(e)}")
