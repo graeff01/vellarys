@@ -20,9 +20,9 @@ import {
   MapPin,
   User
 } from 'lucide-react';
-import Link from 'next/link';
 import { getOpportunities, getOpportunityMetrics, type Opportunity, type OpportunityMetrics } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { OpportunityModal } from '@/components/dashboard/OpportunityModal';
 
 export default function OpportunitiesPage() {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
@@ -30,6 +30,8 @@ export default function OpportunitiesPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedOpportunityId, setSelectedOpportunityId] = useState<number | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -222,8 +224,14 @@ export default function OpportunitiesPage() {
             const StatusIcon = statusConfig.icon;
 
             return (
-              <Link key={opportunity.id} href={`/dashboard/leads/${opportunity.lead_id}`}>
-                <Card className="p-4 hover:shadow-lg transition-all cursor-pointer border border-gray-200 h-full">
+              <Card
+                key={opportunity.id}
+                className="p-4 hover:shadow-lg transition-all cursor-pointer border border-gray-200 h-full"
+                onClick={() => {
+                  setSelectedOpportunityId(opportunity.id);
+                  setModalOpen(true);
+                }}
+              >
                   {/* Header com Status */}
                   <div className="flex items-start justify-between mb-3">
                     <Badge className={statusConfig.className}>
@@ -273,11 +281,21 @@ export default function OpportunitiesPage() {
                     </p>
                   )}
                 </Card>
-              </Link>
             );
           })
         )}
       </div>
+
+      {/* Modal de Detalhes da Oportunidade */}
+      <OpportunityModal
+        opportunityId={selectedOpportunityId}
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setSelectedOpportunityId(null);
+        }}
+        onUpdate={loadData}
+      />
     </div>
   );
 }

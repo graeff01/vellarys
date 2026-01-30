@@ -44,6 +44,22 @@ function SimulatorContent() {
   const targetTenantId = searchParams.get('target_tenant_id');
   const user = getUser();
   const isSuperAdmin = user?.role === 'superadmin';
+  const isManager = user?.role === 'admin' || user?.role === 'gestor';
+
+  // ✅ NOVO: Apenas gestores e superadmins podem acessar
+  if (!isSuperAdmin && !isManager) {
+    return (
+      <div className="p-6 max-w-4xl mx-auto">
+        <Card className="p-12 text-center">
+          <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-orange-500" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Acesso Restrito</h2>
+          <p className="text-gray-600">
+            O Simulador de IA está disponível apenas para gestores e administradores.
+          </p>
+        </Card>
+      </div>
+    );
+  }
 
   const [messages, setMessages] = useState<SimulatorMessage[]>([]);
   const [input, setInput] = useState('');
