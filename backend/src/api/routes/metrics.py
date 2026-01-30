@@ -21,7 +21,7 @@ from sqlalchemy import select, func, and_, case, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.database import get_db
-from src.domain.entities import Lead, Tenant, LeadEvent, Message, User
+from src.domain.entities import Lead, Tenant, LeadEvent, Message, User, Opportunity
 from src.domain.entities.enums import LeadStatus
 from src.api.dependencies import get_current_user
 from src.api.schemas import DashboardMetrics, LeadsByPeriod
@@ -548,3 +548,104 @@ async def get_top_campaigns(
         {"campaign": row.campaign, "count": row.count}
         for row in result.all()
     ]
+
+
+# ============================================
+# HEATMAP DE DEMANDA (NOVO)
+# ============================================
+
+@router.get("/demand-heatmap")
+async def get_demand_heatmap(
+    current_user: User = Depends(get_current_user),
+    limit: int = Query(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    🔥 Retorna demanda por Bairro/Região e Tipo de Imóvel.
+    Analisa Oportunidades (product_data) e Leads (interesses no custom_data).
+    """
+    try:
+        tenant_id = current_user.tenant_id
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="Usuário sem tenant")
+
+        # 1. Analisar OPORTUNIDADES (Dados mais fortes - intenção real)
+        # Extrai 'regiao' e 'tipo' do JSONB product_data
+        opp_query = (
+            select(
+                func.jsonb_extract_path_text(Opportunity.custom_data, 'product_data', 'regiao').label("region"),
+                func.jsonb_extract_path_text(Opportunity.custom_data, 'product_data', 'tipo').label("type"),
+                func.count(Opportunity.id).label("count")
+            )
+            .where(Opportunity.tenant_id == tenant_id)
+            .where(Opportunity.custom_data.isnot(None))
+            .group_by("region", "type")
+        )
+        
+        opp_results = await db.execute(opp_query)
+        
+        # 2. Analisar LEADS (Dados de interesse inicial)
+        # Tenta extrair 'interest_region' ou 'bairro' e 'interest_type' do custom_data
+        # Nota: Adaptar conforme a estrutura real do seu custom_data
+        lead_query = (
+            select(
+                func.coalesce(
+                    func.jsonb_extract_path_text(Lead.custom_data, 'interest_region'),
+                    func.jsonb_extract_path_text(Lead.custom_data, 'bairro'),
+                    func.jsonb_extract_path_text(Lead.custom_data, 'region')
+                ).label("region"),
+                func.coalesce(
+                    func.jsonb_extract_path_text(Lead.custom_data, 'interest_type'),
+                    func.jsonb_extract_path_text(Lead.custom_data, 'tipo_imovel'),
+                    func.jsonb_extract_path_text(Lead.custom_data, 'property_type')
+                ).label("type"),
+                func.count(Lead.id).label("count")
+            )
+            .where(Lead.tenant_id == tenant_id)
+            .where(Lead.custom_data.isnot(None))
+            .group_by("region", "type")
+        )
+        
+        lead_results = await db.execute(lead_query)
+
+        # 3. Consolidar Dados
+        demand_map = {}
+
+        # Processar Oportunidades (Peso 2x - intenção mais forte)
+        for row in opp_results.all():
+            region = row.region
+            prop_type = row.type
+            if not region or not prop_type: continue
+            
+            key = f"{region}::{prop_type}"
+            demand_map[key] = demand_map.get(key, 0) + (row.count * 2)
+
+        # Processar Leads (Peso 1x)
+        for row in lead_results.all():
+            region = row.region
+            prop_type = row.type
+            if not region or not prop_type: continue
+            
+            key = f"{region}::{prop_type}"
+            demand_map[key] = demand_map.get(key, 0) + row.count
+
+        # 4. Formatar e Ordenar
+        final_list = []
+        for key, score in demand_map.items():
+            region, prop_type = key.split("::")
+            final_list.append({
+                "region": region,
+                "type": prop_type,
+                "score": score
+            })
+
+        # Ordenar por score decrescente
+        final_list.sort(key=lambda x: x["score"], reverse=True)
+        
+        return final_list[:limit]
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Erro calculando heatmap: {e}", exc_info=True)
+        return []

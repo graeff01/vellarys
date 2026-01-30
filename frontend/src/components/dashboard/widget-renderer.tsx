@@ -14,6 +14,7 @@ import { MetricsCards } from './metrics-cards';
 import { QualificationDonut } from './qualification-donut';
 import { LeadsTable } from './leads-table';
 import { PlanUsageCard } from './plan-usage-card';
+import { DemandHeatmapWidget } from './demand-heatmap';
 import {
   SalesGoalWidget,
   SalesProgressWidget,
@@ -295,6 +296,9 @@ export function WidgetRenderer({ config, metrics, leads, sellers, salesData, isG
 
       case 'leads_table':
         return <LeadsTableWidget leads={leads} sellers={sellers} />;
+
+      case 'demand_heatmap':
+        return <DemandHeatmapWidget />;
 
       // Sistema
       case 'plan_usage':

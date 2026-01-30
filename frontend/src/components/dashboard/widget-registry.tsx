@@ -144,6 +144,16 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     grid: { w: 6, h: 3, ...FREE_SIZE_LIMITS },
   },
 
+  demand_heatmap: {
+    id: 'demand_heatmap',
+    name: 'Mapa de Calor (Demanda)',
+    description: 'Bairros e tipos de imóveis mais procurados',
+    category: 'metricas',
+    icon: Flame,
+    previewBg: 'bg-gradient-to-br from-orange-500 to-red-600',
+    grid: { w: 6, h: 3, ...FREE_SIZE_LIMITS },
+  },
+
   impact_velaris: {
     id: 'impact_velaris',
     name: 'Impacto Velaris IA',

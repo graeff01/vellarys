@@ -240,13 +240,31 @@ async def list_opportunities(
         query = select(Opportunity).where(Opportunity.tenant_id == tenant_id)
         count_query = select(func.count(Opportunity.id)).where(Opportunity.tenant_id == tenant_id)
 
+        # 🔒 REGRAS DE VISIBILIDADE
+        # Se for corretor, vê APENAS suas oportunidades
+        if current_user.role == "corretor":
+            # Buscar ID do vendedor vinculado ao usuário
+            seller_result = await db.execute(
+                select(Seller).where(Seller.user_id == current_user.id)
+            )
+            seller = seller_result.scalar_one_or_none()
+            
+            if not seller:
+                # Se é corretor mas não tem perfil de vendedor, não vê nada
+                return OpportunityListResponse(items=[], total=0, page=page, per_page=per_page)
+            
+            # Força filtro pelo seller_id
+            query = query.where(Opportunity.seller_id == seller.id)
+            count_query = count_query.where(Opportunity.seller_id == seller.id)
+        
+        # Se for admin/gestor, filtro opcional
+        elif seller_id:
+            query = query.where(Opportunity.seller_id == seller_id)
+            count_query = count_query.where(Opportunity.seller_id == seller_id)
+
         if status:
             query = query.where(Opportunity.status == status)
             count_query = count_query.where(Opportunity.status == status)
-
-        if seller_id:
-            query = query.where(Opportunity.seller_id == seller_id)
-            count_query = count_query.where(Opportunity.seller_id == seller_id)
 
         total = (await db.execute(count_query)).scalar() or 0
         offset = (page - 1) * per_page
