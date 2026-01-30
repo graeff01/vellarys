@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 from src.infrastructure.database import get_db
 from src.domain.entities import Lead, User, Tenant
-from src.api.auth import get_current_user
+from src.api.dependencies import get_current_user
 from src.infrastructure.jobs.phoenix_engine_service import phoenix_engine_service
 
 
