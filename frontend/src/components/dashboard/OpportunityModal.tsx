@@ -187,7 +187,7 @@ export function OpportunityModal({ opportunityId, open, onClose, onUpdate }: Opp
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="!w-[98vw] !max-w-[98vw] !h-[96vh] p-0 gap-0 overflow-hidden bg-white flex flex-col border-none shadow-2xl rounded-3xl">
+      <DialogContent className="!w-[900px] !max-w-[95vw] !h-[750px] !max-h-[95vh] p-0 gap-0 overflow-hidden bg-white flex flex-col border-none shadow-2xl rounded-3xl">
         <VisuallyHidden>
           <DialogTitle>{opportunity.title}</DialogTitle>
           <DialogDescription>Detalhes completos da oportunidade e gestão de status</DialogDescription>
