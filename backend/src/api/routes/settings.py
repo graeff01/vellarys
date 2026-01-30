@@ -24,6 +24,7 @@ from typing import Optional
 from src.infrastructure.database import get_db
 from src.domain.entities import Tenant, User
 from src.api.dependencies import get_current_user, get_current_tenant
+from src.config import get_settings as app_settings
 
 logger = logging.getLogger(__name__)
 
@@ -830,8 +831,8 @@ async def get_settings(
         },
         "settings": settings,
         "services_status": {
-            "resend_configured": bool(get_settings().resend_api_key),
-            "openai_configured": bool(get_settings().openai_api_key),
+            "resend_configured": bool(app_settings().resend_api_key),
+            "openai_configured": bool(app_settings().openai_api_key),
         },
         "options": {
             "niches": available_niches,

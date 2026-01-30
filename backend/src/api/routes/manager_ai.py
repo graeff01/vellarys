@@ -74,6 +74,7 @@ async def trigger_manual_briefing(
         raise HTTPException(status_code=403, detail="Acesso restrito.")
 
     from src.config import get_settings
+    from src.infrastructure.services.morning_briefing_service import MorningBriefingService
     settings = get_settings()
     
     if not settings.resend_api_key:
