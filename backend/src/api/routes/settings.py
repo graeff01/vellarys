@@ -829,6 +829,10 @@ async def get_settings(
             "plan": tenant.plan,
         },
         "settings": settings,
+        "services_status": {
+            "resend_configured": bool(get_settings().resend_api_key),
+            "openai_configured": bool(get_settings().openai_api_key),
+        },
         "options": {
             "niches": available_niches,
             "tones": TONE_OPTIONS,

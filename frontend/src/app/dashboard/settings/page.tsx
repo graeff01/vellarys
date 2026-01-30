@@ -138,6 +138,10 @@ function SettingsContent() {
   });
   const [availableTenants, setAvailableTenants] = useState<any[]>([]);
   const [showTenantSelector, setShowTenantSelector] = useState(false);
+  const [servicesStatus, setServicesStatus] = useState<SettingsResponse['services_status']>({
+    resend_configured: true,
+    openai_configured: true,
+  });
 
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -378,6 +382,7 @@ function SettingsContent() {
 
         const response = await getSettings(targetTenantId || undefined);
         setData(response);
+        setServicesStatus(response.services_status);
         const s = response.settings;
 
         try {
@@ -1285,13 +1290,24 @@ function SettingsContent() {
                   </p>
                 </div>
 
-                <div className="pt-4 border-t">
+                <div className="pt-4 border-t space-y-3">
+                  {!servicesStatus?.resend_configured && (
+                    <div className="p-3 bg-red-50 border border-red-100 rounded-lg flex gap-2">
+                      <Shield className="w-4 h-4 text-red-600 flex-shrink-0" />
+                      <p className="text-[11px] text-red-700">
+                        <strong>Atenção:</strong> O serviço de e-mail (Resend) não está configurado. O teste e o envio automático não funcionarão até que a chave seja adicionada no servidor.
+                      </p>
+                    </div>
+                  )}
                   <button
                     onClick={handleTriggerBriefing}
-                    disabled={saving}
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg font-bold transition-all shadow-sm"
+                    disabled={saving || !servicesStatus?.resend_configured}
+                    className={`w-full flex items-center justify-center gap-2 py-3 border rounded-lg font-bold transition-all shadow-sm ${!servicesStatus?.resend_configured
+                        ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                        : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'
+                      }`}
                   >
-                    <Zap className="w-4 h-4 text-amber-500" /> Testar Envio Agora
+                    <Zap className={`w-4 h-4 ${!servicesStatus?.resend_configured ? 'text-gray-300' : 'text-amber-500'}`} /> Testar Envio Agora
                   </button>
                 </div>
               </div>

@@ -285,6 +285,10 @@ export interface SettingsResponse {
   tenant: TenantInfo;
   settings: TenantSettings;
   options: SettingsOptions;
+  services_status?: {
+    resend_configured: boolean;
+    openai_configured: boolean;
+  };
 }
 
 export interface IdentityResponse {

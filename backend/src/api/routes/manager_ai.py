@@ -73,8 +73,12 @@ async def trigger_manual_briefing(
     if user.role not in ["superadmin", "admin", "gestor"]:
         raise HTTPException(status_code=403, detail="Acesso restrito.")
 
-    from src.infrastructure.services.morning_briefing_service import MorningBriefingService
+    from src.config import get_settings
+    settings = get_settings()
     
+    if not settings.resend_api_key:
+        raise HTTPException(status_code=400, detail="Configuração incompleta: RESEND_API_KEY não encontrada no servidor.")
+
     try:
         service = MorningBriefingService(db, tenant)
         await service.generate_and_send(target_email)
