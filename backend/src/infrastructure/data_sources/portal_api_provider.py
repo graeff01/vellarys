@@ -291,11 +291,14 @@ class PortalAPIProvider(DataSourceProvider):
         """Sincroniza dados de todas as regiões."""
         total = 0
         errors = []
+        all_items = []
 
         for region in self.regions:
             try:
                 properties = await self._load_region(region)
                 if properties:
+                    for prop in properties:
+                        all_items.append(self._to_property_result(prop, region))
                     total += len(properties)
                 else:
                     errors.append({"region": region, "error": "Sem dados"})
@@ -305,7 +308,8 @@ class PortalAPIProvider(DataSourceProvider):
         return {
             "success": len(errors) == 0,
             "count": total,
-            "errors": errors
+            "errors": errors,
+            "items": all_items
         }
 
     def _matches_criteria(self, prop: Dict, criteria: SearchCriteria) -> bool:

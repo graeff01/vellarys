@@ -33,6 +33,7 @@ interface Seller {
 interface Product {
   id: number;
   name: string;
+  slug?: string;
   attributes?: {
     codigo?: string;
     tipo?: string;
@@ -55,6 +56,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
   const [loadingData, setLoadingData] = useState(true);
   const [showPropertySelector, setShowPropertySelector] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searching, setSearching] = useState(false);
 
   const [formData, setFormData] = useState({
     lead_id: '',
@@ -134,6 +136,38 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
     return code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       name.toLowerCase().includes(searchTerm.toLowerCase());
   });
+
+  useEffect(() => {
+    if (showPropertySelector && searchTerm.length >= 3) {
+      const delayDebounceFn = setTimeout(() => {
+        searchProducts(searchTerm);
+      }, 600);
+      return () => clearTimeout(delayDebounceFn);
+    }
+  }, [searchTerm, showPropertySelector]);
+
+  async function searchProducts(query: string) {
+    try {
+      setSearching(true);
+      const token = getToken();
+      const res = await fetch(`${API_URL}/v1/products?search=${encodeURIComponent(query)}&limit=15`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(prev => {
+          const newItems = data.filter((p: any) =>
+            !prev.some(old => (old.id > 0 && old.id === p.id) || (old.slug === p.slug))
+          );
+          return [...prev, ...newItems];
+        });
+      }
+    } catch (err) {
+      console.error("Erro na busca remota:", err);
+    } finally {
+      setSearching(false);
+    }
+  }
 
   function handleSelectProperty(product: Product) {
     const pData = {
@@ -258,16 +292,21 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
-                  placeholder="Buscar por código ou nome..."
+                  placeholder="Buscar por código ou região..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 h-11 bg-gray-50 border-none rounded-xl"
                   autoFocus
                 />
+                {searching && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
-              {filteredProducts.length === 0 ? (
+              {products.length === 0 && !searching ? ( // Use products directly, and check searching state
                 <div className="text-center py-10 text-gray-400">Nenhum imóvel encontrado.</div>
               ) : (
                 filteredProducts.map(p => (

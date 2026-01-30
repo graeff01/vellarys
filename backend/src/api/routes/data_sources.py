@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from src.infrastructure.database import get_db
-from src.domain.entities import User, Tenant, DataSource, DataSourceType
+from src.domain.entities import User, Tenant, DataSource, DataSourceType, Product
 from src.domain.entities.enums import UserRole
 from src.api.dependencies import get_current_user, get_current_tenant
 from src.infrastructure.services.encryption_service import (
@@ -563,6 +563,62 @@ async def run_data_source_sync(source_id: int, tenant_id: int):
 
             # Executa sync
             sync_result = await provider.sync_all()
+
+            # --- Salvar itens no banco de dados (Sincronização com o CRM) ---
+            items = sync_result.get("items", [])
+            if items:
+                logger.info(f"[DataSource] Gravando {len(items)} itens no banco para tenant {tenant_id}...")
+                for item in items:
+                    from src.infrastructure.data_sources.interface import PropertyResult
+                    p_res: PropertyResult = item
+                    
+                    # Gera slug único baseado na fonte e no código externo
+                    slug = f"ext-{source.id}-{p_res.code}"
+                    
+                    # Verifica se já existe
+                    stmt = select(Product).where(Product.tenant_id == tenant_id, Product.slug == slug)
+                    existing_p = (await db.execute(stmt)).scalar_one_or_none()
+                    
+                    # Prepara atributos
+                    price_in_cents = 0
+                    if p_res.price:
+                        # Se já estiver em centavos (comum em algumas APIs) ou reais
+                        # A interface PropertyResult.price costuma ser float em reais
+                        price_in_cents = int(p_res.price * 100) if p_res.price < 10000000 else int(p_res.price)
+
+                    attributes = {
+                        "codigo": p_res.code,
+                        "tipo": p_res.type,
+                        "regiao": p_res.region,
+                        "preco": price_in_cents,
+                        "quartos": p_res.bedrooms,
+                        "banheiros": p_res.bathrooms,
+                        "vagas": p_res.parking,
+                        "metragem": p_res.area,
+                        "descricao": p_res.description,
+                        "source_id": source.id,
+                        "sync_at": datetime.utcnow().isoformat()
+                    }
+
+                    if existing_p:
+                        existing_p.name = p_res.title
+                        existing_p.description = p_res.description
+                        existing_p.attributes = attributes
+                        existing_p.updated_at = datetime.utcnow()
+                    else:
+                        new_p = Product(
+                            tenant_id=tenant_id,
+                            name=p_res.title,
+                            slug=slug,
+                            status="active",
+                            active=True,
+                            description=p_res.description,
+                            attributes=attributes
+                        )
+                        db.add(new_p)
+                
+                await db.commit()
+                logger.info(f"[DataSource] Gravados {len(items)} itens com sucesso.")
 
             # Atualiza status
             source.last_sync_at = datetime.utcnow()

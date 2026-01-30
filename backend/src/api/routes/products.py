@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.database import get_db
 from src.domain.entities import User, Tenant, Seller, Product
 from src.api.dependencies import get_current_user, get_current_tenant
+from src.infrastructure.services.multi_tenant_property_service import MultiTenantPropertyService
 
 
 logger = logging.getLogger(__name__)
@@ -166,7 +167,71 @@ async def list_products(
     query = query.order_by(Product.priority.desc(), Product.name)
     
     result = await db.execute(query)
-    products = result.scalars().all()
+    products = list(result.scalars().all())
+    
+    # Se houver busca por termo, tentamos também nas fontes externas (on-the-fly)
+    if search and len(products) < 15:
+        try:
+            property_service = MultiTenantPropertyService(db, tenant.id)
+            
+            async def normalize_ext(ext):
+                # Converte o preço formatado "R$ 500.000" de volta para centavos se possível
+                try:
+                    price_str = ext.get("preco", "0")
+                    # No PropertyResult o preço original também está lá se precisássemos, 
+                    # mas vamos inferir do formatado por segurança ou usar o raw_data
+                    raw_price = ext.get("preco") # Atualmente o legacy_dict tem o price_formatted aqui
+                    # Vamos assumir que se for string com R$, limpamos.
+                    if isinstance(price_str, str) and "R$" in price_str:
+                         v = price_str.replace("R$", "").replace(".", "").replace(",", ".").strip()
+                         cents = int(float(v) * 100) if v else 0
+                    else:
+                         cents = int(float(price_str) * 100) if price_str else 0
+                except:
+                    cents = 0
+
+                return {
+                    "id": 0,
+                    "name": ext.get("titulo"),
+                    "description": ext.get("descricao"),
+                    "active": True,
+                    "status": "active",
+                    "attributes": {
+                        **ext,
+                        "codigo": ext.get("codigo"),
+                        "tipo": ext.get("tipo"),
+                        "regiao": ext.get("regiao"),
+                        "preco": cents,
+                        "quartos": ext.get("quartos"),
+                        "banheiros": ext.get("banheiros"),
+                        "vagas": ext.get("vagas"),
+                        "metragem": ext.get("metragem")
+                    }
+                }
+
+            # Busca por código (prioridade)
+            ext_by_code = await property_service.buscar_por_codigo(search)
+            if ext_by_code:
+                # Evita duplicado se já estiver no DB
+                exists_in_db = any(getattr(p, "attributes", {}).get("codigo") == ext_by_code.get("codigo") for p in products)
+                if not exists_in_db:
+                    products.insert(0, await normalize_ext(ext_by_code))
+
+            # Busca por critérios (região/nome)
+            external_results = await property_service.buscar_por_criterios(regiao=search, limit=10)
+            for ext in external_results:
+                # Evita duplicados
+                existing_codes = []
+                for p in products:
+                    if hasattr(p, "attributes"):
+                        existing_codes.append(p.attributes.get("codigo"))
+                    elif isinstance(p, dict):
+                        existing_codes.append(p.get("attributes", {}).get("codigo"))
+
+                if ext.get("codigo") not in existing_codes:
+                     products.append(await normalize_ext(ext))
+        except Exception as e:
+            logger.error(f"Erro ao buscar produtos externos: {e}", exc_info=True)
     
     return products
 
