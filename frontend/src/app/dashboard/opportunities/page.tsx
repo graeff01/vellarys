@@ -23,6 +23,7 @@ import {
 import { getOpportunities, getOpportunityMetrics, type Opportunity, type OpportunityMetrics } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { OpportunityModal } from '@/components/dashboard/OpportunityModal';
+import { CreateOpportunityModal } from '@/components/dashboard/CreateOpportunityModal';
 
 export default function OpportunitiesPage() {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
@@ -32,6 +33,7 @@ export default function OpportunitiesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOpportunityId, setSelectedOpportunityId] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -105,6 +107,10 @@ export default function OpportunitiesPage() {
           </h1>
           <p className="text-gray-500 mt-1">Gerencie suas oportunidades de negócio</p>
         </div>
+        <Button onClick={() => setCreateModalOpen(true)} className="gap-2">
+          <Plus className="w-4 h-4" />
+          Nova Oportunidade
+        </Button>
       </div>
 
       {/* Métricas */}
@@ -295,6 +301,13 @@ export default function OpportunitiesPage() {
           setSelectedOpportunityId(null);
         }}
         onUpdate={loadData}
+      />
+
+      {/* Modal de Criar Nova Oportunidade */}
+      <CreateOpportunityModal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={loadData}
       />
     </div>
   );

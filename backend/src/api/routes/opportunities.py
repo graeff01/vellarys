@@ -40,8 +40,11 @@ router = APIRouter(prefix="/opportunities", tags=["Opportunities"])
 
 class OpportunityCreate(BaseModel):
     """Input para criar oportunidade."""
+    lead_id: int = Field(..., description="ID do lead")
     title: str = Field(..., max_length=200)
     product_id: Optional[int] = None
+    product_name: Optional[str] = Field(None, max_length=200)
+    product_data: Optional[dict] = None
     seller_id: Optional[int] = None
     value: int = Field(default=0, description="Valor em centavos")
     expected_close_date: Optional[datetime] = None
@@ -189,6 +192,86 @@ async def list_opportunities(
     except Exception as e:
         logger.error(f"Erro listando oportunidades: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro ao listar oportunidades")
+
+
+@router.post("", response_model=OpportunityResponse)
+async def create_opportunity(
+    data: OpportunityCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Cria nova oportunidade manualmente.
+    Permite gestores criarem oportunidades para leads existentes.
+    """
+    try:
+        tenant_id = current_user.tenant_id
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="Usuário sem tenant")
+
+        # Verificar se usuário tem permissão (apenas admin/gestor)
+        if current_user.role not in ["admin", "gestor", "superadmin"]:
+            raise HTTPException(
+                status_code=403,
+                detail="Apenas gestores podem criar oportunidades manualmente"
+            )
+
+        # Validar se lead existe e pertence ao tenant
+        result = await db.execute(
+            select(Lead).where(Lead.id == data.lead_id, Lead.tenant_id == tenant_id)
+        )
+        lead = result.scalar_one_or_none()
+
+        if not lead:
+            raise HTTPException(status_code=404, detail="Lead não encontrado")
+
+        # Validar seller se fornecido
+        if data.seller_id:
+            result = await db.execute(
+                select(Seller).where(Seller.id == data.seller_id, Seller.tenant_id == tenant_id)
+            )
+            seller = result.scalar_one_or_none()
+            if not seller:
+                raise HTTPException(status_code=404, detail="Vendedor não encontrado")
+
+        # Validar product se fornecido
+        if data.product_id:
+            result = await db.execute(
+                select(Product).where(Product.id == data.product_id, Product.tenant_id == tenant_id)
+            )
+            product = result.scalar_one_or_none()
+            if not product:
+                raise HTTPException(status_code=404, detail="Produto não encontrado")
+
+        # Criar oportunidade
+        opportunity = Opportunity(
+            tenant_id=tenant_id,
+            lead_id=data.lead_id,
+            title=data.title,
+            product_id=data.product_id,
+            product_name=data.product_name,
+            product_data=data.product_data,
+            seller_id=data.seller_id,
+            value=data.value,
+            status="new",
+            expected_close_date=data.expected_close_date,
+            notes=data.notes,
+            custom_data=data.custom_data or {},
+        )
+
+        db.add(opportunity)
+        await db.commit()
+        await db.refresh(opportunity, ["product", "seller"])
+
+        logger.info(f"Oportunidade criada manualmente: {opportunity.id} por usuário {current_user.id}")
+        return opportunity_to_response(opportunity)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro criando oportunidade: {e}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Erro ao criar oportunidade")
 
 
 @router.get("/{opportunity_id}", response_model=OpportunityResponse)

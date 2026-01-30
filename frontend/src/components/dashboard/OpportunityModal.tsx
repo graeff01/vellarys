@@ -109,7 +109,7 @@ export function OpportunityModal({ opportunityId, open, onClose, onUpdate }: Opp
     try {
       setUpdating(true);
       const token = getToken();
-      const response = await fetch(`${API_URL}/v1/opportunities/${opportunityId}/status`, {
+      const response = await fetch(`${API_URL}/v1/opportunities/${opportunityId}`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
