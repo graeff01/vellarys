@@ -182,7 +182,7 @@ export function Sidebar({ user, isOpen, onClose, onLogout }: SidebarProps) {
                 title: "Inteligência",
                 items: [
                     { href: '/dashboard/copilot', label: 'Vellarys Copilot', icon: Sparkles, badge: "AI", feature: 'copilot_enabled' },
-                    { href: '/dashboard/simulator', label: 'Simulador IA', icon: Bot, badge: "Lab", feature: 'simulator_enabled' },
+                    // Simulador removido para vendedores - apenas gestores têm acesso
                 ]
             },
             {

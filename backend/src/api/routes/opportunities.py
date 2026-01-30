@@ -599,3 +599,83 @@ async def get_opportunity_metrics(
     except Exception as e:
         logger.error(f"Erro buscando métricas de oportunidades: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro ao buscar métricas")
+
+
+
+# =============================================
+# 🧪 TESTE: Criar oportunidade de teste
+# =============================================
+@router.post("/test/create-sample", response_model=OpportunityResponse)
+async def create_sample_opportunity(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    🧪 ENDPOINT DE TESTE - Cria uma oportunidade de amostra.
+    Este endpoint será removido após validação.
+    """
+    try:
+        tenant_id = current_user.tenant_id
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="Usuário sem tenant")
+
+        # Buscar ou criar lead de teste
+        result = await db.execute(
+            select(Lead).where(Lead.tenant_id == tenant_id).limit(1)
+        )
+        lead = result.scalar_one_or_none()
+
+        if not lead:
+            # Criar lead de teste
+            lead = Lead(
+                tenant_id=tenant_id,
+                name="João Silva (TESTE)",
+                phone="+5551999998888",
+                platform="whatsapp",
+                status="active"
+            )
+            db.add(lead)
+            await db.flush()
+
+        # Buscar seller (opcional)
+        result = await db.execute(
+            select(Seller).where(Seller.tenant_id == tenant_id).limit(1)
+        )
+        seller = result.scalar_one_or_none()
+
+        # Criar oportunidade de teste
+        opportunity = Opportunity(
+            tenant_id=tenant_id,
+            lead_id=lead.id,
+            seller_id=seller.id if seller else None,
+            title="Casa 3 Quartos em Canoas - TESTE",
+            status="new",
+            value=45000000,  # R$ 450.000,00 em centavos
+            product_name="Casa em Canoas - Código 722585",
+            product_data={
+                "codigo": "722585",
+                "tipo": "Casa",
+                "regiao": "Canoas",
+                "preco": 45000000,
+                "quartos": 3,
+                "banheiros": 2,
+                "vagas": 2,
+                "metragem": 120,
+                "descricao": "Linda casa com 3 quartos, 2 banheiros e 2 vagas de garagem. Localizada em bairro nobre de Canoas."
+            }
+        )
+
+        db.add(opportunity)
+        await db.commit()
+        await db.refresh(opportunity, ["seller"])
+
+        logger.info(f"✅ Oportunidade de teste criada: {opportunity.id}")
+        return opportunity_to_response(opportunity)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro criando oportunidade de teste: {e}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Erro ao criar oportunidade de teste")
+
