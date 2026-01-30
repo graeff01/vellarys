@@ -194,7 +194,7 @@ def opportunity_to_detail_response(opp: Opportunity) -> OpportunityDetailRespons
         # Seller info
         seller_id=opp.seller_id,
         seller_name=opp.seller.name if opp.seller else None,
-        seller_phone=opp.seller.phone if opp.seller else None,
+        seller_phone=opp.seller.whatsapp if opp.seller else None,
         
         # Product info
         product_id=opp.product_id,

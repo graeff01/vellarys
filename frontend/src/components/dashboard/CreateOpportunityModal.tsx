@@ -221,7 +221,7 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
         title: formData.title,
         value: valueInCents,
         notes: formData.notes || null,
-        product_id: formData.product_id ? parseInt(formData.product_id) : null,
+        product_id: (formData.product_id && formData.product_id !== '0') ? parseInt(formData.product_id) : null,
         product_name: formData.product_name || null,
         product_data: formData.product_data,
       };
