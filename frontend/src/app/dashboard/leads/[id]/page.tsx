@@ -17,8 +17,6 @@ import {
   getLeadMessages,
   updateLead,
   getLeadEvents,
-  getLeadOpportunities,
-  Opportunity,
 } from '@/lib/api';
 import {
   ArrowLeft,
@@ -102,9 +100,7 @@ export default function LeadDetailPage() {
   const [lead, setLead] = useState<Lead | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [events, setEvents] = useState<LeadEvent[]>([]);
-  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'activity' | 'opportunities'>('activity');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -112,25 +108,21 @@ export default function LeadDetailPage() {
   }, [params.id]);
 
   useEffect(() => {
-    if (activeTab === 'activity') {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, activeTab]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   async function loadData() {
     try {
       setLoading(true);
-      const [leadData, messagesData, eventsData, oppsData] = await Promise.all([
+      const [leadData, messagesData, eventsData] = await Promise.all([
         getLead(Number(params.id)),
         getLeadMessages(Number(params.id)),
         getLeadEvents(Number(params.id)).catch(() => []),
-        getLeadOpportunities(Number(params.id)).catch(() => []),
       ]);
 
       setLead(leadData as Lead);
       setMessages(messagesData as Message[]);
       setEvents(eventsData as LeadEvent[]);
-      setOpportunities(oppsData as Opportunity[]);
     } catch (error) {
       console.error('Erro ao carregar lead:', error);
     } finally {
@@ -250,50 +242,14 @@ export default function LeadDetailPage() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="px-4">
-          <div className="flex gap-4 border-b border-gray-200">
-            <button
-              onClick={() => setActiveTab('activity')}
-              className={cn(
-                "px-1 py-2.5 font-medium text-sm border-b-2 transition-colors",
-                activeTab === 'activity'
-                  ? "text-blue-600 border-blue-600"
-                  : "text-gray-600 border-transparent hover:text-gray-900"
-              )}
-            >
-              Atividade
-            </button>
-            <button
-              onClick={() => setActiveTab('opportunities')}
-              className={cn(
-                "px-1 py-2.5 font-medium text-sm border-b-2 transition-colors flex items-center gap-1.5",
-                activeTab === 'opportunities'
-                  ? "text-blue-600 border-blue-600"
-                  : "text-gray-600 border-transparent hover:text-gray-900"
-              )}
-            >
-              Oportunidades
-              {opportunities.length > 0 && (
-                <Badge className="bg-green-100 text-green-700 text-xs">
-                  {opportunities.length}
-                </Badge>
-              )}
-            </button>
-          </div>
-        </div>
+
       </div>
 
       {/* Layout 2 colunas - SEM SCROLL EXTERNO - Otimizado para viewport */}
       <div className="flex-1 flex gap-4 px-4 py-4 overflow-hidden">
         {/* Coluna principal (conversas/atividades) - 65% */}
         <div className="flex-[0_0_65%] h-full min-h-0">
-          {activeTab === 'activity' && (
-            <WhatsAppConversation messages={messages} events={events} messagesEndRef={messagesEndRef} />
-          )}
-          {activeTab === 'opportunities' && (
-            <OpportunitiesPanel opportunities={opportunities} leadId={lead.id} onReload={loadData} />
-          )}
+          <WhatsAppConversation messages={messages} events={events} messagesEndRef={messagesEndRef} />
         </div>
 
         {/* Sidebar direita - Info do Lead - 35% - FIXA SEM SCROLL */}
@@ -576,10 +532,7 @@ function LeadInfoSidebar({
             <Calendar className="w-3 h-3" />
             Agendar Visita
           </Button>
-          <Button variant="outline" size="sm" className="w-full justify-start gap-1.5 h-7 text-[10px]">
-            <TrendingUp className="w-3 h-3" />
-            Criar Oportunidade
-          </Button>
+
           <Button variant="outline" size="sm" className="w-full justify-start gap-1.5 h-7 text-[10px]">
             <Edit2 className="w-3 h-3" />
             Adicionar Nota
@@ -587,82 +540,6 @@ function LeadInfoSidebar({
         </div>
       </Card>
     </>
-  );
-}
-
-// =============================================
-// COMPONENTE: Oportunidades
-// =============================================
-
-function OpportunitiesPanel({
-  opportunities,
-  leadId,
-  onReload
-}: {
-  opportunities: Opportunity[];
-  leadId: number;
-  onReload: () => void;
-}) {
-  return (
-    <Card className="h-full flex flex-col overflow-hidden">
-      <div className="border-b border-gray-200 px-4 py-3 bg-white flex items-center justify-between flex-shrink-0">
-        <div>
-          <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-green-600" />
-            Oportunidades
-          </h3>
-          <p className="text-xs text-gray-500 mt-0.5">
-            {opportunities.length} {opportunities.length === 1 ? 'oportunidade' : 'oportunidades'}
-          </p>
-        </div>
-        <Button className="gap-1.5 h-8 px-3 text-xs">
-          <Plus className="w-3.5 h-3.5" />
-          Nova
-        </Button>
-      </div>
-
-      {/* SCROLL APENAS AQUI */}
-      <div className="flex-1 overflow-y-auto">
-        {opportunities.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-12">
-            <TrendingUp className="w-16 h-16 text-gray-300 mb-4" />
-            <p className="text-gray-500 font-medium">Nenhuma oportunidade criada</p>
-            <p className="text-sm text-gray-400 mt-1">
-              Crie uma oportunidade para começar a rastrear vendas
-            </p>
-          </div>
-        ) : (
-          <div className="p-4 space-y-3">
-            {opportunities.map(opp => (
-              <Card key={opp.id} className="p-3 hover:shadow-lg transition-all border border-gray-200">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-gray-900 text-sm">{opp.title}</h4>
-                    {opp.description && (
-                      <p className="text-xs text-gray-600 mt-1 leading-relaxed">{opp.description}</p>
-                    )}
-                    <div className="flex items-center gap-2 mt-2">
-                      <Badge className="bg-green-100 text-green-700 font-semibold text-[10px] px-2 py-0.5">
-                        R$ {opp.value?.toLocaleString('pt-BR')}
-                      </Badge>
-                      <span className="text-xs text-gray-500 capitalize">{opp.stage}</span>
-                      {opp.expected_close_date && (
-                        <span className="text-[10px] text-gray-400">
-                          Fecha em {format(new Date(opp.expected_close_date), "dd/MM/yyyy", { locale: ptBR })}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
-    </Card>
   );
 }
 
