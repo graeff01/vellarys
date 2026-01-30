@@ -83,8 +83,8 @@ export function CreateOpportunityModal({ open, onClose, onSuccess }: CreateOppor
         const leadsData = await leadsRes.json();
         const sellersData = await sellersRes.json();
 
-        setLeads(leadsData.items || leadsData);
-        setSellers(sellersData.items || sellersData);
+        setLeads(leadsData.items || []);
+        setSellers(sellersData.sellers || []);
       }
     } catch (error) {
       console.error('Erro carregando dados:', error);
