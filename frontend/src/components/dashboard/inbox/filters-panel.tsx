@@ -62,28 +62,34 @@ export function FiltersPanel({ filters, onFiltersChange, leadsCount }: FiltersPa
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="relative gap-2">
-          <SlidersHorizontal className="h-4 w-4" />
+        <Button variant="outline" size="sm" className="relative gap-2 h-8 text-xs">
+          <SlidersHorizontal className="h-3.5 w-3.5" />
           Filtros
           {activeFiltersCount > 0 && (
-            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
+            <span className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">
               {activeFiltersCount}
             </span>
           )}
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-80" align="start">
-        <div className="space-y-4">
+      <PopoverContent
+        className="w-[90vw] max-w-md p-4"
+        align="start"
+        side="bottom"
+        sideOffset={8}
+        collisionPadding={16}
+      >
+        <div className="space-y-3">
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-sm">Filtros Avançados</h4>
+          <div className="flex items-center justify-between border-b pb-2">
+            <h4 className="font-semibold text-sm text-gray-900">Filtros Avançados</h4>
             {hasActiveFilters && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleReset}
-                className="h-7 text-xs"
+                className="h-6 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
               >
                 <X className="h-3 w-3 mr-1" />
                 Limpar
@@ -92,8 +98,8 @@ export function FiltersPanel({ filters, onFiltersChange, leadsCount }: FiltersPa
           </div>
 
           {/* Atendido Por */}
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-muted-foreground">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-700">
               Atendido Por
             </Label>
             <RadioGroup
@@ -101,22 +107,23 @@ export function FiltersPanel({ filters, onFiltersChange, leadsCount }: FiltersPa
               onValueChange={(value: any) =>
                 onFiltersChange({ ...filters, attendedBy: value })
               }
+              className="space-y-1.5"
             >
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="all" id="all" />
-                <Label htmlFor="all" className="cursor-pointer">
+                <Label htmlFor="all" className="cursor-pointer text-sm">
                   Todos
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="ai" id="ai" />
-                <Label htmlFor="ai" className="cursor-pointer">
+                <Label htmlFor="ai" className="cursor-pointer text-sm">
                   IA (Automático)
                 </Label>
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="seller" id="seller" />
-                <Label htmlFor="seller" className="cursor-pointer">
+                <Label htmlFor="seller" className="cursor-pointer text-sm">
                   Vendedor (Manual)
                 </Label>
               </div>
@@ -124,11 +131,11 @@ export function FiltersPanel({ filters, onFiltersChange, leadsCount }: FiltersPa
           </div>
 
           {/* Status */}
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-muted-foreground">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-700">
               Status
             </Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-1.5">
               {[
                 { value: undefined, label: 'Todos' },
                 { value: 'open', label: 'Aberto' },
@@ -152,11 +159,11 @@ export function FiltersPanel({ filters, onFiltersChange, leadsCount }: FiltersPa
           </div>
 
           {/* Qualificação */}
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-muted-foreground">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-700">
               Qualificação
             </Label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-4 gap-1.5">
               {[
                 { value: undefined, label: 'Todos', icon: null },
                 { value: 'hot', label: 'Quente', icon: Flame, color: 'text-red-500' },
@@ -183,11 +190,11 @@ export function FiltersPanel({ filters, onFiltersChange, leadsCount }: FiltersPa
           </div>
 
           {/* Data */}
-          <div className="space-y-2">
-            <Label className="text-xs font-medium text-muted-foreground">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-gray-700">
               Período
             </Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-1.5">
               {/* De */}
               <Popover>
                 <PopoverTrigger asChild>
@@ -196,7 +203,7 @@ export function FiltersPanel({ filters, onFiltersChange, leadsCount }: FiltersPa
                     {filters.dateFrom ? format(filters.dateFrom, 'dd/MM', { locale: ptBR }) : 'De'}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0" align="start" side="bottom">
                   <Calendar
                     mode="single"
                     selected={filters.dateFrom}
@@ -216,7 +223,7 @@ export function FiltersPanel({ filters, onFiltersChange, leadsCount }: FiltersPa
                     {filters.dateTo ? format(filters.dateTo, 'dd/MM', { locale: ptBR }) : 'Até'}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
+                <PopoverContent className="w-auto p-0" align="start" side="bottom">
                   <Calendar
                     mode="single"
                     selected={filters.dateTo}
