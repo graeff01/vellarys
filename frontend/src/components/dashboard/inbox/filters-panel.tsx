@@ -74,7 +74,7 @@ export function FiltersPanel({ filters, onFiltersChange, leadsCount }: FiltersPa
       </PopoverTrigger>
 
       <PopoverContent
-        className="w-72 p-3"
+        className="w-72 p-3 bg-white shadow-lg border border-gray-200"
         align="start"
         side="bottom"
         sideOffset={8}
