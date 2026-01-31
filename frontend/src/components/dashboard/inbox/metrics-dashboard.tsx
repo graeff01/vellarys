@@ -15,12 +15,12 @@ import { cn } from '@/lib/utils';
 import { getToken } from '@/lib/auth';
 
 interface Metrics {
-  total_leads: number;
-  active_conversations: number;
-  total_messages: number;
-  avg_first_response_time_seconds: number;
-  conversion_rate: number;
-  sla_compliance: number;
+  total_leads: number | null;
+  active_conversations: number | null;
+  total_messages: number | null;
+  avg_first_response_time_seconds: number | null;
+  conversion_rate: number | null;
+  sla_compliance: number | null;
 }
 
 export function MetricsDashboard() {
@@ -87,45 +87,45 @@ export function MetricsDashboard() {
   const stats = [
     {
       label: 'Total de Leads',
-      value: metrics.total_leads,
+      value: metrics.total_leads ?? 0,
       icon: Users,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
     },
     {
       label: 'Conversas Ativas',
-      value: metrics.active_conversations,
+      value: metrics.active_conversations ?? 0,
       icon: MessageSquare,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
     },
     {
       label: 'Mensagens Enviadas',
-      value: metrics.total_messages,
+      value: metrics.total_messages ?? 0,
       icon: TrendingUp,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
     },
     {
       label: 'Tempo Médio 1ª Resposta',
-      value: formatTime(metrics.avg_first_response_time_seconds),
+      value: formatTime(metrics.avg_first_response_time_seconds ?? 0),
       icon: Clock,
       color: 'text-orange-600',
       bgColor: 'bg-orange-50',
     },
     {
       label: 'Taxa de Conversão',
-      value: `${metrics.conversion_rate.toFixed(1)}%`,
+      value: `${(metrics.conversion_rate ?? 0).toFixed(1)}%`,
       icon: CheckCircle2,
       color: 'text-teal-600',
       bgColor: 'bg-teal-50',
     },
     {
       label: 'SLA Compliance',
-      value: `${metrics.sla_compliance.toFixed(1)}%`,
+      value: `${(metrics.sla_compliance ?? 0).toFixed(1)}%`,
       icon: AlertCircle,
-      color: metrics.sla_compliance >= 80 ? 'text-green-600' : 'text-red-600',
-      bgColor: metrics.sla_compliance >= 80 ? 'bg-green-50' : 'bg-red-50',
+      color: (metrics.sla_compliance ?? 0) >= 80 ? 'text-green-600' : 'text-red-600',
+      bgColor: (metrics.sla_compliance ?? 0) >= 80 ? 'bg-green-50' : 'bg-red-50',
     },
   ];
 
