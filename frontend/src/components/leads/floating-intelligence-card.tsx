@@ -28,7 +28,7 @@ export function FloatingIntelligenceCard({ leadId }: { leadId: number }) {
         try {
             setLoading(true);
             const token = getToken();
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/leads/${leadId}/ai-insights`, {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/leads/${leadId}/ai-insights`, {
                 headers: {
                     Authorization: `Bearer ${token}`
                 }

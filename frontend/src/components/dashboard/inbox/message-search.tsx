@@ -68,7 +68,7 @@ export function MessageSearch({ open, onOpenChange }: MessageSearchProps) {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/v1/seller/inbox/search?q=${encodeURIComponent(searchQuery)}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/search?q=${encodeURIComponent(searchQuery)}`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }

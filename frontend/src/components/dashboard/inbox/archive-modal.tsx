@@ -39,7 +39,7 @@ export function ArchiveModal({ open, onOpenChange, leadIds, leadNames, onSuccess
       await Promise.all(
         leadIds.map(leadId =>
           axios.post(
-            `${process.env.NEXT_PUBLIC_API_URL}/v1/seller/inbox/leads/${leadId}/archive`,
+            `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/leads/${leadId}/archive`,
             { reason: reason || null },
             {
               headers: { Authorization: `Bearer ${token}` }

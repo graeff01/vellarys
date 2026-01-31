@@ -56,7 +56,7 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
       }
 
       const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/v1/seller/inbox/templates?${params.toString()}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/templates?${params.toString()}`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
@@ -84,7 +84,7 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
       const token = localStorage.getItem('token');
 
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/v1/seller/inbox/templates/${templateId}/use?lead_id=${leadId}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/templates/${templateId}/use?lead_id=${leadId}`,
         {},
         {
           headers: { Authorization: `Bearer ${token}` }
@@ -109,7 +109,7 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
       const token = localStorage.getItem('token');
 
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/v1/seller/inbox/templates`,
+        `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/templates`,
         data,
         {
           headers: { Authorization: `Bearer ${token}` }
@@ -141,7 +141,7 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
       const token = localStorage.getItem('token');
 
       const response = await axios.patch(
-        `${process.env.NEXT_PUBLIC_API_URL}/v1/seller/inbox/templates/${templateId}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/templates/${templateId}`,
         data,
         {
           headers: { Authorization: `Bearer ${token}` }
@@ -164,7 +164,7 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
       const token = localStorage.getItem('token');
 
       await axios.delete(
-        `${process.env.NEXT_PUBLIC_API_URL}/v1/seller/inbox/templates/${templateId}`,
+        `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/templates/${templateId}`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }

@@ -36,7 +36,7 @@ export function MetricsDashboard() {
       const token = localStorage.getItem('token');
 
       const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_API_URL}/v1/seller/inbox/metrics`,
+        `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/metrics`,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
