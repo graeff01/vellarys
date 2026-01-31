@@ -31,12 +31,20 @@ export function CardFooter({ children, className = '' }: CardFooterProps) {
 }
 
 interface CardHeaderProps {
-  title: React.ReactNode;
+  title?: React.ReactNode;
   subtitle?: string;
   action?: React.ReactNode;
+  children?: React.ReactNode;
+  className?: string;
 }
 
-export function CardHeader({ title, subtitle, action }: CardHeaderProps) {
+export function CardHeader({ title, subtitle, action, children, className = '' }: CardHeaderProps) {
+  // Se tiver children, usa a API nova do shadcn/ui
+  if (children) {
+    return <div className={`flex flex-col space-y-1.5 p-6 ${className}`}>{children}</div>;
+  }
+
+  // Senão, usa a API antiga (backward compatible)
   return (
     <div className="flex items-center justify-between mb-4">
       <div>
@@ -46,4 +54,13 @@ export function CardHeader({ title, subtitle, action }: CardHeaderProps) {
       {action}
     </div>
   );
+}
+
+interface CardTitleProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function CardTitle({ children, className = '' }: CardTitleProps) {
+  return <h3 className={`text-2xl font-semibold leading-none tracking-tight ${className}`}>{children}</h3>;
 }
