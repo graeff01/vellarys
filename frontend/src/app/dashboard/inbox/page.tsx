@@ -302,53 +302,60 @@ export default function InboxPage() {
           )}
         >
           {/* Header do painel lateral - estilo WhatsApp */}
-          <div className="bg-[#f0f2f5] border-b border-gray-300">
-            {/* Barra superior com avatar e ações */}
-            <div className="px-4 py-2.5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
+          <div className="bg-white border-b border-gray-200">
+            {/* Barra superior principal */}
+            <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
                 {/* Avatar do usuário */}
-                <div className="w-10 h-10 rounded-full bg-[#dfe5e7] flex items-center justify-center">
-                  <span className="text-lg font-medium text-gray-700">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <span className="text-base font-semibold text-white">
                     {sellerInfo.user_name ? sellerInfo.user_name.charAt(0).toUpperCase() : 'V'}
                   </span>
                 </div>
-                {/* Badge Vellarys - branding sutil */}
-                <div className="hidden md:block">
-                  <p className="text-sm font-medium text-gray-900">CRM Inbox</p>
-                  <p className="text-xs text-gray-500">
-                    {attendedLeads > 0 && `${attendedLeads} atendendo`}
-                    {attendedLeads > 0 && unattendedLeads > 0 && ' • '}
-                    {unattendedLeads > 0 && `${unattendedLeads} com IA`}
+
+                {/* Info e status */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-semibold text-gray-900">CRM Inbox</h2>
+                    <ConnectionIndicator status={sseStatus} />
+                  </div>
+                  <p className="text-xs text-gray-500 truncate">
+                    {totalLeads > 0 ? (
+                      <>
+                        {attendedLeads > 0 && `${attendedLeads} atendendo`}
+                        {attendedLeads > 0 && unattendedLeads > 0 && ' • '}
+                        {unattendedLeads > 0 && `${unattendedLeads} com IA`}
+                      </>
+                    ) : (
+                      'Nenhuma conversa'
+                    )}
                   </p>
                 </div>
               </div>
 
-              {/* Botões de ação */}
+              {/* Ações rápidas */}
               <div className="flex items-center gap-1">
-                {/* Connection Indicator */}
-                <ConnectionIndicator status={sseStatus} />
-
                 <button
                   onClick={() => setShowSearchModal(true)}
-                  className="p-2 text-gray-600 hover:bg-gray-200/50 rounded-full transition-colors"
+                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                   title="Buscar mensagens (Ctrl+K)"
                 >
-                  <Search className="h-5 w-5" />
+                  <Search className="h-4 w-4" />
                 </button>
 
                 <button
                   onClick={handleRefresh}
                   disabled={refreshing}
-                  className="p-2 text-gray-600 hover:bg-gray-200/50 rounded-full transition-colors"
+                  className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
                   title="Atualizar conversas"
                 >
-                  <RefreshCw className={cn("h-5 w-5", refreshing && 'animate-spin')} />
+                  <RefreshCw className={cn("h-4 w-4", refreshing && 'animate-spin')} />
                 </button>
               </div>
             </div>
 
-            {/* Barra de filtros avançados */}
-            <div className="px-3 pb-2 flex items-center gap-2">
+            {/* Barra de filtros e ações */}
+            <div className="px-4 py-2 flex items-center gap-2 bg-gray-50">
               <FiltersPanel
                 filters={filters}
                 onFiltersChange={setFilters}
@@ -361,23 +368,23 @@ export default function InboxPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowArchiveModal(true)}
-                  className="gap-2"
+                  className="gap-1.5 h-8 text-xs border-orange-200 bg-orange-50 hover:bg-orange-100 text-orange-700"
                 >
-                  <Archive className="h-4 w-4" />
-                  Arquivar {selectedLeadIds.length}
+                  <Archive className="h-3.5 w-3.5" />
+                  Arquivar ({selectedLeadIds.length})
                 </Button>
               )}
 
               <Button
-                variant="ghost"
+                variant={bulkMode ? "default" : "outline"}
                 size="sm"
                 onClick={toggleBulkMode}
                 className={cn(
-                  "ml-auto text-xs",
-                  bulkMode && "bg-blue-50 text-blue-600"
+                  "ml-auto h-8 text-xs",
+                  bulkMode ? "bg-blue-600 hover:bg-blue-700 text-white" : "border-gray-300"
                 )}
               >
-                {bulkMode ? 'Cancelar' : 'Selecionar'}
+                {bulkMode ? 'Cancelar seleção' : 'Selecionar'}
               </Button>
             </div>
           </div>

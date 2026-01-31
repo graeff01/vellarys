@@ -31,15 +31,21 @@ export function ConnectionIndicator({ status, className }: ConnectionIndicatorPr
   };
 
   const colors = {
-    connected: 'text-green-500',
-    connecting: 'text-yellow-500',
-    disconnected: 'text-red-500',
+    connected: 'text-green-700',
+    connecting: 'text-amber-700',
+    disconnected: 'text-red-700',
+  };
+
+  const bgColors = {
+    connected: 'bg-green-50 border-green-200',
+    connecting: 'bg-amber-50 border-amber-200',
+    disconnected: 'bg-red-50 border-red-200',
   };
 
   const labels = {
-    connected: 'Conectado em tempo real',
-    connecting: 'Conectando...',
-    disconnected: 'Desconectado',
+    connected: 'Online',
+    connecting: 'Conectando',
+    disconnected: 'Offline',
   };
 
   const Icon = icons[status];
@@ -48,15 +54,19 @@ export function ConnectionIndicator({ status, className }: ConnectionIndicatorPr
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className={cn('flex items-center gap-1.5', className)}>
+          <div className={cn(
+            'inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-medium',
+            bgColors[status],
+            colors[status],
+            className
+          )}>
             <Icon
               className={cn(
-                'h-4 w-4',
-                colors[status],
+                'h-2.5 w-2.5',
                 status === 'connecting' && 'animate-spin'
               )}
             />
-            <span className="text-xs font-medium text-muted-foreground hidden sm:inline">
+            <span>
               {labels[status]}
             </span>
           </div>
