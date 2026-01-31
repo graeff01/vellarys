@@ -74,16 +74,16 @@ export function FiltersPanel({ filters, onFiltersChange, leadsCount }: FiltersPa
       </PopoverTrigger>
 
       <PopoverContent
-        className="w-[90vw] max-w-md p-4"
+        className="w-72 p-3"
         align="start"
         side="bottom"
         sideOffset={8}
         collisionPadding={16}
       >
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {/* Header */}
-          <div className="flex items-center justify-between border-b pb-2">
-            <h4 className="font-semibold text-sm text-gray-900">Filtros Avançados</h4>
+          <div className="flex items-center justify-between border-b pb-1.5">
+            <h4 className="font-semibold text-xs text-gray-900">Filtros Avançados</h4>
             {hasActiveFilters && (
               <Button
                 variant="ghost"
@@ -139,7 +139,7 @@ export function FiltersPanel({ filters, onFiltersChange, leadsCount }: FiltersPa
               {[
                 { value: undefined, label: 'Todos' },
                 { value: 'open', label: 'Aberto' },
-                { value: 'in_progress', label: 'Em Progresso' },
+                { value: 'in_progress', label: 'Em Andamento' },
                 { value: 'converted', label: 'Convertido' },
                 { value: 'lost', label: 'Perdido' },
               ].map((option) => (
@@ -150,7 +150,7 @@ export function FiltersPanel({ filters, onFiltersChange, leadsCount }: FiltersPa
                   onClick={() =>
                     onFiltersChange({ ...filters, status: option.value as any })
                   }
-                  className="text-xs"
+                  className="text-[11px] h-7 px-2 w-full"
                 >
                   {option.label}
                 </Button>
@@ -163,7 +163,7 @@ export function FiltersPanel({ filters, onFiltersChange, leadsCount }: FiltersPa
             <Label className="text-xs font-semibold text-gray-700">
               Qualificação
             </Label>
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5">
               {[
                 { value: undefined, label: 'Todos', icon: null },
                 { value: 'hot', label: 'Quente', icon: Flame, color: 'text-red-500' },
@@ -178,12 +178,12 @@ export function FiltersPanel({ filters, onFiltersChange, leadsCount }: FiltersPa
                     onFiltersChange({ ...filters, qualification: option.value as any })
                   }
                   className={cn(
-                    "text-xs flex-col h-auto py-2 gap-1",
+                    "text-xs h-8 gap-1.5 justify-start",
                     filters.qualification === option.value && option.color
                   )}
                 >
-                  {option.icon && <option.icon className="h-3 w-3" />}
-                  {option.label}
+                  {option.icon && <option.icon className="h-3.5 w-3.5" />}
+                  <span>{option.label}</span>
                 </Button>
               ))}
             </div>
