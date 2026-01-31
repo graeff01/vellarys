@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, MessageSquare, TrendingUp, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 import { cn } from '@/lib/utils';
+import { getToken } from '@/lib/auth';
 
 interface Metrics {
   total_leads: number;
@@ -33,7 +34,7 @@ export function MetricsDashboard() {
   async function loadMetrics() {
     try {
       setIsLoading(true);
-      const token = localStorage.getItem('token');
+      const token = getToken();
 
       const response = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/metrics`,

@@ -14,6 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { Paperclip, X, FileText, Image as ImageIcon, Film, Music } from 'lucide-react';
 import axios from 'axios';
 import { cn } from '@/lib/utils';
+import { getToken } from '@/lib/auth';
 
 interface AttachmentData {
   type: 'image' | 'document' | 'audio' | 'video' | 'file';
@@ -108,7 +109,7 @@ export function AttachmentUpload({ leadId, onUploadComplete, onUploadError }: At
     setUploadProgress(0);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const formData = new FormData();
       formData.append('file', selectedFile);
 

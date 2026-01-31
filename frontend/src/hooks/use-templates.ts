@@ -13,6 +13,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { getToken } from '@/lib/auth';
 
 export interface ResponseTemplate {
   id: number;
@@ -44,7 +45,7 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const params = new URLSearchParams();
 
       if (category) {
@@ -81,7 +82,7 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
   // Usa template e retorna conteúdo interpolado
   const useTemplate = async (templateId: number, leadId: number): Promise<string> => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
 
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/templates/${templateId}/use?lead_id=${leadId}`,
@@ -106,7 +107,7 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
     category?: string;
   }): Promise<ResponseTemplate> => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
 
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/templates`,
@@ -138,7 +139,7 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
     }>
   ): Promise<ResponseTemplate> => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
 
       const response = await axios.patch(
         `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/templates/${templateId}`,
@@ -161,7 +162,7 @@ export function useTemplates(options: UseTemplatesOptions = {}) {
   // Exclui template (soft-delete)
   const deleteTemplate = async (templateId: number): Promise<void> => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
 
       await axios.delete(
         `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/templates/${templateId}`,

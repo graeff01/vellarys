@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { getToken } from '@/lib/auth';
 
 export interface SSEEvent {
   type: string;
@@ -43,7 +44,7 @@ export function useSSE(leadId: number | null, options: UseSSEOptions = {}) {
     const connect = () => {
       try {
         // Obtém token do localStorage
-        const token = localStorage.getItem('token');
+        const token = getToken();
         if (!token) {
           console.error('[SSE] Token não encontrado');
           return;

@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Archive, Loader2, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
+import { getToken } from '@/lib/auth';
 
 interface ArchiveModalProps {
   open: boolean;
@@ -33,7 +34,7 @@ export function ArchiveModal({ open, onOpenChange, leadIds, leadNames, onSuccess
     setIsLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
 
       // Arquiva cada lead
       await Promise.all(

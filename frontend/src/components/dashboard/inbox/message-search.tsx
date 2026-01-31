@@ -18,6 +18,7 @@ import { ptBR } from 'date-fns/locale';
 import axios from 'axios';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { getToken } from '@/lib/auth';
 
 interface SearchResult {
   message_id: number;
@@ -66,7 +67,7 @@ export function MessageSearch({ open, onOpenChange }: MessageSearchProps) {
     setIsLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const response = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/search?q=${encodeURIComponent(searchQuery)}`,
         {

@@ -18,6 +18,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import axios from 'axios';
 import { cn } from '@/lib/utils';
+import { getToken } from '@/lib/auth';
 
 interface LeadNote {
   id: number;
@@ -51,7 +52,7 @@ export function LeadNotesPanel({ leadId, children }: LeadNotesPanelProps) {
   const loadNotes = async () => {
     setIsLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const response = await axios.get(
         `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/leads/${leadId}/notes`,
         {
@@ -72,7 +73,7 @@ export function LeadNotesPanel({ leadId, children }: LeadNotesPanelProps) {
 
     setIsCreating(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       await axios.post(
         `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/leads/${leadId}/notes`,
         { content: newNoteContent },
@@ -99,7 +100,7 @@ export function LeadNotesPanel({ leadId, children }: LeadNotesPanelProps) {
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       await axios.delete(
         `${process.env.NEXT_PUBLIC_API_URL}/seller/inbox/leads/${leadId}/notes/${noteId}`,
         {
