@@ -4,7 +4,6 @@ import * as React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { DayPicker } from 'react-day-picker';
 import { cn } from '@/lib/utils';
-import { buttonVariants } from '@/components/ui/button';
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>;
 
@@ -25,33 +24,31 @@ function Calendar({
         caption_label: 'text-sm font-medium',
         nav: 'space-x-1 flex items-center',
         button_previous: cn(
-          buttonVariants({ variant: 'outline' }),
+          'inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50',
           'h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 absolute left-1'
         ),
         button_next: cn(
-          buttonVariants({ variant: 'outline' }),
+          'inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50',
           'h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100 absolute right-1'
         ),
         month_grid: 'w-full border-collapse space-y-1',
         weekdays: 'flex',
         weekday:
-          'text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]',
+          'text-gray-500 rounded-md w-9 font-normal text-xs',
         week: 'flex w-full mt-2',
         day: cn(
-          buttonVariants({ variant: 'ghost' }),
+          'inline-flex items-center justify-center rounded-lg text-gray-700 hover:bg-gray-100',
           'h-9 w-9 p-0 font-normal aria-selected:opacity-100'
         ),
-        day_button: cn(
-          'h-9 w-9 p-0 font-normal aria-selected:opacity-100'
-        ),
+        day_button: 'h-9 w-9 p-0 font-normal aria-selected:opacity-100',
         selected:
-          'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground',
-        today: 'bg-accent text-accent-foreground',
+          'bg-blue-600 text-white hover:bg-blue-700 focus:bg-blue-600',
+        today: 'bg-gray-100 text-gray-900',
         outside:
-          'day-outside text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground aria-selected:opacity-30',
-        disabled: 'text-muted-foreground opacity-50',
+          'text-gray-400 opacity-50 aria-selected:bg-gray-100 aria-selected:text-gray-400 aria-selected:opacity-30',
+        disabled: 'text-gray-400 opacity-50',
         range_middle:
-          'aria-selected:bg-accent aria-selected:text-accent-foreground',
+          'aria-selected:bg-gray-100 aria-selected:text-gray-900',
         hidden: 'invisible',
         ...classNames,
       }}
