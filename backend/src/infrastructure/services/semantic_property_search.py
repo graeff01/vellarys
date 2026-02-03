@@ -218,35 +218,40 @@ async def search_similar_properties(
     try:
         # 1. Gera embedding da query
         query_embedding = await generate_embedding(query)
-        
+
         if not query_embedding:
             logger.error("Falha ao gerar embedding da query")
             return []
-        
+
+        # Converte embedding para formato pgvector (string com lista)
+        # Formato: '[1.0,2.0,3.0,...]'
+        embedding_str = '[' + ','.join(str(x) for x in query_embedding) + ']'
+
         # 2. Busca por similaridade usando pgvector
         # Similaridade coseno: 1 - (embedding <=> query_embedding)
         # Onde <=> é o operador de distância coseno do pgvector
-        
+        # Nota: asyncpg não suporta ::vector com named params, então usamos CAST
+
         sql = text("""
-            SELECT 
+            SELECT
                 pe.product_id,
                 p.name,
                 p.description,
                 p.attributes,
-                1 - (pe.embedding <=> :query_embedding::vector) AS similarity
+                1 - (pe.embedding <=> CAST(:query_embedding AS vector)) AS similarity
             FROM property_embeddings pe
             JOIN products p ON p.id = pe.product_id
             WHERE pe.tenant_id = :tenant_id
                 AND p.active = true
-                AND 1 - (pe.embedding <=> :query_embedding::vector) >= :min_similarity
-            ORDER BY pe.embedding <=> :query_embedding::vector ASC
+                AND 1 - (pe.embedding <=> CAST(:query_embedding AS vector)) >= :min_similarity
+            ORDER BY pe.embedding <=> CAST(:query_embedding AS vector) ASC
             LIMIT :top_k
         """)
-        
+
         result = await db.execute(
             sql,
             {
-                "query_embedding": str(query_embedding),
+                "query_embedding": embedding_str,
                 "tenant_id": tenant_id,
                 "min_similarity": min_similarity,
                 "top_k": top_k,

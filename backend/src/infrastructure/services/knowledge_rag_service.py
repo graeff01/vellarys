@@ -334,7 +334,12 @@ async def search_knowledge(
             types_str = ", ".join([f"'{t}'" for t in source_types])
             source_filter = f"AND ke.source_type IN ({types_str})"
 
+        # Converte embedding para formato pgvector (string com lista)
+        # Formato: '[1.0,2.0,3.0,...]'
+        embedding_str = '[' + ','.join(str(x) for x in query_embedding) + ']'
+
         # Query SQL com busca vetorial
+        # Nota: asyncpg não suporta ::vector com named params, então usamos CAST
         sql = text(f"""
             SELECT
                 ke.id,
@@ -343,20 +348,20 @@ async def search_knowledge(
                 ke.source_type,
                 ke.source_id,
                 ke.metadata,
-                1 - (ke.embedding <=> :query_embedding::vector) AS similarity
+                1 - (ke.embedding <=> CAST(:query_embedding AS vector)) AS similarity
             FROM knowledge_embeddings ke
             WHERE ke.tenant_id = :tenant_id
                 AND ke.active = true
                 {source_filter}
-                AND 1 - (ke.embedding <=> :query_embedding::vector) >= :min_similarity
-            ORDER BY ke.embedding <=> :query_embedding::vector ASC
+                AND 1 - (ke.embedding <=> CAST(:query_embedding AS vector)) >= :min_similarity
+            ORDER BY ke.embedding <=> CAST(:query_embedding AS vector) ASC
             LIMIT :top_k
         """)
 
         result = await db.execute(
             sql,
             {
-                "query_embedding": str(query_embedding),
+                "query_embedding": embedding_str,
                 "tenant_id": tenant_id,
                 "min_similarity": min_similarity,
                 "top_k": top_k,
