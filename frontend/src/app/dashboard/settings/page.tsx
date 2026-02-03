@@ -267,6 +267,7 @@ function SettingsContent() {
   // IA Settings
   const [aiSenderEmail, setAiSenderEmail] = useState('');
   const [morningBriefingRecipient, setMorningBriefingRecipient] = useState('');
+  const [morningBriefingTime, setMorningBriefingTime] = useState('08:00');
 
   // Após os outros estados, adicionar:
   const [hasProductsAccess, setHasProductsAccess] = useState(false);
@@ -539,6 +540,7 @@ function SettingsContent() {
         // Intelligence Active
         setAiSenderEmail(s.ai_sender_email || '');
         setMorningBriefingRecipient(s.morning_briefing_recipient || '');
+        setMorningBriefingTime(s.morning_briefing_time || '08:00');
 
         // Options - sobrescreve com dados da API se existirem
         const opts = response.options || {};
@@ -632,6 +634,7 @@ function SettingsContent() {
         phoenix_engine: phoenixEngine,
         ai_sender_email: aiSenderEmail,
         morning_briefing_recipient: morningBriefingRecipient,
+        morning_briefing_time: morningBriefingTime,
       }, targetTenantId || undefined);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -1287,7 +1290,7 @@ function SettingsContent() {
 
       {/* TAB: INTELIGÊNCIA ATIVA */}
       {activeTab === 'ia' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6">
           <div className="space-y-6">
             <Card>
               <CardHeader
@@ -1319,6 +1322,19 @@ function SettingsContent() {
                   </p>
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Horário de Envio</label>
+                  <input
+                    type="time"
+                    value={morningBriefingTime}
+                    onChange={(e) => setMorningBriefingTime(e.target.value)}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="mt-2 text-xs text-gray-400">
+                    Defina o horário que deseja receber o briefing diário (horário de Brasília).
+                  </p>
+                </div>
+
                 <div className="pt-4 border-t space-y-3">
                   {!servicesStatus?.resend_configured && (
                     <div className="p-3 bg-red-50 border border-red-100 rounded-lg flex gap-2">
@@ -1338,40 +1354,6 @@ function SettingsContent() {
                   >
                     <Zap className={`w-4 h-4 ${!servicesStatus?.resend_configured ? 'text-gray-300' : 'text-amber-500'}`} /> Testar Envio Agora
                   </button>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          <div className="space-y-6">
-            <Card>
-              <CardHeader
-                title="Identidade de Envio"
-                subtitle="Configure como a IA aparece nos e-mails"
-              />
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">E-mail de Remetente (From)</label>
-                  <input
-                    type="email"
-                    value={aiSenderEmail}
-                    onChange={(e) => setAiSenderEmail(e.target.value)}
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Ex: ia@suaempresa.com"
-                  />
-                  <p className="mt-2 text-xs text-gray-400">
-                    <strong>Atenção:</strong> Este e-mail precisa estar verificado no seu provedor de envio (Resend). Para testes sem domínio próprio, use <code className="bg-gray-100 px-1 rounded">onboarding@resend.dev</code>.
-                  </p>
-                </div>
-
-                <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex gap-3">
-                  <Shield className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-bold text-amber-800 mb-1">Dica de Conversão</p>
-                    <p className="text-xs text-amber-700 leading-relaxed">
-                      E-mails que parecem vir de uma assistente real (ex: bruna@suaempresa.com) costumam ter maior taxa de abertura do que e-mails genéricos.
-                    </p>
-                  </div>
                 </div>
               </div>
             </Card>

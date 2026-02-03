@@ -24,9 +24,9 @@ async def run_morning_briefing_job():
     Executa o job de envio de Morning Briefing.
 
     Lógica:
-    1. Verifica se é horário adequado (08:00 - 09:00)
-    2. Itera por todos os tenants ativos
-    3. Para cada tenant, envia o briefing para o gestor
+    1. Itera por todos os tenants ativos
+    2. Para cada tenant, verifica se chegou o horário configurado
+    3. Envia o briefing para o gestor no horário específico do tenant
     """
 
     # Timezone padrão (São Paulo)
@@ -34,14 +34,9 @@ async def run_morning_briefing_job():
     now = datetime.now(tz)
     current_hour = now.hour
     current_minute = now.minute
+    current_time_str = f"{current_hour:02d}:{current_minute:02d}"
 
-    # Verifica se está no horário correto (08:00 - 08:59)
-    # Isso evita múltiplas execuções no mesmo dia
-    if current_hour != 8:
-        logger.info(f"⏰ Morning Briefing: Fora do horário (atual: {current_hour:02d}:{current_minute:02d}). Pulando execução.")
-        return
-
-    logger.info(f"📧 Iniciando envio de Morning Briefings ({now.strftime('%Y-%m-%d %H:%M:%S')})")
+    logger.info(f"⏰ Morning Briefing Job: Verificando horários (atual: {current_time_str})")
 
     try:
         async with async_session() as db:
@@ -62,10 +57,30 @@ async def run_morning_briefing_job():
             # Envia briefing para cada tenant
             sent_count = 0
             failed_count = 0
+            skipped_count = 0
 
             for tenant in tenants:
                 try:
-                    logger.info(f"📤 Enviando briefing para tenant: {tenant.name} (ID: {tenant.id})")
+                    # Verifica horário configurado do tenant (default: 08:00)
+                    tenant_settings = tenant.settings or {}
+                    configured_time = tenant_settings.get('morning_briefing_time', '08:00')
+
+                    # Extrai hora e minuto configurados
+                    try:
+                        configured_hour, configured_minute = map(int, configured_time.split(':'))
+                    except (ValueError, AttributeError):
+                        configured_hour, configured_minute = 8, 0  # Fallback para 08:00
+
+                    # Verifica se é o horário correto para este tenant (±5 minutos de tolerância)
+                    time_diff_minutes = abs((current_hour * 60 + current_minute) - (configured_hour * 60 + configured_minute))
+
+                    if time_diff_minutes > 5:
+                        # Não é o horário deste tenant, pula
+                        logger.debug(f"⏭️  Tenant {tenant.name}: Horário configurado {configured_time}, atual {current_time_str} - pulando")
+                        skipped_count += 1
+                        continue
+
+                    logger.info(f"📤 Enviando briefing para tenant: {tenant.name} (ID: {tenant.id}) - Horário: {configured_time}")
 
                     # Cria instância do serviço
                     service = MorningBriefingService(db)
@@ -91,13 +106,17 @@ async def run_morning_briefing_job():
                 await asyncio.sleep(2)
 
             # Log final
-            logger.info(f"""
+            if sent_count > 0 or failed_count > 0:
+                logger.info(f"""
 🎯 Morning Briefing Job Concluído:
    ✅ Enviados: {sent_count}
    ❌ Falharam: {failed_count}
+   ⏭️  Pulados: {skipped_count} (horário diferente)
    📊 Total: {len(tenants)} tenants
    ⏰ Horário: {now.strftime('%Y-%m-%d %H:%M:%S')}
-            """)
+                """)
+            else:
+                logger.debug(f"⏰ Nenhum tenant com horário configurado para {current_time_str}")
 
     except Exception as e:
         logger.error(f"❌ Erro crítico no Morning Briefing Job: {str(e)}", exc_info=True)

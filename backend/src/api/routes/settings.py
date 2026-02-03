@@ -105,9 +105,10 @@ DEFAULT_SETTINGS = {
     # =========================================================================
     # INTELIGÊNCIA ATIVA / E-MAILBriefing (NOVO)
     # =========================================================================
-    "ai_sender_email": "",
+    "ai_sender_email": "",  # NOTA: Será movido para config de sistema (admin only)
     "morning_briefing_recipient": "",
-    
+    "morning_briefing_time": "08:00",  # Horário de envio (formato HH:MM)
+
     # =========================================================================
     # HANDOFF / TRANSFERÊNCIA (existente)
     # =========================================================================

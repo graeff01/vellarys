@@ -214,6 +214,7 @@ export interface TenantSettings {
   // Intelligence Active / Briefing
   ai_sender_email?: string;
   morning_briefing_recipient?: string;
+  morning_briefing_time?: string;  // Formato HH:MM
 }
 
 // =============================================================================
