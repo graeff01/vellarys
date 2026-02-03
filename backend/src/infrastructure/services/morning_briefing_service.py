@@ -280,10 +280,12 @@ class MorningBriefingService:
             <style>
                 body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 0; }}
                 .container {{ max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }}
-                .header {{ background: #1e293b; padding: 40px 30px; color: white; border-bottom: 4px solid #4f46e5; text-align: left; position: relative; }}
-                .brading {{ position: absolute; right: 30px; top: 35px; width: 50px; height: 50px; background: #4f46e5; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; border: 3px solid rgba(255,255,255,0.2); }}
-                .title {{ font-size: 18px; font-weight: 800; margin: 0; text-transform: uppercase; letter-spacing: 1px; }}
-                .subtitle {{ opacity: 0.7; margin-top: 5px; font-size: 11px; font-weight: 500; text-transform: uppercase; }}
+                .header {{ background: linear-gradient(135deg, #1e293b 0%, #334155 100%); padding: 35px 30px; color: white; border-bottom: 3px solid #4f46e5; text-align: left; }}
+                .header-top {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }}
+                .badge {{ background: rgba(79, 70, 229, 0.2); border: 1px solid rgba(79, 70, 229, 0.4); padding: 4px 12px; border-radius: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #a5b4fc; }}
+                .date {{ opacity: 0.6; font-size: 12px; font-weight: 500; }}
+                .title {{ font-size: 24px; font-weight: 800; margin: 8px 0 0 0; letter-spacing: -0.5px; line-height: 1.2; }}
+                .company-name {{ opacity: 0.8; font-size: 13px; font-weight: 500; margin-top: 5px; }}
                 .content {{ padding: 30px; }}
                 .section-title {{ font-size: 11px; font-weight: 800; color: #64748b; margin: 25px 0 12px 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }}
                 .metric-grid {{ display: flex; gap: 12px; margin-bottom: 20px; }}
@@ -302,9 +304,12 @@ class MorningBriefingService:
         <body>
             <div class="container">
                 <div class="header">
-                    <div class="brading">🤖</div>
-                    <div class="subtitle">{datetime.now().strftime('%d de %B, %Y')}</div>
-                    <h1 class="title">📈 Briefing Matinal - {self.tenant.name}</h1>
+                    <div class="header-top">
+                        <span class="badge">Intelligence Report</span>
+                        <span class="date">{datetime.now().strftime('%d de %B, %Y')}</span>
+                    </div>
+                    <h1 class="title">Briefing Matinal</h1>
+                    <div class="company-name">{self.tenant.name}</div>
                 </div>
                 
                 <div class="content">
