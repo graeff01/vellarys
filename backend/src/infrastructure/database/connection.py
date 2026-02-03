@@ -25,10 +25,11 @@ engine = create_async_engine(
     # ✅ SEGURANÇA NÍVEL EMPRESARIAL:
     # - statement_timeout: Cancela queries que levam > 60s (previne deadlocks)
     # - application_name: Identifica a aplicação nas logs do Postgres
+    # NOTA: asyncpg usa server_settings (não connect_args direto)
     connect_args={
-        "statement_timeout": "60000",  # 60 segundos (em milissegundos)
         "server_settings": {
-            "application_name": "vellarys_api",  # Aparece no pg_stat_activity
+            "application_name": "vellarys_api",
+            "statement_timeout": "60000",  # 60 segundos em milissegundos
         }
     }
 )
