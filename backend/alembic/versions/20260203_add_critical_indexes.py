@@ -20,7 +20,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20260203_add_critical_indexes'
-down_revision = None  # IMPORTANTE: Atualizar com a última revision
+down_revision = '20260130_phoenix_fields'  # Última migration antes desta
 branch_labels = None
 depends_on = None
 
