@@ -17,10 +17,20 @@ engine = create_async_engine(
     database_url,
     echo=settings.debug,
     pool_pre_ping=True,
-    pool_size=settings.db_pool_size,        # Configurável via env
-    max_overflow=settings.db_max_overflow,  # Configurável via env
-    pool_recycle=settings.db_pool_recycle,  # Recicla conexões velhas
-    pool_timeout=settings.db_pool_timeout,  # Timeout para obter conexão
+    pool_size=settings.db_pool_size,        # Configurável via env (padrão: 10)
+    max_overflow=settings.db_max_overflow,  # Configurável via env (padrão: 20)
+    pool_recycle=settings.db_pool_recycle,  # Recicla conexões velhas (padrão: 1800s)
+    pool_timeout=settings.db_pool_timeout,  # Timeout para obter conexão (padrão: 10s)
+
+    # ✅ SEGURANÇA NÍVEL EMPRESARIAL:
+    # - statement_timeout: Cancela queries que levam > 60s (previne deadlocks)
+    # - application_name: Identifica a aplicação nas logs do Postgres
+    connect_args={
+        "statement_timeout": "60000",  # 60 segundos (em milissegundos)
+        "server_settings": {
+            "application_name": "vellarys_api",  # Aparece no pg_stat_activity
+        }
+    }
 )
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

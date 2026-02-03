@@ -51,12 +51,22 @@ class Settings(BaseSettings):
     redis_url: Optional[str] = None  # Ex: redis://default:xxx@xxx.railway.app:6379
     
     # ===========================================
-    # DATABASE POOL (Escalabilidade)
+    # DATABASE POOL (Otimizado para 500 leads/mês)
     # ===========================================
-    db_pool_size: int = 15  # Conexões permanentes
-    db_max_overflow: int = 30  # Conexões extras em pico
-    db_pool_recycle: int = 3600  # Recicla conexões após 1h
-    db_pool_timeout: int = 30  # Timeout para obter conexão
+    # Com 500 leads/mês (~160 msgs/dia, ~20 msgs/hora), o pool atual é MAIS que suficiente
+    # Vamos otimizar para segurança, qualidade e eficiência
+
+    db_pool_size: int = 10  # Conexões permanentes (reduzido de 15 - mais eficiente)
+    db_max_overflow: int = 20  # Conexões extras em pico (reduzido de 30 - suficiente)
+    db_pool_recycle: int = 1800  # Recicla após 30min (reduzido de 1h - mais seguro)
+    db_pool_timeout: int = 10  # Timeout para obter conexão (reduzido de 30s - fail fast)
+
+    # 💡 JUSTIFICATIVA:
+    # - 10 permanentes é suficiente para 20-30 msgs/hora confortavelmente
+    # - 20 overflow cobre picos de 50-100 msgs/hora (muito improvável no seu cenário)
+    # - Pool menor = menos overhead de memória e manutenção de conexões
+    # - Timeout menor (10s) = detecta problemas mais rápido (fail fast)
+    # - Recicla mais rápido = conexões sempre fresh (evita stale connections e deadlocks)
     
     # ===========================================
     # CORS

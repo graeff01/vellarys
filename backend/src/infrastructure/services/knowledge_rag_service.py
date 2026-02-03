@@ -389,12 +389,16 @@ async def search_knowledge(
 
     except Exception as e:
         logger.error(f"Erro na busca RAG: {e}")
-        # Rollback para não corromper a sessão do banco
-        # Sem isso, qualquer operação posterior (salvar mensagem, etc.) falha
-        try:
-            await db.rollback()
-        except Exception:
-            pass
+
+        # ❌ CRÍTICO: NÃO fazer rollback aqui!
+        # A sessão db vem de process_message e o rollback corromperia
+        # toda a transação principal, impedindo salvar a mensagem.
+        #
+        # ✅ SOLUÇÃO: Apenas retornar lista vazia e deixar o erro ser
+        # logado. A sessão principal continuará funcionando normalmente.
+        # Se for erro crítico de conexão, o próprio SQLAlchemy já vai
+        # invalidar a sessão.
+
         return []
 
 

@@ -174,16 +174,31 @@ async def update_lead_summary(
         
         from sqlalchemy.orm.attributes import flag_modified
         flag_modified(lead, "custom_data")
-        
-        await db.commit()
-        
-        logger.info(f"✅ Resumo atualizado para lead {lead.id}")
-        
+
+        # ❌ CRÍTICO: NÃO fazer commit aqui!
+        # Este serviço é chamado dentro de process_message.py (linha 1485)
+        # que já gerencia a transação. Fazer commit aqui quebraria a atomicidade.
+        #
+        # ✅ SOLUÇÃO: Apenas marca as mudanças. O commit será feito no final
+        # de process_message, garantindo que tudo (mensagem + resumo) seja
+        # salvo atomicamente.
+
+        await db.flush()  # Persiste na sessão, mas não commita
+
+        logger.info(f"✅ Resumo atualizado para lead {lead.id} (pendente commit)")
+
         return True
-        
+
     except Exception as e:
         logger.error(f"❌ Erro atualizando resumo do lead: {e}")
-        await db.rollback()
+
+        # ❌ CRÍTICO: NÃO fazer rollback aqui!
+        # Isso corromperia a sessão principal de process_message, impedindo
+        # salvar a mensagem e outras operações.
+        #
+        # ✅ SOLUÇÃO: Apenas retornar False. O erro já foi logado e o processo
+        # principal pode continuar normalmente.
+
         return False
 
 

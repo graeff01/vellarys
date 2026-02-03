@@ -133,21 +133,50 @@ async def health_check_detailed(db: AsyncSession = Depends(get_db)):
         }
         
         # =====================================================================
-        # 1. DATABASE
+        # 1. DATABASE + CONNECTION POOL
         # =====================================================================
         try:
             start = datetime.now(timezone.utc)
             await db.execute(text("SELECT 1"))
             query_time = (datetime.now(timezone.utc) - start).total_seconds() * 1000
-            
+
+            # ✨ NOVO: Verifica saúde do pool de conexões
+            from src.infrastructure.database import engine
+
+            pool = engine.pool
+            pool_size = pool.size()
+            pool_checked_out = pool.checkedout()
+            pool_overflow = pool.overflow()
+            pool_max = pool_size + pool_overflow
+
+            pool_usage_percent = (pool_checked_out / pool_max * 100) if pool_max > 0 else 0
+
             health_data["checks"]["database"] = {
                 "status": "ok",
-                "response_time_ms": round(query_time, 2)
+                "response_time_ms": round(query_time, 2),
+                "pool": {
+                    "size": pool_size,
+                    "checked_out": pool_checked_out,
+                    "overflow": pool_overflow,
+                    "max": pool_max,
+                    "usage_percent": round(pool_usage_percent, 1),
+                }
             }
-            
+
+            # ⚠️ Warnings baseados na saúde do pool
             if query_time > 500:
                 health_data["warnings"].append(f"Database slow: {query_time}ms")
-                
+
+            if pool_usage_percent > 80:
+                health_data["warnings"].append(
+                    f"Database pool usage high: {pool_usage_percent:.1f}% "
+                    f"({pool_checked_out}/{pool_max} connections)"
+                )
+
+            if pool_usage_percent > 95:
+                health_data["status"] = "degraded"
+                health_data["warnings"].append("❌ CRITICAL: Pool almost exhausted!")
+
         except Exception as e:
             health_data["checks"]["database"] = {
                 "status": "error",
@@ -322,6 +351,83 @@ async def health_check_detailed(db: AsyncSession = Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Detailed health check failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail={
+            "status": "error",
+            "error": str(e)
+        })
+
+
+# =============================================================================
+# POOL STATUS (DEBUGGING)
+# =============================================================================
+
+@router.get("/pool")
+async def pool_status():
+    """
+    Status detalhado do pool de conexões do banco de dados.
+
+    Útil para debugging de problemas de performance e
+    identificação de pool exhaustion.
+
+    ⚠️ IMPORTANTE: Em produção, proteja este endpoint com autenticação!
+    """
+    try:
+        from src.infrastructure.database import engine
+
+        pool = engine.pool
+
+        # Informações básicas do pool
+        pool_info = {
+            "status": "ok",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "configuration": {
+                "pool_size": pool.size(),
+                "max_overflow": pool.overflow(),
+                "pool_timeout_seconds": pool.timeout() if hasattr(pool, 'timeout') else None,
+                "pool_recycle_seconds": 3600,  # Hardcoded no connection.py
+            },
+            "current_state": {
+                "checked_out": pool.checkedout(),
+                "overflow_count": pool.overflow(),
+                "total_capacity": pool.size() + pool.overflow(),
+            }
+        }
+
+        # Calcula uso do pool
+        total_capacity = pool_info["current_state"]["total_capacity"]
+        checked_out = pool_info["current_state"]["checked_out"]
+
+        usage_percent = (checked_out / total_capacity * 100) if total_capacity > 0 else 0
+        available = total_capacity - checked_out
+
+        pool_info["usage"] = {
+            "percent": round(usage_percent, 1),
+            "available_connections": available,
+            "status": "healthy" if usage_percent < 70 else ("warning" if usage_percent < 90 else "critical")
+        }
+
+        # Recomendações
+        pool_info["recommendations"] = []
+
+        if usage_percent > 80:
+            pool_info["recommendations"].append(
+                "⚠️ Pool usage is high. Consider increasing DB_POOL_SIZE or DB_MAX_OVERFLOW."
+            )
+
+        if usage_percent > 95:
+            pool_info["recommendations"].append(
+                "❌ CRITICAL: Pool almost exhausted! Increase pool size IMMEDIATELY or investigate connection leaks."
+            )
+
+        if pool.checkedout() == 0 and total_capacity > 20:
+            pool_info["recommendations"].append(
+                "ℹ️ Pool size might be over-provisioned. Current usage is very low."
+            )
+
+        return pool_info
+
+    except Exception as e:
+        logger.error(f"Pool status check failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail={
             "status": "error",
             "error": str(e)
