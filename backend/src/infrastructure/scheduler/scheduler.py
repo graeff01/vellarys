@@ -188,6 +188,7 @@ def create_scheduler():
     """Cria e configura o scheduler."""
     from src.infrastructure.jobs.follow_up_service import run_follow_up_job
     from src.infrastructure.jobs.phoenix_engine_service import run_phoenix_engine_job
+    from src.infrastructure.jobs.morning_briefing_job import run_morning_briefing_job
 
     print("🔧 Criando scheduler nativo...")
 
@@ -209,7 +210,15 @@ def create_scheduler():
         run_immediately=False,
     )
 
-    print("✅ Scheduler configurado!")
+    # Registra o job de Morning Briefing (verifica a cada 60 minutos, executa apenas às 08:00)
+    scheduler.add_job(
+        job_id="morning_briefing_job",
+        func=run_morning_briefing_job,
+        interval_minutes=60,  # Verifica a cada hora
+        run_immediately=False,  # Não executa imediatamente, aguarda horário correto
+    )
+
+    print("✅ Scheduler configurado com 3 jobs!")
     return scheduler
 
 
