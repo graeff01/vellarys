@@ -1,107 +1,109 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Share, Smartphone, ArrowDown } from 'lucide-react';
+import { X, Share, Plus, Smartphone } from 'lucide-react';
 
-interface IOSInstallPromptProps {
-  onDismiss?: () => void;
-  autoShow?: boolean;
-}
-
-export function IOSInstallPrompt({ onDismiss, autoShow = false }: IOSInstallPromptProps) {
-  const [isVisible, setIsVisible] = useState(false);
-  const [isDismissedPermanently, setIsDismissedPermanently] = useState(false);
+/**
+ * Banner para guiar usuários do iOS a instalarem o PWA
+ * Notificações push só funcionam no iOS quando o app está instalado na tela inicial
+ */
+export function IOSInstallPrompt() {
+  const [show, setShow] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+  const [isPWA, setIsPWA] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Verifica se já foi dispensado permanentemente
-    const dismissed = localStorage.getItem('ios-install-prompt-dismissed');
-    if (dismissed === 'true') {
-      setIsDismissedPermanently(true);
-      return;
-    }
-
     // Detecta iOS
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
     // Detecta se já está instalado como PWA
-    const isPWA =
+    const installedPWA =
       ('standalone' in window.navigator && (window.navigator as any).standalone === true) ||
-      window.matchMedia('(display-mode: standalone)').matches;
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.matchMedia('(display-mode: fullscreen)').matches;
 
-    // Mostra o prompt se for iOS, não for PWA e autoShow estiver ativado
-    if (autoShow && isIOS && !isPWA) {
-      // Espera 3 segundos antes de mostrar
-      setTimeout(() => setIsVisible(true), 3000);
+    setIsIOS(iOS);
+    setIsPWA(installedPWA);
+
+    // Verifica se deve mostrar o prompt
+    const shouldShow = localStorage.getItem('show_ios_install_prompt') === 'true';
+    const dismissed = localStorage.getItem('ios_install_prompt_dismissed') === 'true';
+
+    // Mostra apenas para iOS não instalado e não foi dispensado antes
+    if (iOS && !installedPWA && shouldShow && !dismissed) {
+      setShow(true);
     }
-  }, [autoShow]);
+  }, []);
 
-  const handleDismiss = () => {
-    setIsVisible(false);
-    onDismiss?.();
-  };
+  function handleDismiss() {
+    setShow(false);
+    localStorage.setItem('ios_install_prompt_dismissed', 'true');
+    localStorage.removeItem('show_ios_install_prompt');
+  }
 
-  const handleDismissForever = () => {
-    localStorage.setItem('ios-install-prompt-dismissed', 'true');
-    setIsDismissedPermanently(true);
-    setIsVisible(false);
-    onDismiss?.();
-  };
-
-  if (isDismissedPermanently || !isVisible) {
+  // Não renderiza se não for iOS ou já estiver instalado
+  if (!isIOS || isPWA || !show) {
     return null;
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-blue-600 to-blue-500 text-white p-4 shadow-2xl z-50 animate-slide-up">
-      <button
-        onClick={handleDismiss}
-        className="absolute top-2 right-2 p-1 hover:bg-white/20 rounded-full transition-colors"
-      >
-        <X className="w-5 h-5" />
-      </button>
+    <div className="fixed bottom-4 left-4 right-4 z-50 max-w-md mx-auto animate-in slide-in-from-bottom duration-300">
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-2xl p-4 text-white">
+        {/* Close Button */}
+        <button
+          onClick={handleDismiss}
+          className="absolute top-2 right-2 p-1 rounded-full hover:bg-white/20 transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
 
-      <div className="max-w-md mx-auto">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+        {/* Content */}
+        <div className="flex items-start gap-3 mb-3">
+          <div className="p-2 bg-white/20 rounded-lg">
             <Smartphone className="w-6 h-6" />
           </div>
-          <div>
-            <h3 className="font-bold text-lg">Instale o App Vellarys</h3>
-            <p className="text-sm text-blue-100">Receba notificações instantâneas</p>
+          <div className="flex-1">
+            <h3 className="font-bold text-lg mb-1">
+              Instalar Vellarys
+            </h3>
+            <p className="text-sm text-blue-100">
+              Para receber notificações push no iPhone, instale o app na tela inicial
+            </p>
           </div>
         </div>
 
-        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 mb-3 space-y-2">
-          <div className="flex items-start gap-2 text-sm">
-            <ArrowDown className="w-4 h-4 mt-0.5 flex-shrink-0" />
-            <p>Toque no botão <Share className="w-4 h-4 inline mx-1" /> <strong>Compartilhar</strong> abaixo</p>
+        {/* Instructions */}
+        <div className="bg-white/10 rounded-lg p-3 space-y-2 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/20 text-xs font-bold">
+              1
+            </div>
+            <span>Toque no botão <strong>Compartilhar</strong></span>
+            <Share className="w-4 h-4 ml-auto" />
           </div>
-          <div className="flex items-start gap-2 text-sm">
-            <span className="font-bold">2.</span>
-            <p>Selecione <strong>"Adicionar à Tela de Início"</strong></p>
+
+          <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/20 text-xs font-bold">
+              2
+            </div>
+            <span>Selecione <strong>Adicionar à Tela de Início</strong></span>
+            <Plus className="w-4 h-4 ml-auto" />
           </div>
-          <div className="flex items-start gap-2 text-sm">
-            <span className="font-bold">3.</span>
-            <p>Abra o app pelo ícone na tela inicial</p>
+
+          <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-white/20 text-xs font-bold">
+              3
+            </div>
+            <span>Toque em <strong>Adicionar</strong></span>
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <button
-            onClick={handleDismissForever}
-            className="flex-1 bg-white/20 hover:bg-white/30 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            Não mostrar novamente
-          </button>
-          <button
-            onClick={handleDismiss}
-            className="flex-1 bg-white text-blue-600 hover:bg-blue-50 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            Entendi
-          </button>
+        {/* Footer */}
+        <div className="mt-3 text-xs text-blue-100 text-center">
+          Após instalar, você receberá notificações em tempo real 🔔
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 // Service Worker - Vellarys PWA
-const CACHE_NAME = 'vellarys-v1.1.0';
+const CACHE_NAME = 'vellarys-v1.2.0';
 
 // Recursos essenciais para funcionamento offline
 const PRECACHE_ASSETS = [
@@ -83,48 +83,91 @@ self.addEventListener('fetch', (event) => {
 // Push Notifications
 // ======================
 self.addEventListener('push', (event) => {
+  console.log('📩 Push recebido:', event);
+
   let data = {
     title: 'Vellarys',
     body: 'Nova atualização disponível',
     icon: '/icons/icon-192x192.png',
     badge: '/icons/icon-72x72.png',
-    data: { url: '/dashboard' }
+    data: { url: '/dashboard' },
+    tag: 'vellarys-notification',
+    requireInteraction: false,
   };
 
   if (event.data) {
     try {
-      data = { ...data, ...event.data.json() };
+      const payload = event.data.json();
+      console.log('📦 Payload recebido:', payload);
+      data = { ...data, ...payload };
     } catch (e) {
+      console.warn('⚠️ Erro ao parsear JSON, usando texto:', e);
       data.body = event.data.text();
     }
   }
 
-  event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: data.icon,
-      badge: data.badge,
-      vibrate: [100, 50, 100],
-      data: data.data,
-      actions: [
-        { action: 'open', title: 'Ver Agora' },
-        { action: 'close', title: 'Fechar' }
-      ]
-    })
-  );
+  // iOS requer que a notificação seja mostrada imediatamente
+  const notificationPromise = self.registration.showNotification(data.title, {
+    body: data.body,
+    icon: data.icon,
+    badge: data.badge,
+    tag: data.tag,
+    requireInteraction: data.requireInteraction,
+    vibrate: [200, 100, 200], // Padrão de vibração mais perceptível
+    data: data.data,
+    // Actions são suportadas apenas em alguns navegadores (Chrome, Edge)
+    // iOS não suporta actions em notificações
+    actions: typeof data.actions !== 'undefined' ? data.actions : [
+      { action: 'open', title: 'Ver Agora', icon: '/icons/icon-96x96.png' },
+      { action: 'close', title: 'Fechar' }
+    ],
+    silent: false,
+    renotify: true,
+  });
+
+  event.waitUntil(notificationPromise);
 });
 
 self.addEventListener('notificationclick', (event) => {
+  console.log('👆 Notificação clicada:', event);
+
   event.notification.close();
-  const urlToOpen = event.notification.data.url || '/dashboard';
+
+  // Processa ação específica se tiver (não suportado no iOS)
+  if (event.action === 'close') {
+    console.log('✖️ Notificação fechada pelo usuário');
+    return;
+  }
+
+  const urlToOpen = event.notification.data?.url || '/dashboard';
+  console.log('🔗 Abrindo URL:', urlToOpen);
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then((windowClients) => {
-        for (let client of windowClients) {
-          if (client.url.includes(urlToOpen) && 'focus' in client) return client.focus();
+    clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true
+    }).then((windowClients) => {
+      console.log('🪟 Clientes encontrados:', windowClients.length);
+
+      // Procura por uma janela/aba já aberta com a URL
+      for (let client of windowClients) {
+        const clientUrl = new URL(client.url);
+        const targetUrl = new URL(urlToOpen, self.location.origin);
+
+        if (clientUrl.pathname === targetUrl.pathname && 'focus' in client) {
+          console.log('✅ Focando cliente existente');
+          return client.focus();
         }
-        if (clients.openWindow) return clients.openWindow(urlToOpen);
-      })
+      }
+
+      // Se não encontrou, abre uma nova janela
+      if (clients.openWindow) {
+        const fullUrl = urlToOpen.startsWith('http') ? urlToOpen : self.location.origin + urlToOpen;
+        console.log('🆕 Abrindo nova janela:', fullUrl);
+        return clients.openWindow(fullUrl);
+      }
+    }).catch(err => {
+      console.error('❌ Erro ao abrir janela:', err);
+    })
   );
 });

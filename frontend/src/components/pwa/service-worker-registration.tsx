@@ -79,23 +79,41 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
   const isPWA =
     ('standalone' in window.navigator && (window.navigator as any).standalone === true) ||
-    window.matchMedia('(display-mode: standalone)').matches;
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches;
 
   // iOS Safari (não-PWA) tem suporte limitado
   if (isIOS && !isPWA) {
     console.warn('⚠️ iOS Safari: Instale o app na tela inicial para notificações push completas');
+    console.warn('📱 Instruções: Safari > Compartilhar > Adicionar à Tela de Início');
+    // Armazenar no localStorage para mostrar banner de instalação
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('show_ios_install_prompt', 'true');
+    }
+    return false;
   }
 
   if (Notification.permission === 'granted') {
+    console.log('✅ Permissão de notificação já concedida');
     return true;
   }
 
   if (Notification.permission === 'denied') {
-    console.warn('Notificações foram bloqueadas pelo usuário');
+    console.warn('❌ Notificações foram bloqueadas pelo usuário');
+    console.warn('Para habilitar: Ajustes do iPhone > Vellarys > Notificações');
     return false;
   }
 
+  // No iOS PWA, solicitar permissão
+  console.log('🔔 Solicitando permissão para notificações...');
   const permission = await Notification.requestPermission();
+
+  if (permission === 'granted') {
+    console.log('✅ Permissão concedida!');
+  } else {
+    console.warn('⚠️ Permissão negada');
+  }
+
   return permission === 'granted';
 }
 
