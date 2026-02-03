@@ -20,7 +20,7 @@ import logging
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config import get_settings
@@ -157,10 +157,14 @@ async def send_push_notification(
         error_msg = str(e)
         
         # Verifica se é erro de subscription expirada/inválida
-        if "410" in error_msg or "404" in error_msg:
-            logger.warning(f"Subscription inválida/expirada: {endpoint[:50]}...")
+        # 410 = Gone (expirada), 404 = Not Found, 403 = VAPID mismatch
+        if "410" in error_msg or "404" in error_msg or "403" in error_msg:
+            if "403" in error_msg:
+                logger.warning(f"🔑 VAPID mismatch - subscription será removida: {endpoint[:50]}...")
+            else:
+                logger.warning(f"Subscription inválida/expirada: {endpoint[:50]}...")
             return {"success": False, "error": "subscription_expired", "should_remove": True}
-        
+
         logger.error(f"❌ Erro ao enviar push: {error_msg}")
         return {"success": False, "error": error_msg}
 
@@ -293,12 +297,20 @@ async def send_push_to_tenant(
         
         if result.get("success"):
             sent += 1
+            sub.last_used_at = datetime.utcnow()
+            sub.failure_count = 0
         else:
             failed += 1
-            
+
             if result.get("should_remove"):
                 sub.active = False
-    
+                logger.info(f"🗑️ Subscription {sub.id} desativada (expirada/VAPID mismatch)")
+            else:
+                sub.failure_count += 1
+                if sub.failure_count >= 5:
+                    sub.active = False
+                    logger.warning(f"Subscription {sub.id} desativada por múltiplas falhas")
+
     await db.commit()
     
     return {
@@ -371,6 +383,44 @@ async def notify_new_message(
     )
     
     return await send_push_to_tenant(db, tenant_id, payload)
+
+
+# =============================================================================
+# LIMPEZA DE SUBSCRIPTIONS INVÁLIDAS
+# =============================================================================
+
+async def cleanup_invalid_subscriptions(db: AsyncSession) -> Dict[str, int]:
+    """
+    Remove subscriptions inativas ou com muitas falhas.
+    Útil para limpar subscriptions com VAPID keys antigas.
+    """
+    from src.domain.entities.push_subscription import PushSubscription
+
+    # Conta antes
+    result = await db.execute(
+        select(func.count(PushSubscription.id))
+        .where(
+            (PushSubscription.active == False) |
+            (PushSubscription.failure_count >= 3)
+        )
+    )
+    invalid_count = result.scalar() or 0
+
+    if invalid_count == 0:
+        return {"removed": 0}
+
+    # Remove inativas e com muitas falhas
+    await db.execute(
+        delete(PushSubscription)
+        .where(
+            (PushSubscription.active == False) |
+            (PushSubscription.failure_count >= 3)
+        )
+    )
+    await db.commit()
+
+    logger.info(f"🧹 Limpeza push: {invalid_count} subscriptions inválidas removidas")
+    return {"removed": invalid_count}
 
 
 # Import necessário

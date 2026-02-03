@@ -319,19 +319,42 @@ async def test_push_notification(
         send_push_to_user,
         PushNotificationPayload,
     )
-    
+
     payload = PushNotificationPayload(
         title="🔔 Teste de Notificação",
         body="Se você está vendo isso, as notificações push estão funcionando!",
         tag="test-notification",
         url="/dashboard",
     )
-    
+
     result = await send_push_to_user(db, user.id, payload)
-    
+
     return {
         "success": result.get("sent", 0) > 0,
         "sent": result.get("sent", 0),
         "failed": result.get("failed", 0),
         "errors": result.get("errors", []),
+    }
+
+
+@router.post("/cleanup-subscriptions")
+async def cleanup_subscriptions(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Remove todas as push subscriptions inválidas (VAPID mismatch, expiradas, etc.).
+    Após chamar este endpoint, os usuários precisam re-ativar as notificações nas configurações.
+    """
+    if user.role not in ("superadmin", "admin"):
+        raise HTTPException(status_code=403, detail="Apenas admins podem executar esta ação")
+
+    from src.infrastructure.services.push_service import cleanup_invalid_subscriptions
+
+    result = await cleanup_invalid_subscriptions(db)
+
+    return {
+        "success": True,
+        "removed": result["removed"],
+        "message": f"{result['removed']} subscriptions inválidas removidas. Usuários precisam re-ativar notificações.",
     }

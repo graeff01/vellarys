@@ -142,6 +142,17 @@ async def lifespan(app: FastAPI):
         print("⚠️ VAPID keys não configuradas. Push notifications desativadas.")
 
     await init_db()
+
+    # Limpa subscriptions push inválidas (VAPID mismatch, expiradas, etc.)
+    if settings.vapid_configured:
+        try:
+            from src.infrastructure.services.push_service import cleanup_invalid_subscriptions
+            async with async_session() as db:
+                result = await cleanup_invalid_subscriptions(db)
+                if result["removed"] > 0:
+                    print(f"🧹 {result['removed']} push subscriptions inválidas removidas")
+        except Exception as e:
+            print(f"⚠️ Erro na limpeza de push subscriptions: {e}")
     print("✅ Tabelas criadas!")
 
     await create_superadmin()
