@@ -11,10 +11,10 @@ import logging
 from datetime import datetime
 import pytz
 
-from src.database import get_db_context
+from src.infrastructure.database import async_session
 from src.infrastructure.services.morning_briefing_service import MorningBriefingService
 from sqlalchemy import select
-from src.models.tenant import Tenant
+from src.domain.entities import Tenant
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ async def run_morning_briefing_job():
     logger.info(f"📧 Iniciando envio de Morning Briefings ({now.strftime('%Y-%m-%d %H:%M:%S')})")
 
     try:
-        async with get_db_context() as db:
+        async with async_session() as db:
             # Busca todos os tenants ativos
             result = await db.execute(
                 select(Tenant).where(
