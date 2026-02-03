@@ -132,7 +132,7 @@ export function LeadNotesPanel({ leadId, children }: LeadNotesPanelProps) {
         )}
       </SheetTrigger>
 
-      <SheetContent className="w-full sm:max-w-md">
+      <SheetContent className="w-[90%] sm:max-w-md bg-white border-l-2 border-gray-200">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <StickyNote className="h-5 w-5" />
