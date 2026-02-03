@@ -389,6 +389,12 @@ async def search_knowledge(
 
     except Exception as e:
         logger.error(f"Erro na busca RAG: {e}")
+        # Rollback para não corromper a sessão do banco
+        # Sem isso, qualquer operação posterior (salvar mensagem, etc.) falha
+        try:
+            await db.rollback()
+        except Exception:
+            pass
         return []
 
 

@@ -1332,6 +1332,10 @@ async def process_message(
 
         except Exception as e:
             logger.warning(f"⚠️ Erro na busca RAG (não crítico): {e}")
+            try:
+                await db.rollback()
+            except Exception:
+                pass
 
     # Constrói o prompt completo (V2 - Prioriza contextos dinâmicos)
     prompt_result = build_complete_prompt(
