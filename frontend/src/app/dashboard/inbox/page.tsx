@@ -268,7 +268,11 @@ export default function InboxPage() {
       {showMetrics && (
         <div className="px-4 pt-3 pb-2 bg-white border-b border-gray-200">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-semibold text-gray-700">Suas Métricas</h3>
+            <h3 className="text-sm font-semibold text-gray-700">
+              {(sellerInfo.user_role === 'manager' || sellerInfo.user_role === 'admin')
+                ? 'Dashboard da Empresa'
+                : 'Suas Métricas'}
+            </h3>
             <button
               onClick={() => setShowMetrics(false)}
               className="p-1 hover:bg-gray-100 rounded"
@@ -276,7 +280,7 @@ export default function InboxPage() {
               <ChevronUp className="h-4 w-4 text-gray-500" />
             </button>
           </div>
-          <MetricsDashboard />
+          <MetricsDashboard sellerInfo={sellerInfo} />
         </div>
       )}
 
