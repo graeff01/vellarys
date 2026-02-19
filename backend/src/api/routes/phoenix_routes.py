@@ -138,14 +138,14 @@ async def get_phoenix_leads(
     leads = result.scalars().all()
 
     # Formata response
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     items = []
     for lead in leads:
         # Calcula dias de inatividade
         days_inactive = 0
         if lead.last_activity_at:
-            delta = datetime.utcnow() - lead.last_activity_at
+            delta = datetime.now(timezone.utc) - lead.last_activity_at
             days_inactive = delta.days
 
         # Nome do vendedor original
@@ -322,7 +322,7 @@ async def get_inactive_leads_count(
 
     Útil para mostrar badge/contador no menu.
     """
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     # Busca configuração do tenant
     result = await db.execute(
@@ -340,7 +340,7 @@ async def get_inactive_leads_count(
         return {"count": 0}
 
     # Calcula threshold de inatividade
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     inactivity_threshold = now - timedelta(days=config["inactivity_days"])
 
     # Conta leads inativos elegíveis

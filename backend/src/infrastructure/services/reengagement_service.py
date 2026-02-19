@@ -8,7 +8,7 @@ Responsável por:
 3. Enviar e registrar tentativas
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -147,7 +147,7 @@ async def get_leads_to_reengage(
     if not config.get("enabled"):
         return []
     
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     inactivity_threshold = now - timedelta(hours=config["inactivity_hours"])
     min_between_attempts = now - timedelta(hours=config["min_hours_between_attempts"])
     
@@ -239,7 +239,7 @@ async def execute_reengagement(
         db.add(msg)
         
         # Atualiza lead
-        lead.last_reengagement_at = datetime.utcnow()
+        lead.last_reengagement_at = datetime.now(timezone.utc)
         lead.reengagement_status = "sent"
         
         # Se atingiu máximo de tentativas, marca como given_up
@@ -337,7 +337,7 @@ async def mark_lead_activity(
     Marca que o lead teve atividade (deve ser chamado quando lead envia mensagem).
     Reseta o status de reengajamento se o lead respondeu.
     """
-    lead.last_activity_at = datetime.utcnow()
+    lead.last_activity_at = datetime.now(timezone.utc)
     
     # Se estava em reengajamento e respondeu, marca como responded
     if lead.reengagement_status == "sent":

@@ -1,7 +1,7 @@
 """Gerencia conexão com PostgreSQL."""
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy import text
+
 from src.config import get_settings
 
 settings = get_settings()
@@ -51,44 +51,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     from src.domain.entities import Base
-    print("🔍 [DB] Iniciando sincronização robusta do banco de dados...")
+    print("[DB] Iniciando verificação do banco de dados...")
     async with engine.begin() as conn:
-        # 1. Cria as tabelas que não existem
+        # Cria as tabelas que não existem (baseado nos models SQLAlchemy)
+        # NOTA: Para alterações em tabelas existentes, use Alembic migrations.
         await conn.run_sync(Base.metadata.create_all)
-        print("✅ [DB] Tabelas base verificadas.")
-        
-        # 2. Sincroniza colunas extras da tabela products (fix UndefinedColumnError)
-        products_columns = [
-            ("latitude", "DOUBLE PRECISION"),
-            ("longitude", "DOUBLE PRECISION"),
-            ("pdf_url", "VARCHAR(500)"),
-            ("folder_url", "VARCHAR(500)")
-        ]
-        
-        for col_name, col_type in products_columns:
-            try:
-                await conn.execute(text(f"ALTER TABLE products ADD COLUMN IF NOT EXISTS {col_name} {col_type}"))
-            except Exception as e:
-                print(f"⚠️ [DB] Erro ao sincronizar coluna '{col_name}' em products: {e}")
-        
-        # 3. Sincroniza colunas extras da tabela leads
-        leads_columns = [
-            ("reengagement_attempts", "INTEGER DEFAULT 0"),
-            ("last_reengagement_at", "TIMESTAMP WITH TIME ZONE"),
-            ("reengagement_status", "VARCHAR(20) DEFAULT 'none'"),
-            ("last_activity_at", "TIMESTAMP WITH TIME ZONE"),
-            ("conversation_summary", "TEXT"),
-            ("summary", "TEXT"),
-            ("propensity_score", "INTEGER DEFAULT 0"),
-            ("ai_sentiment", "VARCHAR(50)"),
-            ("ai_signals", "TEXT"),
-            ("ai_next_step", "TEXT")
-        ]
-        
-        for col_name, col_type in leads_columns:
-            try:
-                await conn.execute(text(f"ALTER TABLE leads ADD COLUMN IF NOT EXISTS {col_name} {col_type}"))
-            except Exception as e:
-                print(f"⚠️ [DB] Erro ao sincronizar coluna '{col_name}' em leads: {e}")
-
-    print("✅ [DB] Sincronização de colunas concluída com sucesso.")
+    print("[DB] Tabelas verificadas com sucesso.")

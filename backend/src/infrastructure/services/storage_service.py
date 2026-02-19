@@ -18,7 +18,7 @@ import uuid
 import mimetypes
 from pathlib import Path
 from typing import Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import aiofiles
 
@@ -107,7 +107,7 @@ class StorageService:
             Caminho relativo do arquivo
         """
         # Organiza em subpastas por data (YYYY/MM/DD)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         subfolder = self.local_path / str(now.year) / f"{now.month:02d}" / f"{now.day:02d}"
         subfolder.mkdir(parents=True, exist_ok=True)
 
@@ -192,7 +192,7 @@ class StorageService:
             "filename": safe_filename,
             "mime_type": content_type,
             "size": len(file_content),
-            "uploaded_at": datetime.utcnow().isoformat()
+            "uploaded_at": datetime.now(timezone.utc).isoformat()
         }
 
 

@@ -111,7 +111,7 @@ class Settings(BaseSettings):
     # 360DIALOG (WhatsApp)
     # ===========================================
     dialog360_api_key: Optional[str] = None
-    webhook_verify_token: str = "vellarys_webhook_token"
+    webhook_verify_token: Optional[str] = None
     
     # ===========================================
     # PROPRIEDADES

@@ -1,6 +1,6 @@
 from src.domain.entities import Message
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 async def save_message(
@@ -13,7 +13,7 @@ async def save_message(
         lead_id=lead_id,
         role=role,
         content=content,
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     db.add(msg)
     await db.commit()

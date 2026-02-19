@@ -6,7 +6,7 @@ Responsável por decidir qual vendedor deve receber cada lead.
 Suporta múltiplos métodos de distribuição configuráveis por tenant.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Optional, List, Tuple
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -388,7 +388,7 @@ async def assign_lead_to_seller(
     """
     Atribui um lead a um vendedor e registra o histórico.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     today = date.today()
     
     # Atualiza o lead

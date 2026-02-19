@@ -30,7 +30,7 @@ DATA: 2026-01-30
 import logging
 import csv
 import io
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from zoneinfo import ZoneInfo
 
@@ -201,7 +201,7 @@ class PhoenixEngineService:
         7. Phoenix status não é 'rejected' ou 'approved'
         """
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         inactivity_threshold = now - timedelta(days=config["inactivity_days"])
         interval_threshold = now - timedelta(days=config["interval_days"])
 
@@ -324,7 +324,7 @@ class PhoenixEngineService:
 
                 # Atualiza lead com Phoenix data
                 lead.phoenix_attempts = attempt
-                lead.last_phoenix_at = datetime.utcnow()
+                lead.last_phoenix_at = datetime.now(timezone.utc)
                 lead.phoenix_status = "pending"  # Aguardando resposta
                 lead.phoenix_interest_score = interest_score
                 lead.phoenix_ai_analysis = ai_analysis
@@ -872,7 +872,7 @@ Analise se o lead demonstra:
         if not lead.last_activity_at:
             return 999  # Muito tempo
 
-        delta = datetime.utcnow() - lead.last_activity_at
+        delta = datetime.now(timezone.utc) - lead.last_activity_at
         return delta.days
 
 

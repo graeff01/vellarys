@@ -8,7 +8,7 @@ Permite que cada cliente configure de onde a IA busca informações.
 
 import logging
 from typing import Optional, List, Any, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from slugify import slugify
@@ -597,14 +597,14 @@ async def run_data_source_sync(source_id: int, tenant_id: int):
                         "metragem": p_res.area,
                         "descricao": p_res.description,
                         "source_id": source.id,
-                        "sync_at": datetime.utcnow().isoformat()
+                        "sync_at": datetime.now(timezone.utc).isoformat()
                     }
 
                     if existing_p:
                         existing_p.name = p_res.title
                         existing_p.description = p_res.description
                         existing_p.attributes = attributes
-                        existing_p.updated_at = datetime.utcnow()
+                        existing_p.updated_at = datetime.now(timezone.utc)
                     else:
                         new_p = Product(
                             tenant_id=tenant_id,
@@ -621,7 +621,7 @@ async def run_data_source_sync(source_id: int, tenant_id: int):
                 logger.info(f"[DataSource] Gravados {len(items)} itens com sucesso.")
 
             # Atualiza status
-            source.last_sync_at = datetime.utcnow()
+            source.last_sync_at = datetime.now(timezone.utc)
             source.last_sync_status = "success" if sync_result["success"] else "failed"
             source.last_sync_count = sync_result.get("count", 0)
             source.last_error = None if sync_result["success"] else str(sync_result.get("errors", []))
@@ -644,7 +644,7 @@ async def run_data_source_sync(source_id: int, tenant_id: int):
                 )
                 source = result.scalar_one_or_none()
                 if source:
-                    source.last_sync_at = datetime.utcnow()
+                    source.last_sync_at = datetime.now(timezone.utc)
                     source.last_sync_status = "failed"
                     source.last_error = str(e)
                     await db.commit()

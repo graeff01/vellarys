@@ -8,19 +8,34 @@ E registre no main.py:
     app.include_router(debug_portal_router, prefix="/api/v1/debug", tags=["debug"])
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 import logging
 import httpx
 
+from src.api.dependencies import get_current_user
+from src.domain.entities import User
+from src.domain.entities.enums import UserRole
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _require_superadmin(user: User = Depends(get_current_user)) -> User:
+    """Bloqueia acesso a qualquer usuário que não seja superadmin."""
+    if user.role != UserRole.SUPERADMIN.value:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso restrito a superadmins.",
+        )
+    return user
 
 PORTAL_BASE_URL = "https://portalinvestimento.com"
 PORTAL_REGIONS = ["poa", "sc", "canoas", "pb"]
 
 
 @router.get("/portal-test")
-async def test_portal():
+async def test_portal(_user: User = Depends(_require_superadmin)):
     """
     Testa conexão com o Portal de Investimento.
     Acesse: /api/v1/debug/portal-test
@@ -82,7 +97,7 @@ async def test_portal():
 
 
 @router.get("/portal-search/{codigo}")
-async def search_portal(codigo: str):
+async def search_portal(codigo: str, _user: User = Depends(_require_superadmin)):
     """
     Busca um código específico no portal.
     Acesse: /api/v1/debug/portal-search/722585
@@ -135,7 +150,7 @@ async def search_portal(codigo: str):
 
 
 @router.get("/test-extraction")
-async def test_extraction():
+async def test_extraction(_user: User = Depends(_require_superadmin)):
     """
     Testa a extração de código de mensagens.
     """
@@ -193,7 +208,7 @@ async def test_extraction():
 
 
 @router.get("/niche-check/{tenant_slug}")
-async def check_niche(tenant_slug: str):
+async def check_niche(tenant_slug: str, _user: User = Depends(_require_superadmin)):
     """
     Verifica o niche de um tenant específico.
     """
@@ -207,5 +222,5 @@ async def check_niche(tenant_slug: str):
     return {
         "tenant_slug": tenant_slug,
         "nichos_validos": NICHOS_IMOBILIARIOS,
-        "note": "Use o SQL no Railway para verificar: SELECT settings->>'niche' FROM tenants WHERE slug = '{}'".format(tenant_slug)
+        "note": "Consulte o banco de dados para verificar o niche do tenant."
     }

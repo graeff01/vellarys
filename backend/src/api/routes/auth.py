@@ -5,13 +5,14 @@ ROTAS: AUTENTICAÇÃO
 Login, registro e informações do usuário.
 """
 
-import logging # 👈 Adicionado
+import logging
+import re
 from datetime import timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from src.infrastructure.database import get_db
 from src.infrastructure.services.auth_service import (
@@ -33,24 +34,54 @@ from src.config import get_settings
 
 settings = get_settings()
 
-logger = logging.getLogger(__name__) # 👈 Adicionado
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
+
+# Regex para slugs válidos: letras minúsculas, números e hífens, 3-30 caracteres
+SLUG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{2,30}$")
+# Mínimo de caracteres para senha
+MIN_PASSWORD_LENGTH = 8
 
 
 # ============================================
 # SCHEMAS
 # ============================================
 
+class RegisterRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=100)
+    email: EmailStr
+    password: str = Field(..., min_length=MIN_PASSWORD_LENGTH, max_length=128)
+    company_name: str = Field(..., min_length=2, max_length=100)
+    company_slug: str = Field(..., min_length=3, max_length=30)
+    niche: str = "services"
+
+    @field_validator("company_slug")
+    @classmethod
+    def validate_slug(cls, v: str) -> str:
+        v = v.lower().strip()
+        if not SLUG_PATTERN.match(v):
+            raise ValueError("Slug deve conter apenas letras minúsculas, números e hífens (3-30 caracteres).")
+        return v
 
 
 class ChangePasswordRequest(BaseModel):
     current_password: str
-    new_password: str
+    new_password: str = Field(..., min_length=MIN_PASSWORD_LENGTH, max_length=128)
 
 
 # ============================================
 # HELPERS
 # ============================================
+
+def mask_email(email: str) -> str:
+    """Mascara email para logs (LGPD). Ex: user@email.com -> u***@email.com"""
+    if not email or "@" not in email:
+        return "***"
+    local, domain = email.rsplit("@", 1)
+    if len(local) <= 1:
+        return f"*@{domain}"
+    return f"{local[0]}***@{domain}"
+
 
 def get_client_ip(request: Request) -> Optional[str]:
     """Extrai IP do cliente da requisição."""
@@ -151,7 +182,7 @@ async def login(
     try:
         is_valid, needs_upgrade = verify_password(payload.password, user.password_hash)
     except Exception as e:
-        logger.error(f"❌ ERRO CRÍTICO NA VERIFICAÇÃO DE SENHA ({payload.email}): {str(e)}", exc_info=True)
+        logger.error(f"Erro na verificação de senha ({mask_email(payload.email)}): {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail="Erro ao processar sua autenticação. Nossa equipe foi notificada."
@@ -175,7 +206,7 @@ async def login(
     
     # Se a senha for válida mas o hash for antigo/fraco, fazemos o upgrade agora
     if needs_upgrade:
-        logger.info(f"Fazendo upgrade automático de segurança para o usuário: {user.email}")
+        logger.info(f"Upgrade automático de hash para usuário ID={user.id}")
         user.password_hash = hash_password(payload.password)
         # O commit será feito ao final do processo de login logo abaixo
     
@@ -238,57 +269,68 @@ async def login(
 
 @router.post("/register")
 async def register(
-    name: str,
-    email: str,
-    password: str,
-    company_name: str,
-    company_slug: str,
-    niche: str = "services",
+    payload: RegisterRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """
     Usado no onboarding de novos clientes.
+    Recebe dados via JSON body (nunca query params — protege senhas em logs/URLs).
     """
-    # 🛡️ LISTA DE SLUGS RESERVADOS (SEGURANÇA)
-    reserved_slugs = {"admin", "api", "auth", "dashboard", "master", "root", "system", "vellarys"}
-    if company_slug.lower() in reserved_slugs:
+    # Rate limiting: máximo 10 registros globais por hora (proteção contra spam massivo)
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+    one_hour_ago = datetime.now() - timedelta(hours=1)
+    recent_count_result = await db.execute(
+        select(func.count(Tenant.id)).where(Tenant.created_at >= one_hour_ago)
+    )
+    recent_count = recent_count_result.scalar() or 0
+    if recent_count >= 10:
+        logger.warning(f"Rate limit de registro atingido ({recent_count} registros na última hora)")
         raise HTTPException(
-            status_code=400,
-            detail=f"O nome da empresa '{company_slug}' não pode ser usado."
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Muitos cadastros recentes. Tente novamente em alguns minutos.",
+            headers={"Retry-After": "3600"},
         )
 
-    # 🛡️ PROTEÇÃO: Verificação básica de spam (pode ser expandida para Redis depois)
-    # Por enquanto, logamos a tentativa para auditoria
-    logger.info(f"✨ Nova tentativa de registro: {email} ({company_name})")
-    
+    # Slugs reservados
+    reserved_slugs = {"admin", "api", "auth", "dashboard", "master", "root", "system", "vellarys", "superadmin", "www", "app", "mail", "ftp"}
+    if payload.company_slug in reserved_slugs:
+        raise HTTPException(
+            status_code=400,
+            detail="Este nome de empresa não pode ser usado."
+        )
+
+    logger.info(f"Nova tentativa de registro: {mask_email(payload.email)}")
+
     # Verifica se email já existe
     result = await db.execute(
-        select(User).where(User.email == email)
+        select(User).where(User.email == payload.email)
     )
     if result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email já cadastrado",
         )
-    
+
     # Verifica se slug já existe
     result = await db.execute(
-        select(Tenant).where(Tenant.slug == company_slug)
+        select(Tenant).where(Tenant.slug == payload.company_slug)
     )
     if result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Slug já está em uso",
         )
-    
+
     # Cria tenant
     tenant = Tenant(
-        name=company_name,
-        slug=company_slug,
+        name=payload.company_name,
+        slug=payload.company_slug,
         plan="starter",
         settings={
-            "niche": niche,
-            "company_name": company_name,
+            "niche": payload.niche,
+            "company_name": payload.company_name,
             "tone": "cordial",
             "custom_questions": [],
             "custom_rules": [],
@@ -297,18 +339,18 @@ async def register(
     )
     db.add(tenant)
     await db.flush()
-    
+
     # Cria usuário
     user = User(
         tenant_id=tenant.id,
-        name=name,
-        email=email,
-        password_hash=hash_password(password),
+        name=payload.name,
+        email=payload.email,
+        password_hash=hash_password(payload.password),
         role=UserRole.ADMIN.value,
         active=True,
     )
     db.add(user)
-    
+
     # Cria canal WhatsApp padrão
     channel = Channel(
         tenant_id=tenant.id,
@@ -318,14 +360,14 @@ async def register(
         active=True,
     )
     db.add(channel)
-    
+
     await db.commit()
-    
+
     # Gera token
     access_token = create_access_token(
         data={"sub": str(user.id), "tenant_id": str(tenant.id)}
     )
-    
+
     return {
         "success": True,
         "message": "Cadastro realizado com sucesso",
@@ -357,17 +399,11 @@ async def change_password(
     """
     
     # Verifica senha atual
-    if not verify_password(data.current_password, current_user.password_hash):
+    is_valid, _ = verify_password(data.current_password, current_user.password_hash)
+    if not is_valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Senha atual incorreta",
-        )
-    
-    # Valida nova senha
-    if len(data.new_password) < 6:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Nova senha deve ter pelo menos 6 caracteres",
         )
     
     # Atualiza senha

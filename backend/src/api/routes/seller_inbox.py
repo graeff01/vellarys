@@ -16,9 +16,9 @@ NOVO FLUXO (handoff_mode = "crm_inbox"):
 Fluxo antigo (handoff_mode = "whatsapp_pessoal") continua funcionando normalmente.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, and_, or_, func, update as sql_update
 from sqlalchemy.orm import selectinload
@@ -418,7 +418,7 @@ async def take_over_conversation(
 
         # Marca como assumido pelo corretor
         lead.attended_by = "seller"
-        lead.seller_took_over_at = datetime.utcnow()
+        lead.seller_took_over_at = datetime.now(timezone.utc)
         lead.status = LeadStatus.HANDED_OFF  # Atualiza status
 
         # Adiciona mensagem de sistema
@@ -427,7 +427,7 @@ async def take_over_conversation(
             role="system",
             content=f"🔄 {current_user.name} assumiu o atendimento",
             sender_type="system",
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
         session.add(system_message)
 
@@ -513,12 +513,12 @@ async def send_message_as_seller(
             content=request.content,
             sender_type="seller",
             sender_user_id=current_user.id,
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
         session.add(message)
 
         # Atualiza last_message_at do lead
-        lead.last_message_at = datetime.utcnow()
+        lead.last_message_at = datetime.now(timezone.utc)
 
         await session.commit()
         await session.refresh(message)
@@ -600,7 +600,7 @@ async def return_to_ai(
             role="system",
             content=f"🤖 {current_user.name} devolveu o lead para a IA continuar o atendimento",
             sender_type="system",
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
         session.add(system_message)
 
@@ -1158,8 +1158,23 @@ async def upload_attachment(
         if not lead_result.scalar_one_or_none():
             raise HTTPException(status_code=404, detail="Lead não encontrado")
 
-        # Lê arquivo
+        # Validação de tamanho (máx 10MB)
+        MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
         file_content = await file.read()
+        if len(file_content) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Arquivo muito grande. Máximo permitido: 10MB. Recebido: {len(file_content) / 1024 / 1024:.1f}MB"
+            )
+
+        # Validação de tipo MIME
+        ALLOWED_TYPES = {"image/", "application/pdf", "audio/", "video/"}
+        content_type = file.content_type or ""
+        if not any(content_type.startswith(t) for t in ALLOWED_TYPES):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Tipo de arquivo não permitido: {content_type}"
+            )
 
         # Upload via service
         try:
@@ -1237,7 +1252,7 @@ async def archive_lead(
             raise HTTPException(status_code=400, detail="Lead já está arquivado")
 
         # Arquiva
-        lead.archived_at = datetime.utcnow()
+        lead.archived_at = datetime.now(timezone.utc)
         lead.archived_by = current_user.id
         lead.archive_reason = request.reason
 
@@ -1478,7 +1493,8 @@ async def search_messages(
 
 @router.post("/webhook/message-status")
 async def webhook_message_status(
-    webhook_data: Dict[str, Any]
+    webhook_data: Dict[str, Any],
+    request: Request,
 ):
     """
     Webhook do Z-API para atualizar status de mensagens.
@@ -1488,6 +1504,17 @@ async def webhook_message_status(
     - MESSAGE_READ
     - MESSAGE_FAILED
     """
+    # Validação básica: verificar token se configurado
+    from src.config import get_settings
+    _settings = get_settings()
+    if _settings.webhook_verify_token:
+        token = None
+        # Tenta extrair token do header ou query param
+        auth_header = request.headers.get("X-Webhook-Token") or request.query_params.get("verify_token")
+        if auth_header != _settings.webhook_verify_token:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=401, detail="Invalid webhook token")
+
     success = await message_status_service.process_status_webhook(
         db=async_session(),
         webhook_data=webhook_data

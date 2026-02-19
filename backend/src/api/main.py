@@ -178,7 +178,16 @@ app = FastAPI(
 )
 
 # ============================================================
-# 🛡️ MIDDLEWARE DE SEGURANÇA (Headers Globais)
+# RATE LIMITING (SlowAPI)
+# ============================================================
+from src.infrastructure.middleware.rate_limiter import limiter, rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+# ============================================================
+# MIDDLEWARE DE SEGURANÇA (Headers Globais)
 # ============================================================
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -197,7 +206,7 @@ async def add_security_headers(request: Request, call_next):
     # 🛡️ PROTEÇÃO TOTAL & CORS FORÇADO: Headers de Segurança
     csp_policy = (
         "default-src 'self' https://vellarys.app https://vellarys.up.railway.app; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.sentry-cdn.com https://browser.sentry-cdn.com; "
+        "script-src 'self' 'unsafe-inline' https://js.sentry-cdn.com https://browser.sentry-cdn.com; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data: https:; "
         "font-src 'self' data:; "
@@ -211,12 +220,6 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     
-    # Forçar CORS na resposta de erro se necessário
-    if "Access-Control-Allow-Origin" not in response.headers:
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "*"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-
     return response
 
 # ============================================================
@@ -227,9 +230,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Tenant-Override", "X-Request-ID", "Accept", "Origin"],
+    expose_headers=["X-Request-ID", "Retry-After"],
 )
 
 
@@ -256,14 +259,12 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         allowed = False
         if origin in settings.cors_origins_list or "*" in settings.cors_origins_list:
             allowed = True
-        elif origin.endswith(".up.railway.app"):
-            allowed = True
 
         if allowed:
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
-            response.headers["Access-Control-Allow-Methods"] = "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT"
-            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, X-Tenant-Override, X-Request-ID, Accept, Origin"
             response.headers["Vary"] = "Origin"
 
     return response

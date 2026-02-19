@@ -214,7 +214,7 @@ async def send_push_to_user(
         if result.get("success"):
             sent += 1
             # Atualiza last_used_at
-            sub.last_used_at = datetime.utcnow()
+            sub.last_used_at = datetime.now(timezone.utc)
             sub.failure_count = 0
         else:
             failed += 1
@@ -297,7 +297,7 @@ async def send_push_to_tenant(
         
         if result.get("success"):
             sent += 1
-            sub.last_used_at = datetime.utcnow()
+            sub.last_used_at = datetime.now(timezone.utc)
             sub.failure_count = 0
         else:
             failed += 1
@@ -424,4 +424,4 @@ async def cleanup_invalid_subscriptions(db: AsyncSession) -> Dict[str, int]:
 
 
 # Import necessário
-from datetime import datetime
+from datetime import datetime, timezone

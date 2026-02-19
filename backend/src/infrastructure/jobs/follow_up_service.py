@@ -22,7 +22,7 @@ VERSÃO: 2.1
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -193,7 +193,7 @@ class FollowUpService:
         6. Último follow-up foi há mais de Y horas (se houver)
         """
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         inactivity_threshold = now - timedelta(hours=config["inactivity_hours"])
         interval_threshold = now - timedelta(hours=config["interval_hours"])
         
@@ -341,7 +341,7 @@ class FollowUpService:
                 
                 # Atualiza lead
                 lead.reengagement_attempts = attempt
-                lead.last_reengagement_at = datetime.utcnow()
+                lead.last_reengagement_at = datetime.now(timezone.utc)
                 lead.reengagement_status = "pending"
                 
                 # Se foi a última tentativa, marca como "final"
@@ -598,8 +598,8 @@ RESPONDA APENAS A MENSAGEM DO WHATSAPP.
                 
                 # Atualiza lead
                 lead.reengagement_attempts = (lead.reengagement_attempts or 0) + 1
-                lead.last_reengagement_at = datetime.utcnow()
-                lead.last_activity_at = datetime.utcnow()
+                lead.last_reengagement_at = datetime.now(timezone.utc)
+                lead.last_activity_at = datetime.now(timezone.utc)
                 
                 await session.commit()
                 

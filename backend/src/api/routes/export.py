@@ -7,8 +7,9 @@ Endpoints para exportar dados em diferentes formatos.
 
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from src.infrastructure.middleware.rate_limiter import limiter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
@@ -59,7 +60,9 @@ def get_date_range(period: str, start_date: str = None, end_date: str = None):
 
 
 @router.get("/excel")
+@limiter.limit("10/hour")
 async def export_excel(
+    request: Request,
     period: str = Query("month", description="Período: week, month, quarter, year, all, custom"),
     start_date: Optional[str] = Query(None, description="Data início (YYYY-MM-DD) para período custom"),
     end_date: Optional[str] = Query(None, description="Data fim (YYYY-MM-DD) para período custom"),
@@ -114,7 +117,9 @@ async def export_excel(
 
 
 @router.get("/csv")
+@limiter.limit("10/hour")
 async def export_csv(
+    request: Request,
     period: str = Query("month", description="Período: week, month, quarter, year, all, custom"),
     start_date: Optional[str] = Query(None, description="Data início (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="Data fim (YYYY-MM-DD)"),
@@ -165,7 +170,9 @@ async def export_csv(
 
 
 @router.get("/pdf")
+@limiter.limit("10/hour")
 async def export_pdf(
+    request: Request,
     period: str = Query("month", description="Período: week, month, quarter, year, all, custom"),
     start_date: Optional[str] = Query(None, description="Data início (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="Data fim (YYYY-MM-DD)"),

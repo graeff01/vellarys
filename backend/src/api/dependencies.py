@@ -5,6 +5,7 @@ DEPENDENCIES (Dependências)
 Funções que são injetadas nas rotas para validação.
 """
 
+import logging
 from typing import Optional
 from fastapi import Depends, HTTPException, status, Request, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -14,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.infrastructure.database import get_db
 from src.infrastructure.services.auth_service import decode_access_token
 from src.domain.entities import User, Tenant
+
+logger = logging.getLogger(__name__)
 
 # Esquema de autenticação Bearer
 security = HTTPBearer()
@@ -79,17 +82,33 @@ async def get_current_tenant(
     
     # Lógica de override para Superadmin (God Mode)
     is_super = user.role == "superadmin" or getattr(user, "is_superadmin", False)
-    
+
     if is_super:
+        override_source = None
+        original_tenant_id = tenant_id
+
         # 1. Prioridade: Query Parameter
         if target_tenant_id:
             tenant_id = target_tenant_id
+            override_source = "query_param"
         # 2. Segunda opção: Header X-Tenant-Override
         elif "x-tenant-override" in request.headers:
             try:
                 tenant_id = int(request.headers.get("x-tenant-override"))
-            except:
-                pass
+                override_source = "header"
+            except (ValueError, TypeError):
+                logger.warning(
+                    f"Tenant override inválido via header: {request.headers.get('x-tenant-override')!r} "
+                    f"(user_id={user.id})"
+                )
+
+        # Audit log quando houver override
+        if override_source and tenant_id != original_tenant_id:
+            logger.info(
+                f"AUDIT: Superadmin user_id={user.id} override tenant "
+                f"{original_tenant_id} -> {tenant_id} via {override_source} "
+                f"(path={request.url.path}, ip={request.client.host if request.client else 'unknown'})"
+            )
 
     result = await db.execute(
         select(Tenant).where(Tenant.id == tenant_id).where(Tenant.active == True)

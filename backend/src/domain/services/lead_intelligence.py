@@ -5,7 +5,7 @@ Orquestra qualificação, resumos e notificações inteligentes.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -77,7 +77,7 @@ class LeadIntelligence:
                 lead.qualification = new_qual
                 lead.qualification_confidence = qualification_data["confidence"]
                 lead.qualification_score = qualification_data["score"]
-                lead.last_qualification_at = datetime.utcnow()
+                lead.last_qualification_at = datetime.now(timezone.utc)
 
                 result["qualification_changed"] = True
                 result["new_qualification"] = new_qual

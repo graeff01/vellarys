@@ -18,7 +18,8 @@ from sqlalchemy import select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.infrastructure.database import get_db
-from src.domain.entities import Lead, Tenant, Message
+from src.domain.entities import Lead, Tenant, Message, User
+from src.api.dependencies import get_current_user
 from src.config import get_settings
 
 settings = get_settings()
@@ -107,7 +108,10 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 # =============================================================================
 
 @router.get("/detailed")
-async def health_check_detailed(db: AsyncSession = Depends(get_db)):
+async def health_check_detailed(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
     """
     Health check completo com métricas detalhadas.
     
@@ -362,7 +366,7 @@ async def health_check_detailed(db: AsyncSession = Depends(get_db)):
 # =============================================================================
 
 @router.get("/pool")
-async def pool_status():
+async def pool_status(_user: User = Depends(get_current_user)):
     """
     Status detalhado do pool de conexões do banco de dados.
 

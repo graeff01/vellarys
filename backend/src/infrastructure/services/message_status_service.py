@@ -15,7 +15,7 @@ Webhooks Z-API:
 - MESSAGE_DELIVERED: Mensagem entregue
 - MESSAGE_READ: Mensagem lida
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
@@ -91,13 +91,13 @@ class MessageStatusService:
             update_data = {"status": new_status}
 
             if new_status == "delivered" and not message.delivered_at:
-                update_data["delivered_at"] = timestamp or datetime.utcnow()
+                update_data["delivered_at"] = timestamp or datetime.now(timezone.utc)
 
             if new_status == "read" and not message.read_at:
-                update_data["read_at"] = timestamp or datetime.utcnow()
+                update_data["read_at"] = timestamp or datetime.now(timezone.utc)
                 # Se foi lida, também foi entregue
                 if not message.delivered_at:
-                    update_data["delivered_at"] = timestamp or datetime.utcnow()
+                    update_data["delivered_at"] = timestamp or datetime.now(timezone.utc)
 
             # Update no banco
             stmt = (
@@ -150,12 +150,12 @@ class MessageStatusService:
             update_data = {"status": status}
 
             if status == "delivered":
-                update_data["delivered_at"] = timestamp or datetime.utcnow()
+                update_data["delivered_at"] = timestamp or datetime.now(timezone.utc)
 
             if status == "read":
-                update_data["read_at"] = timestamp or datetime.utcnow()
+                update_data["read_at"] = timestamp or datetime.now(timezone.utc)
                 if not message.delivered_at:
-                    update_data["delivered_at"] = timestamp or datetime.utcnow()
+                    update_data["delivered_at"] = timestamp or datetime.now(timezone.utc)
 
             # Atualiza
             stmt = (
@@ -173,7 +173,7 @@ class MessageStatusService:
                 lead_id=message.lead_id,
                 message_id=message_id,
                 status=status,
-                timestamp=(timestamp or datetime.utcnow()).isoformat()
+                timestamp=(timestamp or datetime.now(timezone.utc)).isoformat()
             )
 
         except Exception as e:

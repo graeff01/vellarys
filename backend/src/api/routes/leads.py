@@ -9,7 +9,7 @@ CORREÇÕES:
 - Melhor logging para debug
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional  # ← ADICIONAR ESTA LINHA
 import logging
 
@@ -415,7 +415,7 @@ async def handoff_lead(
         old_status = lead.status
         lead.status = "handed_off"
         lead.assigned_to = user_id
-        lead.handed_off_at = datetime.utcnow()
+        lead.handed_off_at = datetime.now(timezone.utc)
 
         db.add(
             LeadEvent(
@@ -592,7 +592,7 @@ async def get_metrics(
     try:
         from datetime import timedelta
         
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         week_start = today_start - timedelta(days=now.weekday())
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)

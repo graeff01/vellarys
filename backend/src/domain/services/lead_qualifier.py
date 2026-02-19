@@ -7,7 +7,7 @@ CORREÇÃO FINAL: Padrões que detectam QUALQUER variação!
 import re
 import logging
 from typing import List, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -285,7 +285,7 @@ class LeadQualifier:
         if not last_qualification_at:
             return True
         
-        time_since_qualification = datetime.utcnow() - last_qualification_at
+        time_since_qualification = datetime.now(timezone.utc) - last_qualification_at
         
         # Re-qualifica a cada 24h
         if time_since_qualification > timedelta(hours=24):

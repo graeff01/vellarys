@@ -19,7 +19,7 @@ Arquitetura:
 import asyncio
 import json
 from typing import Dict, Set, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 logger = logging.getLogger(__name__)
@@ -79,7 +79,7 @@ class SSEConnectionManager:
             # Formata evento SSE
             event_data = {
                 "type": event_type,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "data": data
             }
 
@@ -125,7 +125,7 @@ async def broadcast_message_status(lead_id: int, message_id: int, status: str, t
     await sse_manager.broadcast(lead_id, "message_status", {
         "message_id": message_id,
         "status": status,
-        "timestamp": timestamp or datetime.utcnow().isoformat()
+        "timestamp": timestamp or datetime.now(timezone.utc).isoformat()
     })
 
 

@@ -6,7 +6,7 @@ Representa um vendedor da equipe do tenant.
 Recebe leads qualificados automaticamente.
 """
 
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, List
 from sqlalchemy import String, Boolean, ForeignKey, Text, Integer, DateTime, Date
 from sqlalchemy.dialects.postgresql import JSONB, ARRAY
@@ -158,4 +158,4 @@ class Seller(Base, TimestampMixin):
             self.leads_today += 1
         
         self.total_leads += 1
-        self.last_lead_at = datetime.utcnow()
+        self.last_lead_at = datetime.now(timezone.utc)
